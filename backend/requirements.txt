@@ -31,3 +31,6 @@ pytz==2024.1
 
 # Production server
 gunicorn==21.2.0
+
+# Static file serving
+whitenoise==6.6.0
