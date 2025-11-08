@@ -1,0 +1,30 @@
+# Core Django
+Django==5.0.1
+djangorestframework==3.14.0
+
+# Authentication and CORS
+djangorestframework-simplejwt==5.3.1
+dj-rest-auth==5.0.2
+django-allauth==0.61.1
+django-cors-headers==4.3.1
+
+# Google AI (Gemini)
+google-generativeai==0.3.2
+
+# YouTube transcript extraction
+youtube-transcript-api==0.6.2
+
+# HTTP requests
+requests==2.31.0
+
+# Environment variables
+python-dotenv==1.0.1
+
+# Image handling
+Pillow==10.2.0
+
+# Database (for PostgreSQL in production, optional)
+# psycopg2-binary==2.9.9
+
+# Additional utilities
+pytz==2024.1

@@ -1,0 +1,61 @@
+# Performance optimization dependencies for EduReach backend
+
+# Redis caching
+django-redis==5.4.0
+redis==5.0.1
+
+# Database optimization
+psycopg2-binary==2.9.9  # PostgreSQL adapter (if using PostgreSQL)
+django-extensions==3.2.3  # Useful development tools
+
+# Compression and static files
+django-compressor==4.4
+whitenoise==6.6.0  # Static file serving
+
+# Monitoring and profiling
+django-debug-toolbar==4.2.0  # Development profiling
+django-silk==5.0.4  # Request profiling
+sentry-sdk[django]==1.38.0  # Error tracking and performance monitoring
+
+# Async support
+channels==4.0.0  # WebSocket and async support
+channels-redis==4.1.0
+daphne==4.0.0  # ASGI server
+
+# Background tasks
+celery==5.3.4
+django-celery-beat==2.5.0
+django-celery-results==2.5.1
+
+# API optimization
+djangorestframework-simplejwt==5.3.0
+django-filter==23.5
+django-cors-headers==4.3.1
+
+# Performance testing
+locust==2.17.0  # Load testing
+
+# Production server
+gunicorn==21.2.0
+uvicorn[standard]==0.24.0  # ASGI server for async support
+
+# Environment management
+python-decouple==3.8  # Environment variables
+
+# Installation instructions:
+# pip install -r requirements_performance.txt
+
+# Additional Redis setup (Windows):
+# 1. Download Redis for Windows from: https://github.com/microsoftarchive/redis/releases
+# 2. Or use Docker: docker run -d -p 6379:6379 redis:alpine
+# 3. Or use WSL2 with Redis installed
+
+# PostgreSQL setup (optional, for production):
+# 1. Install PostgreSQL
+# 2. Create database: createdb edureach
+# 3. Update DATABASE_URL in .env file
+
+# Celery setup (for background tasks):
+# 1. Start Redis server
+# 2. Start Celery worker: celery -A edureach_project worker -l info
+# 3. Start Celery beat (for scheduled tasks): celery -A edureach_project beat -l info

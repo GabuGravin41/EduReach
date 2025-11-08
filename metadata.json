@@ -1,0 +1,5 @@
+{
+  "name": "EduReach",
+  "description": "An AI-powered learning platform that uses YouTube videos to create interactive lessons. Users can watch videos, chat with an AI tutor about the content, and take AI-generated quizzes to test their knowledge.",
+  "requestFramePermissions": []
+}
