@@ -161,6 +161,13 @@ cors_origins_env = os.environ.get(
 )
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
 
+# Allow Capacitor mobile app origins
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^capacitor://localhost$",
+    r"^http://localhost$",
+    r"^ionic://localhost$",
+]
+
 CORS_ALLOW_CREDENTIALS = True
 
 # dj-rest-auth settings
