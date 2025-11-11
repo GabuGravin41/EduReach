@@ -3,18 +3,23 @@ import { YouTubePlayer } from './YouTubePlayer';
 import { AIAssistant } from './AIAssistant';
 import { StudyPanel } from './StudyPanel';
 import { aiService } from '../src/services/aiService';
+import { youtubeService } from '../src/services/youtubeService';
 import { ChatMessage, QuizQuestion } from '../types';
 
 interface LearningSessionProps {
   videoId: string;
   transcript: string;
+  lessonId?: number;
+  lessonTitle?: string;
 }
 
-export const LearningSession: React.FC<LearningSessionProps> = ({ videoId, transcript }) => {
+export const LearningSession: React.FC<LearningSessionProps> = ({ videoId, transcript, lessonId, lessonTitle }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [quiz, setQuiz] = useState<QuizQuestion[] | null>(null);
   const [notes, setNotes] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isSavingQuiz, setIsSavingQuiz] = useState<boolean>(false);
+  const [quizSaved, setQuizSaved] = useState<boolean>(false);
 
   useEffect(() => {
     if (transcript) {
@@ -27,6 +32,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({ videoId, trans
   const handleGenerateQuiz = async () => {
     if (!transcript || quiz) return;
     setIsLoading(true);
+    setQuizSaved(false);
     try {
       const newQuiz = await aiService.generateQuiz({ transcript });
       setQuiz(newQuiz);
@@ -35,6 +41,27 @@ export const LearningSession: React.FC<LearningSessionProps> = ({ videoId, trans
       // You could set an error message in the state to show in the UI
     } finally {
       setIsLoading(false);
+    }
+  };
+  
+  const handleSaveQuiz = async () => {
+    if (!quiz || !lessonId || isSavingQuiz) return;
+    
+    setIsSavingQuiz(true);
+    try {
+      await youtubeService.saveQuizAsAssessment(lessonId, {
+        title: `Quiz: ${lessonTitle || 'Video Quiz'}`,
+        quiz_data: { questions: quiz },
+        time_limit_minutes: quiz.length * 2, // 2 mins per question
+        is_public: true
+      });
+      setQuizSaved(true);
+      alert('Quiz saved to Assessments! You can find it in the Assessments page.');
+    } catch (error) {
+      console.error("Failed to save quiz", error);
+      alert('Failed to save quiz. Please try again.');
+    } finally {
+      setIsSavingQuiz(false);
     }
   };
 
@@ -97,6 +124,9 @@ export const LearningSession: React.FC<LearningSessionProps> = ({ videoId, trans
           onGenerateQuiz={handleGenerateQuiz}
           onSendMessage={handleSendMessage}
           quiz={quiz}
+          onSaveQuiz={lessonId ? handleSaveQuiz : undefined}
+          isSavingQuiz={isSavingQuiz}
+          quizSaved={quizSaved}
         />
       </div>
     </div>

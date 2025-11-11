@@ -20,6 +20,23 @@ class Assessment(models.Model):
     )
     time_limit_minutes = models.PositiveIntegerField(default=30)
     is_public = models.BooleanField(default=True)
+    
+    # Video linking - for quizzes generated from or associated with videos
+    source_lesson = models.ForeignKey(
+        'courses.Lesson',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='generated_assessments',
+        help_text='Lesson this quiz was generated from'
+    )
+    related_lessons = models.ManyToManyField(
+        'courses.Lesson',
+        blank=True,
+        related_name='related_assessments',
+        help_text='Videos tagged as relevant to this assessment'
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -28,6 +45,13 @@ class Assessment(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+    
+    def get_all_related_lessons(self):
+        """Get all related lessons (source + tagged)."""
+        lessons = list(self.related_lessons.all())
+        if self.source_lesson and self.source_lesson not in lessons:
+            lessons.insert(0, self.source_lesson)
+        return lessons
 
 
 class Question(models.Model):

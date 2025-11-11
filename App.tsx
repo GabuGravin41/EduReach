@@ -18,14 +18,14 @@ import { ExamDetailPage } from './components/ExamDetailPage';
 import { UserCircleIcon } from './components/icons/UserCircleIcon';
 
 // Lazy load heavy components for better performance
-const CreateCoursePage = lazy(() => import('./components/CreateCoursePage'));
-const CreateExamPage = lazy(() => import('./components/CreateExamPage'));
-const PricingPage = lazy(() => import('./components/PricingPage'));
-const GenerateAIQuizPage = lazy(() => import('./components/GenerateAIQuizPage'));
-const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
-const UserProfilePage = lazy(() => import('./components/UserProfilePage'));
-const EnhancedAssessmentsPage = lazy(() => import('./components/EnhancedAssessmentsPage'));
-const EnhancedCreateExamPage = lazy(() => import('./components/EnhancedCreateExamPage'));
+const CreateCoursePage = lazy(() => import('./components/CreateCoursePage').then(module => ({ default: module.CreateCoursePage })));
+const CreateExamPage = lazy(() => import('./components/CreateExamPage').then(module => ({ default: module.CreateExamPage })));
+const PricingPage = lazy(() => import('./components/PricingPage').then(module => ({ default: module.PricingPage })));
+const GenerateAIQuizPage = lazy(() => import('./components/GenerateAIQuizPage').then(module => ({ default: module.GenerateAIQuizPage })));
+const AdminDashboard = lazy(() => import('./components/AdminDashboard').then(module => ({ default: module.AdminDashboard })));
+const UserProfilePage = lazy(() => import('./components/UserProfilePage').then(module => ({ default: module.UserProfilePage })));
+const EnhancedAssessmentsPage = lazy(() => import('./components/EnhancedAssessmentsPage').then(module => ({ default: module.EnhancedAssessmentsPage })));
+const EnhancedCreateExamPage = lazy(() => import('./components/EnhancedCreateExamPage').then(module => ({ default: module.EnhancedCreateExamPage })));
 
 export type View = 'dashboard' | 'courses' | 'assessments' | 'community' | 'new_session' | 'learning_session' | 'course_detail' | 'exam_detail' | 'create_course' | 'create_exam' | 'pricing' | 'generate_ai_quiz' | 'admin_panel' | 'profile';
 export type UserTier = 'free' | 'learner' | 'pro' | 'pro_plus' | 'admin';

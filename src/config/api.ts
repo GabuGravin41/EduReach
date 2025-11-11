@@ -45,4 +45,16 @@ export const API_ENDPOINTS = {
   AI_CHAT: '/ai/chat/',
   AI_STUDY_PLAN: '/ai/study-plan/',
   AI_EXPLAIN: '/ai/explain/',
+  
+  // YouTube
+  YOUTUBE_EXTRACT_TRANSCRIPT: '/youtube/extract-transcript/',
+  YOUTUBE_VIDEO_INFO: '/youtube/video-info/',
+  YOUTUBE_SAVE_NOTES: '/youtube/save-notes/',
+  YOUTUBE_GET_NOTES: '/youtube/notes/',
+  
+  // Lessons
+  LESSON_FETCH_TRANSCRIPT: (id: number) => `/lessons/${id}/fetch_transcript/`,
+  LESSON_UPDATE_MANUAL_TRANSCRIPT: (id: number) => `/lessons/${id}/update_manual_transcript/`,
+  LESSON_GET_TRANSCRIPT: (id: number) => `/lessons/${id}/get_transcript/`,
+  LESSON_GENERATE_QUIZ: (id: number) => `/lessons/${id}/generate_quiz/`,
 };

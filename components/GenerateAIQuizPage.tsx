@@ -30,17 +30,26 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
         throw new Error('Invalid YouTube URL');
       }
 
-      // TODO: Implement actual YouTube transcript extraction
-      // For now, simulate with a placeholder
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Import YouTube service
+      const { youtubeService } = await import('../src/services/youtubeService');
       
-      const mockTranscript = `This is a simulated transcript from YouTube video ${videoId}. In a real implementation, this would fetch the actual transcript using YouTube's API or a transcript extraction service.`;
+      // Fetch transcript from backend
+      const result = await youtubeService.extractTranscript(url, 'en');
       
-      setSourceText(mockTranscript);
-      setInputType('text'); // Switch to text view to show extracted transcript
+      if (result.success && result.transcript) {
+        setSourceText(result.transcript);
+        setInputType('text'); // Switch to text view to show extracted transcript
+        
+        // Auto-fill topic if empty
+        if (!topic && result.metadata?.title) {
+          setTopic(result.metadata.title);
+        }
+      } else {
+        throw new Error(result.error || 'Could not extract transcript');
+      }
       
-    } catch (err) {
-      setError('Failed to extract transcript. Please check the YouTube URL or try pasting the transcript manually.');
+    } catch (err: any) {
+      setError(err.message || 'Failed to extract transcript. Please check the YouTube URL or try pasting the transcript manually.');
     } finally {
       setIsExtractingTranscript(false);
     }

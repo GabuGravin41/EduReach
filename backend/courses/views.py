@@ -232,6 +232,13 @@ class LessonViewSet(viewsets.ModelViewSet):
             import google.generativeai as genai
             import json
             
+            # Validate GEMINI_API_KEY
+            if not settings.GEMINI_API_KEY:
+                return Response({
+                    'error': 'GEMINI_API_KEY is not configured. Please set it in your environment variables.',
+                    'can_fetch': False
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
             # Configure Gemini
             genai.configure(api_key=settings.GEMINI_API_KEY)
             model = genai.GenerativeModel('gemini-pro')
@@ -294,6 +301,73 @@ class LessonViewSet(viewsets.ModelViewSet):
             return Response({
                 'success': False,
                 'error': f'Error generating quiz: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['post'])
+    def save_quiz_as_assessment(self, request, pk=None):
+        """
+        Save generated quiz as an assessment linked to this lesson.
+        
+        POST /api/lessons/{id}/save_quiz_as_assessment/
+        {
+            "title": "Quiz Title",
+            "quiz_data": {...},
+            "time_limit_minutes": 30 (optional),
+            "is_public": true (optional)
+        }
+        """
+        from assessments.models import Assessment, Question
+        
+        lesson = self.get_object()
+        
+        title = request.data.get('title')
+        quiz_data = request.data.get('quiz_data')
+        time_limit = request.data.get('time_limit_minutes', 30)
+        is_public = request.data.get('is_public', True)
+        
+        if not title or not quiz_data:
+            return Response({
+                'error': 'Title and quiz_data are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Create assessment
+            assessment = Assessment.objects.create(
+                title=title,
+                topic=lesson.title,
+                description=f"Quiz generated from: {lesson.title}",
+                creator=request.user,
+                time_limit_minutes=time_limit,
+                is_public=is_public,
+                source_lesson=lesson  # Link to source lesson
+            )
+            
+            # Create questions
+            questions = quiz_data.get('questions', [])
+            for idx, q in enumerate(questions):
+                Question.objects.create(
+                    assessment=assessment,
+                    question_text=q.get('question', ''),
+                    question_type=q.get('type', 'mcq'),
+                    options=q.get('options', []),
+                    correct_answer=q.get('correct_answer', ''),
+                    explanation=q.get('explanation', ''),
+                    points=1,
+                    order=idx
+                )
+            
+            return Response({
+                'success': True,
+                'message': 'Quiz saved as assessment',
+                'assessment_id': assessment.id,
+                'assessment_title': assessment.title,
+                'questions_count': len(questions)
+            })
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': f'Error saving quiz: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['get'])

@@ -49,17 +49,28 @@ class AssessmentListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for assessment lists."""
     creator_username = serializers.CharField(source='creator.username', read_only=True)
     question_count = serializers.SerializerMethodField()
+    related_lessons = serializers.SerializerMethodField()
     
     class Meta:
         model = Assessment
         fields = [
             'id', 'title', 'topic', 'description',
             'creator_username', 'time_limit_minutes',
-            'question_count', 'created_at'
+            'question_count', 'related_lessons', 'created_at'
         ]
 
     def get_question_count(self, obj):
         return obj.questions.count()
+    
+    def get_related_lessons(self, obj):
+        """Get all related lessons (source + tagged)."""
+        lessons = obj.get_all_related_lessons()
+        return [{
+            'id': lesson.id,
+            'title': lesson.title,
+            'video_id': lesson.video_id,
+            'course_title': lesson.course.title
+        } for lesson in lessons]
 
 
 class UserAttemptSerializer(serializers.ModelSerializer):

@@ -56,6 +56,15 @@ class Lesson(models.Model):
     def get_transcript(self):
         """Get transcript, preferring auto-fetched over manual."""
         return self.transcript or self.manual_transcript
+    
+    def get_all_related_assessments(self):
+        """Get all assessments related to this lesson (generated + tagged)."""
+        from assessments.models import Assessment
+        generated = self.generated_assessments.all()
+        related = self.related_assessments.all()
+        # Combine and remove duplicates
+        all_assessments = list(generated) + [a for a in related if a not in generated]
+        return all_assessments
 
     class Meta:
         ordering = ['order']

@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { PlusCircleIcon } from './icons/PlusCircleIcon';
 import { TrashIcon } from './icons/TrashIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XCircleIcon } from './icons/XCircleIcon';
 import { View } from '../App';
+import { youtubeService } from '../src/services/youtubeService';
 
 interface CreateCoursePageProps {
   onCourseCreated: (course: any) => void;
@@ -13,6 +16,14 @@ interface CreateCoursePageProps {
 interface Lesson {
   title: string;
   videoId: string;
+  validated?: boolean;
+  validating?: boolean;
+  videoInfo?: {
+    title: string;
+    duration?: number;
+    has_transcript: boolean;
+  };
+  error?: string;
 }
 
 export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCreated, onCancel, lessonLimit, setView }) => {
@@ -37,7 +48,56 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
   const handleLessonChange = (index: number, field: 'title' | 'videoId', value: string) => {
     const newLessons = [...lessons];
     newLessons[index][field] = value;
+    // Reset validation when video ID changes
+    if (field === 'videoId') {
+      newLessons[index].validated = false;
+      newLessons[index].error = undefined;
+      newLessons[index].videoInfo = undefined;
+    }
     setLessons(newLessons);
+  };
+  
+  const validateVideo = async (index: number) => {
+    const lesson = lessons[index];
+    const videoId = extractVideoId(lesson.videoId);
+    
+    if (!videoId || videoId.length !== 11) {
+      const newLessons = [...lessons];
+      newLessons[index].error = 'Invalid YouTube URL or Video ID';
+      newLessons[index].validated = false;
+      setLessons(newLessons);
+      return;
+    }
+    
+    const newLessons = [...lessons];
+    newLessons[index].validating = true;
+    setLessons([...newLessons]);
+    
+    try {
+      const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      const info = await youtubeService.getVideoInfo(videoUrl);
+      
+      newLessons[index].validated = true;
+      newLessons[index].validating = false;
+      newLessons[index].videoInfo = {
+        title: info.metadata?.title || 'Unknown',
+        duration: info.metadata?.duration,
+        has_transcript: info.has_transcript
+      };
+      newLessons[index].error = undefined;
+      
+      // Auto-fill title if empty
+      if (!newLessons[index].title && info.metadata?.title) {
+        newLessons[index].title = info.metadata.title;
+      }
+      
+      setLessons([...newLessons]);
+    } catch (error: any) {
+      newLessons[index].validated = false;
+      newLessons[index].validating = false;
+      newLessons[index].error = 'Video not found or unavailable';
+      setLessons([...newLessons]);
+    }
   };
   
   const extractVideoId = (url: string): string => {
@@ -46,14 +106,26 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
     return match ? match[1] : url; // Return original string if no match, maybe show error later
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate all videos before submission
+    const unvalidatedLessons = lessons.filter(l => !l.validated);
+    if (unvalidatedLessons.length > 0) {
+      alert('Please validate all video URLs before creating the course.');
+      return;
+    }
+    
     const courseData = {
       title,
       description,
       isPublic,
-      // FIX: Added isCompleted and duration properties to align with the Course type.
-      lessons: lessons.map(l => ({...l, videoId: extractVideoId(l.videoId), isCompleted: false, duration: 'N/A'})),
+      lessons: lessons.map(l => ({
+        title: l.title,
+        videoId: extractVideoId(l.videoId),
+        isCompleted: false,
+        duration: l.videoInfo?.duration ? `${Math.floor(l.videoInfo.duration / 60)}:${String(l.videoInfo.duration % 60).padStart(2, '0')}` : 'N/A'
+      })),
       thumbnail: '/placeholder.svg',
     };
     onCourseCreated(courseData);
@@ -85,17 +157,43 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
           <h3 className="text-lg font-bold mb-4">Lessons ({lessons.length}/{lessonLimit === Infinity ? '∞' : lessonLimit})</h3>
           <div className="space-y-4">
             {lessons.map((lesson, index) => (
-              <div key={index} className="flex items-end gap-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                <span className="font-bold text-slate-500 dark:text-slate-400">{index + 1}.</span>
-                <div className="flex-1">
-                  <label className="block text-xs font-medium mb-1">Lesson Title</label>
-                  <input type="text" value={lesson.title} onChange={e => handleLessonChange(index, 'title', e.target.value)} required placeholder="e.g., Introduction to React" className="w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+              <div key={index} className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg space-y-3">
+                <div className="flex items-end gap-4">
+                  <span className="font-bold text-slate-500 dark:text-slate-400">{index + 1}.</span>
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium mb-1">Lesson Title</label>
+                    <input type="text" value={lesson.title} onChange={e => handleLessonChange(index, 'title', e.target.value)} required placeholder="e.g., Introduction to React" className="w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium mb-1">YouTube URL or Video ID</label>
+                    <input type="text" value={lesson.videoId} onChange={e => handleLessonChange(index, 'videoId', e.target.value)} required placeholder="e.g., zNzzGgr2mhk" className="w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => validateVideo(index)} 
+                    disabled={!lesson.videoId || lesson.validating}
+                    className="px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    {lesson.validating ? 'Checking...' : lesson.validated ? 'Re-check' : 'Validate'}
+                  </button>
+                  <button type="button" onClick={() => handleRemoveLesson(index)} disabled={lessons.length <= 1} className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"><TrashIcon className="w-5 h-5" /></button>
                 </div>
-                <div className="flex-1">
-                  <label className="block text-xs font-medium mb-1">YouTube URL or Video ID</label>
-                  <input type="text" value={lesson.videoId} onChange={e => handleLessonChange(index, 'videoId', e.target.value)} required placeholder="e.g., zNzzGgr2mhk" className="w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-1 focus:ring-indigo-500" />
-                </div>
-                <button type="button" onClick={() => handleRemoveLesson(index)} disabled={lessons.length <= 1} className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"><TrashIcon className="w-5 h-5" /></button>
+                
+                {lesson.validated && lesson.videoInfo && (
+                  <div className="flex items-center gap-2 text-xs text-teal-600 dark:text-teal-400 ml-8">
+                    <CheckCircleIcon className="w-4 h-4" />
+                    <span className="font-medium">{lesson.videoInfo.title}</span>
+                    {lesson.videoInfo.duration && <span className="text-slate-500">• {Math.floor(lesson.videoInfo.duration / 60)}:{String(lesson.videoInfo.duration % 60).padStart(2, '0')}</span>}
+                    {!lesson.videoInfo.has_transcript && <span className="text-amber-600 dark:text-amber-400">• No transcript</span>}
+                  </div>
+                )}
+                
+                {lesson.error && (
+                  <div className="flex items-center gap-2 text-xs text-red-600 dark:text-red-400 ml-8">
+                    <XCircleIcon className="w-4 h-4" />
+                    <span>{lesson.error}</span>
+                  </div>
+                )}
               </div>
             ))}
           </div>

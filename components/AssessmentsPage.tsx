@@ -6,6 +6,7 @@ import { ChallengeModal } from './ChallengeModal';
 import { View } from '../App';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { PencilIcon } from './icons/PencilIcon';
+import { PlayIcon } from './icons/PlayIcon';
 
 interface Assessment {
     id: number;
@@ -15,6 +16,14 @@ interface Assessment {
     time: number;
     status: string;
     score: string;
+    videoId?: string;
+    videoTitle?: string;
+    related_lessons?: Array<{
+      id: number;
+      title: string;
+      video_id: string;
+      course_title: string;
+    }>;
 }
 
 interface AssessmentsPageProps {
@@ -86,6 +95,23 @@ export const AssessmentsPage: React.FC<AssessmentsPageProps> = ({ assessments, o
                   <span>&bull;</span>
                   <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3" /> {exam.time} mins</span>
                 </div>
+                {exam.related_lessons && exam.related_lessons.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    {exam.related_lessons.map((lesson) => (
+                      <a
+                        key={lesson.id}
+                        href={`https://www.youtube.com/watch?v=${lesson.video_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
+                      >
+                        <PlayIcon className="w-3 h-3" />
+                        <span className="font-medium">{lesson.title}</span>
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-4">
