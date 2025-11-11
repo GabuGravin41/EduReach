@@ -167,18 +167,8 @@ export const EnhancedCreateExamPage: React.FC<EnhancedCreateExamPageProps> = ({
     };
 
     const addQuestion = (type: QuestionType) => {
-        if (questions.length >= features.max_questions) {
+        if (typeof features.max_questions === 'number' && questions.length >= features.max_questions) {
             alert(`You can only create ${features.max_questions} questions with your current plan.`);
-            return;
-        }
-
-        if (type === 'essay' && !features.can_create_essay) {
-            alert('Essay questions are available for Learner and higher tiers. Please upgrade to access this feature.');
-            return;
-        }
-
-        if (type === 'passage' && !features.can_create_passage) {
-            alert('Passage-based reading comprehension is available for Pro and Premium users. Please upgrade to access this feature.');
             return;
         }
 

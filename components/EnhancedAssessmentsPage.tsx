@@ -178,36 +178,18 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
             return;
         }
 
-        switch (examType) {
-            case 'multiple_choice':
-                setView('create_exam');
-                break;
-            case 'essay':
-                if (!features.can_create_essay) {
-                    alert('Essay exams are available for Pro and Pro Plus users. Please upgrade to access this feature.');
-                    setView('pricing');
-                    return;
-                }
-                // TODO: Navigate to essay exam creator
-                alert('Essay exam creator coming soon!');
-                break;
-            case 'passage':
-                if (!features.can_create_passage) {
-                    alert('Passage-based exams are available for Learner, Pro, and Pro Plus users. Please upgrade to access this feature.');
-                    setView('pricing');
-                    return;
-                }
-                // TODO: Navigate to passage exam creator
-                alert('Passage exam creator coming soon!');
-                break;
-            case 'ai_generated':
-                if (!features.can_use_ai) {
-                    alert('AI-generated quizzes are available for Learner, Pro, and Pro Plus users. Please upgrade to access this feature.');
-                    setView('pricing');
-                    return;
-                }
-                setView('generate_ai_quiz');
-                break;
+        // All question types route to create_exam page which supports them all
+        if (examType === 'ai_generated') {
+            if (!features.can_use_ai) {
+                alert('AI-generated quizzes are available for Learner, Pro, and Pro Plus users. Please upgrade to access this feature.');
+                setView('pricing');
+                return;
+            }
+            setView('generate_ai_quiz');
+        } else {
+            // Essay, Passage, Multiple Choice all go to the same create page
+            // The create page already has UI for all question types
+            setView('create_exam');
         }
     };
 
