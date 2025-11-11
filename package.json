@@ -7,12 +7,13 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "serve -s dist -l $PORT"
+    "start": "node server.js"
   },
   "dependencies": {
     "@google/genai": "^1.25.0",
     "@tanstack/react-query": "^5.90.5",
     "axios": "^1.12.2",
+    "express": "^4.18.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "serve": "^14.2.1",
