@@ -196,7 +196,7 @@ def generate_study_plan(request):
         4. Milestones and checkpoints
         5. Estimated time commitment per week
         
-        Format the response in a clear, structured way that's easy to follow.
+        Format the response in a clear, concise, structured way that's easy to follow.
         """
         
         # Generate content

@@ -21,7 +21,7 @@ requests==2.31.0
 python-dotenv==1.0.1
 
 # Image handling
-Pillow==10.2.0
+Pillow==11.0.0
 
 # Database (for PostgreSQL in production, optional)
 # psycopg2-binary==2.9.9

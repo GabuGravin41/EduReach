@@ -97,7 +97,7 @@ export const LoginScreen: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 overflow-y-auto">
           {/* Backdrop */}
           <div 
-            className="absolute inset-0 bg-black/25 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
             onClick={() => setShowModal(false)}
           />
           
