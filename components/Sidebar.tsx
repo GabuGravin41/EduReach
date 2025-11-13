@@ -86,7 +86,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
   };
 
   return (
-    <aside className={`fixed top-0 left-0 h-full bg-white dark:bg-slate-800 p-4 flex flex-col justify-between border-r border-slate-200 dark:border-slate-700 transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
+    <aside className={`h-full bg-white dark:bg-slate-800 p-4 flex flex-col justify-between border-r border-slate-200 dark:border-slate-700 transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
       <div>
         <div className={`flex items-center gap-2 mb-8 ${isCollapsed ? 'justify-center px-0' : 'px-4'}`}>
           <SparklesIcon className="w-8 h-8 text-indigo-500" />
@@ -152,7 +152,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
               <span>Logout</span>
             </button>
           )}
-          <button onClick={() => setIsCollapsed(!isCollapsed)} className="absolute -right-3 top-1/2 -translate-y-1/2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-full p-1.5 hover:bg-slate-100 dark:hover:bg-slate-600 transition-transform">
+          <button onClick={() => setIsCollapsed(!isCollapsed)} className="relative  -translate-y-1/2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-full p-1.5 hover:bg-slate-100 dark:hover:bg-slate-600 transition-transform shadow-lg z-10">
               <ChevronLeftIcon className={`w-4 h-4 transition-transform duration-300 ${isCollapsed && 'rotate-180'}`} />
           </button>
         </div>
