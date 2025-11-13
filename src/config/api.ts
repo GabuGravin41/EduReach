@@ -1,5 +1,9 @@
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const trimmedBaseUrl = rawBaseUrl.replace(/\/+$/, '');
+const normalizedBaseUrl = trimmedBaseUrl.endsWith('/api') ? trimmedBaseUrl : `${trimmedBaseUrl}/api`;
+
 export const API_CONFIG = {
-  BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api',
+  BASE_URL: normalizedBaseUrl,
   TIMEOUT: 30000,
   HEADERS: {
     'Content-Type': 'application/json',
