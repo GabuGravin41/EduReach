@@ -43,7 +43,7 @@ def generate_quiz(request):
         configure_gemini()
         
         # Create the model
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel(getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-1.5-flash'))
         
         # Construct the prompt
         prompt = f"""
@@ -129,7 +129,7 @@ def chat(request):
         configure_gemini()
         
         # Create the model
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel(getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-1.5-flash'))
         
         # Construct the full prompt with context
         full_prompt = f"{context}\n\n{message}" if context else message
@@ -180,7 +180,7 @@ def generate_study_plan(request):
         configure_gemini()
         
         # Create the model
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel(getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-1.5-flash'))
         
         # Construct the prompt
         prompt = f"""
@@ -241,7 +241,7 @@ def explain_concept(request):
         configure_gemini()
         
         # Create the model
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel(getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-1.5-flash'))
         
         # Construct the prompt based on detail level
         level_instructions = {

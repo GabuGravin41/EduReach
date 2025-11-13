@@ -184,6 +184,7 @@ ACCOUNT_EMAIL_VERIFICATION = 'none'
 
 # Gemini API Configuration
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+GEMINI_MODEL_NAME = os.environ.get('GEMINI_MODEL_NAME', 'gemini-1.5-flash')
 
 # Fix for 405 error - disable automatic slash appending
 APPEND_SLASH = False
