@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'assessments.apps.AssessmentsConfig',
     'community.apps.CommunityConfig',
     'ai_service.apps.AiServiceConfig',
+    'notes.apps.NotesConfig',
 ]
 
 MIDDLEWARE = [
