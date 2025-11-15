@@ -104,15 +104,16 @@ WSGI_APPLICATION = 'edureach_project.wsgi.application'
 # Use PostgreSQL in production, SQLite in development
 try:
     import dj_database_url
+    import sys
     
     if not DEBUG:
-        # Production: must use DATABASE_URL
+        # Production: must use DATABASE_URL (but skip check during collectstatic)
         db_url = os.environ.get('DATABASE_URL')
-        if not db_url:
+        if not db_url and 'collectstatic' not in sys.argv:
             raise ValueError("DATABASE_URL environment variable must be set in production")
         DATABASES = {
             'default': dj_database_url.config(
-                default=db_url,
+                default=db_url or 'sqlite:///:memory:',
                 conn_max_age=600,
                 conn_health_checks=True,
             )
