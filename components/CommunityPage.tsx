@@ -54,6 +54,14 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ posts, onPostCreat
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">Community Hub</h1>
+      
+      {/* Info banner */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 mb-6">
+        <p className="text-blue-900 dark:text-blue-200 text-sm">
+          <strong>Tip:</strong> Browse course discussions below to join conversations about public courses. Create or join discussions to get help from peers!
+        </p>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         <div className="lg:col-span-2 space-y-6">
@@ -72,6 +80,28 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ posts, onPostCreat
                 </div>
             </div>
 
+            {/* Course Discussions Section */}
+            <div className="bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-xl shadow-lg shadow-slate-900/5 p-6 border border-indigo-200 dark:border-indigo-800">
+              <div className="mb-4">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Course Discussions</h2>
+              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                Join discussions in public courses to get help, share knowledge, and connect with other learners!
+              </p>
+              <div className="bg-white dark:bg-slate-800 p-4 rounded-lg text-center">
+                <p className="text-slate-600 dark:text-slate-400 text-sm mb-3">
+                  To view course discussions, select a course from the dashboard or navigate to a specific course.
+                </p>
+                <button 
+                  onClick={() => window.location.hash = '#courses'}
+                  className="inline-block px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  Browse Courses
+                </button>
+              </div>
+            </div>
+
+            {/* Community Posts */}
             {posts.map(post => (
                 <div key={post.id} className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg shadow-slate-900/5">
                     <div className="flex items-center mb-4">

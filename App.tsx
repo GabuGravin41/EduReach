@@ -35,31 +35,12 @@ interface SessionData {
   transcript: string;
 }
 
-// Mock Data lifted to App state
-const initialCourses = [
-  // FIX: Added isCompleted and duration to the lesson object to match the 'Course' type definition.
-  { id: 1, title: 'Advanced JavaScript', description: 'Master closures, prototypes, and asynchronous JS.', progress: 75, thumbnail: '/placeholder.svg', isPublic: true, lessons: [{title: 'Intro', videoId: 'zNzzGgr2mhk', isCompleted: false, duration: '5 min'}] },
-  { id: 2, title: 'Data Structures & Algorithms', description: 'The foundational course for any aspiring software engineer.', progress: 40, thumbnail: '/placeholder.svg', isPublic: true, lessons: [] },
-  { id: 3, title: 'React: From Beginner to Advanced', description: 'Build modern, fast, and scalable web applications with React.', progress: 90, thumbnail: '/placeholder.svg', isPublic: false, lessons: [] },
-];
+// Mock Data - replaced with API data
+// Using empty arrays to force reliance on API (catches integration bugs early)
+const initialCourses: any[] = [];
+const initialAssessments: any[] = [];
 
-const initialAssessments = [
-  { id: 1, title: 'Quantum Computing Fundamentals', topic: 'Physics', questions: 15, time: 20, status: 'completed', score: '13/15', description: 'An assessment covering the core principles of quantum mechanics and quantum computation, including qubits, superposition, and entanglement.' },
-  { id: 2, title: 'Roman Republic History', topic: 'History', questions: 20, time: 25, status: 'pending', score: '', description: 'Test your knowledge on the rise and fall of the Roman Republic, key figures, and major events.' },
-];
-
-const initialPosts = [
-  {
-    id: 1, author: 'Frank', avatar: UserCircleIcon, time: '2h ago',
-    content: 'Just finished the "Advanced JavaScript" exam, that was tough! Anyone have tips for understanding prototypal inheritance better?',
-    likes: 15, comments: [{author: 'Grace', content: 'Same here!'}], liked: false,
-  },
-  {
-    id: 2, author: 'Grace', avatar: UserCircleIcon, time: '5h ago',
-    content: 'I created a new course collection for "Linear Algebra for Machine Learning". Check it out!',
-    likes: 32, comments: [], liked: true,
-  },
-];
+const initialPosts: any[] = [];
 
 
 const AppContent: React.FC = () => {

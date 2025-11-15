@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import { PlayIcon } from './icons/PlayIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { View, UserTier } from '../App';
 import { LockIcon } from './icons/LockIcon';
+import { DiscussionsPage } from './DiscussionsPage';
 
 interface Course {
     id: number;
@@ -18,9 +19,11 @@ interface CourseDetailPageProps {
     setView: (view: View) => void;
     onStartLesson: (videoId: string, transcript: string) => void;
     userTier: UserTier;
+    currentUserId?: number;
 }
 
-export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setView, onStartLesson, userTier }) => {
+export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setView, onStartLesson, userTier, currentUserId }) => {
+    const [activeTab, setActiveTab] = useState<'lessons' | 'discussions'>('lessons');
     
     if (!course) {
         return (
@@ -55,6 +58,35 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setV
                     </div>
                     <p className="text-right text-xs text-slate-500 dark:text-slate-400">{course.progress}% Complete</p>
                 </div>
+
+                {/* Tabs */}
+                <div className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-6">
+                    <div className="flex gap-8">
+                        <button
+                            onClick={() => setActiveTab('lessons')}
+                            className={`py-4 px-2 font-semibold border-b-2 transition-colors ${
+                                activeTab === 'lessons'
+                                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                                    : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                            }`}
+                        >
+                            Lessons
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('discussions')}
+                            className={`py-4 px-2 font-semibold border-b-2 transition-colors ${
+                                activeTab === 'discussions'
+                                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                                    : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                            }`}
+                        >
+                            Discussions
+                        </button>
+                    </div>
+                </div>
+
+                {/* Lessons Tab */}
+                {activeTab === 'lessons' && (
                 <div className="bg-slate-50 dark:bg-slate-800/50 p-6">
                     <h2 className="text-xl font-bold mb-4">Lessons</h2>
                     <ul className="space-y-3">
@@ -87,6 +119,18 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setV
                         )}
                     </ul>
                 </div>
+                )}
+
+                {/* Discussions Tab */}
+                {activeTab === 'discussions' && (
+                    <div className="p-6">
+                        <DiscussionsPage 
+                            courseId={course.id}
+                            currentUserId={currentUserId}
+                            apiBaseUrl="http://localhost:8000/api"
+                        />
+                    </div>
+                )}
             </div>
         </div>
     );
