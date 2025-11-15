@@ -16,6 +16,7 @@ import { CommunityPage } from './components/CommunityPage';
 import { CourseDetailPage } from './components/CourseDetailPage';
 import { ExamDetailPage } from './components/ExamDetailPage';
 import { UserCircleIcon } from './components/icons/UserCircleIcon';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 
 // Lazy load heavy components for better performance
 const CreateCoursePage = lazy(() => import('./components/CreateCoursePage').then(module => ({ default: module.CreateCoursePage })));
@@ -390,11 +391,13 @@ const App: React.FC = () => {
     });
 
     return (
-        <QueryClientProvider client={queryClient}>
-            <AuthProvider>
-                <AppContent />
-            </AuthProvider>
-        </QueryClientProvider>
+        <ErrorBoundary>
+            <QueryClientProvider client={queryClient}>
+                <AuthProvider>
+                    <AppContent />
+                </AuthProvider>
+            </QueryClientProvider>
+        </ErrorBoundary>
     );
 };
 

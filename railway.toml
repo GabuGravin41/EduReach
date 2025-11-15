@@ -1,0 +1,23 @@
+# Railway.toml Configuration
+# For EduReach deployment
+
+# Backend service configuration
+[backend]
+# Entry point
+root_directory = "backend"
+
+# Build configuration
+[backend.build]
+builder = "NIXPACKS"
+run_command = "gunicorn edureach_project.wsgi:application --bind 0.0.0.0:$PORT"
+
+# Frontend service configuration
+[frontend]
+# Deploy from root
+root_directory = "."
+
+# Build configuration
+[frontend.build]
+builder = "NIXPACKS"
+build_command = "npm run build"
+run_command = "npx serve -s dist -l $PORT"

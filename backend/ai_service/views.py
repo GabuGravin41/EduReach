@@ -64,7 +64,6 @@ Be concise. Questions should test key concepts."""
             prompt,
             generation_config=genai.types.GenerationConfig(max_output_tokens=1000, temperature=0.7)
         )
-        response = model.generate_content(prompt)
         
         # Try to parse the response as JSON
         try:

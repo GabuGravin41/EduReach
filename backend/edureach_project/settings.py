@@ -14,14 +14,28 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-this-in-production')
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    if os.environ.get('ENVIRONMENT') != 'production':
+        SECRET_KEY = 'dev-insecure-key-only-for-development'
+    else:
+        raise ValueError("SECRET_KEY environment variable must be set in production")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+if DEBUG and os.environ.get('ENVIRONMENT') == 'production':
+    raise ValueError("DEBUG must be False in production")
 
 # Allowed hosts from environment variable (comma-separated)
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,edureach-production.up.railway.app').split(',')
-ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS if host.strip()]
+allowed_hosts_env = os.environ.get(
+    'ALLOWED_HOSTS',
+    'localhost,127.0.0.1' if not DEBUG else 'localhost,127.0.0.1,*.localhost'
+)
+ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(',') if host.strip()]
+
+# Validate ALLOWED_HOSTS in production
+if not DEBUG and len(ALLOWED_HOSTS) == 0:
+    raise ValueError("ALLOWED_HOSTS must be configured in production environment")
 
 # Application definition
 INSTALLED_APPS = [
@@ -86,13 +100,39 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'edureach_project.wsgi.application'
 
-# Database
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Database Configuration
+# Use PostgreSQL in production, SQLite in development
+try:
+    import dj_database_url
+    
+    if not DEBUG:
+        # Production: must use DATABASE_URL
+        db_url = os.environ.get('DATABASE_URL')
+        if not db_url:
+            raise ValueError("DATABASE_URL environment variable must be set in production")
+        DATABASES = {
+            'default': dj_database_url.config(
+                default=db_url,
+                conn_max_age=600,
+                conn_health_checks=True,
+            )
+        }
+    else:
+        # Development: use SQLite
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
+        }
+except ImportError:
+    # Fallback if dj-database-url not installed
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
-}
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -127,6 +167,10 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Ensure logs directory exists (prevents FileHandler errors on first run)
+LOG_DIR = os.path.join(BASE_DIR, 'logs')
+os.makedirs(LOG_DIR, exist_ok=True)
+
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -143,6 +187,15 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+    'MAX_PAGE_SIZE': 100,  # Prevent requesting huge datasets
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',  # Anonymous users: 100 requests per hour
+        'user': '1000/hour'  # Authenticated users: 1000 requests per hour
+    }
 }
 
 # Simple JWT Settings
@@ -155,12 +208,25 @@ SIMPLE_JWT = {
 }
 
 # CORS Settings
-# Read from environment variable (comma-separated) or use defaults
-cors_origins_env = os.environ.get(
-    'CORS_ALLOWED_ORIGINS',
-    'http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,https://melodious-cooperation-production.up.railway.app'
-)
-CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
+# Development origins (always allowed in dev)
+development_cors = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+]
+
+# Production origins from environment
+if DEBUG:
+    CORS_ALLOWED_ORIGINS = development_cors
+else:
+    cors_origins_env = os.environ.get('CORS_ALLOWED_ORIGINS', '').strip()
+    if not cors_origins_env:
+        raise ValueError(
+            "CORS_ALLOWED_ORIGINS environment variable must be set in production. "
+            "Format: https://yourdomain.com,https://www.yourdomain.com"
+        )
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
 
 # Allow Capacitor mobile app origins
 CORS_ALLOWED_ORIGIN_REGEXES = [
@@ -183,12 +249,86 @@ ACCOUNT_EMAIL_REQUIRED = False
 ACCOUNT_AUTHENTICATION_METHOD = 'username'
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 
+# Logging Configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'filters': {
+        'require_debug_false': {
+            '()': 'django.utils.log.RequireDebugFalse',
+        },
+        'require_debug_true': {
+            '()': 'django.utils.log.RequireDebugTrue',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple'
+        },
+        'file': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'error.log'),
+            'formatter': 'verbose',
+        },
+        'django_file': {
+            'level': 'WARNING',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'DEBUG' if DEBUG else 'WARNING',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'django_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console', 'file'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'django.db.backends': {
+            'handlers': ['console'],
+            'level': 'DEBUG' if DEBUG else 'WARNING',
+            'propagate': False,
+        },
+    },
+}
+
 # Gemini API Configuration
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 GEMINI_MODEL_NAME = os.environ.get('GEMINI_MODEL_NAME', 'gemini-2.5-flash')
 
 # Fix for 405 error - disable automatic slash appending
 APPEND_SLASH = False
+
+# Gemini API Configuration with validation
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+if not GEMINI_API_KEY:
+    if DEBUG:
+        GEMINI_API_KEY = 'dev-key-not-configured'
+    else:
+        raise ValueError("GEMINI_API_KEY environment variable must be set in production")
+
+GEMINI_MODEL_NAME = os.environ.get('GEMINI_MODEL_NAME', 'gemini-2.5-flash')
 
 # Security settings for production
 if not DEBUG:
@@ -199,3 +339,65 @@ if not DEBUG:
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
+
+# ========== PRODUCTION ENVIRONMENT VALIDATION ==========
+# These checks run on startup, preventing misconfigured deployments
+
+if not DEBUG:
+    import warnings
+    
+    # Critical checks
+    print("\n" + "="*60)
+    print("🔒 PRODUCTION ENVIRONMENT VALIDATION")
+    print("="*60)
+    
+    checks_failed = []
+    
+    # Check SECRET_KEY is not the default
+    if SECRET_KEY == 'dev-insecure-key-only-for-development':
+        checks_failed.append("SECRET_KEY: Must be set via environment variable")
+    else:
+        print("✅ SECRET_KEY: Configured")
+    
+    # Check DEBUG is False
+    if DEBUG:
+        checks_failed.append("DEBUG: Must be False in production")
+    else:
+        print("✅ DEBUG: False (safe)")
+    
+    # Check ALLOWED_HOSTS is configured
+    if not ALLOWED_HOSTS or ALLOWED_HOSTS == ['localhost', '127.0.0.1']:
+        checks_failed.append("ALLOWED_HOSTS: Must include your production domain")
+    else:
+        print(f"✅ ALLOWED_HOSTS: {', '.join(ALLOWED_HOSTS)}")
+    
+    # Check CORS is configured
+    if not CORS_ALLOWED_ORIGINS or 'localhost' in str(CORS_ALLOWED_ORIGINS):
+        checks_failed.append("CORS_ALLOWED_ORIGINS: Must be configured for production domain")
+    else:
+        print(f"✅ CORS_ALLOWED_ORIGINS: {', '.join(CORS_ALLOWED_ORIGINS[:2])}...")
+    
+    # Check database is not SQLite
+    if DATABASES['default']['ENGINE'] == 'django.db.backends.sqlite3':
+        checks_failed.append("DATABASE: Must use PostgreSQL in production, not SQLite")
+    else:
+        print("✅ DATABASE: PostgreSQL configured")
+    
+    # Check GEMINI_API_KEY is set
+    if GEMINI_API_KEY == 'dev-key-not-configured':
+        warnings.warn("⚠️  GEMINI_API_KEY: Not configured (AI features will not work)")
+    else:
+        print("✅ GEMINI_API_KEY: Configured")
+    
+    # Print results
+    if checks_failed:
+        print("\n" + "🔴 CRITICAL ISSUES FOUND:")
+        for i, issue in enumerate(checks_failed, 1):
+            print(f"  {i}. {issue}")
+        print("="*60)
+        raise ValueError(
+            f"Production validation failed. Fix {len(checks_failed)} critical issue(s) above."
+        )
+    else:
+        print("\n✅ All production checks passed!")
+        print("="*60 + "\n")
