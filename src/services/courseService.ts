@@ -30,17 +30,27 @@ export interface CreateCourseData {
   lessons: Omit<Lesson, 'id'>[];
 }
 
+const normalizeListResponse = <T>(data: any): T[] => {
+  if (Array.isArray(data)) {
+    return data;
+  }
+  if (data && Array.isArray(data.results)) {
+    return data.results;
+  }
+  return [];
+};
+
 export const courseService = {
   // Get all courses (user's own + public)
   async getCourses(): Promise<Course[]> {
     const response = await apiClient.get(API_ENDPOINTS.COURSES);
-    return response.data;
+    return normalizeListResponse<Course>(response.data);
   },
 
   // Get user's courses only
   async getMyCourses(): Promise<Course[]> {
     const response = await apiClient.get(API_ENDPOINTS.MY_COURSES);
-    return response.data;
+    return normalizeListResponse<Course>(response.data);
   },
 
   // Get single course by ID

@@ -241,7 +241,7 @@ class LessonViewSet(viewsets.ModelViewSet):
             
             # Configure Gemini
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel('gemini-pro')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             
             # Construct prompt
             prompt = f"""
@@ -524,7 +524,7 @@ Provide a clear, educational response that references specific parts of the vide
         
         try:
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel('gemini-pro')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             response = model.generate_content(context)
             
             return Response({

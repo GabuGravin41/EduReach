@@ -109,7 +109,7 @@ export const LoginScreen: React.FC = () => {
               className="absolute top-4 right-4 text-white/80 hover:text-white text-2xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
               aria-label="Close modal"
             >
-              ×
+            
             </button>
 
             {/* Logo */}

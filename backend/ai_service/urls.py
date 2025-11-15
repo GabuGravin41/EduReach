@@ -1,5 +1,7 @@
 from django.urls import path
-from .views import generate_quiz, chat, generate_study_plan, explain_concept
+from .views import generate_study_plan, explain_concept
+# Import debug views for troubleshooting
+from .debug_views import chat, generate_quiz
 
 urlpatterns = [
     path('ai/generate-quiz/', generate_quiz, name='generate_quiz'),

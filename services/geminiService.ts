@@ -1,9 +1,10 @@
 import { GoogleGenAI, Type, Chat } from "@google/genai";
 import type { QuizQuestion } from '../types';
 
-const API_KEY = process.env.API_KEY;
+const API_KEY = process.env.GEMINI_API_KEY;
 if (!API_KEY) {
-  throw new Error("API_KEY environment variable is not set");
+  console.error("GEMINI_API_KEY environment variable is not set. Check your .env.local file and vite.config.ts");
+  throw new Error("GEMINI_API_KEY environment variable is not set");
 }
 
 const ai = new GoogleGenAI({ apiKey: API_KEY });

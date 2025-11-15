@@ -5,13 +5,17 @@ from rest_framework import status
 from django.conf import settings
 import google.generativeai as genai
 import json
+import logging
 
+logger = logging.getLogger(__name__)
 
 def configure_gemini():
     """Configure Gemini API with the API key from settings."""
     if not settings.GEMINI_API_KEY:
+        logger.error("GEMINI_API_KEY is not configured in settings")
         raise ValueError("GEMINI_API_KEY is not configured in settings")
     genai.configure(api_key=settings.GEMINI_API_KEY)
+    logger.info("Gemini API configured successfully")
 
 
 @api_view(['POST'])
@@ -43,32 +47,23 @@ def generate_quiz(request):
         configure_gemini()
         
         # Create the model
-        model = genai.GenerativeModel(getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-1.5-flash'))
+        model = genai.GenerativeModel(getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash'))
         
-        # Construct the prompt
-        prompt = f"""
-        Based on the following transcript, generate {num_questions} {difficulty} difficulty quiz questions.
+        # Construct the prompt - optimized for speed
+        prompt = f"""Generate {num_questions} {difficulty} difficulty quiz questions from this transcript:
+
+{transcript}
+
+Return ONLY valid JSON (no extra text):
+{{"questions": [{{"question": "?", "type": "mcq", "options": ["A", "B", "C", "D"], "correct_answer": "A", "explanation": "Why"}}]}}
+
+Be concise. Questions should test key concepts."""
         
-        Transcript:
-        {transcript}
-        
-        Please generate questions in the following JSON format:
-        {{
-            "questions": [
-                {{
-                    "question": "Question text here?",
-                    "type": "mcq",
-                    "options": ["Option A", "Option B", "Option C", "Option D"],
-                    "correct_answer": "Option A",
-                    "explanation": "Brief explanation of why this is correct"
-                }}
-            ]
-        }}
-        
-        Ensure the questions are relevant to the transcript content and test understanding of key concepts.
-        """
-        
-        # Generate content
+        # Generate content with faster, concise output
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(max_output_tokens=1000, temperature=0.7)
+        )
         response = model.generate_content(prompt)
         
         # Try to parse the response as JSON
@@ -96,8 +91,9 @@ def generate_quiz(request):
             )
     
     except Exception as e:
+        logger.error(f"Error generating quiz: {str(e)}", exc_info=True)
         return Response(
-            {'error': str(e)},
+            {'error': str(e), 'type': type(e).__name__},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -129,13 +125,27 @@ def chat(request):
         configure_gemini()
         
         # Create the model
-        model = genai.GenerativeModel(getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-1.5-flash'))
+        model = genai.GenerativeModel(getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash'))
         
-        # Construct the full prompt with context
-        full_prompt = f"{context}\n\n{message}" if context else message
+        # Construct the full prompt with context and system instructions
+        system_instruction = """You are a helpful educational tutor. Keep your responses:
+- Concise
+- Conversational
+- Direct and to the point
+
+If the user asks a question about the video content, answer based on the provided context.
+If they ask something off-topic but related, answer it gracefully, else, politely redirect them back to the learning material."""
         
-        # Generate content
-        response = model.generate_content(full_prompt)
+        if context:
+            full_prompt = f"{system_instruction}\n\nVideo/Learning Context:\n{context}\n\nUser Question: {message}"
+        else:
+            full_prompt = f"{system_instruction}\n\nUser Question: {message}"
+        
+        # Generate content with reduced token output
+        response = model.generate_content(
+            full_prompt,
+            generation_config=genai.types.GenerationConfig(max_output_tokens=150)
+        )
         
         return Response(
             {'response': response.text},
@@ -143,8 +153,9 @@ def chat(request):
         )
     
     except Exception as e:
+        logger.error(f"Error in chat: {str(e)}", exc_info=True)
         return Response(
-            {'error': str(e)},
+            {'error': str(e), 'type': type(e).__name__},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -180,27 +191,26 @@ def generate_study_plan(request):
         configure_gemini()
         
         # Create the model
-        model = genai.GenerativeModel(getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-1.5-flash'))
+        model = genai.GenerativeModel(getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash'))
         
-        # Construct the prompt
-        prompt = f"""
-        Create a detailed {duration_weeks}-week study plan for learning {topic}.
+        # Construct a concise prompt
+        prompt = f"""Create a {duration_weeks}-week study plan for {topic} ({skill_level} level).
+{f"Goal: {goals}" if goals else ""}
+
+Format as:
+Week 1-2: [topics] | Time: [hours/week]
+Week 3-4: [topics] | Time: [hours/week]
+...
+Key resources: [3-4 links]
+Milestones: [checkpoints]
+
+Keep it concise and actionable."""
         
-        Student's skill level: {skill_level}
-        {f"Learning goals: {goals}" if goals else ""}
-        
-        Please structure the study plan with:
-        1. Weekly breakdown of topics to cover
-        2. Recommended resources (books, videos, tutorials)
-        3. Practice exercises for each week
-        4. Milestones and checkpoints
-        5. Estimated time commitment per week
-        
-        Format the response in a clear, concise, structured way that's easy to follow.
-        """
-        
-        # Generate content
-        response = model.generate_content(prompt)
+        # Generate content with moderate output
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(max_output_tokens=600, temperature=0.7)
+        )
         
         return Response(
             {'study_plan': response.text},
@@ -241,30 +251,22 @@ def explain_concept(request):
         configure_gemini()
         
         # Create the model
-        model = genai.GenerativeModel(getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-1.5-flash'))
+        model = genai.GenerativeModel(getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash'))
         
-        # Construct the prompt based on detail level
-        level_instructions = {
-            'simple': 'Explain this concept in simple terms that a beginner can understand, using everyday analogies.',
-            'detailed': 'Provide a comprehensive explanation with examples and use cases.',
-            'technical': 'Give a technical, in-depth explanation with precise definitions and advanced details.'
+        # Construct a concise prompt based on detail level
+        level_prompts = {
+            'simple': f'Explain "{concept}" in 2-3 sentences using simple language and a real-world example.',
+            'detailed': f'Explain "{concept}" with definition, 2-3 examples, and key points (under 200 words).',
+            'technical': f'Give a technical explanation of "{concept}" with precise definitions and advanced details (under 200 words).'
         }
         
-        prompt = f"""
-        {level_instructions.get(detail_level, level_instructions['detailed'])}
+        prompt = level_prompts.get(detail_level, level_prompts['detailed'])
         
-        Concept: {concept}
-        
-        Please include:
-        1. Clear definition
-        2. Key points and characteristics
-        3. Practical examples
-        4. Common misconceptions (if any)
-        5. Related concepts
-        """
-        
-        # Generate content
-        response = model.generate_content(prompt)
+        # Generate content with concise output
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(max_output_tokens=300, temperature=0.7)
+        )
         
         return Response(
             {'explanation': response.text},

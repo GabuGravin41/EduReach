@@ -6,7 +6,11 @@ import { LightbulbIcon } from './icons/LightbulbIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { QuizView } from './QuizView';
 import { ClipboardCheckIcon } from './icons/ClipboardCheckIcon';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
+interface ChatMessageWithId extends ChatMessage {
+  id: string;
+}
 
 interface AIAssistantProps {
   messages: ChatMessage[];
@@ -38,6 +42,12 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   const [input, setInput] = useState('');
   const [activeTab, setActiveTab] = useState<ActiveTab>('chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Convert messages to include unique IDs for rendering
+  const messagesWithIds = messages.map((msg, idx) => ({
+    ...msg,
+    id: `${msg.role}-${idx}-${msg.content.substring(0, 20)}`
+  })) as ChatMessageWithId[];
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -89,22 +99,28 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
              <div className="flex-1 flex flex-col min-h-0">
                 <div className="flex-1 p-4 overflow-y-auto">
                     <div className="space-y-4">
-                    {messages.map((msg, index) => (
-                        <div key={index} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+                    {messagesWithIds.map((msg) => (
+                        <div key={msg.id} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
                         {msg.role === 'model' && (
                             <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
                             <BotIcon className="w-5 h-5 text-slate-500 dark:text-slate-400" />
                             </div>
                         )}
                         <div
-                            className={`p-3 rounded-lg max-w-sm whitespace-pre-wrap ${
+                            className={`p-3 rounded-lg max-w-sm ${
                             msg.role === 'user'
                                 ? 'bg-indigo-600 text-white'
                                 : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200'
                             }`}
                         >
-                            {msg.content}
-                            {isLoading && msg.role === 'model' && index === messages.length - 1 && msg.content === '' && (
+                            {msg.role === 'model' && msg.content ? (
+                                <MarkdownRenderer content={msg.content} />
+                            ) : (
+                                <span className={`${msg.role === 'user' ? 'whitespace-pre-wrap' : ''}`}>
+                                    {msg.content}
+                                </span>
+                            )}
+                            {isLoading && msg.role === 'model' && messagesWithIds[messagesWithIds.length - 1]?.id === msg.id && msg.content === '' && (
                                 <div className="flex items-center space-x-1">
                                     <span className="h-2 w-2 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
                                     <span className="h-2 w-2 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>

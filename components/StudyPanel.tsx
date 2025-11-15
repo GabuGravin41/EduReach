@@ -35,8 +35,8 @@ export const StudyPanel: React.FC<StudyPanelProps> = ({ transcript, notes, onNot
   );
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg shadow-slate-900/5 w-full">
-      <div className="flex border-b border-slate-200 dark:border-slate-700 px-4">
+    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg shadow-slate-900/5 w-full h-full flex flex-col">
+      <div className="flex border-b border-slate-200 dark:border-slate-700 px-4 flex-shrink-0">
         <TabButton
           label="Transcript"
           icon={<BookTextIcon className="w-5 h-5" />}
@@ -50,7 +50,7 @@ export const StudyPanel: React.FC<StudyPanelProps> = ({ transcript, notes, onNot
           onClick={() => setActiveTab('notes')}
         />
       </div>
-      <div className="p-4">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {activeTab === 'transcript' && <TranscriptPanel transcript={transcript} />}
         {activeTab === 'notes' && <NotesPanel notes={notes} onNotesChange={onNotesChange} />}
       </div>

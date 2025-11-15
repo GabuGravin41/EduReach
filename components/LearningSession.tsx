@@ -70,7 +70,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({ videoId, trans
 
     // Add user message to chat
     const userMessage: ChatMessage = { role: 'user', content: message };
-    setMessages(prev => [...prev, userMessage, { role: 'model', content: '' }]);
+    setMessages(prev => [...prev, userMessage]);
 
     try {
       setIsLoading(true);
@@ -79,27 +79,12 @@ export const LearningSession: React.FC<LearningSessionProps> = ({ videoId, trans
         context: transcript
       });
 
-      // Update the last message (model response) with the actual response
-      setMessages(prev => {
-        const newMessages = [...prev];
-        const lastMessage = newMessages[newMessages.length - 1];
-        if (lastMessage.role === 'model') {
-          lastMessage.content = response;
-        }
-        return newMessages;
-      });
+      // Add AI response to chat
+      setMessages(prev => [...prev, { role: 'model', content: response }]);
     } catch (error) {
       console.error('Error sending message:', error);
-      setMessages(prev => {
-        const newMessages = [...prev];
-        const lastMessage = newMessages[newMessages.length - 1];
-        if (lastMessage.role === 'model') {
-          lastMessage.content = 'Sorry, I encountered an error. Please try again.';
-        } else {
-          newMessages.push({ role: 'model', content: 'Sorry, I encountered an error. Please try again.' });
-        }
-        return newMessages;
-      });
+      // Add error message to chat
+      setMessages(prev => [...prev, { role: 'model', content: 'Sorry, I encountered an error. Please try again.' }]);
     } finally {
       setIsLoading(false);
     }
