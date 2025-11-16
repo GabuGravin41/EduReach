@@ -101,33 +101,33 @@ TEMPLATES = [
 WSGI_APPLICATION = 'edureach_project.wsgi.application'
 
 # Database Configuration
-# Use PostgreSQL in production, SQLite in development
-try:
-    import dj_database_url
-    import sys
-    
-    if not DEBUG:
-        # Production: must use DATABASE_URL (but skip check during collectstatic)
-        db_url = os.environ.get('DATABASE_URL')
-        if not db_url and 'collectstatic' not in sys.argv:
-            raise ValueError("DATABASE_URL environment variable must be set in production")
+# Use SQLite for now (even in production) until upgrade to PostgreSQL
+import sys
+
+# Check if DATABASE_URL is provided for PostgreSQL
+db_url = os.environ.get('DATABASE_URL')
+
+if db_url and 'collectstatic' not in sys.argv:
+    # If DATABASE_URL is provided, use it (for future PostgreSQL upgrade)
+    try:
+        import dj_database_url
         DATABASES = {
             'default': dj_database_url.config(
-                default=db_url or 'sqlite:///:memory:',
+                default=db_url,
                 conn_max_age=600,
                 conn_health_checks=True,
             )
         }
-    else:
-        # Development: use SQLite
+    except ImportError:
+        # Fallback to SQLite if dj-database-url not installed
         DATABASES = {
             'default': {
                 'ENGINE': 'django.db.backends.sqlite3',
                 'NAME': BASE_DIR / 'db.sqlite3',
             }
         }
-except ImportError:
-    # Fallback if dj-database-url not installed
+else:
+    # Default to SQLite (development and production)
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
