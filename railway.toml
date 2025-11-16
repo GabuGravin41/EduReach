@@ -9,7 +9,7 @@ root_directory = "backend"
 # Build configuration
 [backend.build]
 builder = "NIXPACKS"
-run_command = "gunicorn edureach_project.wsgi:application --bind 0.0.0.0:$PORT"
+run_command = "bash start.sh"
 
 # Frontend service configuration
 [frontend]

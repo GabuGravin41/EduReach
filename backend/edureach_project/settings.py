@@ -101,14 +101,13 @@ TEMPLATES = [
 WSGI_APPLICATION = 'edureach_project.wsgi.application'
 
 # Database Configuration
-# Use SQLite for now (even in production) until upgrade to PostgreSQL
 import sys
 
 # Check if DATABASE_URL is provided for PostgreSQL
 db_url = os.environ.get('DATABASE_URL')
 
 if db_url and 'collectstatic' not in sys.argv:
-    # If DATABASE_URL is provided, use it (for future PostgreSQL upgrade)
+    # Production with PostgreSQL (RECOMMENDED for Railway)
     try:
         import dj_database_url
         DATABASES = {
@@ -119,21 +118,27 @@ if db_url and 'collectstatic' not in sys.argv:
             )
         }
     except ImportError:
-        # Fallback to SQLite if dj-database-url not installed
-        DATABASES = {
-            'default': {
-                'ENGINE': 'django.db.backends.sqlite3',
-                'NAME': BASE_DIR / 'db.sqlite3',
-            }
-        }
+        raise ImportError("dj-database-url is required when DATABASE_URL is set")
 else:
-    # Default to SQLite (development and production)
+    # SQLite fallback (development only - NOT recommended for production)
+    # For Railway: Add PostgreSQL database service and it will auto-set DATABASE_URL
+    sqlite_path = os.environ.get('SQLITE_PATH', str(BASE_DIR / 'db.sqlite3'))
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+            'NAME': sqlite_path,
         }
     }
+    
+    # Warning for production
+    if not DEBUG and 'collectstatic' not in sys.argv:
+        import warnings
+        warnings.warn(
+            "WARNING: Using SQLite in production without DATABASE_URL. "
+            "Data will be lost on container restart! "
+            "Add PostgreSQL database service in Railway for data persistence.",
+            RuntimeWarning
+        )
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

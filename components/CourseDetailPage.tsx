@@ -38,9 +38,11 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setV
     
     const dummyTranscript = `This is a placeholder transcript for the selected video. In a real application, this would be fetched from a server or provided by the user. It demonstrates the flow of starting a lesson from the course page.`;
 
+    // Safely handle lessons array - it might be undefined or empty
+    const courseLessons = Array.isArray(course.lessons) ? course.lessons : [];
     const lessonLimit = userTier === 'free' ? 5 : Infinity;
-    const visibleLessons = course.lessons.slice(0, lessonLimit);
-    const hiddenLessonsCount = course.lessons.length - visibleLessons.length;
+    const visibleLessons = courseLessons.slice(0, lessonLimit);
+    const hiddenLessonsCount = courseLessons.length - visibleLessons.length;
 
     return (
         <div>
@@ -89,6 +91,12 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setV
                 {activeTab === 'lessons' && (
                 <div className="bg-slate-50 dark:bg-slate-800/50 p-6">
                     <h2 className="text-xl font-bold mb-4">Lessons</h2>
+                    {courseLessons.length === 0 ? (
+                        <div className="text-center py-12">
+                            <p className="text-slate-600 dark:text-slate-400 mb-4">No lessons have been added to this course yet.</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-500">Lessons will appear here once they are created.</p>
+                        </div>
+                    ) : (
                     <ul className="space-y-3">
                         {visibleLessons.map((lesson, index) => (
                             <li key={index} className="flex items-center justify-between p-3 rounded-lg bg-white dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700">
@@ -118,6 +126,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setV
                             </li>
                         )}
                     </ul>
+                    )}
                 </div>
                 )}
 
