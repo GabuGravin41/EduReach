@@ -221,13 +221,19 @@ development_cors = [
 if DEBUG:
     CORS_ALLOWED_ORIGINS = development_cors
 else:
-    cors_origins_env = os.environ.get('CORS_ALLOWED_ORIGINS', '').strip()
-    if not cors_origins_env:
-        raise ValueError(
-            "CORS_ALLOWED_ORIGINS environment variable must be set in production. "
-            "Format: https://yourdomain.com,https://www.yourdomain.com"
-        )
-    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
+    # Don't validate CORS during collectstatic
+    import sys
+    if 'collectstatic' not in sys.argv:
+        cors_origins_env = os.environ.get('CORS_ALLOWED_ORIGINS', '').strip()
+        if not cors_origins_env:
+            raise ValueError(
+                "CORS_ALLOWED_ORIGINS environment variable must be set in production. "
+                "Format: https://yourdomain.com,https://www.yourdomain.com"
+            )
+        CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
+    else:
+        # During collectstatic, use a dummy value
+        CORS_ALLOWED_ORIGINS = ['*']
 
 # Allow Capacitor mobile app origins
 CORS_ALLOWED_ORIGIN_REGEXES = [
@@ -324,10 +330,14 @@ APPEND_SLASH = False
 # Gemini API Configuration with validation
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 if not GEMINI_API_KEY:
-    if DEBUG:
+    # Don't validate during collectstatic
+    import sys
+    if 'collectstatic' not in sys.argv and not DEBUG:
+        raise ValueError("GEMINI_API_KEY environment variable must be set in production")
+    elif DEBUG:
         GEMINI_API_KEY = 'dev-key-not-configured'
     else:
-        raise ValueError("GEMINI_API_KEY environment variable must be set in production")
+        GEMINI_API_KEY = 'dummy-key-for-build'
 
 GEMINI_MODEL_NAME = os.environ.get('GEMINI_MODEL_NAME', 'gemini-2.5-flash')
 
