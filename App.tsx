@@ -343,7 +343,7 @@ const AppContent: React.FC = () => {
                 userTier={isActualAdmin ? 'admin' : effectiveUserTier}
                 onTierChange={handleTierChange}
             />
-            <main className={`flex-1 overflow-y-auto p-8 transition-all duration-300 ${isSidebarCollapsed ? 'ml-20' : 'ml-64'}`}>
+            <main className={`flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 transition-all duration-300 ${isSidebarCollapsed ? 'ml-16 sm:ml-20' : 'ml-16 sm:ml-64'}`}>
                 <Suspense fallback={
                     <div className="flex items-center justify-center min-h-[400px]">
                         <div className="text-center">
