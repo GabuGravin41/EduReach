@@ -91,8 +91,8 @@ export const LearningSession: React.FC<LearningSessionProps> = ({ videoId, trans
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-6 gap-6 h-full">
-      <div className="lg:col-span-4 flex flex-col h-full gap-2">
+    <div className="grid grid-cols-1 lg:grid-cols-6 gap-6 h-full min-h-0">
+      <div className="lg:col-span-4 flex flex-col h-full min-h-0 gap-4">
         <div className="flex-[1.7] min-h-0">
           <YouTubePlayer videoId={videoId} />
         </div>
@@ -100,7 +100,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({ videoId, trans
           <StudyPanel transcript={transcript} notes={notes} onNotesChange={setNotes} />
         </div>
       </div>
-      <div className="lg:col-span-2 h-full">
+      <div className="lg:col-span-2 h-full min-h-0">
         <AIAssistant
           messages={messages}
           setMessages={setMessages}
