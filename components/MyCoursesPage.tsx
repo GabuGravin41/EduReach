@@ -2,14 +2,7 @@ import React from 'react';
 import { PlayCircleIcon } from './icons/PlayCircleIcon';
 import { PlusCircleIcon } from './icons/PlusCircleIcon';
 import { UserTier } from '../App';
-
-interface Course {
-  id: number;
-  title: string;
-  description: string;
-  progress: number;
-  thumbnail: string;
-}
+import type { Course } from '../src/services/courseService';
 
 interface MyCoursesPageProps {
     courses: Course[];
@@ -19,7 +12,7 @@ interface MyCoursesPageProps {
 }
 
 export const MyCoursesPage: React.FC<MyCoursesPageProps> = ({ courses, onSelectCourse, onNewCourse, userTier }) => {
-  const pageTitle = userTier === 'admin' ? 'Platform Courses' : 'My Courses';
+  const pageTitle = 'My Courses';
     
   return (
     <div>
@@ -34,7 +27,9 @@ export const MyCoursesPage: React.FC<MyCoursesPageProps> = ({ courses, onSelectC
         </button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {courses.map(course => (
+        {courses.map(course => {
+          const progress = course.progress ?? 0;
+          return (
           <div key={course.id} onClick={() => onSelectCourse(course.id)} className="bg-white dark:bg-slate-800 rounded-xl shadow-lg shadow-slate-900/5 overflow-hidden cursor-pointer group flex flex-col">
             <div className="h-40 bg-slate-200 dark:bg-slate-700 flex items-center justify-center relative">
                <PlayCircleIcon className="w-16 h-16 text-white/50 group-hover:text-white transition-colors" />
@@ -43,12 +38,13 @@ export const MyCoursesPage: React.FC<MyCoursesPageProps> = ({ courses, onSelectC
               <h3 className="font-bold text-lg mb-2">{course.title}</h3>
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 h-10 flex-grow">{course.description}</p>
               <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 mt-auto">
-                  <div className="bg-indigo-600 h-2.5 rounded-full" style={{ width: `${course.progress}%` }}></div>
+                  <div className="bg-indigo-600 h-2.5 rounded-full" style={{ width: `${progress}%` }}></div>
               </div>
-              <p className="text-right text-xs mt-1 text-slate-500 dark:text-slate-400">{course.progress}% Complete</p>
+              <p className="text-right text-xs mt-1 text-slate-500 dark:text-slate-400">{progress}% Complete</p>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

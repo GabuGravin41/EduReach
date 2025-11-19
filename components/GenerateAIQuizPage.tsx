@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { SparklesIcon } from './icons/SparklesIcon';
-import { aiService } from '../src/services/aiService';
+import aiService from '../src/services/aiService';
 import { UserTier } from '../App';
 
 interface GenerateAIQuizPageProps {

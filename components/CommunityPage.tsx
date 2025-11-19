@@ -110,11 +110,9 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ posts, onPostCreat
                             <p className="font-semibold text-slate-800 dark:text-slate-100">{post.author}</p>
                             <p className="text-xs text-slate-500 dark:text-slate-400">{post.time}</p>
                         </div>
-                         {userTier === 'admin' && (
-                            <button onClick={() => onDeletePost(post.id)} className="p-2 rounded-md text-slate-500 hover:bg-red-100 dark:text-slate-400 dark:hover:bg-red-900/50 hover:text-red-600" aria-label="Delete Post">
+                         <button onClick={() => onDeletePost(post.id)} className="p-2 rounded-md text-slate-500 hover:bg-red-100 dark:text-slate-400 dark:hover:bg-red-900/50 hover:text-red-600" aria-label="Delete Post">
                                 <TrashIcon className="w-4 h-4" />
                             </button>
-                        )}
                     </div>
                     <p className="text-slate-600 dark:text-slate-300 mb-4">{post.content}</p>
                     <div className="flex items-center space-x-6 text-sm text-slate-500 dark:text-slate-400">

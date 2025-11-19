@@ -4,15 +4,26 @@ import { PlayIcon } from './icons/PlayIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { View, UserTier } from '../App';
 import { LockIcon } from './icons/LockIcon';
+import { TrashIcon } from './icons/TrashIcon';
 import { DiscussionsPage } from './DiscussionsPage';
+import type { Course as ApiCourse, Lesson as ApiLesson } from '../src/services/courseService';
 
-interface Course {
-    id: number;
-    title: string;
-    description: string;
-    progress: number;
-    lessons: { title: string; videoId: string; isCompleted: boolean, duration: string }[];
+interface CourseNote {
+    id: string;
+    lessonId: string;
+    lessonTitle: string;
+    content: string;
+    createdAt: string;
+    updatedAt: string;
 }
+
+type Lesson = ApiLesson & {
+    thumbnail?: string;
+};
+
+type Course = ApiCourse & {
+    notes?: CourseNote[];
+};
 
 interface CourseDetailPageProps {
     course: Course;
@@ -23,8 +34,29 @@ interface CourseDetailPageProps {
 }
 
 export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setView, onStartLesson, userTier, currentUserId }) => {
-    const [activeTab, setActiveTab] = useState<'lessons' | 'discussions' | 'notes'>('lessons');
-    
+    const [activeTab, setActiveTab] = useState<'lessons' | 'discussions' | 'notes' | 'manage'>('lessons');
+    const [isEditingCourse, setIsEditingCourse] = useState(false);
+    const [editedCourse, setEditedCourse] = useState<Course>(
+        course ?? {
+            id: 0,
+            title: '',
+            description: '',
+            progress: 0,
+            thumbnail: '',
+            lessons: [],
+            isPublic: false,
+            notes: [],
+        }
+    );
+    const [isAddingVideo, setIsAddingVideo] = useState(false);
+    const [newVideo, setNewVideo] = useState({ title: '', videoId: '', thumbnail: '' });
+    const [courseNotes, setCourseNotes] = useState<CourseNote[]>(course?.notes || []);
+    const [isAddingNote, setIsAddingNote] = useState(false);
+    const [newNote, setNewNote] = useState({ lessonId: '', content: '' });
+    const [selectedLessonId, setSelectedLessonId] = useState('');
+    const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+    const [thumbnailPreview, setThumbnailPreview] = useState(course?.thumbnail || '');
+
     if (!course) {
         return (
             <div className="text-center">
@@ -35,8 +67,84 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setV
             </div>
         );
     }
-    
+
     const dummyTranscript = `This is a placeholder transcript for the selected video. In a real application, this would be fetched from a server or provided by the user. It demonstrates the flow of starting a lesson from the course page.`;
+
+    // Handler functions
+    const handleAddVideo = () => {
+        if (newVideo.title && newVideo.videoId) {
+            const videoId = extractVideoId(newVideo.videoId) || newVideo.videoId;
+            const lesson: Lesson = {
+                id: Date.now() * -1,
+                title: newVideo.title,
+                videoId,
+                isCompleted: false,
+                duration: 'N/A',
+                thumbnail: newVideo.thumbnail || `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
+            };
+            setEditedCourse({
+                ...editedCourse,
+                lessons: [...editedCourse.lessons, lesson]
+            });
+            setNewVideo({ title: '', videoId: '', thumbnail: '' });
+            setIsAddingVideo(false);
+        }
+    };
+
+    const handleRemoveVideo = (lessonId: number) => {
+        setEditedCourse({
+            ...editedCourse,
+            lessons: editedCourse.lessons.filter(l => l.id !== lessonId)
+        });
+    };
+
+    const handleAddNote = () => {
+        if (newNote.content && newNote.lessonId) {
+            const lesson = editedCourse.lessons.find(l => l.id.toString() === newNote.lessonId);
+            const note: CourseNote = {
+                id: Date.now().toString(),
+                lessonId: newNote.lessonId,
+                lessonTitle: lesson?.title || 'Unknown Lesson',
+                content: newNote.content,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            setCourseNotes([...courseNotes, note]);
+            setNewNote({ lessonId: '', content: '' });
+            setIsAddingNote(false);
+            setSelectedLessonId('');
+        }
+    };
+
+    const handleRemoveNote = (noteId: string) => {
+        setCourseNotes(courseNotes.filter(n => n.id !== noteId));
+    };
+
+    const handleThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setThumbnailFile(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setThumbnailPreview(reader.result as string);
+                setEditedCourse({ ...editedCourse, thumbnail: reader.result as string });
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleSaveCourse = () => {
+        // In a real app, this would save to backend
+        console.log('Saving course:', editedCourse);
+        console.log('Saving notes:', courseNotes);
+        setIsEditingCourse(false);
+    };
+
+    const extractVideoId = (urlOrId: string): string | null => {
+        const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/;
+        const match = urlOrId.match(regex);
+        return match ? match[1] : null;
+    };
 
     // Safely handle lessons array - it might be undefined or empty
     const courseLessons = Array.isArray(course.lessons) ? course.lessons : [];
@@ -115,6 +223,16 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setV
                             }`}
                         >
                             Discussions
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('manage')}
+                            className={`py-3 sm:py-4 px-3 sm:px-4 font-semibold border-b-3 transition-all whitespace-nowrap text-sm sm:text-base rounded-t-lg ${
+                                activeTab === 'manage'
+                                    ? 'border-orange-500 text-orange-600 dark:text-orange-400 bg-white dark:bg-gray-700 shadow-sm'
+                                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-white/50 dark:hover:bg-gray-700/50'
+                            }`}
+                        >
+                            Manage Course
                         </button>
                     </div>
                 </div>
@@ -212,6 +330,257 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setV
                             currentUserId={currentUserId}
                             apiBaseUrl="http://localhost:8000/api"
                         />
+                    </div>
+                )}
+
+                {/* Manage Tab - Available to All Users */}
+                {activeTab === 'manage' && (
+                    <div className="p-4 sm:p-6 bg-gradient-to-b from-orange-25 to-white dark:from-gray-800 dark:to-gray-800">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold text-gray-800 dark:text-white">Manage Course</h2>
+                            <div className="flex gap-2">
+                                {!isEditingCourse ? (
+                                    <button
+                                        onClick={() => setIsEditingCourse(true)}
+                                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                                    >
+                                        Edit Course
+                                    </button>
+                                ) : (
+                                    <>
+                                        <button
+                                            onClick={handleSaveCourse}
+                                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                                        >
+                                            Save Changes
+                                        </button>
+                                        <button
+                                            onClick={() => setIsEditingCourse(false)}
+                                            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Course Basic Info */}
+                        <div className="bg-white dark:bg-gray-700 rounded-xl p-6 mb-6 shadow-sm">
+                            <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Course Information</h3>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Course Title</label>
+                                    <input
+                                        type="text"
+                                        value={editedCourse.title}
+                                        onChange={(e) => setEditedCourse({ ...editedCourse, title: e.target.value })}
+                                        disabled={!isEditingCourse}
+                                        className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                                    <textarea
+                                        value={editedCourse.description}
+                                        onChange={(e) => setEditedCourse({ ...editedCourse, description: e.target.value })}
+                                        disabled={!isEditingCourse}
+                                        rows={3}
+                                        className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none disabled:opacity-50"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Course Thumbnail</label>
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-24 h-24 bg-gray-200 dark:bg-gray-600 rounded-lg overflow-hidden">
+                                            {thumbnailPreview ? (
+                                                <img src={thumbnailPreview} alt="Course thumbnail" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                                    <span className="text-xs">No Image</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleThumbnailUpload}
+                                                disabled={!isEditingCourse}
+                                                className="text-sm text-gray-600 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 disabled:opacity-50"
+                                            />
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Upload a course thumbnail image</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Video Management */}
+                        <div className="bg-white dark:bg-gray-700 rounded-xl p-6 mb-6 shadow-sm">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Video Lessons</h3>
+                                <button
+                                    onClick={() => setIsAddingVideo(true)}
+                                    disabled={!isEditingCourse}
+                                    className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50"
+                                >
+                                    Add Video
+                                </button>
+                            </div>
+
+                            {isAddingVideo && (
+                                <div className="bg-gray-50 dark:bg-gray-600 rounded-lg p-4 mb-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <input
+                                            type="text"
+                                            placeholder="Lesson Title"
+                                            value={newVideo.title}
+                                            onChange={(e) => setNewVideo({ ...newVideo, title: e.target.value })}
+                                            className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder="YouTube URL or Video ID"
+                                            value={newVideo.videoId}
+                                            onChange={(e) => setNewVideo({ ...newVideo, videoId: e.target.value })}
+                                            className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder="Custom Thumbnail URL (optional)"
+                                            value={newVideo.thumbnail}
+                                            onChange={(e) => setNewVideo({ ...newVideo, thumbnail: e.target.value })}
+                                            className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                    <div className="flex gap-2 mt-4">
+                                        <button
+                                            onClick={handleAddVideo}
+                                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                                        >
+                                            Add
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setIsAddingVideo(false);
+                                                setNewVideo({ title: '', videoId: '', thumbnail: '' });
+                                            }}
+                                            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="space-y-3">
+                                {editedCourse.lessons.map((lesson) => (
+                                    <div key={lesson.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-600 rounded-lg">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-16 h-10 bg-gray-200 dark:bg-gray-500 rounded overflow-hidden">
+                                                {lesson.thumbnail ? (
+                                                    <img src={lesson.thumbnail} alt={lesson.title} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                                        <PlayIcon className="w-6 h-6" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <p className="font-medium text-gray-800 dark:text-white">{lesson.title}</p>
+                                                <p className="text-sm text-gray-500 dark:text-gray-400">{lesson.videoId}</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => handleRemoveVideo(lesson.id)}
+                                            disabled={!isEditingCourse}
+                                            className="p-2 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-lg disabled:opacity-50"
+                                        >
+                                            <TrashIcon className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Notes Management */}
+                        <div className="bg-white dark:bg-gray-700 rounded-xl p-6 shadow-sm">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Course Notes</h3>
+                                <button
+                                    onClick={() => setIsAddingNote(true)}
+                                    disabled={!isEditingCourse}
+                                    className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50"
+                                >
+                                    Add Note
+                                </button>
+                            </div>
+
+                            {isAddingNote && (
+                                <div className="bg-gray-50 dark:bg-gray-600 rounded-lg p-4 mb-4">
+                                    <div className="space-y-4">
+                                        <select
+                                            value={newNote.lessonId}
+                                            onChange={(e) => setNewNote({ ...newNote, lessonId: e.target.value })}
+                                            className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        >
+                                            <option value="">Select a lesson</option>
+                                            {editedCourse.lessons.map((lesson) => (
+                                                <option key={lesson.id} value={lesson.id.toString()}>{lesson.title}</option>
+                                            ))}
+                                        </select>
+                                        <textarea
+                                            placeholder="Note content..."
+                                            value={newNote.content}
+                                            onChange={(e) => setNewNote({ ...newNote, content: e.target.value })}
+                                            rows={3}
+                                            className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                                        />
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={handleAddNote}
+                                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                                            >
+                                                Add Note
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setIsAddingNote(false);
+                                                    setNewNote({ lessonId: '', content: '' });
+                                                }}
+                                                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="space-y-3">
+                                {courseNotes.map((note) => (
+                                    <div key={note.id} className="p-3 bg-gray-50 dark:bg-gray-600 rounded-lg">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div>
+                                                <p className="font-medium text-gray-800 dark:text-white">{note.lessonTitle}</p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                    {new Date(note.createdAt).toLocaleDateString()}
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() => handleRemoveNote(note.id)}
+                                                disabled={!isEditingCourse}
+                                                className="p-1 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/50 rounded disabled:opacity-50"
+                                            >
+                                                <TrashIcon className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                        <p className="text-sm text-gray-700 dark:text-gray-300">{note.content}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

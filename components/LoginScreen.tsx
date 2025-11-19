@@ -166,76 +166,82 @@ export const LoginScreen: React.FC = () => {
             )}
 
             {/* Login Form */}
-            <form onSubmit={handleSubmit} className="space-y-3">
-              <div>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/50 text-black placeholder-white/60 transition-colors"
-                  required
-                  disabled={isLoading}
-                  placeholder="Username"
-                  aria-label="Username"
-                />
-              </div>
-
-              {!isLogin && (
+            <div className="max-w-md w-full space-y-8 p-10 rounded-none backdrop-filter backdrop-blur-lg bg-white bg-opacity-20 border border-gray-200">
+              <form onSubmit={handleSubmit} className="space-y-3">
                 <div>
                   <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/50 text-black placeholder-white/60 transition-colors"
-                    required={!isLogin}
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white/20 backdrop-blur-sm border border-white/30 rounded-none focus:outline-none focus:ring-2 focus:ring-white/50 text-black placeholder-white/60 transition-colors"
+                    required
                     disabled={isLoading}
-                    placeholder="Email"
-                    aria-label="Email"
+                    placeholder="Username"
+                    aria-label="Username"
                   />
                 </div>
-              )}
 
-              <div>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/50 text-black placeholder-white/60 transition-colors"
-                  required
+                {!isLogin && (
+                  <div>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full px-4 py-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-none focus:outline-none focus:ring-2 focus:ring-white/50 text-black placeholder-white/60 transition-colors"
+                      required={!isLogin}
+                      disabled={isLoading}
+                      placeholder="Email"
+                      aria-label="Email"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white/20 backdrop-blur-sm border border-white/30 rounded-none focus:outline-none focus:ring-2 focus:ring-white/50 text-black placeholder-white/60 transition-colors"
+                    required
+                    disabled={isLoading}
+                    placeholder="Password"
+                    minLength={8}
+                    aria-label="Password"
+                  />
+                </div>
+
+                <button
+                  type="submit"
                   disabled={isLoading}
-                  placeholder="Password"
-                  minLength={8}
-                  aria-label="Password"
-                />
-              </div>
+                  className="w-full bg-white text-indigo-600 py-2.5 rounded-none font-bold hover:bg-opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isLoading ? 'Loading...' : (isLogin ? 'Sign In' : 'Create Account')}
+                </button>
+              </form>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-white text-indigo-600 py-2.5 rounded-xl font-bold hover:bg-opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? 'Loading...' : (isLogin ? 'Sign In' : 'Create Account')}
-              </button>
-            </form>
-
-            {/* Toggle Login/Signup */}
-            <p className="mt-4 text-center text-white/80 text-sm">
-              {isLogin ? "Don't have an account? " : "Already have an account? "}
-              <button
-                onClick={() => {
-                  setIsLogin(!isLogin);
-                  setError('');
-                }}
-                className="text-white font-semibold hover:underline"
-                disabled={isLoading}
-              >
-                {isLogin ? 'Sign Up' : 'Sign In'}
-              </button>
-            </p>
+              {/* Toggle Login/Signup */}
+              <p className="mt-4 text-center text-white/80 text-sm">
+                {isLogin ? "Don't have an account? " : "Already have an account? "}
+                <button
+                  onClick={() => {
+                    setIsLogin(!isLogin);
+                    setError('');
+                  }}
+                  className="text-white font-semibold hover:underline"
+                  disabled={isLoading}
+                >
+                  {isLogin ? 'Sign Up' : 'Sign In'}
+                </button>
+              </p>
+            </div>
           </div>
         </div>
       )}
-
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-100 to-amber-100 p-4">
+        <div className="max-w-md w-full space-y-8 p-10 rounded-none backdrop-filter backdrop-blur-lg bg-white bg-opacity-20 border border-gray-200">
+          {/* ... glass form ... */}
+        </div>
+      </div>
       <style>{`
         @keyframes scale-in {
           from {

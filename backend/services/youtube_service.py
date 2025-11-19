@@ -8,6 +8,9 @@ from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlparse, parse_qs
 import json
 from datetime import datetime
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from youtube_transcript_api import YouTubeTranscriptApi
 
 class YouTubeTranscriptService:
     """
@@ -323,6 +326,19 @@ class YouTubeTranscriptService:
             'chapters': chapters,
             'extracted_at': datetime.now().isoformat()
         }
+
+@api_view(['POST'])
+def extract_transcript(request):
+    video_id = request.data.get('videoId')
+    if not video_id:
+        return Response({'error': 'Missing videoId'}, status=400)
+
+    try:
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+        transcript_text = ' '.join([item['text'] for item in transcript_list])
+        return Response({'transcript': transcript_text})
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)
 
 # Usage example:
 """

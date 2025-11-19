@@ -45,10 +45,22 @@ def chat(request):
         # Configure Gemini
         configure_gemini()
         
-        # Create the model
+        # Create the model with safety settings for large content
         model_name = getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash')
         print(f"Creating model with name: {model_name}")
-        model = genai.GenerativeModel(model_name)
+        
+        # Configure model for better performance with large contexts
+        generation_config = {
+            "temperature": 0.7,
+            "top_p": 0.8,
+            "top_k": 40,
+            "max_output_tokens": 2048,
+        }
+        
+        model = genai.GenerativeModel(
+            model_name=model_name,
+            generation_config=generation_config
+        )
         
         # Construct the full prompt with context
         full_prompt = f"{context}\n\n{message}" if context else message

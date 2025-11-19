@@ -101,7 +101,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                     <div className="space-y-4">
                     {messagesWithIds.map((msg) => (
                         <div key={msg.id} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
-                        {msg.role === 'model' && (
+                        {msg.role === 'assistant' && (
                             <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
                             <BotIcon className="w-5 h-5 text-slate-500 dark:text-slate-400" />
                             </div>
@@ -113,14 +113,14 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                                 : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200'
                             }`}
                         >
-                            {msg.role === 'model' && msg.content ? (
+                            {msg.role === 'assistant' && msg.content ? (
                                 <MarkdownRenderer content={msg.content} />
                             ) : (
                                 <span className={`${msg.role === 'user' ? 'whitespace-pre-wrap' : ''}`}>
                                     {msg.content}
                                 </span>
                             )}
-                            {isLoading && msg.role === 'model' && messagesWithIds[messagesWithIds.length - 1]?.id === msg.id && msg.content === '' && (
+                            {isLoading && msg.role === 'assistant' && messagesWithIds[messagesWithIds.length - 1]?.id === msg.id && msg.content === '' && (
                                 <div className="flex items-center space-x-1">
                                     <span className="h-2 w-2 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
                                     <span className="h-2 w-2 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>

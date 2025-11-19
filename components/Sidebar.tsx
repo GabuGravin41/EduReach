@@ -107,11 +107,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
 
         <nav className="space-y-2">
           {navItems.map(item => {
-            // Hide admin-only items from non-admin users
-            if (item.adminOnly && userTier !== 'admin') {
-                return null;
-            }
-            
             return <NavItem key={item.id} {...item} />
           })}
         </nav>

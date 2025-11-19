@@ -32,6 +32,16 @@ export interface TranscriptData {
   error?: string;
 }
 
+export interface VideoMetadataResponse {
+  title: string;
+  description: string;
+  thumbnails?: {
+    high?: { url: string };
+  };
+  duration?: number;
+  hasTranscript?: boolean;
+}
+
 export const youtubeService = {
   /**
    * Extract video ID from YouTube URL
@@ -61,14 +71,87 @@ export const youtubeService = {
   },
 
   /**
-   * Extract transcript from YouTube video
+   * Extract transcript (and metadata) from a YouTube video
    */
-  async extractTranscript(url: string, language: string = 'en'): Promise<TranscriptData> {
-    const response = await apiClient.post('/youtube/extract-transcript/', {
-      url,
-      language
-    });
-    return response.data;
+  async extractTranscript({
+    url,
+    videoId,
+    language = 'en'
+  }: {
+    url?: string;
+    videoId?: string;
+    language?: string;
+  } = {}): Promise<TranscriptData> {
+    const resolvedUrl = url || (videoId ? `https://www.youtube.com/watch?v=${videoId}` : undefined);
+
+    if (!resolvedUrl) {
+      return {
+        success: false,
+        video_id: videoId || '',
+        transcript: '',
+        error: 'YouTube URL or video ID is required'
+      };
+    }
+
+    try {
+      const { data } = await apiClient.post('/youtube/extract-transcript/', {
+        url: resolvedUrl,
+        language
+      });
+
+      return {
+        success: Boolean(data?.success),
+        video_id: data?.video_id || videoId || '',
+        transcript: data?.transcript?.transcript || '',
+        metadata: data?.metadata,
+        available_languages: data?.available_languages,
+        error: data?.success ? undefined : data?.error
+      };
+    } catch (error: any) {
+      console.error('Transcript extraction failed:', error);
+      return {
+        success: false,
+        video_id: videoId || '',
+        transcript: '',
+        error: error.response?.data?.error || 'Failed to extract transcript'
+      };
+    }
+  },
+
+  async getVideoMetadata({
+    url,
+    videoId
+  }: {
+    url?: string;
+    videoId?: string;
+  } = {}): Promise<VideoMetadataResponse | null> {
+    const resolvedUrl = url || (videoId ? `https://www.youtube.com/watch?v=${videoId}` : undefined);
+
+    if (!resolvedUrl) {
+      console.error('YouTube URL or video ID is required to fetch metadata');
+      return null;
+    }
+
+    try {
+      const { data } = await apiClient.get('/youtube/video-info/', {
+        params: { url: resolvedUrl }
+      });
+
+      const metadata = data?.metadata || {};
+
+      return {
+        title: metadata.title || 'Untitled video',
+        description: metadata.description || '',
+        thumbnails: metadata.thumbnail_url
+          ? { high: { url: metadata.thumbnail_url } }
+          : undefined,
+        duration: metadata.duration,
+        hasTranscript: Boolean(data?.available_languages?.length)
+      };
+    } catch (error) {
+      console.error('Failed to fetch video metadata:', error);
+      return null;
+    }
   },
 
   /**

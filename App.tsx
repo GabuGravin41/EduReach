@@ -2,13 +2,13 @@ import React, { useState, lazy, Suspense } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { authService } from './src/services/authService';
-import { useCourses, useCreateCourse } from './src/hooks/useCourses';
+import { useCourses, useCreateCourse, useCourse } from './src/hooks/useCourses';
 import { useAssessments, useCreateAssessment } from './src/hooks/useAssessments';
 import { usePosts, useCreatePost, useToggleLike, useAddComment, useDeletePost } from './src/hooks/useCommunity';
 import { Sidebar } from './components/Sidebar';
 import { LoginScreen } from './components/LoginScreen';
 import { Dashboard } from './components/Dashboard';
-import { LearningSession } from './components/LearningSession';
+import LearningSession from './components/LearningSession';
 import { SetupSession } from './components/SetupSession';
 import { MyCoursesPage } from './components/MyCoursesPage';
 import { AssessmentsPage } from './components/AssessmentsPage';
@@ -76,6 +76,9 @@ const AppContent: React.FC = () => {
     // Get effective user tier (admin view mode or actual user tier)
     const effectiveUserTier = user?.tier === 'admin' && adminViewMode ? adminViewMode : (user?.tier || 'free');
     const isActualAdmin = user?.tier === 'admin';
+
+    // Single-course query for detail view
+    const selectedCourseQuery = useCourse(selectedCourseId ?? 0);
 
     // Combine mock data with API data and local fallbacks
     // Ensure API data is an array before spreading
@@ -269,13 +272,7 @@ const AppContent: React.FC = () => {
     };
 
     const navigateToCreateCourse = () => {
-        const userCourses = courses.filter(c => !c.isPublic).length;
-        if (userCourses >= limits.courses) {
-            alert(`You've reached your limit of ${limits.courses} course(s). Please upgrade to create more.`);
-            setCurrentView('pricing');
-        } else {
-            setCurrentView('create_course');
-        }
+        setCurrentView('create_course');
     };
 
     const renderContent = () => {
@@ -287,9 +284,8 @@ const AppContent: React.FC = () => {
             case 'dashboard':
                 return <Dashboard onStartSession={() => setCurrentView('new_session')} onSelectCourse={handleSelectCourse} userTier={effectiveUserTier} />;
             case 'courses':
-                // Admins see all courses, users see their own + public
-                const visibleCourses = isActualAdmin ? courses : courses.filter(c => c.isPublic || !c.isPublic /* in real app, filter by owner */);
-                return <MyCoursesPage courses={visibleCourses} onSelectCourse={handleSelectCourse} onNewCourse={navigateToCreateCourse} userTier={effectiveUserTier} />;
+                // All users see all courses (public and their own)
+                return <MyCoursesPage courses={courses} onSelectCourse={handleSelectCourse} onNewCourse={navigateToCreateCourse} userTier={effectiveUserTier} />;
             case 'assessments':
                 return <EnhancedAssessmentsPage assessments={assessments} onSelectExam={handleSelectExam} setView={setCurrentView} userTier={effectiveUserTier} tierUsage={mockTierUsage} />;
             case 'community':
@@ -297,7 +293,7 @@ const AppContent: React.FC = () => {
             case 'new_session':
                 return <SetupSession onSessionCreated={handleSessionCreated} />;
             case 'create_course':
-                return <CreateCoursePage onCourseCreated={handleCourseCreated} onCancel={() => setCurrentView('courses')} lessonLimit={limits.lessonsPerCourse} setView={setCurrentView}/>;
+                return <CreateCoursePage onCourseCreated={handleCourseCreated} onCancel={() => setCurrentView('courses')} lessonLimit={999} setView={setCurrentView}/>;
             case 'create_exam':
                 return <EnhancedCreateExamPage onExamCreated={handleExamCreated} onCancel={() => setCurrentView('assessments')} userTier={effectiveUserTier} />;
             case 'generate_ai_quiz':
@@ -313,12 +309,44 @@ const AppContent: React.FC = () => {
                 setCurrentView('new_session'); 
                 return null;
             case 'course_detail':
-                if (selectedCourseId) {
-                    const course = courses.find(c => c.id === selectedCourseId);
-                    return <CourseDetailPage course={course!} setView={setCurrentView} onStartLesson={handleSessionCreated} userTier={effectiveUserTier} />;
+                if (!selectedCourseId) {
+                    setCurrentView('courses');
+                    return null;
                 }
-                setCurrentView('courses');
-                return null;
+
+                if (selectedCourseQuery.isLoading) {
+                    return (
+                        <div className="flex items-center justify-center min-h-[400px]">
+                            <div className="text-center">
+                                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto"></div>
+                                <p className="mt-4 text-gray-600 dark:text-gray-400">Loading course...</p>
+                            </div>
+                        </div>
+                    );
+                }
+
+                if (!selectedCourseQuery.data) {
+                    return (
+                        <div className="text-center">
+                            <h2 className="text-2xl font-bold">Course Not Found</h2>
+                            <button
+                                onClick={() => setCurrentView('courses')}
+                                className="mt-4 text-indigo-600 hover:underline"
+                            >
+                                Return to Courses
+                            </button>
+                        </div>
+                    );
+                }
+
+                return (
+                    <CourseDetailPage
+                        course={selectedCourseQuery.data}
+                        setView={setCurrentView}
+                        onStartLesson={handleSessionCreated}
+                        userTier={effectiveUserTier}
+                    />
+                );
             case 'exam_detail':
                 if (selectedExamId) {
                     const exam = assessments.find(e => e.id === selectedExamId);

@@ -14,16 +14,31 @@ interface CreateCoursePageProps {
 }
 
 interface Lesson {
+  id: string;
   title: string;
   videoId: string;
+  isCompleted: boolean;
+  duration: string;
+  thumbnail?: string;
   validated?: boolean;
   validating?: boolean;
   videoInfo?: {
     title: string;
+    description: string;
     duration?: number;
-    has_transcript: boolean;
+    hasTranscript?: boolean;
+    thumbnail?: string;
+    transcript?: string;
   };
   error?: string;
+}
+
+interface VideoMetadata {
+  title: string;
+  description: string;
+  thumbnail?: string;
+  duration?: number;
+  hasTranscript?: boolean;
 }
 
 export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCreated, onCancel, lessonLimit, setView }) => {
@@ -32,7 +47,7 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
   const [isPublic, setIsPublic] = useState(true);
   const [lessons, setLessons] = useState<Lesson[]>([{ title: '', videoId: '' }]);
 
-  const handleAddLesson = () => {
+  const handleAddLesson = async () => {
     if (lessons.length >= lessonLimit) {
         alert(`You have reached the maximum of ${lessonLimit} lessons per course on your current plan. Please upgrade to add more.`);
         setView('pricing');
@@ -75,20 +90,26 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
     
     try {
       const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-      const info = await youtubeService.getVideoInfo(videoUrl);
+      const [metadata, transcript] = await Promise.all([
+        youtubeService.getVideoMetadata(videoId),
+        youtubeService.extractTranscript(videoId)
+      ]);
       
       newLessons[index].validated = true;
       newLessons[index].validating = false;
       newLessons[index].videoInfo = {
-        title: info.metadata?.title || 'Unknown',
-        duration: info.metadata?.duration,
-        has_transcript: info.has_transcript
+        title: metadata?.title || 'Unknown',
+        description: metadata?.description,
+        duration: metadata?.duration,
+        hasTranscript: metadata?.hasTranscript,
+        thumbnail: metadata?.thumbnails?.high?.url,
+        transcript: transcript.success ? transcript.transcript : undefined
       };
       newLessons[index].error = undefined;
       
       // Auto-fill title if empty
-      if (!newLessons[index].title && info.metadata?.title) {
-        newLessons[index].title = info.metadata.title;
+      if (!newLessons[index].title && metadata?.title) {
+        newLessons[index].title = metadata.title;
       }
       
       setLessons([...newLessons]);
@@ -124,7 +145,9 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
         title: l.title,
         videoId: extractVideoId(l.videoId),
         isCompleted: false,
-        duration: l.videoInfo?.duration ? `${Math.floor(l.videoInfo.duration / 60)}:${String(l.videoInfo.duration % 60).padStart(2, '0')}` : 'N/A'
+        duration: l.videoInfo?.duration ? `${Math.floor(l.videoInfo.duration / 60)}:${String(l.videoInfo.duration % 60).padStart(2, '0')}` : 'N/A',
+        thumbnail: l.videoInfo?.thumbnail,
+        transcript: l.videoInfo?.transcript
       })),
       thumbnail: '/placeholder.svg',
     };
@@ -184,7 +207,9 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
                     <CheckCircleIcon className="w-4 h-4" />
                     <span className="font-medium">{lesson.videoInfo.title}</span>
                     {lesson.videoInfo.duration && <span className="text-slate-500">• {Math.floor(lesson.videoInfo.duration / 60)}:{String(lesson.videoInfo.duration % 60).padStart(2, '0')}</span>}
-                    {!lesson.videoInfo.has_transcript && <span className="text-amber-600 dark:text-amber-400">• No transcript</span>}
+                    {lesson.videoInfo.thumbnail && <span className="text-slate-500">• Thumbnail: {lesson.videoInfo.thumbnail}</span>}
+                    {lesson.videoInfo.transcript && <span className="text-slate-500">• Transcript: {lesson.videoInfo.transcript}</span>}
+                    {!lesson.videoInfo.hasTranscript && <span className="text-amber-600 dark:text-amber-400">• No transcript</span>}
                   </div>
                 )}
                 

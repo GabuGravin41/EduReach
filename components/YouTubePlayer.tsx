@@ -1,20 +1,27 @@
-import React from 'react';
+import { forwardRef } from 'react';
 
 interface YouTubePlayerProps {
   videoId: string;
+  initialTime?: number;
+  className?: string;
 }
 
-export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({ videoId }) => {
-  return (
-    <div className="bg-white dark:bg-slate-800 p-2 sm:p-4 rounded-xl shadow-lg shadow-slate-900/5 w-full h-full">
+const YouTubePlayer = forwardRef<HTMLIFrameElement, YouTubePlayerProps>(
+  ({ videoId, initialTime, className }, ref) => {
+    return (
       <iframe
-        className="w-full h-full rounded-lg"
-        src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`}
-        title="YouTube video player"
+        ref={ref}
+        className={className}
+        src={`https://www.youtube.com/embed/${videoId}?enablejsapi=1${initialTime ? `&start=${Math.floor(initialTime)}` : ''}`}
         frameBorder="0"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowFullScreen
-      ></iframe>
-    </div>
-  );
-};
+      />
+    );
+  }
+);
+
+// Named export for components that need it
+export { YouTubePlayer };
+
+export default YouTubePlayer;

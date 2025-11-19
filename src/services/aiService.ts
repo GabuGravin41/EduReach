@@ -1,76 +1,42 @@
-import apiClient from './api';
-import { API_ENDPOINTS } from '../config/api';
-import { QuizQuestion } from '../types';
+import apiClient from './apiClient';
+import type { QuizQuestion, ChatMessage } from '../types';
 
-export interface GenerateQuizRequest {
-  transcript: string;
-  num_questions?: number;
-  difficulty?: 'easy' | 'medium' | 'hard';
-}
-
-export interface ChatRequest {
-  message: string;
-  context?: string;
-}
-
-export interface StudyPlanRequest {
-  topic: string;
-  duration_weeks?: number;
-  skill_level?: 'beginner' | 'intermediate' | 'advanced';
-  goals?: string;
-}
-
-export interface ExplainConceptRequest {
-  concept: string;
-  detail_level?: 'simple' | 'detailed' | 'technical';
-}
-
-export const aiService = {
-  async generateQuiz(request: GenerateQuizRequest): Promise<QuizQuestion[]> {
+const aiService = {
+  async chat({ message, context }: { message: string, context: string }): Promise<string> {
     try {
-      const response = await apiClient.post(API_ENDPOINTS.AI_GENERATE_QUIZ, request);
-
-      // Transform backend response to match frontend QuizQuestion interface
-      const questions = response.data.questions || [];
-      return questions.map((q: any) => ({
-        question: q.question,
-        options: q.options || [],
-        correctAnswer: q.correct_answer || q.correctAnswer,
-        explanation: q.explanation || 'No explanation provided'
-      }));
-    } catch (error) {
-      console.error('Error generating quiz:', error);
-      throw new Error('Failed to generate quiz');
-    }
-  },
-
-  async chat(request: ChatRequest): Promise<string> {
-    try {
-      const response = await apiClient.post(API_ENDPOINTS.AI_CHAT, request);
+      const response = await apiClient.post<{response: string}>('/ai/chat/', 
+        { message, context },
+        { timeout: 60000 } // Increased timeout for large contexts
+      );
       return response.data.response;
     } catch (error) {
-      console.error('Error in AI chat:', error);
-      throw new Error('Failed to get AI response');
+      console.error('AI Chat Error:', error);
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. The transcript might be too long. Please try again.');
+      }
+      throw new Error(`Chat failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   },
 
-  async generateStudyPlan(request: StudyPlanRequest): Promise<string> {
+  async generateQuiz({ transcript }: { transcript: string }): Promise<QuizQuestion[]> {
     try {
-      const response = await apiClient.post(API_ENDPOINTS.AI_STUDY_PLAN, request);
-      return response.data.study_plan;
-    } catch (error) {
-      console.error('Error generating study plan:', error);
-      throw new Error('Failed to generate study plan');
-    }
-  },
+      const response = await apiClient.post<{questions: QuizQuestion[]}>('/ai/generate-quiz/', 
+        { transcript },
+        { timeout: 90000 } // Increased timeout for quiz generation
+      );
 
-  async explainConcept(request: ExplainConceptRequest): Promise<string> {
-    try {
-      const response = await apiClient.post(API_ENDPOINTS.AI_EXPLAIN, request);
-      return response.data.explanation;
+      if (!Array.isArray(response.data?.questions)) {
+        throw new Error('Invalid quiz format received');
+      }
+      return response.data.questions;
     } catch (error) {
-      console.error('Error explaining concept:', error);
-      throw new Error('Failed to explain concept');
+      console.error('AI Service Error:', error);
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Quiz generation timed out. Please try with a shorter transcript.');
+      }
+      throw new Error(`Quiz generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  },
+  }
 };
+
+export default aiService;
