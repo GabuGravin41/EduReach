@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import { PlayIcon } from './icons/PlayIcon';
 import { ClockIcon } from './icons/ClockIcon';
@@ -7,6 +7,7 @@ import { LockIcon } from './icons/LockIcon';
 import { TrashIcon } from './icons/TrashIcon';
 import { DiscussionsPage } from './DiscussionsPage';
 import type { Course as ApiCourse, Lesson as ApiLesson } from '../src/services/courseService';
+import { Button } from './ui/Button';
 
 interface CourseNote {
     id: string;
@@ -25,15 +26,24 @@ type Course = ApiCourse & {
     notes?: CourseNote[];
 };
 
+type StartLessonPayload = {
+    videoId: string;
+    transcript: string;
+    title?: string;
+    courseId?: number;
+    attachToCourse?: boolean;
+};
+
 interface CourseDetailPageProps {
     course: Course;
     setView: (view: View) => void;
-    onStartLesson: (videoId: string, transcript: string) => void;
+    onStartLesson: (payload: StartLessonPayload) => void;
+    onAddLesson?: (courseId: number, lesson: { title: string; videoId: string; transcript?: string }) => Promise<void> | void;
     userTier: UserTier;
     currentUserId?: number;
 }
 
-export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setView, onStartLesson, userTier, currentUserId }) => {
+export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setView, onStartLesson, onAddLesson, userTier, currentUserId }) => {
     const [activeTab, setActiveTab] = useState<'lessons' | 'discussions' | 'notes' | 'manage'>('lessons');
     const [isEditingCourse, setIsEditingCourse] = useState(false);
     const [editedCourse, setEditedCourse] = useState<Course>(
@@ -56,6 +66,17 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setV
     const [selectedLessonId, setSelectedLessonId] = useState('');
     const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
     const [thumbnailPreview, setThumbnailPreview] = useState(course?.thumbnail || '');
+    const [isLessonFormOpen, setIsLessonFormOpen] = useState(false);
+    const [lessonForm, setLessonForm] = useState({ title: '', videoUrl: '' });
+    const [isSavingLesson, setIsSavingLesson] = useState(false);
+    const [lessonFormError, setLessonFormError] = useState('');
+
+    useEffect(() => {
+        if (course) {
+            setEditedCourse(course);
+            setCourseNotes(course.notes || []);
+        }
+    }, [course]);
 
     if (!course) {
         return (
@@ -71,7 +92,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setV
     const dummyTranscript = `This is a placeholder transcript for the selected video. In a real application, this would be fetched from a server or provided by the user. It demonstrates the flow of starting a lesson from the course page.`;
 
     // Handler functions
-    const handleAddVideo = () => {
+    const handleAddVideo = async () => {
         if (newVideo.title && newVideo.videoId) {
             const videoId = extractVideoId(newVideo.videoId) || newVideo.videoId;
             const lesson: Lesson = {
@@ -86,8 +107,45 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setV
                 ...editedCourse,
                 lessons: [...editedCourse.lessons, lesson]
             });
+            if (onAddLesson) {
+                await onAddLesson(course.id, {
+                    title: newVideo.title,
+                    videoId,
+                    transcript: '',
+                });
+            }
             setNewVideo({ title: '', videoId: '', thumbnail: '' });
             setIsAddingVideo(false);
+        }
+    };
+
+    const handleQuickLessonSubmit = async () => {
+        if (!lessonForm.title || !lessonForm.videoUrl) {
+            setLessonFormError('Provide both a lesson title and video URL');
+            return;
+        }
+        const videoId = extractVideoId(lessonForm.videoUrl) || lessonForm.videoUrl;
+        if (!videoId) {
+            setLessonFormError('Enter a valid YouTube URL or video ID');
+            return;
+        }
+        if (!onAddLesson) return;
+
+        try {
+            setIsSavingLesson(true);
+            setLessonFormError('');
+            await onAddLesson(course.id, {
+                title: lessonForm.title,
+                videoId,
+                transcript: '',
+            });
+            setLessonForm({ title: '', videoUrl: '' });
+            setIsLessonFormOpen(false);
+        } catch (error) {
+            console.error('Failed to add lesson', error);
+            setLessonFormError('Failed to add lesson. Please try again.');
+        } finally {
+            setIsSavingLesson(false);
         }
     };
 
@@ -239,10 +297,52 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setV
 
                 {/* Lessons Tab */}
                 {activeTab === 'lessons' && (
-                <div className="bg-gradient-to-b from-orange-25 to-white dark:from-gray-800 dark:to-gray-800 p-4 sm:p-6">
-                    <h2 className="text-lg sm:text-xl font-bold mb-6 text-gray-800 dark:text-white flex items-center gap-2">
-                        📖 Lessons
-                    </h2>
+                <div className="bg-white dark:bg-slate-900 p-4 sm:p-6">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                            📖 Lessons
+                        </h2>
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setIsLessonFormOpen((prev) => !prev)}
+                        >
+                            {isLessonFormOpen ? 'Close form' : 'Add lesson'}
+                        </Button>
+                    </div>
+                    {isLessonFormOpen && (
+                        <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+                            <div className="grid gap-3 md:grid-cols-2">
+                                <input
+                                    type="text"
+                                    placeholder="Lesson title"
+                                    value={lessonForm.title}
+                                    onChange={(e) => setLessonForm({ ...lessonForm, title: e.target.value })}
+                                    className="w-full rounded-md border border-slate-300 bg-transparent p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600"
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="YouTube URL or video ID"
+                                    value={lessonForm.videoUrl}
+                                    onChange={(e) => setLessonForm({ ...lessonForm, videoUrl: e.target.value })}
+                                    className="w-full rounded-md border border-slate-300 bg-transparent p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600"
+                                />
+                            </div>
+                            {lessonFormError && (
+                                <p className="mt-2 text-sm text-rose-500">
+                                    {lessonFormError}
+                                </p>
+                            )}
+                            <div className="mt-3 flex gap-2">
+                                <Button onClick={handleQuickLessonSubmit} isLoading={isSavingLesson}>
+                                    Save lesson
+                                </Button>
+                                <Button variant="ghost" onClick={() => setIsLessonFormOpen(false)}>
+                                    Cancel
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                     {courseLessons.length === 0 ? (
                         <div className="text-center py-12">
                             <p className="text-gray-600 dark:text-gray-400 mb-4 text-base">📚 No lessons have been added to this course yet.</p>
@@ -251,9 +351,9 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setV
                     ) : (
                     <ul className="space-y-3">
                         {visibleLessons.map((lesson, index) => (
-                            <li key={index} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 rounded-xl bg-white dark:bg-gray-700/50 border border-orange-100 dark:border-gray-600 shadow-sm hover:shadow-md hover:border-orange-200 dark:hover:border-gray-500 transition-all duration-200">
+                            <li key={index} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 rounded-xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-blue-200 dark:hover:border-slate-500 transition-all duration-200">
                                 <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${lesson.isCompleted ? 'bg-gradient-to-r from-emerald-500 to-green-500' : 'bg-gradient-to-r from-orange-300 to-amber-300 dark:from-gray-500 dark:to-gray-600'}`}>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${lesson.isCompleted ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-600'}`}>
                                         <PlayIcon className="w-4 h-4 text-white" />
                                     </div>
                                     <div className="flex-1 min-w-0">
@@ -266,13 +366,24 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setV
                                         </div>
                                     </div>
                                 </div>
-                                <button onClick={() => onStartLesson(lesson.videoId, dummyTranscript)} className="w-full sm:w-auto px-5 py-2.5 text-sm font-semibold rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600 transition-all duration-200 whitespace-nowrap shadow-md hover:shadow-lg transform hover:-translate-y-0.5 min-h-[44px] flex items-center justify-center">
+                                <Button
+                                    onClick={() =>
+                                        onStartLesson({
+                                            videoId: lesson.videoId,
+                                            transcript: dummyTranscript,
+                                            title: lesson.title,
+                                            courseId: course.id,
+                                            attachToCourse: false,
+                                        })
+                                    }
+                                    className="w-full sm:w-auto justify-center"
+                                >
                                     {lesson.isCompleted ? 'Review' : 'Start'}
-                                </button>
+                                </Button>
                             </li>
                         ))}
                         {hiddenLessonsCount > 0 && (
-                            <li className="flex flex-col items-center justify-center gap-4 p-6 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 dark:bg-gray-700/50 border-2 border-dashed border-amber-300 dark:border-gray-600">
+                            <li className="flex flex-col items-center justify-center gap-4 p-6 rounded-xl bg-slate-50 dark:bg-slate-800/70 border-2 border-dashed border-slate-200 dark:border-slate-600">
                                 <LockIcon className="w-10 h-10 text-amber-500 dark:text-amber-400" />
                                 <p className="font-semibold text-center text-gray-700 dark:text-gray-300">🔒 ... and {hiddenLessonsCount} more lessons</p>
                                 <button onClick={() => setView('pricing')} className="text-sm font-bold py-3 px-6 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-white hover:from-amber-600 hover:to-yellow-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 min-h-[44px]">
@@ -310,8 +421,16 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ course, setV
                                                 📚 Notes from your learning session will appear here. Take notes while watching videos to remember key concepts.
                                             </p>
                                             <button 
-                                                onClick={() => onStartLesson(lesson.videoId, dummyTranscript)}
-                                                className="text-sm text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium hover:underline transition-colors"
+                                                onClick={() =>
+                                                    onStartLesson({
+                                                        videoId: lesson.videoId,
+                                                        transcript: dummyTranscript,
+                                                        title: lesson.title,
+                                                        courseId: course.id,
+                                                        attachToCourse: false,
+                                                    })
+                                                }
+                                                className="text-sm text-blue-600 dark:text-blue-300 hover:text-blue-700 dark:hover:text-blue-200 font-medium hover:underline transition-colors"
                                             >
                                                 Review Lesson →
                                             </button>

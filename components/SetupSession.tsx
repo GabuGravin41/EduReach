@@ -2,17 +2,21 @@ import React, { useState } from 'react';
 import { SparklesIcon } from './icons/SparklesIcon';
 import apiClient from '../src/services/api';
 import { Button } from './ui/Button';
+import type { Course } from '../src/services/courseService';
 
 interface SetupSessionProps {
-  onSessionCreated: (youtubeId: string, transcript: string) => void;
+  onSessionCreated: (payload: { videoId: string; transcript: string; title?: string; courseId?: number | null }) => Promise<void> | void;
+  courses?: Course[];
 }
 
-export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated }) => {
+export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, courses = [] }) => {
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [autoFetchEnabled, setAutoFetchEnabled] = useState(true);
+  const [sessionTitle, setSessionTitle] = useState('');
+  const [selectedCourseId, setSelectedCourseId] = useState<string>('none');
   const [language, setLanguage] = useState('en');
   const [statusMessage, setStatusMessage] = useState('');
 
@@ -33,6 +37,9 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated }) 
       if (response.data.success) {
         const transcriptText = response.data.transcript.transcript;
         setTranscript(transcriptText);
+        if (!sessionTitle && response.data.metadata?.title) {
+          setSessionTitle(response.data.metadata.title);
+        }
         setError('');
         setStatusMessage(`Transcript ready (${response.data.transcript.language?.toUpperCase() || lang.toUpperCase()})`);
         return transcriptText;
@@ -87,7 +94,17 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated }) 
       return;
     }
     
-    onSessionCreated(videoId, transcript);
+    try {
+      await onSessionCreated({
+        videoId,
+        transcript,
+        title: sessionTitle || 'Learning Session',
+        courseId: selectedCourseId !== 'none' ? Number(selectedCourseId) : null,
+      });
+    } catch (submissionError) {
+      console.error('Failed to start session', submissionError);
+      setError('Failed to start session. Please try again.');
+    }
   };
 
   const handleExampleClick = () => {
@@ -133,6 +150,40 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated }) 
               />
               Auto-fetch transcript as you paste
             </label>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="text-left">
+              <label className="text-sm font-semibold text-slate-600 dark:text-slate-300 block mb-2">
+                Session title
+              </label>
+              <input
+                type="text"
+                value={sessionTitle}
+                onChange={(e) => setSessionTitle(e.target.value)}
+                placeholder="e.g. Linear Algebra basics"
+                className="w-full p-3 rounded-md border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="text-left">
+              <label className="text-sm font-semibold text-slate-600 dark:text-slate-300 block mb-2">
+                Save under course
+              </label>
+              <select
+                value={selectedCourseId}
+                onChange={(e) => setSelectedCourseId(e.target.value)}
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-transparent p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="none">Personal sessions (auto)</option>
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.title}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                A private “Personal Sessions” course will be created if you leave this as default.
+              </p>
+            </div>
           </div>
           <div className="relative">
             <input

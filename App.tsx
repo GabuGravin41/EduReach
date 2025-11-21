@@ -1,8 +1,8 @@
 import React, { useState, lazy, Suspense } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { authService } from './src/services/authService';
-import { useCourses, useCreateCourse, useCourse } from './src/hooks/useCourses';
+import { useCourses, useCreateCourse, useCourse, COURSE_KEYS } from './src/hooks/useCourses';
 import { useAssessments, useCreateAssessment } from './src/hooks/useAssessments';
 import { usePosts, useCreatePost, useToggleLike, useAddComment, useDeletePost } from './src/hooks/useCommunity';
 import { Sidebar } from './components/Sidebar';
@@ -17,6 +17,7 @@ import { CourseDetailPage } from './components/CourseDetailPage';
 import { ExamDetailPage } from './components/ExamDetailPage';
 import { UserCircleIcon } from './components/icons/UserCircleIcon';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { courseService, Course } from './src/services/courseService';
 
 // Lazy load heavy components for better performance
 const CreateCoursePage = lazy(() => import('./components/CreateCoursePage').then(module => ({ default: module.CreateCoursePage })));
@@ -34,11 +35,28 @@ export type UserTier = 'free' | 'learner' | 'pro' | 'pro_plus' | 'admin';
 interface SessionData {
   videoId: string;
   transcript: string;
+  courseId?: number;
+  title?: string;
 }
+
+interface SessionInitPayload {
+  videoId: string;
+  transcript: string;
+  title?: string;
+  courseId?: number | null;
+  attachToCourse?: boolean;
+}
+
+type NewLessonInput = {
+  title: string;
+  videoId: string;
+  transcript?: string;
+  duration?: string;
+};
 
 // Mock Data - replaced with API data
 // Using empty arrays to force reliance on API (catches integration bugs early)
-const initialCourses: any[] = [];
+const initialCourses: Course[] = [];
 const initialAssessments: any[] = [];
 
 const initialPosts: any[] = [];
@@ -46,6 +64,7 @@ const initialPosts: any[] = [];
 
 const AppContent: React.FC = () => {
     const { user, isLoading, isAuthenticated, logout } = useAuth();
+    const queryClient = useQueryClient();
 
     // API hooks
     const { data: apiCourses, isLoading: coursesLoading } = useCourses();
@@ -66,7 +85,6 @@ const AppContent: React.FC = () => {
     const [selectedExamId, setSelectedExamId] = useState<number | null>(null);
 
     // Local state for user-created items (fallbacks when API is unavailable)
-    const [localCourses, setLocalCourses] = useState<typeof initialCourses>([]);
     const [localAssessments, setLocalAssessments] = useState<typeof initialAssessments>([]);
     const [localCommunityPosts, setLocalCommunityPosts] = useState<typeof initialPosts>([]);
 
@@ -86,7 +104,13 @@ const AppContent: React.FC = () => {
     const apiAssessmentsArray = Array.isArray(apiAssessments) ? apiAssessments : [];
     const apiPostsArray = Array.isArray(apiPosts) ? apiPosts : [];
 
-    const courses = [...initialCourses, ...apiCoursesArray, ...localCourses];
+    const courseMap = new Map<number, Course>();
+    [...initialCourses, ...apiCoursesArray].forEach((course) => {
+        if (course && typeof course.id === 'number') {
+            courseMap.set(course.id, course);
+        }
+    });
+    const courses = Array.from(courseMap.values());
     const assessments = [...initialAssessments, ...apiAssessmentsArray, ...localAssessments];
     const communityPosts = [...initialPosts, ...apiPostsArray, ...localCommunityPosts];
     
@@ -105,6 +129,38 @@ const AppContent: React.FC = () => {
         assessments_used: effectiveUserTier === 'free' ? 1 : effectiveUserTier === 'learner' ? 3 : 12,
         assessments_limit: limits.assessments,
         resets_at: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
+    };
+
+    const invalidateCourseQueries = async (courseId?: number) => {
+        const promises = [
+            queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() }),
+            queryClient.invalidateQueries({ queryKey: COURSE_KEYS.my() }),
+        ];
+        if (courseId) {
+            promises.push(queryClient.invalidateQueries({ queryKey: COURSE_KEYS.detail(courseId) }));
+        }
+        await Promise.all(promises);
+    };
+
+    const handleAddLessonToCourse = async (courseId: number, lessonInput: NewLessonInput) => {
+        try {
+            await courseService.addLessonToCourse(courseId, {
+                title: lessonInput.title,
+                video_id: lessonInput.videoId,
+                transcript: lessonInput.transcript ?? '',
+                duration: lessonInput.duration ?? 'N/A',
+            });
+            await invalidateCourseQueries(courseId);
+        } catch (error) {
+            console.error('Failed to add lesson to course', error);
+            throw error;
+        }
+    };
+
+    const ensurePersonalCourseOnServer = async () => {
+        const result = await courseService.ensurePersonalCourse();
+        await invalidateCourseQueries(result.course.id);
+        return result.course;
     };
 
     if (isLoading) {
@@ -168,8 +224,6 @@ const AppContent: React.FC = () => {
             setCurrentView('courses');
         } catch (error) {
             console.error('Failed to create course:', error);
-            // Fallback to mock data for now
-            setLocalCourses(prev => [...prev, { ...newCourse, id: Date.now(), progress: 0 }]);
             setCurrentView('courses');
         }
     };
@@ -256,8 +310,44 @@ const AppContent: React.FC = () => {
         }
     };
 
-    const handleSessionCreated = (videoId: string, transcript: string) => {
-        setSessionData({ videoId, transcript });
+    const handleSessionCreated = async ({
+        videoId,
+        transcript,
+        title,
+        courseId = null,
+        attachToCourse = true,
+    }: SessionInitPayload) => {
+        const sessionTitle = title || 'Learning Session';
+        let resolvedCourseId = courseId;
+
+        if (attachToCourse) {
+            try {
+                if (resolvedCourseId) {
+                    await handleAddLessonToCourse(resolvedCourseId, {
+                        title: sessionTitle,
+                        videoId,
+                        transcript,
+                    });
+                } else {
+                    const personalCourse = await ensurePersonalCourseOnServer();
+                    resolvedCourseId = personalCourse.id;
+                    await handleAddLessonToCourse(resolvedCourseId, {
+                        title: sessionTitle,
+                        videoId,
+                        transcript,
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to attach lesson to course', error);
+            }
+        }
+
+        setSessionData({
+            videoId,
+            transcript,
+            courseId: resolvedCourseId ?? undefined,
+            title: sessionTitle,
+        });
         setCurrentView('learning_session');
     };
 
@@ -291,7 +381,7 @@ const AppContent: React.FC = () => {
             case 'community':
                 return <CommunityPage posts={communityPosts} onPostCreated={handlePostCreated} onToggleLike={handleToggleLike} onAddComment={handleAddComment} userTier={effectiveUserTier} onDeletePost={handleDeletePost} />;
             case 'new_session':
-                return <SetupSession onSessionCreated={handleSessionCreated} />;
+                return <SetupSession onSessionCreated={handleSessionCreated} courses={courses} />;
             case 'create_course':
                 return <CreateCoursePage onCourseCreated={handleCourseCreated} onCancel={() => setCurrentView('courses')} lessonLimit={999} setView={setCurrentView}/>;
             case 'create_exam':
@@ -325,7 +415,9 @@ const AppContent: React.FC = () => {
                     );
                 }
 
-                if (!selectedCourseQuery.data) {
+                const mergedCourse = courses.find((c) => c.id === selectedCourseId) ?? selectedCourseQuery.data;
+
+                if (!mergedCourse) {
                     return (
                         <div className="text-center">
                             <h2 className="text-2xl font-bold">Course Not Found</h2>
@@ -341,9 +433,10 @@ const AppContent: React.FC = () => {
 
                 return (
                     <CourseDetailPage
-                        course={selectedCourseQuery.data}
+                        course={mergedCourse}
                         setView={setCurrentView}
                         onStartLesson={handleSessionCreated}
+                        onAddLesson={handleAddLessonToCourse}
                         userTier={effectiveUserTier}
                     />
                 );

@@ -7,6 +7,7 @@ export interface Course {
   description: string;
   thumbnail?: string;
   isPublic: boolean;
+  is_public?: boolean;
   lessons: Lesson[];
   progress?: number;
   created_at?: string;
@@ -18,7 +19,7 @@ export interface Lesson {
   title: string;
   videoId: string;
   transcript?: string;
-  isCompleted: boolean;
+  isCompleted?: boolean;
   duration: string;
   order?: number;
 }
@@ -28,6 +29,17 @@ export interface CreateCourseData {
   description: string;
   isPublic: boolean;
   lessons: Omit<Lesson, 'id'>[];
+}
+
+export interface AddLessonPayload {
+  title: string;
+  video_id?: string;
+  video_url?: string;
+  duration?: string;
+  description?: string;
+  transcript?: string;
+  transcript_language?: string;
+  manual_transcript?: string;
 }
 
 const normalizeListResponse = <T>(data: any): T[] => {
@@ -90,5 +102,15 @@ export const courseService = {
   // Complete lesson
   async completeLesson(lessonId: number): Promise<void> {
     await apiClient.post(API_ENDPOINTS.COMPLETE_LESSON(lessonId));
+  },
+
+  async ensurePersonalCourse(): Promise<{ course: Course; created: boolean }> {
+    const response = await apiClient.post(`${API_ENDPOINTS.COURSES}ensure_personal/`);
+    return response.data;
+  },
+
+  async addLessonToCourse(courseId: number, payload: AddLessonPayload): Promise<Lesson> {
+    const response = await apiClient.post(`${API_ENDPOINTS.COURSES}${courseId}/add_lesson/`, payload);
+    return response.data;
   },
 };

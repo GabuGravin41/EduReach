@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.db import models
 from django.utils import timezone
+import re
 from .models import Course, Lesson, UserProgress
 from .serializers import (
     CourseSerializer, CourseListSerializer,
@@ -15,6 +16,7 @@ from services.youtube_service import YouTubeTranscriptService
 
 class CourseViewSet(viewsets.ModelViewSet):
     """ViewSet for managing courses."""
+    PERSONAL_COURSE_TITLE = "Personal Sessions"
     queryset = Course.objects.filter(is_public=True)
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
 
@@ -49,6 +51,98 @@ class CourseViewSet(viewsets.ModelViewSet):
         courses = Course.objects.filter(owner=request.user)
         serializer = CourseListSerializer(courses, many=True)
         return Response(serializer.data)
+
+    def _extract_video_id(self, video_id: str = None, video_url: str = None):
+        """Extract YouTube video ID from ID or URL."""
+        if video_id:
+            return video_id.strip()
+        if not video_url:
+            return None
+        match = re.search(
+            r'(?:youtube\.com/(?:watch\?v=|embed/)|youtu\.be/)([^&?/]+)',
+            video_url
+        )
+        return match.group(1) if match else None
+
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def ensure_personal(self, request):
+        """
+        Ensure the user has a default private course for standalone sessions.
+        Returns the course (created if necessary).
+        """
+        course, created = Course.objects.get_or_create(
+            owner=request.user,
+            is_public=False,
+            title=self.PERSONAL_COURSE_TITLE,
+            defaults={
+                'description': 'Auto-created course for personal learning sessions.',
+            }
+        )
+        serializer = CourseSerializer(course, context={'request': request})
+        return Response({
+            'course': serializer.data,
+            'created': created
+        }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def add_lesson(self, request, pk=None):
+        """
+        Add a lesson to a course owned by the current user.
+        Expected payload:
+        {
+            "title": "",
+            "video_id": "",
+            "video_url": "",
+            "duration": "",
+            "description": "",
+            "transcript": "",
+            "transcript_language": "en",
+            "manual_transcript": ""
+        }
+        """
+        course = self.get_object()
+
+        if course.owner != request.user:
+            return Response(
+                {'error': "You don't have permission to modify this course."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        title = request.data.get('title')
+        video_id = self._extract_video_id(
+            request.data.get('video_id'),
+            request.data.get('video_url')
+        )
+
+        if not title or not video_id:
+            return Response(
+                {'error': 'Both title and video identifier/url are required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        duration = request.data.get('duration', 'N/A')
+        description = request.data.get('description', '')
+        transcript = request.data.get('transcript', '')
+        transcript_language = request.data.get('transcript_language', 'en')
+        manual_transcript = request.data.get('manual_transcript', '')
+
+        next_order = course.lessons.count()
+
+        lesson = Lesson.objects.create(
+            course=course,
+            title=title,
+            video_id=video_id,
+            video_url=request.data.get('video_url') or f'https://www.youtube.com/watch?v={video_id}',
+            duration=duration,
+            order=next_order,
+            description=description,
+            transcript=transcript,
+            transcript_language=transcript_language,
+            manual_transcript=manual_transcript
+        )
+
+        serializer = LessonSerializer(lesson)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 class LessonViewSet(viewsets.ModelViewSet):

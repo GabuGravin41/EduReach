@@ -6,11 +6,12 @@ from users.serializers import UserSerializer
 class LessonSerializer(serializers.ModelSerializer):
     """Serializer for Lesson model."""
     has_transcript = serializers.SerializerMethodField()
+    videoId = serializers.SerializerMethodField()
     
     class Meta:
         model = Lesson
         fields = [
-            'id', 'course', 'title', 'video_id', 'video_url', 'duration',
+            'id', 'course', 'title', 'video_id', 'videoId', 'video_url', 'duration',
             'order', 'description', 'transcript', 'transcript_language',
             'manual_transcript', 'transcript_fetched_at', 'has_transcript',
             'created_at', 'updated_at'
@@ -20,6 +21,9 @@ class LessonSerializer(serializers.ModelSerializer):
     def get_has_transcript(self, obj):
         """Check if lesson has any transcript available."""
         return bool(obj.transcript or obj.manual_transcript)
+
+    def get_videoId(self, obj):
+        return obj.video_id
 
 
 class CourseSerializer(serializers.ModelSerializer):
