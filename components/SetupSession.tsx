@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { SparklesIcon } from './icons/SparklesIcon';
 import apiClient from '../src/services/api';
+import { Button } from './ui/Button';
 
 interface SetupSessionProps {
   onSessionCreated: (youtubeId: string, transcript: string) => void;
@@ -12,6 +13,8 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated }) 
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [autoFetchEnabled, setAutoFetchEnabled] = useState(true);
+  const [language, setLanguage] = useState('en');
+  const [statusMessage, setStatusMessage] = useState('');
 
   const extractVideoId = (url: string): string | null => {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -19,25 +22,29 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated }) 
     return match ? match[1] : null;
   };
 
-  const fetchTranscript = async (url: string) => {
+  const fetchTranscript = async (url: string, lang: string = language) => {
     setIsLoading(true);
     setError('');
+    setStatusMessage('Fetching transcript...');
     
     try {
-      const response = await apiClient.post('/youtube/extract-transcript/', { url });
+      const response = await apiClient.post('/youtube/extract-transcript/', { url, language: lang });
       
       if (response.data.success) {
         const transcriptText = response.data.transcript.transcript;
         setTranscript(transcriptText);
         setError('');
+        setStatusMessage(`Transcript ready (${response.data.transcript.language?.toUpperCase() || lang.toUpperCase()})`);
         return transcriptText;
       } else {
         setError(response.data.error || 'Failed to fetch transcript');
+        setStatusMessage('');
         return null;
       }
     } catch (err: any) {
       const errorMsg = err.response?.data?.error || 'Failed to fetch transcript. You can enter it manually.';
       setError(errorMsg);
+      setStatusMessage('');
       return null;
     } finally {
       setIsLoading(false);
@@ -51,7 +58,7 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated }) 
     if (autoFetchEnabled && url.trim()) {
       const videoId = extractVideoId(url);
       if (videoId) {
-        await fetchTranscript(url);
+        await fetchTranscript(url, language);
       }
     }
   };
@@ -68,7 +75,7 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated }) 
     
     // If no transcript yet, try to fetch it
     if (!transcript.trim() && autoFetchEnabled) {
-      const fetchedTranscript = await fetchTranscript(youtubeUrl);
+      const fetchedTranscript = await fetchTranscript(youtubeUrl, language);
       if (fetchedTranscript) {
         onSessionCreated(videoId, fetchedTranscript);
         return;
@@ -89,8 +96,8 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated }) 
 
   return (
     <div className="flex items-center justify-center min-h-full">
-      <div className="text-center p-8 max-w-2xl w-full bg-white dark:bg-slate-800 rounded-xl shadow-lg shadow-slate-900/5">
-        <SparklesIcon className="w-12 h-12 text-indigo-500 mx-auto mb-4" />
+      <div className="text-center p-8 max-w-2xl w-full bg-white dark:bg-slate-800 rounded-md shadow-lg shadow-slate-900/5 border border-slate-200 dark:border-slate-700">
+        <SparklesIcon className="w-12 h-12 text-blue-600 dark:text-blue-400 mx-auto mb-4" />
         <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-2">
           Start a New Learning Session
         </h1>
@@ -98,6 +105,35 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated }) 
           Paste a YouTube URL - transcript will be fetched automatically!
         </p>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="text-left">
+              <label className="text-sm font-semibold text-slate-600 dark:text-slate-300 block mb-2">
+                Transcript language
+              </label>
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-transparent p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isLoading}
+              >
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="hi">Hindi</option>
+                <option value="pt">Portuguese</option>
+              </select>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+              <input
+                type="checkbox"
+                checked={autoFetchEnabled}
+                onChange={(e) => setAutoFetchEnabled(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              Auto-fetch transcript as you paste
+            </label>
+          </div>
           <div className="relative">
             <input
               type="text"
@@ -105,14 +141,19 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated }) 
               onChange={(e) => handleUrlChange(e.target.value)}
               placeholder="https://www.youtube.com/watch?v=..."
               disabled={isLoading}
-              className="w-full p-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+              className="w-full p-3 rounded-md border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
             />
             {isLoading && (
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
               </div>
             )}
           </div>
+          {statusMessage && (
+            <div className="text-left text-xs text-blue-600 dark:text-emerald-300">
+              {statusMessage}
+            </div>
+          )}
           
           {/* Show transcript preview if fetched */}
           {transcript && (
@@ -145,7 +186,7 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated }) 
               onChange={(e) => setTranscript(e.target.value)}
               placeholder="Paste the full video transcript here..."
               rows={6}
-              className="w-full mt-2 p-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+              className="w-full mt-2 p-3 rounded-md border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
           </details>
           
@@ -155,17 +196,18 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated }) 
             </div>
           )}
           
-          <button
+          <Button
             type="submit"
             disabled={isLoading || !youtubeUrl.trim()}
-            className="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full justify-center"
+            isLoading={isLoading}
           >
             {isLoading ? 'Fetching Transcript...' : 'Start Session'}
-          </button>
+          </Button>
         </form>
         <div className="mt-6 text-sm">
             <p className="text-slate-500 dark:text-slate-400">
-                Don't have a URL? <button type="button" onClick={handleExampleClick} className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">Use an example video</button>
+                Don't have a URL? <button type="button" onClick={handleExampleClick} className="font-semibold text-blue-600 dark:text-blue-400 hover:underline">Use an example video</button>
             </p>
         </div>
       </div>

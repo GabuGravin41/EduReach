@@ -1,27 +1,66 @@
-import { forwardRef } from 'react';
+import { forwardRef, useImperativeHandle, useRef, useMemo } from 'react';
+import YouTube, { YouTubeProps, YouTubePlayer as GoogleYouTubePlayer } from 'react-youtube';
 
-interface YouTubePlayerProps {
+export interface YouTubePlayerHandle {
+  seekTo: (seconds: number) => void;
+  getCurrentTime: () => number;
+  pause: () => void;
+  play: () => void;
+}
+
+interface CustomYouTubePlayerProps extends Pick<YouTubeProps, 'onReady' | 'onStateChange'> {
   videoId: string;
   initialTime?: number;
   className?: string;
 }
 
-const YouTubePlayer = forwardRef<HTMLIFrameElement, YouTubePlayerProps>(
-  ({ videoId, initialTime, className }, ref) => {
+const YouTubePlayer = forwardRef<YouTubePlayerHandle, CustomYouTubePlayerProps>(
+  ({ videoId, initialTime = 0, className = '', onReady, onStateChange }, ref) => {
+    const playerRef = useRef<GoogleYouTubePlayer | null>(null);
+
+    const playerOptions = useMemo<YouTubeProps['opts']>(() => ({
+      width: '100%',
+      height: '100%',
+      playerVars: {
+        autoplay: 0,
+        modestbranding: 1,
+        rel: 0,
+        playsinline: 1,
+        start: Math.floor(initialTime),
+      },
+    }), [initialTime]);
+
+    useImperativeHandle(ref, () => ({
+      seekTo: (seconds: number) => playerRef.current?.seekTo(seconds, true),
+      getCurrentTime: () => playerRef.current?.getCurrentTime() ?? 0,
+      pause: () => playerRef.current?.pauseVideo(),
+      play: () => playerRef.current?.playVideo(),
+    }), []);
+
+    const handleReady: YouTubeProps['onReady'] = (event) => {
+      playerRef.current = event.target;
+      if (initialTime) {
+        event.target.seekTo(initialTime, true);
+      }
+      onReady?.(event);
+    };
+
     return (
-      <iframe
-        ref={ref}
-        className={className}
-        src={`https://www.youtube.com/embed/${videoId}?enablejsapi=1${initialTime ? `&start=${Math.floor(initialTime)}` : ''}`}
-        frameBorder="0"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowFullScreen
-      />
+      <div className={`relative w-full h-full ${className}`}>
+        <YouTube
+          videoId={videoId}
+          opts={playerOptions}
+          onReady={handleReady}
+          onStateChange={onStateChange}
+          className="h-full w-full"
+        />
+      </div>
     );
   }
 );
 
-// Named export for components that need it
+YouTubePlayer.displayName = 'YouTubePlayer';
+
 export { YouTubePlayer };
 
 export default YouTubePlayer;

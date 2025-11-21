@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { YouTubePlayer } from './YouTubePlayer';
+import { YouTubePlayer, type YouTubePlayerHandle } from './YouTubePlayer';
 import { StudyPanel } from './StudyPanel';
 import { AIAssistant } from './AIAssistant';
+import aiService from '../src/services/aiService';
+import { Button } from './ui/Button';
+import { youtubeService } from '../src/services/youtubeService';
  
 import type { QuizQuestion } from '../types';
 
@@ -14,16 +17,19 @@ interface LearningSessionProps {
 export default function LearningSession({ videoId, transcript, lessonId }: LearningSessionProps) {
   const [notes, setNotes] = useState('');
   const [messages, setMessages] = useState<Array<{role: string, content: string}>>([]);
-  const [quiz, setQuiz] = useState<QuizQuestion[]>([]);
+  const [quiz, setQuiz] = useState<QuizQuestion[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [lastPrompt, setLastPrompt] = useState<string | null>(null);
+  const [isStudyPanelOpen, setIsStudyPanelOpen] = useState(false);
   const [progress, setProgress] = useState({
     videoTime: 0,
     transcriptScroll: 0
   });
-  
-  const videoRef = useRef<HTMLIFrameElement>(null);
+
+  const videoRef = useRef<YouTubePlayerHandle | null>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const pendingSeekRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (transcript) {
@@ -34,15 +40,20 @@ export default function LearningSession({ videoId, transcript, lessonId }: Learn
   }, [transcript]);
 
   useEffect(() => {
+    const updatePanelVisibility = () => {
+      if (typeof window === 'undefined') return;
+      setIsStudyPanelOpen(window.innerWidth >= 1024);
+    };
+    updatePanelVisibility();
+    window.addEventListener('resize', updatePanelVisibility);
+    return () => window.removeEventListener('resize', updatePanelVisibility);
+  }, []);
+
+  useEffect(() => {
     const interval = setInterval(() => {
-      if (videoRef.current) {
-        setProgress(prev => ({
-          ...prev,
-          videoTime: videoRef.current?.contentWindow?.postMessage(
-            '{ "event": "getCurrentTime" }', '*'
-          ) || 0
-        }));
-      }
+      if (!videoRef.current) return;
+      const currentTime = videoRef.current.getCurrentTime();
+      setProgress(prev => ({ ...prev, videoTime: currentTime }));
     }, 5000);
     
     return () => clearInterval(interval);
@@ -54,12 +65,11 @@ export default function LearningSession({ videoId, transcript, lessonId }: Learn
       if (savedProgress) {
         const { videoTime, transcriptScroll } = JSON.parse(savedProgress);
         setProgress({ videoTime, transcriptScroll });
-        
-        // Restore video time
-        videoRef.current?.contentWindow?.postMessage(
-          `{ "event": "seekTo", "seconds": ${videoTime} }`, '*'
-        );
-        
+        if (videoRef.current) {
+          videoRef.current.seekTo(videoTime);
+        } else {
+          pendingSeekRef.current = videoTime;
+        }
         // Restore scroll position
         if (transcriptRef.current) {
           transcriptRef.current.scrollTop = transcriptScroll;
@@ -67,6 +77,11 @@ export default function LearningSession({ videoId, transcript, lessonId }: Learn
       }
     }
   }, [lessonId]);
+
+  useEffect(() => {
+    if (!lessonId) return;
+    localStorage.setItem(`progress-${lessonId}`, JSON.stringify(progress));
+  }, [lessonId, progress]);
 
   const handleGenerateQuiz = async () => {
     try {
@@ -96,101 +111,171 @@ export default function LearningSession({ videoId, transcript, lessonId }: Learn
     }
   };
 
-  // Smart transcript chunking utility
-  function chunkTranscript(transcript: string, maxChunkSize: number = 4000): string[] {
+  const handlePlayerReady = () => {
+    if (pendingSeekRef.current !== null && videoRef.current) {
+      videoRef.current.seekTo(pendingSeekRef.current);
+      pendingSeekRef.current = null;
+    }
+  };
+
+  const handleRegenerate = () => {
+    if (!lastPrompt) return Promise.resolve();
+    return handleSendMessage(lastPrompt, { isRegeneration: true });
+  };
+
+  // Smart transcript chunking utility - optimized for AI context windows
+  function chunkTranscript(transcript: string, maxChunkSize: number = 3000): string[] {
+    if (!transcript || transcript.trim().length === 0) {
+      return ['No transcript available'];
+    }
+
     const chunks: string[] = [];
-    const paragraphs = transcript.split('\n\n').filter(p => p.trim());
+    // Split by paragraphs first (double newlines)
+    const paragraphs = transcript.split(/\n\s*\n/).filter(p => p.trim());
     
     let currentChunk = '';
     for (const paragraph of paragraphs) {
-      if (currentChunk.length + paragraph.length > maxChunkSize) {
-        if (currentChunk) {
-          chunks.push(currentChunk.trim());
-          currentChunk = '';
-        }
-        // Handle very long paragraphs
-        if (paragraph.length > maxChunkSize) {
-          const sentences = paragraph.split('. ');
-          let tempChunk = '';
-          for (const sentence of sentences) {
-            if (tempChunk.length + sentence.length > maxChunkSize) {
-              if (tempChunk) {
-                chunks.push(tempChunk.trim());
-                tempChunk = '';
-              }
+      const trimmedPara = paragraph.trim();
+      
+      // If adding this paragraph would exceed limit, save current chunk
+      if (currentChunk && (currentChunk.length + trimmedPara.length + 2) > maxChunkSize) {
+        chunks.push(currentChunk.trim());
+        currentChunk = '';
+      }
+      
+      // Handle very long paragraphs by splitting into sentences
+      if (trimmedPara.length > maxChunkSize) {
+        const sentences = trimmedPara.split(/(?<=[.!?])\s+/).filter(s => s.trim());
+        let sentenceChunk = '';
+        
+        for (const sentence of sentences) {
+          if (sentenceChunk && (sentenceChunk.length + sentence.length + 1) > maxChunkSize) {
+            if (sentenceChunk) {
+              chunks.push(sentenceChunk.trim());
+              sentenceChunk = '';
             }
-            tempChunk += sentence + '. ';
           }
-          if (tempChunk) {
-            currentChunk = tempChunk;
-          }
-        } else {
-          currentChunk = paragraph;
+          sentenceChunk += (sentenceChunk ? ' ' : '') + sentence;
+        }
+        
+        if (sentenceChunk) {
+          currentChunk += (currentChunk ? '\n\n' : '') + sentenceChunk;
         }
       } else {
-        currentChunk += (currentChunk ? '\n\n' : '') + paragraph;
+        currentChunk += (currentChunk ? '\n\n' : '') + trimmedPara;
       }
     }
     
-    if (currentChunk) {
+    // Add remaining chunk
+    if (currentChunk.trim()) {
       chunks.push(currentChunk.trim());
     }
     
-    return chunks.length > 0 ? chunks : ['No transcript available'];
+    return chunks.length > 0 ? chunks : [transcript.substring(0, maxChunkSize)];
   }
 
-  // Find relevant chunks based on keywords
-  function findRelevantChunks(chunks: string[], message: string, maxChunks: number = 2): string[] {
-    const keywords = message.toLowerCase().split(' ').filter(word => word.length > 3);
-    const scoredChunks = chunks.map(chunk => {
+  // Find relevant chunks based on keywords - improved scoring
+  function findRelevantChunks(chunks: string[], message: string, maxChunks: number = 3): string[] {
+    if (chunks.length === 0) return [];
+    if (chunks.length <= maxChunks) return chunks;
+    
+    // Extract meaningful keywords (length > 3, not common stop words)
+    const stopWords = new Set(['what', 'when', 'where', 'who', 'why', 'how', 'this', 'that', 'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'its', 'may', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use']);
+    const keywords = message.toLowerCase()
+      .split(/\s+/)
+      .filter(word => word.length > 3 && !stopWords.has(word))
+      .map(word => word.replace(/[^\w]/g, ''));
+    
+    if (keywords.length === 0) {
+      // If no good keywords, return first chunks
+      return chunks.slice(0, maxChunks);
+    }
+    
+    const scoredChunks = chunks.map((chunk, index) => {
       const chunkLower = chunk.toLowerCase();
       let score = 0;
+      
       keywords.forEach(keyword => {
-        const matches = (chunkLower.match(new RegExp(keyword, 'g')) || []).length;
-        score += matches;
+        // Count exact matches
+        const exactMatches = (chunkLower.match(new RegExp(`\\b${keyword}\\b`, 'g')) || []).length;
+        score += exactMatches * 3; // Exact matches weighted higher
+        
+        // Count partial matches
+        const partialMatches = (chunkLower.match(new RegExp(keyword, 'g')) || []).length;
+        score += (partialMatches - exactMatches) * 1;
       });
-      return { chunk, score };
+      
+      // Slight preference for earlier chunks (they often contain intro/context)
+      score += (chunks.length - index) * 0.1;
+      
+      return { chunk, score, index };
     });
     
-    scoredChunks.sort((a, b) => b.score - a.score);
-    return scoredChunks.slice(0, maxChunks).map(item => item.chunk);
+    // Sort by score, then by index
+    scoredChunks.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.index - b.index;
+    });
+    
+    const selected = scoredChunks.slice(0, maxChunks).map(item => item.chunk);
+    
+    // Ensure we have at least some context even if scores are low
+    if (selected.length === 0) {
+      return chunks.slice(0, maxChunks);
+    }
+    
+    return selected;
   }
 
-  const handleSendMessage = async (message: string) => {
+  const handleSendMessage = async (message: string, options?: { isRegeneration?: boolean }) => {
+    if (!message.trim()) return;
+
+    let placeholderIndex = -1;
+    setMessages(prev => {
+      const next = [...prev, { role: 'user', content: message }, { role: 'assistant', content: '' }];
+      placeholderIndex = next.length - 1;
+      return next;
+    });
+
+    setIsLoading(true);
+    setLastPrompt(message);
+
     try {
-      setIsLoading(true);
-      
       // Smart context selection with concise response optimization
       let context = transcript;
       let optimizedMessage = message;
       
       // Check if user wants detailed explanation
-      const wantsDetailed = /explain more|tell me more|detailed|deep dive|elaborate|in depth/i.test(message);
+      const wantsDetailed = /explain more|tell me more|detailed|deep dive|elaborate|in depth|expand|comprehensive/i.test(message);
       
-      if (transcript.length > 4000) {
-        const chunks = chunkTranscript(transcript);
-        const relevantChunks = findRelevantChunks(chunks, message);
+      // Use smart chunking for transcripts longer than 3000 characters
+      if (transcript.length > 3000) {
+        const chunks = chunkTranscript(transcript, 3000);
+        const relevantChunks = findRelevantChunks(chunks, message, wantsDetailed ? 4 : 2);
         context = relevantChunks.join('\n\n---\n\n');
-        console.log(`Using ${relevantChunks.length} relevant chunks out of ${chunks.length} total`);
+        console.log(`Using ${relevantChunks.length} relevant chunks out of ${chunks.length} total (transcript: ${transcript.length} chars)`);
       }
       
       // Add response length guidance based on user intent
       if (!wantsDetailed) {
-        optimizedMessage = `${message}\n\nPlease provide a concise, focused answer (2-3 sentences max). If the user wants more detail, they will ask for it.`;
+        optimizedMessage = `${message}\n\n[IMPORTANT: Keep your response concise - 2-3 sentences maximum. Be direct and to the point. If the user wants more detail, they will ask for it.]`;
       } else {
-        optimizedMessage = `${message}\n\nPlease provide a detailed, thorough explanation with examples and deeper insights.`;
+        optimizedMessage = `${message}\n\n[Please provide a detailed, thorough explanation with examples and deeper insights. You can be more expansive here.]`;
       }
       
       const response = await aiService.chat({
         message: optimizedMessage,
         context
       });
-      setMessages(prev => [...prev, 
-        { role: 'user', content: message },
-        { role: 'assistant', content: response }
-      ]);
+
+      const idx = placeholderIndex;
+      setMessages(prev => prev.map((msg, mapIdx) => mapIdx === idx ? { ...msg, content: response } : msg));
+      setError('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send message');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to send message';
+      setError(errorMessage);
+      const idx = placeholderIndex;
+      setMessages(prev => prev.map((msg, mapIdx) => mapIdx === idx ? { ...msg, content: `⚠️ ${errorMessage}` } : msg));
       console.error('Chat error:', err);
     } finally {
       setIsLoading(false);
@@ -200,9 +285,15 @@ export default function LearningSession({ videoId, transcript, lessonId }: Learn
   const handleSaveQuiz = async () => {
     if (!quiz || !lessonId) return;
     
+    const numericLessonId = Number(lessonId);
+    if (Number.isNaN(numericLessonId)) {
+      console.error('Invalid lesson id for quiz save');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      await aiService.saveQuizAsAssessment(lessonId, {
+      await youtubeService.saveQuizAsAssessment(numericLessonId, {
         title: `Quiz: ${lessonId}`,
         quiz_data: { questions: quiz },
         time_limit_minutes: quiz.length * 2, // 2 mins per question
@@ -218,24 +309,48 @@ export default function LearningSession({ videoId, transcript, lessonId }: Learn
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-6 gap-6 h-[80vh] min-h-0">
-      <div className="lg:col-span-4 flex flex-col h-full min-h-0">
-        <div className="h-[60vh] min-h-0">
-          <YouTubePlayer ref={videoRef} videoId={videoId} />
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-[85vh] min-h-0 p-4">
+      {error && (
+        <div className="lg:col-span-12 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
         </div>
-        <div className="h-[20vh] min-h-0 border-t border-amber-200 dark:border-amber-800">
-          <StudyPanel ref={transcriptRef} transcript={transcript} notes={notes} onNotesChange={setNotes} />
+      )}
+      <div className="lg:hidden flex justify-end mb-2">
+        <Button variant="outline" size="sm" onClick={() => setIsStudyPanelOpen(prev => !prev)}>
+          {isStudyPanelOpen ? 'Hide Transcript & Notes' : 'Show Transcript & Notes'}
+        </Button>
+      </div>
+      {/* Video Player Section */}
+      <div className="lg:col-span-7 flex flex-col h-full min-h-0 gap-4">
+        <div className="flex-1 min-h-0 rounded-md overflow-hidden bg-slate-900 shadow-lg">
+          <YouTubePlayer 
+            ref={videoRef}
+            videoId={videoId} 
+            className="w-full h-full"
+            onReady={handlePlayerReady}
+          />
+        </div>
+        <div className={`transition-all duration-200 ${isStudyPanelOpen ? 'block' : 'hidden'} lg:block h-[35vh] min-h-[300px] max-h-[400px]`}>
+          <StudyPanel
+            transcriptRef={transcriptRef}
+            transcript={transcript}
+            notes={notes}
+            onNotesChange={setNotes}
+            videoId={videoId}
+          />
         </div>
       </div>
-      <div className="lg:col-span-2 h-full min-h-0">
+      {/* AI Assistant Section */}
+      <div className="lg:col-span-5 h-full min-h-0">
         <AIAssistant
           messages={messages}
-          setMessages={setMessages}
           isLoading={isLoading}
-          setIsLoading={setIsLoading}
           onGenerateQuiz={handleGenerateQuiz}
           onSendMessage={handleSendMessage}
+          onRegenerate={lastPrompt ? handleRegenerate : undefined}
+          canRegenerate={Boolean(lastPrompt)}
           quiz={quiz}
+          onUpdateQuiz={setQuiz}
           onSaveQuiz={lessonId ? handleSaveQuiz : undefined}
         />
       </div>

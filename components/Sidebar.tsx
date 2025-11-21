@@ -12,6 +12,7 @@ import { PriceTagIcon } from './icons/PriceTagIcon';
 import { UpgradeIcon } from './icons/UpgradeIcon';
 import { AdminPanelIcon } from './icons/AdminPanelIcon';
 import { View, UserTier } from '../App';
+import { Button } from './ui/Button';
 
 interface SidebarProps {
   currentView: string;
@@ -42,7 +43,7 @@ const RoleSwitcher: React.FC<{ currentTier: UserTier; onTierChange: (tier: UserT
                 id="role-switcher"
                 value={currentTier}
                 onChange={(e) => onTierChange(e.target.value as UserTier)}
-                className={`w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 ${isCollapsed ? 'text-center' : ''}`}
+                className={`w-full p-2 text-sm rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 ${isCollapsed ? 'text-center' : ''}`}
             >
                 <option value="admin">Admin (Full Access)</option>
                 <option value="free">Free User</option>
@@ -73,10 +74,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
       <button
         title={label}
         onClick={() => setView(id as View)}
-        className={`w-full flex items-center gap-3 py-3 rounded-xl text-sm font-medium transition-all duration-200 min-h-[44px] ${isCollapsed ? 'px-3 justify-center' : 'px-4'} ${
+        className={`w-full flex items-center gap-2 py-2.5 rounded-md text-sm font-medium transition-all duration-200 min-h-[40px] ${isCollapsed ? 'px-2 justify-center' : 'px-3'} ${
           isActive
-            ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md transform scale-105'
-            : 'text-gray-600 hover:bg-orange-50 dark:text-gray-400 dark:hover:bg-orange-900/20 hover:text-orange-600 dark:hover:text-orange-400'
+            ? 'bg-gradient-to-r from-blue-600 to-emerald-600 text-white shadow-md'
+            : 'text-gray-600 hover:bg-blue-50 dark:text-gray-400 dark:hover:bg-slate-700/60 hover:text-blue-600 dark:hover:text-emerald-300'
         }`}
       >
         <Icon className="w-5 h-5 flex-shrink-0" />
@@ -86,50 +87,66 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
   };
 
   return (
-    <aside className={`h-full bg-gradient-to-b from-white to-orange-50/30 dark:from-gray-800 dark:to-gray-900 p-4 flex flex-col justify-between border-r border-orange-200 dark:border-gray-700 transition-all duration-300 shadow-lg ${isCollapsed ? 'w-20' : 'w-64'}`}>
+    <aside className={`h-full bg-gradient-to-b from-white to-blue-50/30 dark:from-slate-900 dark:to-slate-800 px-3 py-4 flex flex-col justify-between border-r border-blue-100/60 dark:border-slate-800 transition-all duration-300 shadow-lg ${isCollapsed ? 'w-20' : 'w-56'}`}>
       <div>
-        <div className={`flex items-center gap-2 mb-8 ${isCollapsed ? 'justify-center px-0' : 'px-4'}`}>
-          <SparklesIcon className="w-8 h-8 text-orange-500" />
+        <div className={`flex items-center gap-2 mb-6 ${isCollapsed ? 'justify-center px-0' : 'px-3'}`}>
+          <SparklesIcon className="w-7 h-7 text-blue-600" />
           {!isCollapsed && <span className="text-xl font-bold text-gray-800 dark:text-white">EduReach</span>}
         </div>
 
         {/* Only show tier switcher to admin users */}
         {isAdmin && <RoleSwitcher currentTier={userTier} onTierChange={onTierChange} isCollapsed={isCollapsed} />}
 
-        <button 
+        <Button
           onClick={onNewSession}
           title="New Session"
-          className={`w-full flex items-center justify-center gap-2 mb-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 text-white font-semibold hover:from-emerald-600 hover:to-green-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 min-h-[48px] ${isCollapsed ? 'px-2' : 'px-4'}`}
+          variant="primary"
+          size={isCollapsed ? 'icon' : 'md'}
+          className={`w-full mb-5 ${isCollapsed ? '' : 'gap-2'}`}
+          icon={<NewSessionIcon className="w-5 h-5" />}
         >
-          <NewSessionIcon className="w-5 h-5" />
-          {!isCollapsed && <span>New Session</span>}
-        </button>
+          {!isCollapsed && 'New Session'}
+        </Button>
 
         <nav className="space-y-2">
           {navItems.map(item => {
+            if (item.adminOnly && userTier !== 'admin') {
+                return null;
+            }
             return <NavItem key={item.id} {...item} />
           })}
         </nav>
+
+        <div className="flex items-center justify-center my-5">
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="border-blue-200 dark:border-slate-700"
+          >
+            <ChevronLeftIcon className={`w-4 h-4 transition-transform duration-300 ${isCollapsed && 'rotate-180'}`} />
+          </Button>
+        </div>
       </div>
 
       <div>
         {!isCollapsed && userTier !== 'pro' && userTier !== 'pro_plus' && userTier !== 'admin' && (
-            <div className="p-4 mb-4 bg-gradient-to-br from-amber-50 to-orange-50 dark:bg-gray-700/50 rounded-xl text-center border border-amber-200 dark:border-gray-600">
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">You are on the <span className="capitalize font-bold text-orange-600 dark:text-orange-400">{userTier}</span> plan.</p>
-                <button onClick={() => setView('pricing')} className="mt-3 w-full flex items-center justify-center gap-2 text-sm font-bold py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-white hover:from-amber-600 hover:to-yellow-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 min-h-[44px]">
-                    <UpgradeIcon className="w-4 h-4" />
+            <div className="p-4 mb-4 bg-gradient-to-br from-blue-50 to-emerald-50 dark:from-slate-800 dark:to-slate-700 rounded-md text-center border border-blue-100 dark:border-slate-700">
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">You are on the <span className="capitalize font-bold text-blue-600 dark:text-emerald-300">{userTier}</span> plan.</p>
+                <Button onClick={() => setView('pricing')} className="mt-3 w-full justify-center gap-2" size="md" icon={<UpgradeIcon className="w-4 h-4" />}>
                     Upgrade Plan
-                </button>
+                </Button>
             </div>
         )}
 
-        <div className="border-t border-orange-200 dark:border-gray-700 pt-4">
+        <div className="border-t border-blue-100 dark:border-slate-800 pt-4">
           <button 
             onClick={() => setView('profile')}
-            className={`w-full flex items-center gap-3 rounded-xl hover:bg-orange-50 dark:hover:bg-gray-700 transition-all duration-200 min-h-[48px] ${isCollapsed ? 'justify-center p-2' : 'px-4 py-3'}`}
+            className={`w-full flex items-center gap-2 rounded-md hover:bg-blue-50 dark:hover:bg-slate-700 transition-all duration-200 min-h-[44px] ${isCollapsed ? 'justify-center p-2' : 'px-3 py-2.5'}`}
           >
-            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-200 to-amber-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 shadow-sm">
-              <UserCircleIcon className="w-6 h-6 text-orange-600 dark:text-gray-400" />
+            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-200 to-emerald-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 shadow-sm">
+              <UserCircleIcon className="w-6 h-6 text-blue-700 dark:text-gray-300" />
             </div>
             {!isCollapsed && (
               <div className="flex-1 min-w-0 text-left">
@@ -139,17 +156,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
             )}
           </button>
           {!isCollapsed && (
-            <button
+            <Button
               onClick={onLogout}
-              className="w-full mt-2 flex items-center gap-3 px-4 py-3 rounded-xl text-gray-500 hover:bg-orange-50 dark:text-gray-400 dark:hover:bg-gray-700 hover:text-orange-600 dark:hover:text-orange-400 transition-all duration-200 min-h-[44px]"
+              variant="ghost"
+              className="w-full mt-2 justify-start gap-2 text-sm text-slate-500 dark:text-slate-300"
+              icon={<LogoutIcon className="w-5 h-5" />}
             >
-              <LogoutIcon className="w-5 h-5" />
-              <span>Logout</span>
-            </button>
+              Logout
+            </Button>
           )}
-          <button onClick={() => setIsCollapsed(!isCollapsed)} className="relative -translate-y-1/2 bg-white dark:bg-gray-700 border border-orange-200 dark:border-gray-600 rounded-full p-2 hover:bg-orange-50 dark:hover:bg-gray-600 transition-all duration-200 shadow-lg z-10 hover:border-orange-300 dark:hover:border-gray-500">
-              <ChevronLeftIcon className={`w-4 h-4 transition-transform duration-300 ${isCollapsed && 'rotate-180'}`} />
-          </button>
         </div>
       </div>
     </aside>

@@ -7,6 +7,7 @@ import { SparklesIcon } from './icons/SparklesIcon';
 import { QuizView } from './QuizView';
 import { ClipboardCheckIcon } from './icons/ClipboardCheckIcon';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { Button } from './ui/Button';
 
 interface ChatMessageWithId extends ChatMessage {
   id: string;
@@ -14,12 +15,13 @@ interface ChatMessageWithId extends ChatMessage {
 
 interface AIAssistantProps {
   messages: ChatMessage[];
-  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   isLoading: boolean;
-  setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
   onGenerateQuiz: () => Promise<void>;
-  onSendMessage: (message: string) => Promise<void>;
+  onSendMessage: (message: string, options?: { isRegeneration?: boolean }) => Promise<void>;
+  onRegenerate?: () => Promise<void>;
+  canRegenerate?: boolean;
   quiz: QuizQuestion[] | null;
+  onUpdateQuiz?: (quiz: QuizQuestion[]) => void;
   onSaveQuiz?: () => Promise<void>;
   isSavingQuiz?: boolean;
   quizSaved?: boolean;
@@ -29,12 +31,13 @@ type ActiveTab = 'chat' | 'quiz';
 
 export const AIAssistant: React.FC<AIAssistantProps> = ({
   messages,
-  setMessages,
   isLoading,
-  setIsLoading,
   onGenerateQuiz,
   onSendMessage,
+  onRegenerate,
+  canRegenerate,
   quiz,
+  onUpdateQuiz,
   onSaveQuiz,
   isSavingQuiz,
   quizSaved,
@@ -54,6 +57,18 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   };
 
   useEffect(scrollToBottom, [messages]);
+
+  const quickPrompts = [
+    { label: 'Summarize', prompt: 'Summarize the last section I watched in 3 bullet points.' },
+    { label: 'Key terms', prompt: 'List the key terms mentioned so far and define each briefly.' },
+    { label: 'Explain simply', prompt: 'Explain the main concept so far like I am new to the topic.' },
+    { label: 'Quiz me', prompt: 'Ask me three quick questions about the last part of the video.' },
+  ];
+
+  const handleQuickPrompt = (prompt: string) => {
+    setInput('');
+    void onSendMessage(prompt);
+  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +94,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
       onClick={onClick}
       className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold border-b-2 transition-colors ${
         isActive
-          ? 'text-indigo-600 dark:text-indigo-400 border-indigo-600 dark:border-indigo-400'
+          ? 'text-emerald-600 dark:text-emerald-400 border-emerald-600 dark:border-emerald-400'
           : 'text-slate-500 dark:text-slate-400 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
       }`}
     >
@@ -89,7 +104,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   );
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg shadow-slate-900/5 h-full flex flex-col">
+    <div className="bg-white dark:bg-slate-800 rounded-md shadow-lg shadow-slate-900/5 h-full flex flex-col border border-slate-200 dark:border-slate-700">
         <div className="flex border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
             <TabButton label="AI Assistant" icon={<SparklesIcon className="w-5 h-5"/>} isActive={activeTab === 'chat'} onClick={() => setActiveTab('chat')} />
             <TabButton label="Knowledge Check" icon={<ClipboardCheckIcon className="w-5 h-5"/>} isActive={activeTab === 'quiz'} onClick={() => setActiveTab('quiz')} />
@@ -98,6 +113,29 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
         {activeTab === 'chat' && (
              <div className="flex-1 flex flex-col min-h-0">
                 <div className="flex-1 p-4 overflow-y-auto">
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      {quickPrompts.map((prompt) => (
+                        <Button
+                          key={prompt.label}
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleQuickPrompt(prompt.prompt)}
+                          disabled={isLoading}
+                        >
+                          {prompt.label}
+                        </Button>
+                      ))}
+                      {canRegenerate && onRegenerate && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={onRegenerate}
+                          disabled={isLoading}
+                        >
+                          Regenerate answer
+                        </Button>
+                      )}
+                    </div>
                     <div className="space-y-4">
                     {messagesWithIds.map((msg) => (
                         <div key={msg.id} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
@@ -107,9 +145,9 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                             </div>
                         )}
                         <div
-                            className={`p-3 rounded-lg max-w-sm ${
+                            className={`p-3 rounded-md max-w-sm ${
                             msg.role === 'user'
-                                ? 'bg-indigo-600 text-white'
+                                ? 'bg-blue-600 text-white'
                                 : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200'
                             }`}
                         >
@@ -140,14 +178,17 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                 </div>
 
                 <div className="p-4 border-t border-slate-200 dark:border-slate-700">
-                    <div className="mb-2">
-                        <button 
+                    <div className="mb-3 flex flex-wrap gap-2">
+                        <Button 
                             onClick={handleGenerateQuizClick}
-                            disabled={isLoading || quiz !== null}
-                            className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            disabled={isLoading}
+                            variant="secondary"
+                            size="sm"
+                            className="gap-2"
+                        >
                             <LightbulbIcon className="w-4 h-4" />
-                            {quiz !== null ? 'Quiz Generated!' : 'Generate a quiz from transcript'}
-                        </button>
+                            {quiz ? 'Regenerate quiz' : 'Generate quiz from transcript'}
+                        </Button>
                     </div>
                     <form onSubmit={handleSendMessage} className="flex gap-2">
                     <input
@@ -156,11 +197,11 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                         onChange={(e) => setInput(e.target.value)}
                         placeholder="Ask anything about the video..."
                         disabled={isLoading}
-                        className="flex-1 p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="flex-1 p-2 rounded-md border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
-                    <button type="submit" disabled={isLoading || !input.trim()} className="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 disabled:bg-slate-400 dark:disabled:bg-slate-600">
+                    <Button type="submit" disabled={isLoading || !input.trim()}>
                         Send
-                    </button>
+                    </Button>
                     </form>
                 </div>
              </div>
@@ -169,19 +210,26 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
         {activeTab === 'quiz' && (
             <div className="flex flex-col h-full">
                 {onSaveQuiz && quiz && (
-                    <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-                        <button
+                    <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-wrap gap-2">
+                        <Button
                             onClick={onSaveQuiz}
                             disabled={isSavingQuiz || quizSaved}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-teal-600 text-white font-semibold hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            className="flex-1 justify-center gap-2"
                         >
                             <ClipboardCheckIcon className="w-5 h-5" />
                             {quizSaved ? 'Saved to Assessments!' : isSavingQuiz ? 'Saving...' : 'Save Quiz to Assessments'}
-                        </button>
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={handleGenerateQuizClick}
+                          disabled={isLoading}
+                        >
+                          Regenerate
+                        </Button>
                     </div>
                 )}
                 <div className="flex-1 overflow-y-auto">
-                    <QuizView quiz={quiz} />
+                    <QuizView quiz={quiz} onUpdateQuiz={onUpdateQuiz} />
                 </div>
             </div>
         )}

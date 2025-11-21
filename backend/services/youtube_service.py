@@ -142,12 +142,25 @@ class YouTubeTranscriptService:
         """
         try:
             from youtube_transcript_api import YouTubeTranscriptApi
+            from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
             
-            # Get transcript
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[language_code, 'en'])
+            # Try to get transcript with preferred language, fallback to English
+            try:
+                transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[language_code])
+            except (NoTranscriptFound, TranscriptsDisabled):
+                # Fallback to English if preferred language not available
+                try:
+                    transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+                    language_code = 'en'
+                except (NoTranscriptFound, TranscriptsDisabled):
+                    # Try to get any available transcript
+                    transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
             
-            # Format transcript
-            full_transcript = ' '.join([entry['text'] for entry in transcript_list])
+            # Format transcript with better spacing
+            full_transcript = ' '.join([entry['text'].strip() for entry in transcript_list if entry.get('text', '').strip()])
+            
+            if not full_transcript:
+                return None
             
             return {
                 'success': True,
@@ -156,11 +169,12 @@ class YouTubeTranscriptService:
                 'transcript': full_transcript,
                 'segments': [
                     {
-                        'start': entry['start'],
-                        'duration': entry['duration'],
-                        'text': entry['text']
+                        'start': entry.get('start', 0),
+                        'duration': entry.get('duration', 0),
+                        'text': entry.get('text', '').strip()
                     }
                     for entry in transcript_list
+                    if entry.get('text', '').strip()
                 ],
                 'word_count': len(full_transcript.split()),
                 'extracted_at': datetime.now().isoformat(),
@@ -169,6 +183,9 @@ class YouTubeTranscriptService:
             
         except ImportError:
             print("youtube-transcript-api not installed")
+            return None
+        except VideoUnavailable:
+            print(f"Video {video_id} is unavailable")
             return None
         except Exception as e:
             print(f"youtube-transcript-api extraction failed: {e}")

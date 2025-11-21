@@ -6,8 +6,70 @@ from django.conf import settings
 import google.generativeai as genai
 import json
 import logging
+import re
 
 logger = logging.getLogger(__name__)
+
+
+def chunk_text_for_ai(text: str, max_chunk_size: int = 3500):
+    if not text:
+        return []
+
+    paragraphs = [p.strip() for p in re.split(r'\n\s*\n', text) if p.strip()]
+    chunks = []
+    current_chunk = ""
+
+    for paragraph in paragraphs:
+        if current_chunk and len(current_chunk) + len(paragraph) + 2 > max_chunk_size:
+            chunks.append(current_chunk.strip())
+            current_chunk = ""
+
+        if len(paragraph) > max_chunk_size:
+            sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', paragraph) if s.strip()]
+            sentence_chunk = ""
+            for sentence in sentences:
+                if sentence_chunk and len(sentence_chunk) + len(sentence) + 1 > max_chunk_size:
+                    chunks.append(sentence_chunk.strip())
+                    sentence_chunk = ""
+                sentence_chunk += (" " if sentence_chunk else "") + sentence
+            if sentence_chunk:
+                current_chunk += ("\n\n" if current_chunk else "") + sentence_chunk
+        else:
+            current_chunk += ("\n\n" if current_chunk else "") + paragraph
+
+    if current_chunk.strip():
+        chunks.append(current_chunk.strip())
+
+    return chunks
+
+
+def find_relevant_context_chunks(chunks, message: str, max_chunks: int = 3):
+    if not chunks:
+        return []
+
+    keywords = [
+        word for word in re.split(r'\s+', message.lower())
+        if len(word) > 3 and word.isalpha()
+    ]
+    if not keywords:
+        return chunks[:max_chunks]
+
+    scored = []
+    for index, chunk in enumerate(chunks):
+        chunk_lower = chunk.lower()
+        score = 0
+        for keyword in keywords:
+            exact = len(re.findall(rf'\b{re.escape(keyword)}\b', chunk_lower))
+            score += exact * 3
+            partial = len(re.findall(re.escape(keyword), chunk_lower))
+            score += max(partial - exact, 0)
+        score += (len(chunks) - index) * 0.1
+        scored.append((score, chunk, index))
+
+    scored.sort(key=lambda item: (-item[0], item[2]))
+    relevant = [item[1] for item in scored[:max_chunks] if item[0] > 0]
+
+    return relevant or chunks[:max_chunks]
 
 def configure_gemini():
     """Configure Gemini API with the API key from settings."""
@@ -46,8 +108,11 @@ def generate_quiz(request):
         # Configure Gemini
         configure_gemini()
         
-        # Create the model
-        model = genai.GenerativeModel(getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash'))
+        # Create the model - ensure gemini-2.5-flash is used
+        model_name = getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash')
+        if 'flash' not in model_name.lower():
+            model_name = 'gemini-2.5-flash'
+        model = genai.GenerativeModel(model_name)
         
         # Construct the prompt - optimized for speed
         prompt = f"""Generate {num_questions} {difficulty} difficulty quiz questions from this transcript:
@@ -123,27 +188,57 @@ def chat(request):
         # Configure Gemini
         configure_gemini()
         
-        # Create the model
-        model = genai.GenerativeModel(getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash'))
+        # Create the model - ensure gemini-2.5-flash is used
+        model_name = getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash')
+        if 'flash' not in model_name.lower():
+            model_name = 'gemini-2.5-flash'
+        model = genai.GenerativeModel(model_name)
+        
+        # Check if user wants detailed response (from message)
+        wants_detailed = any(keyword in message.lower() for keyword in [
+            'explain more', 'tell me more', 'detailed', 'deep dive', 
+            'elaborate', 'in depth', 'expand', 'comprehensive'
+        ])
         
         # Construct the full prompt with context and system instructions
-        system_instruction = """You are a helpful educational tutor. Keep your responses:
-- Concise
-- Conversational
-- Direct and to the point
+        system_instruction = """You are Edu, a helpful and friendly AI educational tutor. Your responses should be:
+- Concise and direct (unless user asks for more detail)
+- Conversational and warm
+- Based strictly on the provided video context
+- Clear and easy to understand
 
-If the user asks a question about the video content, answer based on the provided context.
-If they ask something off-topic but related, answer it gracefully, else, politely redirect them back to the learning material."""
+If the user asks about video content, answer based on the context provided.
+If they ask something off-topic, politely redirect them back to the learning material."""
         
-        if context:
-            full_prompt = f"{system_instruction}\n\nVideo/Learning Context:\n{context}\n\nUser Question: {message}"
+        optimized_context = context
+        if context and len(context) > 3500:
+            context_chunks = chunk_text_for_ai(context)
+            relevant_chunks = find_relevant_context_chunks(
+                context_chunks,
+                message,
+                max_chunks=4 if wants_detailed else 2
+            )
+            optimized_context = "\n\n---\n\n".join(relevant_chunks)
+            logger.debug(
+                "Chat context reduced from %s chars to %s chars (chunks selected: %s)",
+                len(context),
+                len(optimized_context),
+                len(relevant_chunks)
+            )
+        
+        if optimized_context:
+            full_prompt = f"{system_instruction}\n\nVideo/Learning Context:\n{optimized_context}\n\nUser Question: {message}"
         else:
             full_prompt = f"{system_instruction}\n\nUser Question: {message}"
         
-        # Generate content with reduced token output
+        # Generate content with appropriate token limits
+        max_tokens = 300 if wants_detailed else 150
         response = model.generate_content(
             full_prompt,
-            generation_config=genai.types.GenerationConfig(max_output_tokens=150)
+            generation_config=genai.types.GenerationConfig(
+                max_output_tokens=max_tokens,
+                temperature=0.7
+            )
         )
         
         return Response(
@@ -189,8 +284,11 @@ def generate_study_plan(request):
         # Configure Gemini
         configure_gemini()
         
-        # Create the model
-        model = genai.GenerativeModel(getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash'))
+        # Create the model - ensure gemini-2.5-flash is used
+        model_name = getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash')
+        if 'flash' not in model_name.lower():
+            model_name = 'gemini-2.5-flash'
+        model = genai.GenerativeModel(model_name)
         
         # Construct a concise prompt
         prompt = f"""Create a {duration_weeks}-week study plan for {topic} ({skill_level} level).
@@ -249,8 +347,11 @@ def explain_concept(request):
         # Configure Gemini
         configure_gemini()
         
-        # Create the model
-        model = genai.GenerativeModel(getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash'))
+        # Create the model - ensure gemini-2.5-flash is used
+        model_name = getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash')
+        if 'flash' not in model_name.lower():
+            model_name = 'gemini-2.5-flash'
+        model = genai.GenerativeModel(model_name)
         
         # Construct a concise prompt based on detail level
         level_prompts = {
