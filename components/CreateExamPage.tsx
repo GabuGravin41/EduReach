@@ -20,13 +20,15 @@ import type {
     ShortAnswerQuestion, 
     EssayQuestion, 
     PassageQuestion,
-    ClozeQuestion
+    ClozeQuestion,
+    Course
 } from '../types';
 
 interface CreateExamPageProps {
     onExamCreated: (exam: any) => void;
     onCancel: () => void;
     userTier: UserTier;
+    courses: Course[];
 }
 
 const TIER_FEATURES = {
@@ -40,13 +42,18 @@ const TIER_FEATURES = {
 export const CreateExamPage: React.FC<CreateExamPageProps> = ({
     onExamCreated,
     onCancel,
-    userTier
+    userTier,
+    courses
 }) => {
     const [title, setTitle] = useState('');
     const [topic, setTopic] = useState('');
     const [description, setDescription] = useState('');
     const [timeLimit, setTimeLimit] = useState(30);
     const [questions, setQuestions] = useState<Question[]>([]);
+    
+    // Linking State
+    const [selectedCourseId, setSelectedCourseId] = useState<number | ''>('');
+    const [selectedLessonId, setSelectedLessonId] = useState<number | ''>('');
 
     const features = TIER_FEATURES[userTier];
 
@@ -166,6 +173,11 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
             questions: questions.length,
             questions_data: questions,
             question_types: [...new Set(questions.map(q => q.type))],
+            context: selectedCourseId && selectedLessonId ? {
+                type: 'course_lesson',
+                courseId: Number(selectedCourseId),
+                lessonId: Number(selectedLessonId)
+            } : undefined
         };
 
         onExamCreated(examData);
@@ -288,6 +300,8 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
         }
     };
 
+    const selectedCourse = courses.find(c => c.id === Number(selectedCourseId));
+
     return (
         <div className="max-w-4xl mx-auto">
             <div className="mb-8">
@@ -329,6 +343,50 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
                             placeholder="Subject or topic area"
                             className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
                         />
+                    </div>
+                </div>
+
+                {/* Linking Section */}
+                <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-lg border border-slate-200 dark:border-slate-600 mb-6">
+                    <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
+                        <BookOpenIcon className="w-4 h-4" />
+                        Link to Course (Optional)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                                Select Course
+                            </label>
+                            <select 
+                                value={selectedCourseId}
+                                onChange={(e) => {
+                                    setSelectedCourseId(Number(e.target.value));
+                                    setSelectedLessonId(''); // Reset lesson when course changes
+                                }}
+                                className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-md focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                            >
+                                <option value="">-- No Course --</option>
+                                {courses.map(course => (
+                                    <option key={course.id} value={course.id}>{course.title}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                                Select Lesson (Required if Course selected)
+                            </label>
+                            <select 
+                                value={selectedLessonId}
+                                onChange={(e) => setSelectedLessonId(Number(e.target.value))}
+                                disabled={!selectedCourseId}
+                                className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-md focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 disabled:opacity-50"
+                            >
+                                <option value="">-- Select Lesson --</option>
+                                {selectedCourse?.lessons.map(lesson => (
+                                    <option key={lesson.id} value={lesson.id}>{lesson.title}</option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
                 </div>
 

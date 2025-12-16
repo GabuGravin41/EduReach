@@ -2,16 +2,17 @@
 import React, { useState } from 'react';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { generateAssessmentFromSource, QuestionType } from '../services/geminiService';
-import type { Question, MultipleChoiceQuestion, ShortAnswerQuestion, EssayQuestion, PassageQuestion, ClozeQuestion, AssessmentMode } from '../types';
+import type { Question, MultipleChoiceQuestion, ShortAnswerQuestion, EssayQuestion, PassageQuestion, ClozeQuestion, AssessmentMode, Course } from '../types';
 import { BookOpenIcon } from './icons/BookOpenIcon';
 import { SwordsIcon } from './icons/SwordsIcon';
 
 interface GenerateAIQuizPageProps {
   onQuizCreated: (quiz: any) => void;
   onCancel: () => void;
+  courses: Course[];
 }
 
-export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCreated, onCancel }) => {
+export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCreated, onCancel, courses }) => {
   const [topic, setTopic] = useState('');
   const [sourceText, setSourceText] = useState('');
   const [numQuestions, setNumQuestions] = useState(5);
@@ -19,6 +20,10 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
   const [assessmentMode, setAssessmentMode] = useState<AssessmentMode>('quiz');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // Linking
+  const [selectedCourseId, setSelectedCourseId] = useState<number | ''>('');
+  const [selectedLessonId, setSelectedLessonId] = useState<number | ''>('');
 
   const mapToQuestionObjects = (rawQuestions: any[], type: QuestionType): Question[] => {
       return rawQuestions.map((q, index) => {
@@ -112,7 +117,12 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
         time: numQuestions * (assessmentMode === 'exam' ? 10 : 2), // More time for exams
         source_type: 'text',
         assessment_type: assessmentMode,
-        difficulty: assessmentMode === 'exam' ? 'hard' : 'medium'
+        difficulty: assessmentMode === 'exam' ? 'hard' : 'medium',
+        context: selectedCourseId && selectedLessonId ? {
+            type: 'course_lesson',
+            courseId: Number(selectedCourseId),
+            lessonId: Number(selectedLessonId)
+        } : undefined
       };
       onQuizCreated(newQuiz);
     } catch (err) {
@@ -122,6 +132,8 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
       setIsLoading(false);
     }
   };
+
+  const selectedCourse = courses.find(c => c.id === Number(selectedCourseId));
 
   return (
     <div>
@@ -199,6 +211,50 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
                 ? "Enter specific level (e.g. 'IMO level', 'Graduate Physics') or paste source material..." 
                 : "Paste an article, transcript, or simple notes here..."}
             className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-vertical" />
+        </div>
+
+        {/* Linking Section */}
+        <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-lg border border-slate-200 dark:border-slate-600 mb-6">
+            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
+                <BookOpenIcon className="w-4 h-4" />
+                Link to Course (Optional)
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                        Select Course
+                    </label>
+                    <select 
+                        value={selectedCourseId}
+                        onChange={(e) => {
+                            setSelectedCourseId(Number(e.target.value));
+                            setSelectedLessonId(''); // Reset lesson when course changes
+                        }}
+                        className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-md focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                    >
+                        <option value="">-- No Course --</option>
+                        {courses.map(course => (
+                            <option key={course.id} value={course.id}>{course.title}</option>
+                        ))}
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                        Select Lesson (Required if Course selected)
+                    </label>
+                    <select 
+                        value={selectedLessonId}
+                        onChange={(e) => setSelectedLessonId(Number(e.target.value))}
+                        disabled={!selectedCourseId}
+                        className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-md focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 disabled:opacity-50"
+                    >
+                        <option value="">-- Select Lesson --</option>
+                        {selectedCourse?.lessons.map(lesson => (
+                            <option key={lesson.id} value={lesson.id}>{lesson.title}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
