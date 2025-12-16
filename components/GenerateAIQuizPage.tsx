@@ -1,0 +1,221 @@
+
+import React, { useState } from 'react';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { generateAssessmentFromSource, QuestionType } from '../services/geminiService';
+import type { Question, MultipleChoiceQuestion, ShortAnswerQuestion, EssayQuestion, AssessmentMode } from '../types';
+import { BookOpenIcon } from './icons/BookOpenIcon';
+import { SwordsIcon } from './icons/SwordsIcon';
+
+interface GenerateAIQuizPageProps {
+  onQuizCreated: (quiz: any) => void;
+  onCancel: () => void;
+}
+
+export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCreated, onCancel }) => {
+  const [topic, setTopic] = useState('');
+  const [sourceText, setSourceText] = useState('');
+  const [numQuestions, setNumQuestions] = useState(5);
+  const [questionType, setQuestionType] = useState<QuestionType>('multiple-choice');
+  const [assessmentMode, setAssessmentMode] = useState<AssessmentMode>('quiz');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const mapToQuestionObjects = (rawQuestions: any[], type: QuestionType): Question[] => {
+      return rawQuestions.map((q, index) => {
+          const baseId = `ai-gen-${Date.now()}-${index}`;
+          
+          if (type === 'essay') {
+              return {
+                  id: baseId,
+                  type: 'essay',
+                  question_text: q.question,
+                  max_words: 500,
+                  points: assessmentMode === 'exam' ? 20 : 10,
+                  rubric_criteria: [],
+                  ai_grading_enabled: true
+              } as EssayQuestion;
+          } else if (type === 'short-answer') {
+              return {
+                  id: baseId,
+                  type: 'short_answer',
+                  question_text: q.question,
+                  correct_answers: [q.correctAnswer || ''],
+                  points: assessmentMode === 'exam' ? 10 : 5,
+                  case_sensitive: false,
+                  exact_match: false,
+                  max_length: 100
+              } as ShortAnswerQuestion;
+          } else {
+              // Default Multiple Choice
+              return {
+                  id: baseId,
+                  type: 'multiple_choice',
+                  question_text: q.question,
+                  options: q.options || [],
+                  correct_answer_index: q.options ? q.options.indexOf(q.correctAnswer) : 0,
+                  points: assessmentMode === 'exam' ? 5 : 1
+              } as MultipleChoiceQuestion;
+          }
+      });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!topic.trim() || !sourceText.trim()) {
+      setError('Please provide both a topic and some source text.');
+      return;
+    }
+    setError('');
+    setIsLoading(true);
+
+    try {
+      const result = await generateAssessmentFromSource(sourceText, topic, numQuestions, questionType, assessmentMode);
+      
+      const mappedQuestions = mapToQuestionObjects(result.questions, questionType);
+
+      const newQuiz = {
+        title: result.title,
+        description: result.description,
+        topic: topic,
+        questions: mappedQuestions.length,
+        questions_data: mappedQuestions, 
+        time: numQuestions * (assessmentMode === 'exam' ? 10 : 2), // More time for exams
+        source_type: 'text',
+        assessment_type: assessmentMode,
+        difficulty: assessmentMode === 'exam' ? 'hard' : 'medium'
+      };
+      onQuizCreated(newQuiz);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to generate assessment. The AI model may be unavailable. Please try again later.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <h1 className="text-3xl font-bold mb-6">Generate AI Assessment</h1>
+      <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-lg shadow-slate-900/5 space-y-6">
+        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 mb-4">
+            <SparklesIcon className="w-5 h-5 text-teal-500" />
+            <p>Let AI create a custom assessment for you from any text content.</p>
+        </div>
+
+        {/* Mode Selector */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div 
+                onClick={() => setAssessmentMode('quiz')}
+                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                    assessmentMode === 'quiz' 
+                    ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20' 
+                    : 'border-slate-200 dark:border-slate-700 hover:border-teal-300'
+                }`}
+            >
+                <div className="flex items-center gap-3 mb-2">
+                    <div className={`p-2 rounded-lg ${assessmentMode === 'quiz' ? 'bg-teal-500 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
+                        <BookOpenIcon className="w-5 h-5" />
+                    </div>
+                    <span className="font-bold text-lg dark:text-slate-200">Quiz Mode</span>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Focuses on conceptual understanding, definitions, and basic application. Good for review.
+                </p>
+            </div>
+
+            <div 
+                onClick={() => setAssessmentMode('exam')}
+                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                    assessmentMode === 'exam' 
+                    ? 'border-rose-500 bg-rose-50 dark:bg-rose-900/20' 
+                    : 'border-slate-200 dark:border-slate-700 hover:border-rose-300'
+                }`}
+            >
+                <div className="flex items-center gap-3 mb-2">
+                    <div className={`p-2 rounded-lg ${assessmentMode === 'exam' ? 'bg-rose-500 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
+                        <SwordsIcon className="w-5 h-5" />
+                    </div>
+                    <span className="font-bold text-lg dark:text-slate-200">Exam Mode</span>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Rigorous problem solving. Pulls from competitive problem banks (e.g. IMO) where possible.
+                </p>
+            </div>
+        </div>
+        
+        <div>
+          <label htmlFor="topic" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Topic</label>
+          <input 
+            type="text" 
+            id="topic" 
+            value={topic} 
+            onChange={e => setTopic(e.target.value)} 
+            required 
+            placeholder="e.g., Combinatorics, The French Revolution"
+            className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        
+        <div>
+          <label htmlFor="sourceText" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            Context / Level / Source Text
+          </label>
+          <textarea 
+            id="sourceText" 
+            value={sourceText} 
+            onChange={e => setSourceText(e.target.value)} 
+            rows={6} 
+            required 
+            placeholder={assessmentMode === 'exam' 
+                ? "Enter specific level (e.g. 'IMO level', 'Graduate Physics') or paste source material..." 
+                : "Paste an article, transcript, or simple notes here..."}
+            className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-vertical" />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label htmlFor="numQuestions" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Number of Questions</label>
+                <input 
+                    type="number" 
+                    id="numQuestions" 
+                    value={numQuestions} 
+                    onChange={e => setNumQuestions(Number(e.target.value))} 
+                    required min="1" max="20" 
+                    className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+                <label htmlFor="questionType" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Question Type</label>
+                 <select 
+                    id="questionType"
+                    value={questionType} 
+                    onChange={(e) => setQuestionType(e.target.value as QuestionType)}
+                    className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                    <option value="multiple-choice">Multiple Choice</option>
+                    <option value="essay">Essay / Proof</option>
+                    <option value="short-answer">Short Answer</option>
+                </select>
+            </div>
+        </div>
+
+        {error && <p className="text-red-500 text-sm -my-2">{error}</p>}
+
+        <div className="flex justify-end gap-4 pt-6 border-t border-slate-200 dark:border-slate-700">
+          <button type="button" onClick={onCancel} disabled={isLoading} className="px-6 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold hover:bg-slate-300 dark:hover:bg-slate-600">Cancel</button>
+          <button type="submit" disabled={isLoading} className={`px-6 py-2 rounded-lg text-white font-semibold flex items-center gap-2 disabled:bg-slate-400 disabled:cursor-wait ${assessmentMode === 'exam' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-teal-600 hover:bg-teal-700'}`}>
+            {isLoading ? (
+                <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Generating...
+                </>
+            ) : (
+                <>
+                    <SparklesIcon className="w-5 h-5" />
+                    Generate {assessmentMode === 'exam' ? 'Exam' : 'Quiz'}
+                </>
+            )}
+            </button>
+        </div>
+      </form>
+    </div>
+  );
+};
