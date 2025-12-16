@@ -39,7 +39,7 @@ const quizSchema = {
   }
 };
 
-export type QuestionType = 'multiple-choice' | 'essay' | 'short-answer';
+export type QuestionType = 'multiple-choice' | 'essay' | 'short-answer' | 'passage' | 'cloze';
 
 const getQuestionSchema = (questionType: QuestionType) => {
     switch (questionType) {
@@ -76,6 +76,41 @@ const getQuestionSchema = (questionType: QuestionType) => {
                     correctAnswer: { type: Type.STRING, description: 'The final answer (e.g. numerical value or short phrase).' },
                 },
                 required: ['question', 'correctAnswer']
+            };
+        case 'cloze':
+            return {
+                type: Type.OBJECT,
+                properties: {
+                    question: { 
+                        type: Type.STRING, 
+                        description: 'A sentence or paragraph with key terms replaced by bracketed text, e.g., "The [mitochondria] is the powerhouse of the cell.".' 
+                    },
+                    explanation: { type: Type.STRING, description: 'Brief explanation of the hidden terms.' }
+                },
+                required: ['question']
+            };
+        case 'passage':
+            return {
+                type: Type.OBJECT,
+                properties: {
+                    passage_title: { type: Type.STRING },
+                    passage_text: { type: Type.STRING, description: 'A rigorous 200-400 word excerpt relevant to the topic.' },
+                    questions: {
+                        type: Type.ARRAY,
+                        description: '3 sub-questions based on the passage.',
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                question_text: { type: Type.STRING },
+                                options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                correct_answer: { type: Type.NUMBER, description: 'Index of correct option' },
+                                explanation: { type: Type.STRING }
+                            },
+                            required: ['question_text', 'options', 'correct_answer']
+                        }
+                    }
+                },
+                required: ['passage_title', 'passage_text', 'questions']
             };
         case 'multiple-choice':
         default:
@@ -138,7 +173,8 @@ export const generateAssessmentFromSource = async (
            - Ask for PROOFS or multi-step derivations if the topic is Math/Physics.
            - Ask for critical analysis if the topic is Humanities.
            - YOU MUST PROVIDE A 'MODEL SOLUTION' field containing the rigorous proof or ideal argument. This is hidden from the user but used for AI grading.
-        5. ensure mathematical validity.
+        5. For 'cloze' questions, ensure the hidden terms are critical concepts, not filler words.
+        6. For 'passage' questions, create or retrieve a high-density academic text excerpt (200-400 words) and ask critical reading questions.
         
         Context/Notes:
         ---

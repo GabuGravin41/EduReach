@@ -126,6 +126,12 @@ export interface Course {
 
 export type AssessmentMode = 'quiz' | 'exam';
 
+export interface AssessmentContext {
+    type: 'standalone' | 'course_lesson' | 'course_final';
+    courseId?: number;
+    lessonId?: number;
+}
+
 export interface Assessment {
     id: number;
     title: string;
@@ -143,4 +149,5 @@ export interface Assessment {
     source_type?: 'text' | 'youtube';
     source_url?: string;
     assessment_type?: AssessmentMode;
+    context?: AssessmentContext;
 }

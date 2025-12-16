@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { generateAssessmentFromSource, QuestionType } from '../services/geminiService';
-import type { Question, MultipleChoiceQuestion, ShortAnswerQuestion, EssayQuestion, AssessmentMode } from '../types';
+import type { Question, MultipleChoiceQuestion, ShortAnswerQuestion, EssayQuestion, PassageQuestion, ClozeQuestion, AssessmentMode } from '../types';
 import { BookOpenIcon } from './icons/BookOpenIcon';
 import { SwordsIcon } from './icons/SwordsIcon';
 
@@ -31,7 +31,8 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
                   question_text: q.question,
                   max_words: 500,
                   points: assessmentMode === 'exam' ? 20 : 10,
-                  rubric_criteria: [],
+                  rubric_criteria: q.rubric_criteria || [],
+                  model_solution: q.model_solution,
                   ai_grading_enabled: true
               } as EssayQuestion;
           } else if (type === 'short-answer') {
@@ -45,6 +46,32 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
                   exact_match: false,
                   max_length: 100
               } as ShortAnswerQuestion;
+          } else if (type === 'cloze') {
+              return {
+                  id: baseId,
+                  type: 'cloze',
+                  question_text: q.question,
+                  points: assessmentMode === 'exam' ? 5 : 2,
+                  explanation: q.explanation
+              } as ClozeQuestion;
+          } else if (type === 'passage') {
+              return {
+                  id: baseId,
+                  type: 'passage',
+                  passage_title: q.passage_title || 'Reading Passage',
+                  passage_text: q.passage_text,
+                  word_count: q.passage_text?.split(/\s+/).length || 0,
+                  questions: q.questions.map((subQ: any, subIdx: number) => ({
+                      id: `${baseId}-sub-${subIdx}`,
+                      question_text: subQ.question_text,
+                      question_type: 'multiple_choice',
+                      options: subQ.options,
+                      correct_answer: subQ.correct_answer,
+                      points: 2
+                  })),
+                  difficulty: assessmentMode === 'exam' ? 'hard' : 'medium',
+                  points: q.questions?.length * 2 || 10
+              } as PassageQuestion;
           } else {
               // Default Multiple Choice
               return {
@@ -69,7 +96,10 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
     setIsLoading(true);
 
     try {
-      const result = await generateAssessmentFromSource(sourceText, topic, numQuestions, questionType, assessmentMode);
+      // For passage type, we ask for fewer "items" because each item is a whole passage with sub-questions
+      const effectiveNumQuestions = questionType === 'passage' ? Math.ceil(numQuestions / 3) : numQuestions;
+      
+      const result = await generateAssessmentFromSource(sourceText, topic, effectiveNumQuestions, questionType, assessmentMode);
       
       const mappedQuestions = mapToQuestionObjects(result.questions, questionType);
 
@@ -193,6 +223,8 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
                     <option value="multiple-choice">Multiple Choice</option>
                     <option value="essay">Essay / Proof</option>
                     <option value="short-answer">Short Answer</option>
+                    <option value="cloze">Cloze (Fill-in-Blanks)</option>
+                    <option value="passage">Passage Based</option>
                 </select>
             </div>
         </div>

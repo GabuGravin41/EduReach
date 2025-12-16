@@ -264,7 +264,7 @@ const MainApp: React.FC = () => {
             }, 
             ...prev
         ]);
-        alert('Quiz saved successfully!');
+        // Note: No alert needed here as LearningSession shows "Saved!"
     };
 
     const handlePostCreated = (content: string) => {
@@ -492,8 +492,10 @@ const MainApp: React.FC = () => {
                         setView={setCurrentView} 
                         onStartLesson={handleSessionCreated} 
                         userTier={userTier}
-                        onUpdateCourse={handleUpdateCourse} // Pass the update function
-                        onUpdateLesson={handleUpdateLesson} // Allow saving notes from detail page if we add edit there
+                        onUpdateCourse={handleUpdateCourse}
+                        onUpdateLesson={handleUpdateLesson}
+                        assessments={assessments}
+                        onSelectExam={handleSelectExam}
                     />;
                 }
                 setCurrentView('courses');

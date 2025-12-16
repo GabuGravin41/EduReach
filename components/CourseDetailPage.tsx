@@ -3,9 +3,10 @@ import React, { useEffect, useState } from 'react';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import { PlayIcon } from './icons/PlayIcon';
 import { ClockIcon } from './icons/ClockIcon';
+import { ClipboardCheckIcon } from './icons/ClipboardCheckIcon';
 import { View, UserTier } from '../App';
 import { Button } from './ui/Button';
-import type { Course, Lesson, CourseNote } from '../types';
+import type { Course, Lesson, Assessment } from '../types';
 import { DiscussionsPage } from './DiscussionsPage';
 import { PencilIcon } from './icons/PencilIcon';
 
@@ -27,6 +28,8 @@ interface CourseDetailPageProps {
     currentUserId?: number;
     onUpdateCourse?: (courseId: number, updates: Partial<Course>) => void;
     onUpdateLesson?: (courseId: number, lessonId: number, updates: Partial<Lesson>) => void;
+    assessments?: Assessment[]; // To link quizzes to lessons
+    onSelectExam?: (examId: number) => void; // To open exam detail
 }
 
 export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ 
@@ -37,7 +40,9 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     userTier, 
     currentUserId,
     onUpdateCourse,
-    onUpdateLesson
+    onUpdateLesson,
+    assessments = [],
+    onSelectExam
 }) => {
     const [activeTab, setActiveTab] = useState<'lessons' | 'discussions' | 'notes' | 'manage'>('lessons');
     const [isEditingCourse, setIsEditingCourse] = useState(false);
@@ -80,12 +85,6 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
             return;
         }
         
-        // This effectively modifies the course via the parent logic if implemented there,
-        // but since we don't have a direct "add lesson" prop that updates the state in App.tsx easily without context,
-        // we'll simulate it for now or assume onAddLesson is wired if provided.
-        // For this demo, let's assume we can push to the local course object or better, use the onUpdateCourse if we refactor lessons array.
-        // But App.tsx passes onUpdateLesson. We probably need a better addLesson mechanism. 
-        // For simplicity, we will alert that this feature requires backend integration in this stateless demo unless we lift state up further.
         alert("Lesson creation via this quick form requires backend integration. Please use 'New Session' and save to course.");
         
         setLessonForm({ title: '', videoUrl: '' });
@@ -106,6 +105,13 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
         const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/;
         const match = urlOrId.match(regex);
         return match ? match[1] : null;
+    };
+
+    const getLinkedAssessment = (lessonId: number) => {
+        return assessments.find(a => 
+            a.context?.courseId === course.id && 
+            a.context?.lessonId === lessonId
+        );
     };
 
     const courseLessons = Array.isArray(course.lessons) ? course.lessons : [];
@@ -214,7 +220,10 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                         </div>
                     ) : (
                     <ul className="space-y-3">
-                        {visibleLessons.map((lesson, index) => (
+                        {visibleLessons.map((lesson, index) => {
+                            const linkedAssessment = getLinkedAssessment(lesson.id);
+                            
+                            return (
                             <li key={index} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 rounded-xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-blue-200 dark:hover:border-slate-500 transition-all duration-200">
                                 <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${lesson.isCompleted ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-600'}`}>
@@ -222,31 +231,51 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="font-semibold text-sm sm:text-base truncate text-gray-800 dark:text-white">{lesson.title}</p>
-                                        <div className="flex items-center gap-2 sm:gap-4 text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                                        <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-gray-500 dark:text-gray-400 mt-1.5">
                                             <span className="flex items-center gap-1 bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded-full">
                                                 <ClockIcon className="w-3 h-3" /> {lesson.duration}
                                             </span>
                                             {lesson.isCompleted && <span className="text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-100 dark:bg-emerald-900/30 px-2 py-1 rounded-full">✓ Completed</span>}
+                                            {linkedAssessment && (
+                                                <span 
+                                                    className="flex items-center gap-1 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 px-2 py-1 rounded-full font-medium cursor-pointer hover:bg-teal-200 dark:hover:bg-teal-900/50"
+                                                    onClick={(e) => { e.stopPropagation(); onSelectExam && onSelectExam(linkedAssessment.id); }}
+                                                >
+                                                    <ClipboardCheckIcon className="w-3 h-3" /> Quiz Available
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
-                                <Button
-                                    onClick={() =>
-                                        onStartLesson({
-                                            videoId: lesson.videoId,
-                                            transcript: lesson.transcript || dummyTranscript,
-                                            title: lesson.title,
-                                            courseId: course.id,
-                                            lessonId: lesson.id,
-                                            attachToCourse: false,
-                                        })
-                                    }
-                                    className="w-full sm:w-auto justify-center"
-                                >
-                                    {lesson.isCompleted ? 'Review' : 'Start'}
-                                </Button>
+                                <div className="flex gap-2 w-full sm:w-auto">
+                                    {linkedAssessment && (
+                                        <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            className="flex-1 sm:flex-none border-teal-200 text-teal-700 hover:bg-teal-50"
+                                            onClick={() => onSelectExam && onSelectExam(linkedAssessment.id)}
+                                        >
+                                            Take Quiz
+                                        </Button>
+                                    )}
+                                    <Button
+                                        onClick={() =>
+                                            onStartLesson({
+                                                videoId: lesson.videoId,
+                                                transcript: lesson.transcript || dummyTranscript,
+                                                title: lesson.title,
+                                                courseId: course.id,
+                                                lessonId: lesson.id,
+                                                attachToCourse: false,
+                                            })
+                                        }
+                                        className="flex-1 sm:flex-none justify-center"
+                                    >
+                                        {lesson.isCompleted ? 'Review' : 'Start'}
+                                    </Button>
+                                </div>
                             </li>
-                        ))}
+                        )})}
                     </ul>
                     )}
                 </div>

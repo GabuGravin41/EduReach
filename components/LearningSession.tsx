@@ -35,6 +35,8 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   const [isAIPanelOpen, setIsAIPanelOpen] = useState(true);
   const [lastPrompt, setLastPrompt] = useState<string | null>(null);
   const [completedSent, setCompletedSent] = useState(currentLesson?.isCompleted || false);
+  const [quizSaved, setQuizSaved] = useState(false);
+  const [isSavingQuiz, setIsSavingQuiz] = useState(false);
   
   const videoRef = useRef<YouTubePlayerHandle | null>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -124,6 +126,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   const handleGenerateQuiz = async () => {
     if (!transcript) return;
     setIsLoading(true);
+    setQuizSaved(false);
     try {
       let quizTranscript = transcript;
       if (transcript.length > 10000) {
@@ -191,11 +194,12 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
 
   const handleSaveQuiz = async () => {
     if (!quiz || !onSaveAssessment) return;
+    setIsSavingQuiz(true);
     
     // Create proper Assessment object
     const newAssessment: Assessment = {
         id: Date.now(),
-        title: `Quiz: ${new Date().toLocaleDateString()}`,
+        title: currentLesson ? `Quiz: ${currentLesson.title}` : `Quiz: ${new Date().toLocaleDateString()}`,
         topic: 'Video Session',
         questions: quiz.length,
         time: quiz.length * 2, // 2 mins per question
@@ -205,10 +209,21 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
         questions_data: quiz, // Persist the actual questions
         difficulty: 'medium',
         source_type: 'youtube',
-        source_url: videoId
+        source_url: videoId,
+        // Link to course and lesson
+        context: {
+            type: 'course_lesson',
+            courseId: courseId,
+            lessonId: currentLesson?.id
+        }
     };
 
+    // Simulate delay for effect
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
     onSaveAssessment(newAssessment);
+    setIsSavingQuiz(false);
+    setQuizSaved(true);
   };
 
   const handlePlayerReady = () => {
@@ -298,6 +313,8 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
             quiz={quiz}
             onUpdateQuiz={setQuiz}
             onSaveQuiz={handleSaveQuiz}
+            isSavingQuiz={isSavingQuiz}
+            quizSaved={quizSaved}
             />
         </div>
       </div>
