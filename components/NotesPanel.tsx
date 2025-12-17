@@ -32,7 +32,6 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
   // Autosave notes to backend
   useEffect(() => {
     if (!videoId || !notes.trim()) {
-      setIsAutoSaving(false);
       setSaveStatus('idle');
       return;
     }

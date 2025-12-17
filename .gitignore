@@ -50,6 +50,14 @@ pnpm-debug.log*
 lerna-debug.log*
 dist-ssr/
 
+# Build outputs
+dist
+dist-ssr
+
+# Logs
+logs
+*.log
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -57,13 +65,12 @@ dist-ssr/
 .DS_Store
 *.suo
 *.ntvs*
-*.njsproj
+*.njsproj*
 *.sln
 *.sw?
 
 # OS
 Thumbs.db
-.DS_Store
 
 # Cache
 .cache/

@@ -1,0 +1,286 @@
+.gitignore:1: leftover conflict marker
+.gitignore:47: leftover conflict marker
+.gitignore:51: leftover conflict marker
+.gitignore:57: leftover conflict marker
+.gitignore:59: leftover conflict marker
+.gitignore:65: leftover conflict marker
+.gitignore:77: leftover conflict marker
+.gitignore:93: leftover conflict marker
+.gitignore:94: leftover conflict marker
+App.tsx:434: trailing whitespace.
+[32m+[m[32m                    const currentCourse = sessionData.courseId[m[41m [m
+App.tsx:435: trailing whitespace.
+[32m+[m[32m                        ? courses.find(c => c.id === sessionData.courseId)[m[41m [m
+App.tsx:457: trailing whitespace.
+[32m+[m[32m                        <LearningSession[m[41m [m
+App.tsx:458: trailing whitespace.
+[32m+[m[32m                            videoId={sessionData.videoId}[m[41m [m
+components/AssessmentsPage.tsx:1: leftover conflict marker
+components/AssessmentsPage.tsx:2: leftover conflict marker
+components/AssessmentsPage.tsx:4: leftover conflict marker
+components/AssessmentsPage.tsx:10: leftover conflict marker
+components/AssessmentsPage.tsx:143: leftover conflict marker
+components/AssessmentsPage.tsx:163: trailing whitespace.
+[32m+[m[32mexport const AssessmentsPage: React.FC<AssessmentsPageProps> = ({[m[41m [m
+components/AssessmentsPage.tsx:164: trailing whitespace.
+[32m+[m[32m    assessments,[m[41m [m
+components/AssessmentsPage.tsx:165: trailing whitespace.
+[32m+[m[32m    onSelectExam,[m[41m [m
+components/AssessmentsPage.tsx:166: trailing whitespace.
+[32m+[m[32m    setView,[m[41m [m
+components/AssessmentsPage.tsx:168: trailing whitespace.
+[32m+[m[32m    tierUsage[m[41m [m
+components/AssessmentsPage.tsx:186: trailing whitespace.
+[32m+[m[32m        const matchesFilter = filterType === 'all'[m[41m [m
+components/AssessmentsPage.tsx:187: trailing whitespace.
+[32m+[m[32m            ? true[m[41m [m
+components/AssessmentsPage.tsx:188: trailing whitespace.
+[32m+[m[32m            : filterType === 'completed'[m[41m [m
+components/AssessmentsPage.tsx:189: trailing whitespace.
+[32m+[m[32m                ? exam.status === 'completed'[m[41m [m
+components/AssessmentsPage.tsx:191: trailing whitespace.
+[32m+[m[41m        [m
+components/AssessmentsPage.tsx:192: trailing whitespace.
+[32m+[m[32m        const matchesSearch = exam.title.toLowerCase().includes(searchQuery.toLowerCase()) ||[m[41m [m
+components/AssessmentsPage.tsx:194: trailing whitespace.
+[32m+[m[41m        [m
+components/AssessmentsPage.tsx:217: trailing whitespace.
+[32m+[m[32m                    <input[m[41m [m
+components/AssessmentsPage.tsx:218: trailing whitespace.
+[32m+[m[32m                        type="text"[m[41m [m
+components/AssessmentsPage.tsx:219: trailing whitespace.
+[32m+[m[32m                        placeholder="Search assessments..."[m[41m [m
+components/AssessmentsPage.tsx:224: trailing whitespace.
+[32m+[m[32m                    <select[m[41m [m
+components/AssessmentsPage.tsx:235: trailing whitespace.
+[32m+[m[32m                    <button[m[41m [m
+components/AssessmentsPage.tsx:242: trailing whitespace.
+[32m+[m[32m                    <button[m[41m [m
+components/AssessmentsPage.tsx:254: trailing whitespace.
+[32m+[m[32m                    <div[m[41m [m
+components/AssessmentsPage.tsx:255: trailing whitespace.
+[32m+[m[32m                        key={exam.id}[m[41m [m
+components/AssessmentsPage.tsx:263: trailing whitespace.
+[32m+[m[32m                                        exam.assessment_type === 'exam'[m[41m [m
+components/AssessmentsPage.tsx:264: trailing whitespace.
+[32m+[m[32m                                        ? 'bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-800'[m[41m [m
+components/AssessmentsPage.tsx:301: trailing whitespace.
+[32m+[m[32m                                <button[m[41m [m
+components/AssessmentsPage.tsx:326: trailing whitespace.
+[32m+[m[32m                <ChallengeModal[m[41m [m
+components/AssessmentsPage.tsx:327: trailing whitespace.
+[32m+[m[32m                    examTitle={selectedExamTitle}[m[41m [m
+components/AssessmentsPage.tsx:328: trailing whitespace.
+[32m+[m[32m                    onClose={() => setIsChallengeModalOpen(false)}[m[41m [m
+components/AssessmentsPage.tsx:333: leftover conflict marker
+components/BillingPage.tsx:1: leftover conflict marker
+components/BillingPage.tsx:363: leftover conflict marker
+components/BillingPage.tsx:444: trailing whitespace.
+[32m+[m[41m  [m
+components/BillingPage.tsx:519: trailing whitespace.
+[32m+[m[32m    const amount = parseInt(plan.price.split(' ')[0]);[m[41m [m
+components/BillingPage.tsx:520: trailing whitespace.
+[32m+[m[41m    [m
+components/BillingPage.tsx:623: trailing whitespace.
+[32m+[m[32m                        <div[m[41m [m
+components/BillingPage.tsx:627: trailing whitespace.
+[32m+[m[32m                                isSelected[m[41m [m
+components/BillingPage.tsx:628: trailing whitespace.
+[32m+[m[32m                                    ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-500 ring-1 ring-indigo-600 shadow-md transform scale-[1.02]'[m[41m [m
+components/BillingPage.tsx:644: trailing whitespace.
+[32m+[m[41m                            [m
+components/BillingPage.tsx:683: trailing whitespace.
+[32m+[m[41m                [m
+components/BillingPage.tsx:743: trailing whitespace.
+[32m+[m[32m                    <Button[m[41m [m
+components/BillingPage.tsx:744: trailing whitespace.
+[32m+[m[32m                        onClick={handleStartPayment}[m[41m [m
+components/BillingPage.tsx:751: trailing whitespace.
+[32m+[m[41m                    [m
+components/BillingPage.tsx:815: leftover conflict marker
+components/CommunityPage.tsx:1: leftover conflict marker
+components/CommunityPage.tsx:2: leftover conflict marker
+components/CommunityPage.tsx:4: leftover conflict marker
+components/CommunityPage.tsx:11: leftover conflict marker
+components/CommunityPage.tsx:20: leftover conflict marker
+components/CommunityPage.tsx:26: leftover conflict marker
+components/CommunityPage.tsx:36: leftover conflict marker
+components/CommunityPage.tsx:37: leftover conflict marker
+components/CommunityPage.tsx:39: leftover conflict marker
+components/CommunityPage.tsx:49: leftover conflict marker
+components/CommunityPage.tsx:56: leftover conflict marker
+components/CommunityPage.tsx:61: trailing whitespace.
+[32m+[m[32mexport const CommunityPage: React.FC<CommunityPageProps> = ({[m[41m [m
+components/CommunityPage.tsx:62: trailing whitespace.
+[32m+[m[32m    posts,[m[41m [m
+components/CommunityPage.tsx:63: trailing whitespace.
+[32m+[m[32m    onPostCreated,[m[41m [m
+components/CommunityPage.tsx:64: trailing whitespace.
+[32m+[m[32m    onToggleLike,[m[41m [m
+components/CommunityPage.tsx:65: trailing whitespace.
+[32m+[m[32m    onAddComment,[m[41m [m
+components/CommunityPage.tsx:66: trailing whitespace.
+[32m+[m[32m    userTier,[m[41m [m
+components/CommunityPage.tsx:94: leftover conflict marker
+components/CommunityPage.tsx:103: leftover conflict marker
+components/CommunityPage.tsx:222: leftover conflict marker
+components/CommunityPage.tsx:225: trailing whitespace.
+[32m+[m[41m        [m
+components/CommunityPage.tsx:291: trailing whitespace.
+[32m+[m[32m                        <textarea[m[41m [m
+components/CommunityPage.tsx:301: trailing whitespace.
+[32m+[m[32m                            <button[m[41m [m
+components/CommunityPage.tsx:331: trailing whitespace.
+[32m+[m[41m                        [m
+components/CommunityPage.tsx:337: trailing whitespace.
+[32m+[m[32m                            <button[m[41m [m
+components/CommunityPage.tsx:393: leftover conflict marker
+components/CourseDetailPage.tsx:53: trailing whitespace.
+[32m+[m[32mexport const CourseDetailPage: React.FC<CourseDetailPageProps> = ({[m[41m [m
+components/CourseDetailPage.tsx:54: trailing whitespace.
+[32m+[m[32m    course,[m[41m [m
+components/CourseDetailPage.tsx:55: trailing whitespace.
+[32m+[m[32m    setView,[m[41m [m
+components/CourseDetailPage.tsx:56: trailing whitespace.
+[32m+[m[32m    onStartLesson,[m[41m [m
+components/CourseDetailPage.tsx:57: trailing whitespace.
+[32m+[m[32m    onAddLesson,[m[41m [m
+components/CourseDetailPage.tsx:58: trailing whitespace.
+[32m+[m[32m    userTier,[m[41m [m
+components/CourseDetailPage.tsx:66: trailing whitespace.
+[32m+[m[41m    [m
+components/CourseDetailPage.tsx:143: trailing whitespace.
+[32m+[m[32m        return assessments.find(a =>[m[41m [m
+components/CourseDetailPage.tsx:144: trailing whitespace.
+[32m+[m[32m            a.context?.courseId === course.id &&[m[41m [m
+components/CourseDetailPage.tsx:157: trailing whitespace.
+[32m+[m[41m        [m
+components/CourseDetailPage.tsx:257: trailing whitespace.
+[32m+[m[41m                            [m
+components/CourseDetailPage.tsx:272: trailing whitespace.
+[32m+[m[32m                                                <span[m[41m [m
+components/CourseDetailPage.tsx:315: trailing whitespace.
+[32m+[m[41m                [m
+components/CourseDetailPage.tsx:328: trailing whitespace.
+[32m+[m[32m                                            <Button[m[41m [m
+components/CourseDetailPage.tsx:329: trailing whitespace.
+[32m+[m[32m                                                size="sm"[m[41m [m
+components/CourseDetailPage.tsx:354: trailing whitespace.
+[32m+[m[32m                                    You haven't taken any notes for this course yet.[m[41m [m
+components/CourseDetailPage.tsx:361: trailing whitespace.
+[32m+[m[41m                [m
+components/CourseDetailPage.tsx:373: trailing whitespace.
+[32m+[m[41m                        [m
+components/CourseDetailPage.tsx:379: trailing whitespace.
+[32m+[m[32m                                        <input[m[41m [m
+components/CourseDetailPage.tsx:380: trailing whitespace.
+[32m+[m[32m                                            type="text"[m[41m [m
+components/CourseDetailPage.tsx:381: trailing whitespace.
+[32m+[m[32m                                            value={editForm.title}[m[41m [m
+components/CourseDetailPage.tsx:388: trailing whitespace.
+[32m+[m[32m                                        <textarea[m[41m [m
+components/CourseDetailPage.tsx:389: trailing whitespace.
+[32m+[m[32m                                            value={editForm.description}[m[41m [m
+components/CreateCoursePage.tsx:4: leftover conflict marker
+components/CreateCoursePage.tsx:9: leftover conflict marker
+components/CreateCoursePage.tsx:11: leftover conflict marker
+components/CreateCoursePage.tsx:21: leftover conflict marker
+components/CreateCoursePage.tsx:47: leftover conflict marker
+components/CreateCoursePage.tsx:50: leftover conflict marker
+components/CreateCoursePage.tsx:59: leftover conflict marker
+components/CreateCoursePage.tsx:64: leftover conflict marker
+components/CreateCoursePage.tsx:69: leftover conflict marker
+components/CreateCoursePage.tsx:82: leftover conflict marker
+components/CreateCoursePage.tsx:141: leftover conflict marker
+components/CreateCoursePage.tsx:144: trailing whitespace.
+[32m+[m[41m  [m
+components/CreateCoursePage.tsx:145: leftover conflict marker
+components/CreateCoursePage.tsx:152: leftover conflict marker
+components/CreateCoursePage.tsx:163: leftover conflict marker
+components/CreateCoursePage.tsx:166: leftover conflict marker
+components/CreateCoursePage.tsx:171: leftover conflict marker
+components/CreateCoursePage.tsx:180: leftover conflict marker
+components/CreateCoursePage.tsx:182: leftover conflict marker
+components/CreateCoursePage.tsx:214: leftover conflict marker
+components/CreateCoursePage.tsx:254: leftover conflict marker
+components/CreateCoursePage.tsx:266: leftover conflict marker
+components/CreateCoursePage.tsx:275: leftover conflict marker
+components/CreateCoursePage.tsx:277: leftover conflict marker
+components/CreateCoursePage.tsx:279: leftover conflict marker
+components/CreateCoursePage.tsx:291: leftover conflict marker
+components/CreateCoursePage.tsx:293: leftover conflict marker
+components/CreateCoursePage.tsx:295: leftover conflict marker
+components/CreateExamPage.tsx:1: leftover conflict marker
+components/CreateExamPage.tsx:153: leftover conflict marker
+components/CreateExamPage.tsx:168: trailing whitespace.
+[32m+[m[32mimport type {[m[41m [m
+components/CreateExamPage.tsx:169: trailing whitespace.
+[32m+[m[32m    Question,[m[41m [m
+components/CreateExamPage.tsx:170: trailing whitespace.
+[32m+[m[32m    QuestionType,[m[41m [m
+components/CreateExamPage.tsx:171: trailing whitespace.
+[32m+[m[32m    MultipleChoiceQuestion,[m[41m [m
+components/CreateExamPage.tsx:172: trailing whitespace.
+[32m+[m[32m    TrueFalseQuestion,[m[41m [m
+components/CreateExamPage.tsx:173: trailing whitespace.
+[32m+[m[32m    ShortAnswerQuestion,[m[41m [m
+components/CreateExamPage.tsx:174: trailing whitespace.
+[32m+[m[32m    EssayQuestion,[m[41m [m
+components/CreateExamPage.tsx:206: trailing whitespace.
+[32m+[m[41m    [m
+components/CreateExamPage.tsx:268: trailing whitespace.
+[32m+[m[41m            [m
+components/CreateExamPage.tsx:360: trailing whitespace.
+[32m+[m[32m                            <input[m[41m [m
+components/CreateExamPage.tsx:361: trailing whitespace.
+[32m+[m[32m                                type="text"[m[41m [m
+components/CreateExamPage.tsx:370: trailing whitespace.
+[32m+[m[32m                                    <input[m[41m [m
+components/CreateExamPage.tsx:371: trailing whitespace.
+[32m+[m[32m                                        type="radio"[m[41m [m
+components/CreateExamPage.tsx:372: trailing whitespace.
+[32m+[m[32m                                        name={`correct_${question.id}`}[m[41m [m
+components/CreateExamPage.tsx:376: trailing whitespace.
+[32m+[m[32m                                    <input[m[41m [m
+components/CreateExamPage.tsx:377: trailing whitespace.
+[32m+[m[32m                                        type="text"[m[41m [m
+components/CreateExamPage.tsx:439: trailing whitespace.
+[32m+[m[41m            [m
+components/CreateExamPage.tsx:474: trailing whitespace.
+[32m+[m[41m                [m
+components/CreateExamPage.tsx:513: trailing whitespace.
+[32m+[m[32m                            <select[m[41m [m
+components/CreateExamPage.tsx:531: trailing whitespace.
+[32m+[m[32m                            <select[m[41m [m
+components/CreateExamPage.tsx:597: trailing whitespace.
+[32m+[m[41m                [m
+components/CreateExamPage.tsx:673: trailing whitespace.
+[32m+[m[41m                [m
+components/CreateExamPage.tsx:707: leftover conflict marker
+components/CreateThreadModal.tsx:1: leftover conflict marker
+components/CreateThreadModal.tsx:123: leftover conflict marker
+components/CreateThreadModal.tsx:245: leftover conflict marker
+components/Dashboard.tsx:7: leftover conflict marker
+components/Dashboard.tsx:9: leftover conflict marker
+components/Dashboard.tsx:10: leftover conflict marker
+components/Dashboard.tsx:23: leftover conflict marker
+components/Dashboard.tsx:32: leftover conflict marker
+components/Dashboard.tsx:40: leftover conflict marker
+components/Dashboard.tsx:50: leftover conflict marker
+components/Dashboard.tsx:52: leftover conflict marker
+components/Dashboard.tsx:54: leftover conflict marker
+components/Dashboard.tsx:68: leftover conflict marker
+components/Dashboard.tsx:76: leftover conflict marker
+components/Dashboard.tsx:79: leftover conflict marker
+components/Dashboard.tsx:86: leftover conflict marker
+components/Dashboard.tsx:88: leftover conflict marker
+components/Dashboard.tsx:90: leftover conflict marker
+components/Dashboard.tsx:96: leftover conflict marker
+components/Dashboard.tsx:98: leftover conflict marker
+components/Dashboard.tsx:100: leftover conflict marker
+components/Dashboard.tsx:109: leftover conflict marker
+components/Dashboard.tsx:111: leftover conflict marker
+components/Dashboard.tsx:113: leftover conflict marker
+components/Dashboard.tsx:121: leftover conflict marker
+components/Dashboard.tsx:123: leftover conflict marker
+components/Dashboar

@@ -39,6 +39,7 @@ interface VideoMetadata {
   thumbnail?: string;
   duration?: number;
   hasTranscript?: boolean;
+  videoId: string;
 }
 
 export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCreated, onCancel, lessonLimit, setView }) => {
@@ -47,10 +48,10 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
   const [isPublic, setIsPublic] = useState(true);
   const [lessons, setLessons] = useState<Lesson[]>([{ title: '', videoId: '' }]);
 
-  const handleAddLesson = async () => {
+  const handleAddLesson = () => {
     if (lessons.length >= lessonLimit) {
         alert(`You have reached the maximum of ${lessonLimit} lessons per course on your current plan. Please upgrade to add more.`);
-        setView('pricing');
+        setView('billing');
         return;
     }
     setLessons([...lessons, { title: '', videoId: '' }]);
@@ -90,10 +91,8 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
     
     try {
       const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-      const [metadata, transcript] = await Promise.all([
-        youtubeService.getVideoMetadata(videoId),
-        youtubeService.extractTranscript(videoId)
-      ]);
+      const metadata = await youtubeService.getVideoMetadata({ videoId });
+      const transcript = await youtubeService.extractTranscript({ videoId });
       
       newLessons[index].validated = true;
       newLessons[index].validating = false;
@@ -180,45 +179,17 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
           <h3 className="text-lg font-bold mb-4">Lessons ({lessons.length}/{lessonLimit === Infinity ? '∞' : lessonLimit})</h3>
           <div className="space-y-4">
             {lessons.map((lesson, index) => (
-              <div key={index} className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg space-y-3">
-                <div className="flex items-end gap-4">
-                  <span className="font-bold text-slate-500 dark:text-slate-400">{index + 1}.</span>
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium mb-1">Lesson Title</label>
-                    <input type="text" value={lesson.title} onChange={e => handleLessonChange(index, 'title', e.target.value)} required placeholder="e.g., Introduction to React" className="w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-1 focus:ring-indigo-500" />
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium mb-1">YouTube URL or Video ID</label>
-                    <input type="text" value={lesson.videoId} onChange={e => handleLessonChange(index, 'videoId', e.target.value)} required placeholder="e.g., zNzzGgr2mhk" className="w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-1 focus:ring-indigo-500" />
-                  </div>
-                  <button 
-                    type="button" 
-                    onClick={() => validateVideo(index)} 
-                    disabled={!lesson.videoId || lesson.validating}
-                    className="px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                  >
-                    {lesson.validating ? 'Checking...' : lesson.validated ? 'Re-check' : 'Validate'}
-                  </button>
-                  <button type="button" onClick={() => handleRemoveLesson(index)} disabled={lessons.length <= 1} className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"><TrashIcon className="w-5 h-5" /></button>
+              <div key={index} className="flex items-end gap-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                <span className="font-bold text-slate-500 dark:text-slate-400">{index + 1}.</span>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium mb-1">Lesson Title</label>
+                  <input type="text" value={lesson.title} onChange={e => handleLessonChange(index, 'title', e.target.value)} required placeholder="e.g., Introduction to React" className="w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-1 focus:ring-indigo-500" />
                 </div>
-                
-                {lesson.validated && lesson.videoInfo && (
-                  <div className="flex items-center gap-2 text-xs text-teal-600 dark:text-teal-400 ml-8">
-                    <CheckCircleIcon className="w-4 h-4" />
-                    <span className="font-medium">{lesson.videoInfo.title}</span>
-                    {lesson.videoInfo.duration && <span className="text-slate-500">• {Math.floor(lesson.videoInfo.duration / 60)}:{String(lesson.videoInfo.duration % 60).padStart(2, '0')}</span>}
-                    {lesson.videoInfo.thumbnail && <span className="text-slate-500">• Thumbnail: {lesson.videoInfo.thumbnail}</span>}
-                    {lesson.videoInfo.transcript && <span className="text-slate-500">• Transcript: {lesson.videoInfo.transcript}</span>}
-                    {!lesson.videoInfo.hasTranscript && <span className="text-amber-600 dark:text-amber-400">• No transcript</span>}
-                  </div>
-                )}
-                
-                {lesson.error && (
-                  <div className="flex items-center gap-2 text-xs text-red-600 dark:text-red-400 ml-8">
-                    <XCircleIcon className="w-4 h-4" />
-                    <span>{lesson.error}</span>
-                  </div>
-                )}
+                <div className="flex-1">
+                  <label className="block text-xs font-medium mb-1">YouTube URL or Video ID</label>
+                  <input type="text" value={lesson.videoId} onChange={e => handleLessonChange(index, 'videoId', e.target.value)} required placeholder="e.g., zNzzGgr2mhk" className="w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                </div>
+                <button type="button" onClick={() => handleRemoveLesson(index)} disabled={lessons.length <= 1} className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"><TrashIcon className="w-5 h-5" /></button>
               </div>
             ))}
           </div>
@@ -227,7 +198,7 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
           </button>
            {atLessonLimit && (
               <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
-                You've reached the lesson limit for your current plan. <button type="button" onClick={() => setView('pricing')} className="font-bold underline">Upgrade</button> to add more.
+                You've reached the lesson limit for your current plan. <button type="button" onClick={() => setView('billing')} className="font-bold underline">Upgrade</button> to add more.
               </p>
             )}
         </div>

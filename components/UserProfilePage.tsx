@@ -159,7 +159,7 @@ export const UserProfilePage: React.FC = () => {
                                         />
                                     ) : (
                                         <p className="px-4 py-2 bg-slate-50 dark:bg-slate-700 rounded-lg text-slate-900 dark:text-slate-100">
-                                            {user.email}
+                                            {user.email || 'Not set'}
                                         </p>
                                     )}
                                 </div>

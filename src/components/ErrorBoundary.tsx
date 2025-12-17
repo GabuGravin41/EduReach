@@ -17,10 +17,14 @@ interface ErrorBoundaryState {
  * Catches React component errors and displays fallback UI
  * Prevents entire app from crashing
  */
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  public state: ErrorBoundaryState;
+  public props: Readonly<ErrorBoundaryProps> & Readonly<{ children?: ReactNode }>;
+
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false };
+    this.props = props;
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -28,7 +32,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    this.setState({ errorInfo });
+    // Use Component's setState with type assertion
+    (React.Component.prototype.setState as any).call(this, { errorInfo });
     
     // Log error details
     console.error('Error caught by boundary:', {

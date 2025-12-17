@@ -3,26 +3,7 @@ import { TrashIcon } from './icons/TrashIcon';
 import { PlusCircleIcon } from './icons/PlusCircleIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
 
-interface PassageQuestion {
-    id: string;
-    passage_text: string;
-    passage_title: string;
-    questions: PassageSubQuestion[];
-    reading_time_limit?: number; // in minutes
-    word_count: number;
-    difficulty: 'easy' | 'medium' | 'hard';
-}
-
-interface PassageSubQuestion {
-    id: string;
-    question_text: string;
-    question_type: 'multiple_choice' | 'short_answer' | 'true_false';
-    options?: string[]; // for multiple choice
-    correct_answer: string | number | boolean;
-    points: number;
-    explanation?: string;
-    passage_reference?: string; // specific text from passage this question refers to
-}
+import type { PassageQuestion, PassageSubQuestion } from '../types';
 
 interface PassageQuestionCreatorProps {
     question: PassageQuestion;

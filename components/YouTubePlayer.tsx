@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useRef, useMemo } from 'react';
+import React, { forwardRef, useImperativeHandle, useRef, useMemo } from 'react';
 import YouTube, { YouTubeProps, YouTubePlayer as GoogleYouTubePlayer } from 'react-youtube';
 
 export interface YouTubePlayerHandle {
@@ -8,19 +8,22 @@ export interface YouTubePlayerHandle {
   play: () => void;
 }
 
-interface CustomYouTubePlayerProps extends Pick<YouTubeProps, 'onReady' | 'onStateChange'> {
+interface CustomYouTubePlayerProps {
   videoId: string;
   initialTime?: number;
   className?: string;
+  onReady?: YouTubeProps['onReady'];
+  onStateChange?: YouTubeProps['onStateChange'];
 }
 
 const YouTubePlayer = forwardRef<YouTubePlayerHandle, CustomYouTubePlayerProps>(
   ({ videoId, initialTime = 0, className = '', onReady, onStateChange }, ref) => {
     const playerRef = useRef<GoogleYouTubePlayer | null>(null);
 
+    // Options for filling the container
     const playerOptions = useMemo<YouTubeProps['opts']>(() => ({
-      width: '100%',
       height: '100%',
+      width: '100%',
       playerVars: {
         autoplay: 0,
         modestbranding: 1,
@@ -39,20 +42,23 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, CustomYouTubePlayerProps>(
 
     const handleReady: YouTubeProps['onReady'] = (event) => {
       playerRef.current = event.target;
-      if (initialTime) {
+      if (initialTime > 0) {
         event.target.seekTo(initialTime, true);
       }
       onReady?.(event);
     };
 
     return (
-      <div className={`relative w-full h-full ${className}`}>
+      <div className={`relative w-full h-full min-h-0 ${className}`}>
         <YouTube
           videoId={videoId}
           opts={playerOptions}
           onReady={handleReady}
           onStateChange={onStateChange}
-          className="h-full w-full"
+          // The wrapper container from react-youtube
+          className="w-full h-full"
+          // The actual iframe
+          iframeClassName="absolute inset-0 w-full h-full"
         />
       </div>
     );

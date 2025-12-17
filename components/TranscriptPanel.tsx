@@ -8,7 +8,7 @@ export const TranscriptPanel = forwardRef<HTMLDivElement, TranscriptPanelProps>(
   return (
     <div
       ref={ref}
-      className="h-full overflow-y-auto p-4 bg-slate-50 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 text-sm leading-relaxed whitespace-pre-wrap"
+      className="h-full overflow-y-auto p-4 bg-slate-50 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 text-sm leading-relaxed whitespace-pre-wrap custom-scrollbar"
     >
         {transcript}
     </div>

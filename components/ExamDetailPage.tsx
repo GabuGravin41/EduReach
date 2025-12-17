@@ -1,21 +1,8 @@
 import React from 'react';
-import { ClockIcon } from './icons/ClockIcon';
-import { ClipboardCheckIcon } from './icons/ClipboardCheckIcon';
-import { UserCircleIcon } from './icons/UserCircleIcon';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import { View } from '../App';
-
-// This defines the structure of an assessment object
-interface Assessment {
-    id: number;
-    title: string;
-    topic: string;
-    questions: number;
-    time: number;
-    status: string;
-    score: string;
-    description?: string;
-}
+import type { Assessment, Question } from '../types';
+import { QuizView } from './QuizView';
 
 interface ExamDetailPageProps {
     exam: Assessment;
@@ -35,49 +22,38 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
         );
     }
 
-    const isCompleted = exam.status === 'completed' && exam.score;
-    // Mocking a date for display purposes for completed exams
-    const completedDate = '2023-10-26'; 
+    // Convert legacy question formats if needed or use questions_data
+    const quizData = exam.questions_data || [];
 
     return (
-        <div>
-            <button onClick={() => setView('assessments')} className="flex items-center gap-2 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 mb-6">
-                <ChevronLeftIcon className="w-5 h-5" />
-                Back to Assessments
-            </button>
-            <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-lg shadow-slate-900/5">
-                <h1 className="text-3xl font-bold mb-2 text-slate-800 dark:text-slate-100">{exam.title}</h1>
-                <p className="text-slate-500 dark:text-slate-400 mb-6">{exam.description || 'No description provided.'}</p>
-                
-                <div className="flex items-center gap-8 mb-8 border-y border-slate-200 dark:border-slate-700 py-4">
-                    <div className="flex items-center gap-2">
-                        <ClipboardCheckIcon className="w-5 h-5 text-indigo-500" />
-                        <span className="font-semibold">{exam.questions} Questions</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <ClockIcon className="w-5 h-5 text-indigo-500" />
-                        <span className="font-semibold">{exam.time} Minute Time Limit</span>
-                    </div>
+        <div className="h-full flex flex-col">
+            <div className="flex-shrink-0 mb-4 flex items-center justify-between">
+                <button 
+                    onClick={() => setView('assessments')} 
+                    className="flex items-center gap-2 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                >
+                    <ChevronLeftIcon className="w-5 h-5" />
+                    Back to Assessments
+                </button>
+                <div className="text-sm font-medium text-slate-500">
+                    {exam.time} Minutes Limit
                 </div>
+            </div>
 
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h3 className="font-bold text-lg mb-2">Previous Attempts</h3>
-                        {isCompleted ? (
-                             <div className="flex items-center gap-3">
-                                <UserCircleIcon className="w-8 h-8 text-slate-400" />
-                                <div>
-                                    <p className="font-semibold">{exam.score}</p>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">{completedDate}</p>
-                                </div>
-                             </div>
-                        ) : (
-                            <p className="text-sm text-slate-500 dark:text-slate-400">No attempts yet.</p>
-                        )}
-                    </div>
-                    <button className="px-8 py-3 text-lg font-bold rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors">
-                        {isCompleted ? 'Retake Exam' : 'Start Exam'}
-                    </button>
+            <div className="flex-1 min-h-0 bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
+                <div className="p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+                    <h1 className="text-2xl font-bold text-slate-800 dark:text-white">{exam.title}</h1>
+                    <p className="text-slate-600 dark:text-slate-400 mt-1">{exam.description}</p>
+                </div>
+                
+                <div className="flex-1 min-h-0 overflow-hidden">
+                    {quizData.length > 0 ? (
+                        <QuizView quiz={quizData as Question[]} />
+                    ) : (
+                        <div className="h-full flex items-center justify-center text-slate-500">
+                            No questions found for this assessment.
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

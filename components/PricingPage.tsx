@@ -93,64 +93,56 @@ const FeatureListItem: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
 export const PricingPage: React.FC<PricingPageProps> = ({ currentTier, onSelectTier }) => {
   return (
-    <div className="px-4 sm:px-6 lg:px-8">
-      <div className="text-center mb-8 sm:mb-12">
-        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">Find the perfect plan</h1>
-        <p className="mt-3 sm:mt-4 text-base sm:text-lg text-slate-500 dark:text-slate-400 max-w-2xl mx-auto px-4">
-          Start for free or upgrade to unlock powerful AI features and unlimited content creation.
+    <div>
+      <div className="text-center mb-12">
+        <h1 className="text-4xl font-extrabold tracking-tight">Find the perfect plan</h1>
+        <p className="mt-4 text-lg text-slate-500 dark:text-slate-400 max-w-2xl mx-auto">
+          Start for free to explore the essentials, or upgrade to unlock powerful AI features and unlimited content creation.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 max-w-7xl mx-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 max-w-7xl mx-auto items-start">
         {(Object.keys(tiers) as (keyof typeof tiers)[]).map(tierId => {
           const tier = tiers[tierId];
           const isCurrent = currentTier === tierId;
           
           return (
-            <div key={tier.name} className={`bg-white dark:bg-slate-800 rounded-xl shadow-md hover:shadow-lg transition-shadow p-5 sm:p-6 flex flex-col ${tier.isPopular ? 'border-2 border-indigo-500 relative' : 'border border-slate-200 dark:border-slate-700'}`}>
+            <div key={tier.name} className={`bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-8 flex flex-col h-full ${tier.isPopular ? 'border-2 border-indigo-500 relative' : 'border border-slate-200 dark:border-slate-700'}`}>
               {tier.isPopular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-indigo-500 text-white text-xs font-semibold rounded-full whitespace-nowrap">
+                <div className="absolute top-0 -translate-y-1/2 left-1/2 -translate-x-1/2 px-4 py-1 bg-indigo-500 text-white text-sm font-semibold rounded-full">
                   Most Popular
                 </div>
               )}
-              <h3 className="text-xl sm:text-2xl font-bold">{tier.name}</h3>
-              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{tier.description}</p>
-              <div className="mt-4">
-                <span className="text-3xl sm:text-4xl font-extrabold">{tier.price}</span>
-                <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{tier.priceSuffix}</span>
-              </div>
-              <ul className="mt-5 space-y-2 flex-grow">
-                {tier.features.slice(0, 5).map((feature, index) => (
-                  <li key={index} className="flex items-start gap-2 text-sm">
-                    <CheckCircleIcon className="w-4 h-4 text-teal-500 flex-shrink-0 mt-0.5" />
-                    <span className="text-slate-600 dark:text-slate-300">{feature}</span>
-                  </li>
-                ))}
-                {tier.features.length > 5 && (
-                  <li className="text-xs text-slate-500 dark:text-slate-400 italic">
-                    +{tier.features.length - 5} more features
-                  </li>
-                )}
-              </ul>
+              <h3 className="text-2xl font-bold">{tier.name}</h3>
+              <p className="mt-4 text-slate-500 dark:text-slate-400 min-h-[3rem]">{tier.description}</p>
               <div className="mt-6">
+                <span className="text-5xl font-extrabold">{tier.price}</span>
+                <span className="text-lg font-medium text-slate-500 dark:text-slate-400">{tier.priceSuffix}</span>
+              </div>
+              <ul className="mt-8 space-y-4 flex-grow">
+                {tier.features.map((feature, index) => (
+                  <FeatureListItem key={index}>{feature}</FeatureListItem>
+                ))}
+              </ul>
+              <div className="mt-10">
                  {tierId === 'free' ? (
-                   <button disabled className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-default">
-                        {currentTier === 'free' ? 'Current Plan' : 'Free Plan'}
+                   <button disabled className="w-full py-3 px-6 rounded-lg font-semibold bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-default">
+                        {currentTier === 'free' ? 'Your Current Plan' : 'Select Plan'}
                     </button>
                  ) : isCurrent ? (
-                  <button disabled className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold bg-teal-500 text-white cursor-default">
-                    ✓ Current Plan
+                  <button disabled className="w-full py-3 px-6 rounded-lg font-semibold bg-teal-500 text-white cursor-default">
+                    Current Plan
                   </button>
                  ) : currentTier === 'admin' ? (
-                  <button disabled className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-default">
-                    Admin Access
+                  <button disabled className="w-full py-3 px-6 rounded-lg font-semibold bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-default">
+                    Included with Admin
                   </button>
                  ): (
                   <button 
                     onClick={() => onSelectTier(tierId as 'learner' | 'pro' | 'pro_plus')}
-                    className={`w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition-all hover:scale-105 ${
+                    className={`w-full py-3 px-6 rounded-lg font-semibold transition-colors ${
                         tier.isPopular
-                        ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md' 
+                        ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
                         : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/50 dark:text-indigo-300 dark:hover:bg-indigo-900'
                     }`}
                 >

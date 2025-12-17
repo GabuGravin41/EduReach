@@ -2,23 +2,7 @@ import React, { useState } from 'react';
 import { PlusCircleIcon } from './icons/PlusCircleIcon';
 import { TrashIcon } from './icons/TrashIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
-
-interface EssayQuestion {
-    id: string;
-    question_text: string;
-    max_words: number;
-    points: number;
-    rubric_criteria: RubricCriterion[];
-    ai_grading_enabled: boolean;
-    sample_answer?: string;
-}
-
-interface RubricCriterion {
-    id: string;
-    name: string;
-    description: string;
-    max_points: number;
-}
+import type { EssayQuestion, RubricCriterion } from '../types';
 
 interface EssayQuestionCreatorProps {
     question: EssayQuestion;
@@ -65,7 +49,6 @@ export const EssayQuestionCreator: React.FC<EssayQuestionCreatorProps> = ({
     };
 
     const generateAISampleAnswer = async () => {
-        // TODO: Integrate with AI service to generate sample answer
         const sampleAnswer = `This is an AI-generated sample answer for: "${question.question_text}". 
 
 The response demonstrates key concepts and provides a structured approach to answering the question. Students should aim to include relevant examples, clear explanations, and logical reasoning in their responses.
@@ -241,19 +224,6 @@ This sample can help guide both students and instructors in understanding the ex
                     rows={6}
                 />
             </div>
-
-            {/* Question Preview */}
-            {question.question_text && (
-                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
-                    <h5 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Preview:</h5>
-                    <p className="text-slate-800 dark:text-slate-100 mb-2">{question.question_text}</p>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">
-                        Maximum {question.max_words} words • {question.points} base points
-                        {totalPoints > 0 && ` + ${totalPoints} rubric points`}
-                        {question.ai_grading_enabled && ' • AI Grading Enabled'}
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SparklesIcon } from './icons/SparklesIcon';
 import apiClient from '../src/services/api';
 import { Button } from './ui/Button';
@@ -33,18 +33,19 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
     
     try {
       const response = await apiClient.post('/youtube/extract-transcript/', { url, language: lang });
+      const data = response.data as any;
       
-      if (response.data.success) {
-        const transcriptText = response.data.transcript.transcript;
+      if (data.success) {
+        const transcriptText = data.transcript.transcript;
         setTranscript(transcriptText);
-        if (!sessionTitle && response.data.metadata?.title) {
-          setSessionTitle(response.data.metadata.title);
+        if (!sessionTitle && data.metadata?.title) {
+          setSessionTitle(data.metadata.title);
         }
         setError('');
-        setStatusMessage(`Transcript ready (${response.data.transcript.language?.toUpperCase() || lang.toUpperCase()})`);
+        setStatusMessage(`Transcript ready (${data.transcript.language?.toUpperCase() || lang.toUpperCase()})`);
         return transcriptText;
       } else {
-        setError(response.data.error || 'Failed to fetch transcript');
+        setError(data.error || 'Failed to fetch transcript');
         setStatusMessage('');
         return null;
       }
@@ -84,7 +85,12 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
     if (!transcript.trim() && autoFetchEnabled) {
       const fetchedTranscript = await fetchTranscript(youtubeUrl, language);
       if (fetchedTranscript) {
-        onSessionCreated(videoId, fetchedTranscript);
+        onSessionCreated({
+            videoId,
+            transcript: fetchedTranscript,
+            title: sessionTitle || 'Learning Session',
+            courseId: selectedCourseId !== 'none' ? Number(selectedCourseId) : null,
+        });
         return;
       }
     }
@@ -108,12 +114,16 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
   };
 
   const handleExampleClick = () => {
-    onSessionCreated('zNzzGgr2mhk', `(upbeat music) - Hey, it's-a me, Mario...`);
+    onSessionCreated({
+        videoId: 'zNzzGgr2mhk', 
+        transcript: `(upbeat music) - Hey, it's-a me, Mario...`,
+        title: 'Example Session'
+    });
   }
 
   return (
-    <div className="flex items-center justify-center min-h-full">
-      <div className="text-center p-8 max-w-2xl w-full bg-white dark:bg-slate-800 rounded-md shadow-lg shadow-slate-900/5 border border-slate-200 dark:border-slate-700">
+    <div className="flex items-center justify-center min-h-full p-4">
+      <div className="text-center p-8 max-w-2xl w-full bg-white dark:bg-slate-800 rounded-xl shadow-lg shadow-slate-900/5 border border-slate-200 dark:border-slate-700">
         <SparklesIcon className="w-12 h-12 text-blue-600 dark:text-blue-400 mx-auto mb-4" />
         <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-2">
           Start a New Learning Session
@@ -141,7 +151,7 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
                 <option value="pt">Portuguese</option>
               </select>
             </div>
-            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 mt-6">
               <input
                 type="checkbox"
                 checked={autoFetchEnabled}
@@ -201,7 +211,7 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
             )}
           </div>
           {statusMessage && (
-            <div className="text-left text-xs text-blue-600 dark:text-emerald-300">
+            <div className="text-left text-xs text-blue-600 dark:text-emerald-300 font-medium">
               {statusMessage}
             </div>
           )}
@@ -211,7 +221,7 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
             <div className="text-left">
               <div className="flex items-center justify-between mb-2">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                  ✓ Transcript Fetched ({transcript.split(' ').length} words)
+                  ✓ Transcript Ready ({transcript.split(' ').length} words)
                 </label>
                 <button
                   type="button"
@@ -229,7 +239,7 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
           
           {/* Manual transcript input (optional) */}
           <details className="text-left">
-            <summary className="cursor-pointer text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
+            <summary className="cursor-pointer text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium">
               Or enter transcript manually
             </summary>
             <textarea
@@ -249,8 +259,8 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
           
           <Button
             type="submit"
-            disabled={isLoading || !youtubeUrl.trim()}
-            className="w-full justify-center"
+            disabled={isLoading || !youtubeUrl.trim() && !transcript.trim()}
+            className="w-full justify-center bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-700 hover:to-emerald-700 border-none text-white py-3"
             isLoading={isLoading}
           >
             {isLoading ? 'Fetching Transcript...' : 'Start Session'}

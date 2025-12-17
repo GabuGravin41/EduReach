@@ -69,8 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
     { id: 'assessments', label: 'Assessments', icon: ClipboardCheckIcon, adminOnly: false },
     { id: 'community', label: 'Community', icon: UsersIcon, adminOnly: false },
     { id: 'study_groups', label: 'Study Groups', icon: UsersIcon, adminOnly: false },
-    { id: 'pricing', label: 'Pricing', icon: PriceTagIcon, adminOnly: false },
-    { id: 'billing', label: 'Billing', icon: PriceTagIcon, adminOnly: false },
+    { id: 'billing', label: 'Billing & Plans', icon: PriceTagIcon, adminOnly: false },
   ];
 
   const handleNavClick = (view: View) => {
@@ -111,13 +110,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
       <aside className={`
         fixed lg:static inset-y-0 left-0 z-50
         h-full bg-gradient-to-b from-white to-blue-50/30 dark:from-slate-900 dark:to-slate-800 
-        px-3 py-4 flex flex-col justify-between 
+        px-3 py-4 flex flex-col 
         border-r border-blue-100/60 dark:border-slate-800 
         transition-all duration-300 shadow-lg
+        overflow-hidden
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         ${isCollapsed ? 'w-20' : 'w-64'}
       `}>
-      <div>
+      {/* Header Section - Fixed at top */}
+      <div className="flex-shrink-0">
         {/* Mobile Close Button */}
         <div className="flex items-center justify-between mb-6 lg:mb-6">
           <div className={`flex items-center gap-2 ${isCollapsed ? 'justify-center px-0' : 'px-3'}`}>
@@ -147,35 +148,37 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
         >
           {!isCollapsed && 'New Session'}
         </Button>
-
-        <nav className="space-y-2">
-          {navItems.map(item => {
-            if (item.adminOnly && userTier !== 'admin') {
-                return null;
-            }
-            return <NavItem key={item.id} {...item} />
-          })}
-        </nav>
-
-        {/* Desktop collapse button - hidden on mobile */}
-        <div className="hidden lg:flex items-center justify-center my-5">
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="border-blue-200 dark:border-slate-700"
-          >
-            <ChevronLeftIcon className={`w-4 h-4 transition-transform duration-300 ${isCollapsed && 'rotate-180'}`} />
-          </Button>
-        </div>
       </div>
 
-      <div>
+      {/* Navigation Section - Scrollable on mobile */}
+      <nav className="space-y-2 overflow-y-auto flex-1 min-h-0 lg:overflow-y-visible lg:flex-none">
+        {navItems.map(item => {
+          if (item.adminOnly && userTier !== 'admin') {
+              return null;
+          }
+          return <NavItem key={item.id} {...item} />
+        })}
+      </nav>
+
+      {/* Desktop collapse button - hidden on mobile */}
+      <div className="hidden lg:flex items-center justify-center my-5 flex-shrink-0">
+        <Button
+          variant="outline"
+          size="icon"
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="border-blue-200 dark:border-slate-700"
+        >
+          <ChevronLeftIcon className={`w-4 h-4 transition-transform duration-300 ${isCollapsed && 'rotate-180'}`} />
+        </Button>
+      </div>
+
+      {/* Footer Section - Fixed at bottom */}
+      <div className="flex-shrink-0 mt-auto">
         {!isCollapsed && userTier !== 'pro' && userTier !== 'pro_plus' && userTier !== 'admin' && (
             <div className="p-4 mb-4 bg-gradient-to-br from-blue-50 to-emerald-50 dark:from-slate-800 dark:to-slate-700 rounded-md text-center border border-blue-100 dark:border-slate-700">
               <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">You are on the <span className="capitalize font-bold text-blue-600 dark:text-emerald-300">{userTier}</span> plan.</p>
-                <Button onClick={() => setView('pricing')} className="mt-3 w-full justify-center gap-2" size="md" icon={<UpgradeIcon className="w-4 h-4" />}>
+                <Button onClick={() => setView('billing')} className="mt-3 w-full justify-center gap-2" size="md" icon={<UpgradeIcon className="w-4 h-4" />}>
                     Upgrade Plan
                 </Button>
             </div>

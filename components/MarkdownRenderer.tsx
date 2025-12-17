@@ -1,113 +1,74 @@
 import React from 'react';
+// @ts-ignore - katex types may not be installed
+import katex from 'katex';
 
 interface MarkdownRendererProps {
   content: string;
 }
 
 /**
- * Simple markdown renderer for AI responses
+ * Enhanced renderer for AI responses with LaTeX support
  * Supports:
+ * - LaTeX Math: $...$ (inline), $$...$$ (block)
  * - Bold: **text** or __text__
  * - Italic: *text* or _text_
  * - Code blocks: ```code```
  * - Inline code: `code`
  * - Lists: - item or * item
  * - Headers: # H1, ## H2, etc.
- * - Line breaks and paragraphs
  */
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
-  const renderMarkdown = (text: string) => {
-    // Split by double newlines to get paragraphs
-    const paragraphs = text.split('\n\n').filter(p => p.trim());
-
-    return paragraphs.map((paragraph, pIdx) => {
-      // Check if paragraph is a code block
-      if (paragraph.startsWith('```')) {
-        const codeContent = paragraph.replace(/```/g, '').trim();
-        return (
-          <pre key={pIdx} className="bg-slate-900 dark:bg-slate-950 text-slate-100 p-3 rounded-lg overflow-x-auto text-xs my-2 border border-slate-700">
-            <code>{codeContent}</code>
-          </pre>
-        );
-      }
-
-      // Check if paragraph is a list
-      if (paragraph.match(/^[\s]*[-*+]/m)) {
-        const items = paragraph.split('\n').filter(line => line.trim());
-        return (
-          <ul key={pIdx} className="list-disc list-inside my-2 space-y-1">
-            {items.map((item, itemIdx) => (
-              <li key={itemIdx} className="text-sm">
-                {renderInlineMarkdown(item.replace(/^[\s]*[-*+]\s*/, ''))}
-              </li>
-            ))}
-          </ul>
-        );
-      }
-
-      // Check if paragraph is a header
-      const headerMatch = paragraph.match(/^(#+)\s+(.*)/);
-      if (headerMatch) {
-        const level = headerMatch[1].length;
-        const text = headerMatch[2];
-        const HeaderTag = `h${Math.min(level, 6)}` as const;
-        const sizes = {
-          h1: 'text-lg font-bold',
-          h2: 'text-base font-bold',
-          h3: 'text-sm font-semibold',
-          h4: 'text-sm font-semibold',
-          h5: 'text-sm font-medium',
-          h6: 'text-sm font-medium',
-        };
-        return React.createElement(
-          HeaderTag,
-          { key: pIdx, className: `${sizes[HeaderTag]} my-2` },
-          renderInlineMarkdown(text)
-        );
-      }
-
-      // Regular paragraph with inline formatting
+  
+  const renderMath = (text: string, isBlock: boolean) => {
+    try {
       return (
-        <p key={pIdx} className="text-sm leading-relaxed my-2">
-          {renderInlineMarkdown(paragraph)}
-        </p>
+        <span 
+          dangerouslySetInnerHTML={{ 
+            __html: katex.renderToString(text, { 
+              throwOnError: false, 
+              displayMode: isBlock 
+            }) 
+          }} 
+        />
       );
-    });
+    } catch (error) {
+      return <span className="text-red-500 font-mono">{text}</span>;
+    }
   };
 
-  const renderInlineMarkdown = (text: string): React.ReactNode[] => {
+  const renderInlineContent = (text: string): React.ReactNode[] => {
     const parts: React.ReactNode[] = [];
     let lastIndex = 0;
 
-    // Combined regex for all inline formatting
-    const regex = /(\*\*|__)(.*?)\1|(\*|_)(.*?)\3|`([^`]+)`|(?<!\*)\*(?!\*)|(?<!_)_(?!_)/g;
+    // Regex for Math ($...$), Bold, Italic, Code
+    const regex = /(\$\$)([\s\S]*?)\1|(\$)(.*?)\3|(\*\*|__)(.*?)\5|(\*|_)(.*?)\7|`([^`]+)`/g;
     let match;
 
     while ((match = regex.exec(text)) !== null) {
-      // Add text before match
       if (match.index > lastIndex) {
         parts.push(text.substring(lastIndex, match.index));
       }
 
-      if (match[1]) {
-        // Bold
+      if (match[1]) { // Block Math $$...$$
         parts.push(
-          <strong key={`strong-${parts.length}`} className="font-semibold">
-            {match[2]}
-          </strong>
+          <div key={`math-block-${parts.length}`} className="my-4 flex justify-center">
+            {renderMath(match[2], true)}
+          </div>
         );
-      } else if (match[3]) {
-        // Italic
+      } else if (match[3]) { // Inline Math $...$
         parts.push(
-          <em key={`italic-${parts.length}`} className="italic">
-            {match[4]}
-          </em>
+          <span key={`math-inline-${parts.length}`} className="mx-1">
+            {renderMath(match[4], false)}
+          </span>
         );
-      } else if (match[5]) {
-        // Inline code
+      } else if (match[5]) { // Bold
+        parts.push(<strong key={`bold-${parts.length}`} className="font-semibold">{match[6]}</strong>);
+      } else if (match[7]) { // Italic
+        parts.push(<em key={`italic-${parts.length}`} className="italic">{match[8]}</em>);
+      } else if (match[9]) { // Inline code
         parts.push(
-          <code key={`code-${parts.length}`} className="bg-slate-800 dark:bg-slate-900 text-amber-400 px-1.5 py-0.5 rounded text-xs font-mono">
-            {match[5]}
+          <code key={`code-${parts.length}`} className="bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-xs font-mono text-pink-600 dark:text-pink-400">
+            {match[9]}
           </code>
         );
       }
@@ -115,7 +76,6 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
       lastIndex = regex.lastIndex;
     }
 
-    // Add remaining text
     if (lastIndex < text.length) {
       parts.push(text.substring(lastIndex));
     }
@@ -123,8 +83,66 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
     return parts.length > 0 ? parts : [text];
   };
 
+  const renderMarkdown = (text: string) => {
+    const paragraphs = text.split('\n\n').filter(p => p.trim());
+
+    return paragraphs.map((paragraph, pIdx) => {
+      // Code Block
+      if (paragraph.startsWith('```')) {
+        const codeContent = paragraph.replace(/```/g, '').trim();
+        return (
+          <pre key={pIdx} className="bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto text-sm my-3 border border-slate-700 font-mono shadow-sm">
+            <code>{codeContent}</code>
+          </pre>
+        );
+      }
+
+      // List
+      if (paragraph.match(/^[\s]*[-*+]/m)) {
+        const items = paragraph.split('\n').filter(line => line.trim());
+        return (
+          <ul key={pIdx} className="list-disc list-outside ml-5 my-3 space-y-1 text-slate-700 dark:text-slate-300">
+            {items.map((item, itemIdx) => (
+              <li key={itemIdx} className="pl-1">
+                {renderInlineContent(item.replace(/^[\s]*[-*+]\s*/, ''))}
+              </li>
+            ))}
+          </ul>
+        );
+      }
+
+      // Header
+      const headerMatch = paragraph.match(/^(#+)\s+(.*)/);
+      if (headerMatch) {
+        const level = headerMatch[1].length;
+        const headerText = headerMatch[2];
+        const HeaderTag = `h${Math.min(level, 6)}` as const;
+        const classes = {
+          h1: 'text-2xl font-bold mt-6 mb-3',
+          h2: 'text-xl font-bold mt-5 mb-2',
+          h3: 'text-lg font-semibold mt-4 mb-2',
+          h4: 'text-base font-semibold mt-3 mb-1',
+          h5: 'text-sm font-semibold mt-2 mb-1',
+          h6: 'text-sm font-semibold mt-2 mb-1',
+        };
+        return React.createElement(
+          HeaderTag,
+          { key: pIdx, className: `${classes[HeaderTag]} text-slate-900 dark:text-slate-100` },
+          renderInlineContent(headerText)
+        );
+      }
+
+      // Paragraph
+      return (
+        <div key={pIdx} className="text-slate-700 dark:text-slate-300 leading-relaxed my-2">
+          {renderInlineContent(paragraph)}
+        </div>
+      );
+    });
+  };
+
   return (
-    <div className="prose prose-sm dark:prose-invert max-w-none">
+    <div className="markdown-content">
       {renderMarkdown(content)}
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 interface ThreadPreview {
   id: number;
@@ -59,17 +59,6 @@ export const DiscussionFeed: React.FC<DiscussionFeedProps> = ({
     return author.username;
   };
 
-  const sortedThreads = [...threads].sort((a, b) => {
-    if (sortBy === 'recent') {
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    } else if (sortBy === 'popular') {
-      return b.vote_count - a.vote_count || b.reply_count - a.reply_count;
-    } else if (sortBy === 'unanswered') {
-      return a.reply_count - b.reply_count;
-    }
-    return 0;
-  });
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -125,7 +114,7 @@ export const DiscussionFeed: React.FC<DiscussionFeedProps> = ({
 
       {/* Threads List */}
       <div className="space-y-4">
-        {sortedThreads.length === 0 ? (
+        {threads.length === 0 ? (
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg shadow-slate-900/5 p-8 text-center">
             <p className="text-slate-600 dark:text-slate-400 mb-4">
               {searchQuery
@@ -142,7 +131,7 @@ export const DiscussionFeed: React.FC<DiscussionFeedProps> = ({
             )}
           </div>
         ) : (
-          sortedThreads.map((thread) => (
+          threads.map((thread) => (
             <div
               key={thread.id}
               onClick={() => onThreadClick(thread.id)}
