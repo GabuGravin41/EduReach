@@ -1,5 +1,12 @@
 from rest_framework import serializers
-from .models import Course, Lesson, UserProgress
+from .models import (
+    Course,
+    Lesson,
+    UserProgress,
+    CoursePricing,
+    ContentPurchase,
+    CreatorTip,
+)
 from users.serializers import UserSerializer
 
 
@@ -26,17 +33,41 @@ class LessonSerializer(serializers.ModelSerializer):
         return obj.video_id
 
 
+class CoursePricingSerializer(serializers.ModelSerializer):
+    def validate_price(self, value):
+        if value < 0:
+            raise serializers.ValidationError("Price must be non-negative.")
+        return value
+
+    def validate_free_preview_lessons(self, value):
+        if value < 0:
+            raise serializers.ValidationError("Free preview lessons cannot be negative.")
+        return value
+
+    class Meta:
+        model = CoursePricing
+        fields = [
+            'is_paid',
+            'price',
+            'currency',
+            'free_preview_lessons',
+            'allow_tips',
+        ]
+
+
 class CourseSerializer(serializers.ModelSerializer):
     """Serializer for Course model."""
     owner = UserSerializer(read_only=True)
     lessons = LessonSerializer(many=True, read_only=True)
     lesson_count = serializers.SerializerMethodField()
+    pricing = CoursePricingSerializer(read_only=True)
     
     class Meta:
         model = Course
         fields = [
             'id', 'title', 'description', 'owner', 'thumbnail',
-            'is_public', 'lessons', 'lesson_count', 'created_at', 'updated_at'
+            'is_public', 'lessons', 'lesson_count', 'pricing',
+            'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'owner', 'created_at', 'updated_at']
 
@@ -77,3 +108,32 @@ class UserProgressSerializer(serializers.ModelSerializer):
             'last_accessed', 'started_at'
         ]
         read_only_fields = ['id', 'user', 'progress_percentage', 'last_accessed', 'started_at']
+
+
+class ContentPurchaseSerializer(serializers.ModelSerializer):
+    course_title = serializers.CharField(source='course.title', read_only=True)
+
+    class Meta:
+        model = ContentPurchase
+        fields = ['id', 'course', 'course_title', 'amount', 'currency', 'created_at']
+        read_only_fields = ['id', 'course', 'course_title', 'amount', 'currency', 'created_at']
+
+
+class CreatorTipSerializer(serializers.ModelSerializer):
+    from_username = serializers.CharField(source='from_user.username', read_only=True)
+    course_title = serializers.CharField(source='course.title', read_only=True)
+
+    class Meta:
+        model = CreatorTip
+        fields = [
+            'id',
+            'from_user',
+            'from_username',
+            'course',
+            'course_title',
+            'amount',
+            'currency',
+            'message',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'from_user', 'from_username', 'course_title', 'created_at']

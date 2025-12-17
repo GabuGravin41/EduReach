@@ -53,7 +53,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ posts, onPostCreat
 
   return (
     <div>
-      <h1 className="text-3xl font-bold mb-6">Community Hub</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">Community Hub</h1>
       
       {/* Info banner */}
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 mb-6">

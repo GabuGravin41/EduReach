@@ -1,17 +1,31 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.shortcuts import get_object_or_404
 from django.db import models
 from django.utils import timezone
+from decimal import Decimal, InvalidOperation
+from datetime import timedelta
 import re
-from .models import Course, Lesson, UserProgress
+from .models import (
+    Course,
+    Lesson,
+    UserProgress,
+    CoursePricing,
+    ContentPurchase,
+    CreatorTip,
+)
 from .serializers import (
-    CourseSerializer, CourseListSerializer,
-    LessonSerializer, UserProgressSerializer
+    CourseSerializer,
+    CourseListSerializer,
+    LessonSerializer,
+    UserProgressSerializer,
+    CoursePricingSerializer,
+    ContentPurchaseSerializer,
+    CreatorTipSerializer,
 )
 from .permissions import IsOwnerOrReadOnly
 from services.youtube_service import YouTubeTranscriptService
+from payments.models import Payment
 
 
 class CourseViewSet(viewsets.ModelViewSet):
@@ -64,6 +78,10 @@ class CourseViewSet(viewsets.ModelViewSet):
         )
         return match.group(1) if match else None
 
+    def _get_pricing(self, course: Course) -> CoursePricing:
+        pricing, _ = CoursePricing.objects.get_or_create(course=course)
+        return pricing
+
     @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def ensure_personal(self, request):
         """
@@ -83,6 +101,131 @@ class CourseViewSet(viewsets.ModelViewSet):
             'course': serializer.data,
             'created': created
         }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get', 'patch'], permission_classes=[permissions.IsAuthenticated])
+    def pricing(self, request, pk=None):
+        course = self.get_object()
+        pricing = self._get_pricing(course)
+
+        if request.method == 'PATCH':
+            if course.owner != request.user:
+                return Response(
+                    {'detail': "Only the course owner can update pricing."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            serializer = CoursePricingSerializer(pricing, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)
+
+        serializer = CoursePricingSerializer(pricing)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def purchase(self, request, pk=None):
+        course = self.get_object()
+        if course.owner == request.user:
+            return Response({'detail': "You already own this course."}, status=status.HTTP_400_BAD_REQUEST)
+
+        pricing = self._get_pricing(course)
+        if not pricing.is_paid or pricing.price <= 0:
+            return Response({'detail': "Course is not paid; no purchase needed."}, status=status.HTTP_400_BAD_REQUEST)
+
+        payment_id = request.data.get('payment_id')
+        if not payment_id:
+            return Response({'detail': 'payment_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            payment = Payment.objects.get(id=payment_id, user=request.user)
+        except Payment.DoesNotExist:
+            return Response({'detail': 'Payment not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if payment.status != Payment.Status.COMPLETED:
+            return Response({'detail': 'Payment must be completed before unlocking content.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        purchase, created = ContentPurchase.objects.get_or_create(
+            user=request.user,
+            course=course,
+            defaults={
+                'amount': pricing.price,
+                'currency': pricing.currency,
+                'payment': payment,
+            }
+        )
+
+        if not created:
+            return Response({'detail': 'Course already unlocked.'}, status=status.HTTP_200_OK)
+
+        serializer = ContentPurchaseSerializer(purchase)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def tip(self, request, pk=None):
+        course = self.get_object()
+        pricing = self._get_pricing(course)
+        if not pricing.allow_tips:
+            return Response({'detail': 'Tips are disabled for this course.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        amount = request.data.get('amount')
+        payment_id = request.data.get('payment_id')
+        message = request.data.get('message', '')
+
+        if not amount or not payment_id:
+            return Response({'detail': 'amount and payment_id are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            amount_value = Decimal(str(amount))
+            if amount_value <= 0:
+                raise InvalidOperation
+        except (InvalidOperation, TypeError):
+            return Response({'detail': 'Invalid amount'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            payment = Payment.objects.get(id=payment_id, user=request.user)
+        except Payment.DoesNotExist:
+            return Response({'detail': 'Payment not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if payment.status != Payment.Status.COMPLETED:
+            return Response({'detail': 'Payment must be completed to send a tip.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        tip = CreatorTip.objects.create(
+            from_user=request.user,
+            to_creator=course.owner,
+            course=course,
+            amount=amount_value,
+            currency=payment.currency,
+            message=message[:280],
+            payment=payment,
+        )
+
+        serializer = CreatorTipSerializer(tip)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def creator_dashboard(self, request):
+        courses = Course.objects.filter(owner=request.user)
+        course_ids = courses.values_list('id', flat=True)
+        purchases = ContentPurchase.objects.filter(course_id__in=course_ids)
+        tips = CreatorTip.objects.filter(to_creator=request.user)
+
+        total_revenue = purchases.aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
+        total_tips = tips.aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
+
+        thirty_days_ago = timezone.now() - timedelta(days=30)
+        revenue_30 = purchases.filter(created_at__gte=thirty_days_ago).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
+        tips_30 = tips.filter(created_at__gte=thirty_days_ago).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
+
+        data = {
+            'total_courses': courses.count(),
+            'paid_courses': courses.filter(pricing__is_paid=True).count(),
+            'total_revenue': total_revenue + total_tips,
+            'revenue_from_sales': total_revenue,
+            'revenue_from_tips': total_tips,
+            'revenue_last_30_days': revenue_30 + tips_30,
+            'recent_purchases': ContentPurchaseSerializer(purchases[:5], many=True).data,
+            'recent_tips': CreatorTipSerializer(tips[:5], many=True).data,
+        }
+        return Response(data)
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def add_lesson(self, request, pk=None):

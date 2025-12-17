@@ -15,7 +15,10 @@ import { AssessmentsPage } from './components/AssessmentsPage';
 import { CommunityPage } from './components/CommunityPage';
 import { CourseDetailPage } from './components/CourseDetailPage';
 import { ExamDetailPage } from './components/ExamDetailPage';
+import { BillingPage } from './components/BillingPage';
 import { UserCircleIcon } from './components/icons/UserCircleIcon';
+import { MenuIcon } from './components/icons/MenuIcon';
+import { SparklesIcon } from './components/icons/SparklesIcon';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { courseService, Course } from './src/services/courseService';
 
@@ -28,8 +31,25 @@ const AdminDashboard = lazy(() => import('./components/AdminDashboard').then(mod
 const UserProfilePage = lazy(() => import('./components/UserProfilePage').then(module => ({ default: module.UserProfilePage })));
 const EnhancedAssessmentsPage = lazy(() => import('./components/EnhancedAssessmentsPage').then(module => ({ default: module.EnhancedAssessmentsPage })));
 const EnhancedCreateExamPage = lazy(() => import('./components/EnhancedCreateExamPage').then(module => ({ default: module.EnhancedCreateExamPage })));
+const StudyGroupsPage = lazy(() => import('./components/StudyGroupsPage').then(module => ({ default: module.StudyGroupsPage })));
 
-export type View = 'dashboard' | 'courses' | 'assessments' | 'community' | 'new_session' | 'learning_session' | 'course_detail' | 'exam_detail' | 'create_course' | 'create_exam' | 'pricing' | 'generate_ai_quiz' | 'admin_panel' | 'profile';
+export type View =
+    | 'dashboard'
+    | 'courses'
+    | 'assessments'
+    | 'community'
+    | 'study_groups'
+    | 'new_session'
+    | 'learning_session'
+    | 'course_detail'
+    | 'exam_detail'
+    | 'create_course'
+    | 'create_exam'
+    | 'pricing'
+    | 'billing'
+    | 'generate_ai_quiz'
+    | 'admin_panel'
+    | 'profile';
 export type UserTier = 'free' | 'learner' | 'pro' | 'pro_plus' | 'admin';
 
 interface SessionData {
@@ -79,10 +99,12 @@ const AppContent: React.FC = () => {
     const deletePostMutation = useDeletePost();
 
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [currentView, setCurrentView] = useState<View>('dashboard');
     const [sessionData, setSessionData] = useState<SessionData | null>(null);
     const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
     const [selectedExamId, setSelectedExamId] = useState<number | null>(null);
+    const [pendingUpgradeTier, setPendingUpgradeTier] = useState<'learner' | 'pro' | 'pro_plus' | null>(null);
 
     // Local state for user-created items (fallbacks when API is unavailable)
     const [localAssessments, setLocalAssessments] = useState<typeof initialAssessments>([]);
@@ -201,9 +223,8 @@ const AppContent: React.FC = () => {
     };
     
     const handlePlanSelected = async (newTier: 'learner' | 'pro' | 'pro_plus') => {
-        // TODO: Implement real tier upgrade via API
-        alert(`Congratulations! You've upgraded to the ${newTier.charAt(0).toUpperCase() + newTier.slice(1)} plan.`);
-        setCurrentView('dashboard');
+        setPendingUpgradeTier(newTier);
+        setCurrentView('billing');
     };
     
     const handleCourseCreated = async (newCourse: Omit<typeof courses[0], 'id' | 'progress'>) => {
@@ -380,6 +401,8 @@ const AppContent: React.FC = () => {
                 return <EnhancedAssessmentsPage assessments={assessments} onSelectExam={handleSelectExam} setView={setCurrentView} userTier={effectiveUserTier} tierUsage={mockTierUsage} />;
             case 'community':
                 return <CommunityPage posts={communityPosts} onPostCreated={handlePostCreated} onToggleLike={handleToggleLike} onAddComment={handleAddComment} userTier={effectiveUserTier} onDeletePost={handleDeletePost} />;
+            case 'study_groups':
+                return <StudyGroupsPage />;
             case 'new_session':
                 return <SetupSession onSessionCreated={handleSessionCreated} courses={courses} />;
             case 'create_course':
@@ -390,6 +413,16 @@ const AppContent: React.FC = () => {
                 return <GenerateAIQuizPage onQuizCreated={handleExamCreated} onCancel={() => setCurrentView('assessments')} userTier={effectiveUserTier} />;
             case 'pricing':
                 return <PricingPage currentTier={effectiveUserTier} onSelectTier={handlePlanSelected} />;
+            case 'billing':
+                return (
+                    <BillingPage
+                        requestedTier={pendingUpgradeTier}
+                        onSubscriptionActivated={() => {
+                            setPendingUpgradeTier(null);
+                            setCurrentView('dashboard');
+                        }}
+                    />
+                );
             case 'profile':
                 return <UserProfilePage />;
             case 'learning_session':
@@ -458,23 +491,49 @@ const AppContent: React.FC = () => {
                 currentView={currentView}
                 setView={setCurrentView}
                 onLogout={handleLogout}
-                onNewSession={() => setCurrentView('new_session')}
+                onNewSession={() => {
+                    setCurrentView('new_session');
+                    setIsMobileMenuOpen(false);
+                }}
                 isCollapsed={isSidebarCollapsed}
                 setIsCollapsed={setIsSidebarCollapsed}
                 userTier={isActualAdmin ? 'admin' : effectiveUserTier}
                 onTierChange={handleTierChange}
+                isMobileOpen={isMobileMenuOpen}
+                setIsMobileOpen={setIsMobileMenuOpen}
             />
-            <main className={`flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 transition-all duration-300 ${isSidebarCollapsed ? 'ml-16 sm:ml-20' : 'ml-16 sm:ml-64'}`}>
-                <Suspense fallback={
-                    <div className="flex items-center justify-center min-h-[400px]">
-                        <div className="text-center">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-                            <p className="mt-4 text-slate-600 dark:text-slate-400">Loading...</p>
-                        </div>
+            <main className="flex-1 overflow-y-auto lg:ml-0">
+                {/* Mobile Header with Hamburger */}
+                <div className="lg:hidden sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 py-3 flex items-center justify-between shadow-sm">
+                    <button
+                        onClick={() => setIsMobileMenuOpen(true)}
+                        className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-600 dark:text-gray-400"
+                        aria-label="Open menu"
+                    >
+                        <MenuIcon className="w-6 h-6" />
+                    </button>
+                    <div className="flex items-center gap-2">
+                        <SparklesIcon className="w-6 h-6 text-blue-600" />
+                        <span className="text-lg font-bold text-gray-800 dark:text-white">EduReach</span>
                     </div>
-                }>
-                    {renderContent()}
-                </Suspense>
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-200 to-emerald-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                        <UserCircleIcon className="w-5 h-5 text-blue-700 dark:text-gray-300" />
+                    </div>
+                </div>
+                
+                {/* Main Content */}
+                <div className="p-4 sm:p-6 lg:p-8">
+                    <Suspense fallback={
+                        <div className="flex items-center justify-center min-h-[400px]">
+                            <div className="text-center">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+                                <p className="mt-4 text-slate-600 dark:text-slate-400">Loading...</p>
+                            </div>
+                        </div>
+                    }>
+                        {renderContent()}
+                    </Suspense>
+                </div>
             </main>
         </div>
     );

@@ -1,6 +1,19 @@
 import apiClient from './api';
 import { API_ENDPOINTS } from '../config/api';
 
+export interface CoursePricing {
+  is_paid: boolean;
+  price: string | number;
+  currency: string;
+  free_preview_lessons: number;
+  allow_tips: boolean;
+}
+
+export interface CourseOwner {
+  id: number;
+  username: string;
+}
+
 export interface Course {
   id: number;
   title: string;
@@ -12,6 +25,8 @@ export interface Course {
   progress?: number;
   created_at?: string;
   updated_at?: string;
+  owner?: CourseOwner;
+  pricing?: CoursePricing;
 }
 
 export interface Lesson {
@@ -111,6 +126,31 @@ export const courseService = {
 
   async addLessonToCourse(courseId: number, payload: AddLessonPayload): Promise<Lesson> {
     const response = await apiClient.post(`${API_ENDPOINTS.COURSES}${courseId}/add_lesson/`, payload);
+    return response.data;
+  },
+
+  async getCoursePricing(courseId: number): Promise<CoursePricing> {
+    const response = await apiClient.get(API_ENDPOINTS.COURSE_PRICING(courseId));
+    return response.data;
+  },
+
+  async updateCoursePricing(courseId: number, data: Partial<CoursePricing>): Promise<CoursePricing> {
+    const response = await apiClient.patch(API_ENDPOINTS.COURSE_PRICING(courseId), data);
+    return response.data;
+  },
+
+  async purchaseCourse(courseId: number, payload: { payment_id: number }): Promise<any> {
+    const response = await apiClient.post(API_ENDPOINTS.COURSE_PURCHASE(courseId), payload);
+    return response.data;
+  },
+
+  async tipCreator(courseId: number, payload: { payment_id: number; amount: number; message?: string }): Promise<any> {
+    const response = await apiClient.post(API_ENDPOINTS.COURSE_TIP(courseId), payload);
+    return response.data;
+  },
+
+  async getCreatorDashboard(): Promise<any> {
+    const response = await apiClient.get(API_ENDPOINTS.CREATOR_DASHBOARD);
     return response.data;
   },
 };

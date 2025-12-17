@@ -11,6 +11,7 @@ import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import { PriceTagIcon } from './icons/PriceTagIcon';
 import { UpgradeIcon } from './icons/UpgradeIcon';
 import { AdminPanelIcon } from './icons/AdminPanelIcon';
+import { XIcon } from './icons/XIcon';
 import { View, UserTier } from '../App';
 import { Button } from './ui/Button';
 
@@ -23,6 +24,8 @@ interface SidebarProps {
   setIsCollapsed: (isCollapsed: boolean) => void;
   userTier: UserTier;
   onTierChange: (tier: UserTier) => void;
+  isMobileOpen: boolean;
+  setIsMobileOpen: (isOpen: boolean) => void;
 }
 
 const tierNames: Record<UserTier, string> = {
@@ -55,7 +58,7 @@ const RoleSwitcher: React.FC<{ currentTier: UserTier; onTierChange: (tier: UserT
     );
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout, onNewSession, isCollapsed, setIsCollapsed, userTier, onTierChange }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout, onNewSession, isCollapsed, setIsCollapsed, userTier, onTierChange, isMobileOpen, setIsMobileOpen }) => {
   // Only show admin-specific UI elements to admin users
   const isAdmin = userTier === 'admin';
   
@@ -65,16 +68,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
     { id: 'courses', label: 'My Courses', icon: BookOpenIcon, adminOnly: false },
     { id: 'assessments', label: 'Assessments', icon: ClipboardCheckIcon, adminOnly: false },
     { id: 'community', label: 'Community', icon: UsersIcon, adminOnly: false },
+    { id: 'study_groups', label: 'Study Groups', icon: UsersIcon, adminOnly: false },
     { id: 'pricing', label: 'Pricing', icon: PriceTagIcon, adminOnly: false },
+    { id: 'billing', label: 'Billing', icon: PriceTagIcon, adminOnly: false },
   ];
+
+  const handleNavClick = (view: View) => {
+    setView(view);
+    // Close mobile menu when navigating
+    setIsMobileOpen(false);
+  };
 
   const NavItem: React.FC<{ id: string; label: string; icon: React.ElementType }> = ({ id, label, icon: Icon }) => {
     const isActive = currentView === id;
     return (
       <button
         title={label}
-        onClick={() => setView(id as View)}
-        className={`w-full flex items-center gap-2 py-2.5 rounded-md text-sm font-medium transition-all duration-200 min-h-[40px] ${isCollapsed ? 'px-2 justify-center' : 'px-3'} ${
+        onClick={() => handleNavClick(id as View)}
+        className={`w-full flex items-center gap-2 py-2.5 rounded-md text-sm font-medium transition-all duration-200 min-h-[44px] ${isCollapsed ? 'px-2 justify-center' : 'px-3'} ${
           isActive
             ? 'bg-gradient-to-r from-blue-600 to-emerald-600 text-white shadow-md'
             : 'text-gray-600 hover:bg-blue-50 dark:text-gray-400 dark:hover:bg-slate-700/60 hover:text-blue-600 dark:hover:text-emerald-300'
@@ -87,11 +98,40 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
   };
 
   return (
-    <aside className={`h-full bg-gradient-to-b from-white to-blue-50/30 dark:from-slate-900 dark:to-slate-800 px-3 py-4 flex flex-col justify-between border-r border-blue-100/60 dark:border-slate-800 transition-all duration-300 shadow-lg ${isCollapsed ? 'w-20' : 'w-56'}`}>
+    <>
+      {/* Mobile Overlay */}
+      {isMobileOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
+      
+      {/* Sidebar */}
+      <aside className={`
+        fixed lg:static inset-y-0 left-0 z-50
+        h-full bg-gradient-to-b from-white to-blue-50/30 dark:from-slate-900 dark:to-slate-800 
+        px-3 py-4 flex flex-col justify-between 
+        border-r border-blue-100/60 dark:border-slate-800 
+        transition-all duration-300 shadow-lg
+        ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        ${isCollapsed ? 'w-20' : 'w-64'}
+      `}>
       <div>
-        <div className={`flex items-center gap-2 mb-6 ${isCollapsed ? 'justify-center px-0' : 'px-3'}`}>
-          <SparklesIcon className="w-7 h-7 text-blue-600" />
-          {!isCollapsed && <span className="text-xl font-bold text-gray-800 dark:text-white">EduReach</span>}
+        {/* Mobile Close Button */}
+        <div className="flex items-center justify-between mb-6 lg:mb-6">
+          <div className={`flex items-center gap-2 ${isCollapsed ? 'justify-center px-0' : 'px-3'}`}>
+            <SparklesIcon className="w-7 h-7 text-blue-600" />
+            {!isCollapsed && <span className="text-xl font-bold text-gray-800 dark:text-white">EduReach</span>}
+          </div>
+          {/* Mobile close button */}
+          <button
+            onClick={() => setIsMobileOpen(false)}
+            className="lg:hidden p-2 rounded-md hover:bg-blue-100 dark:hover:bg-slate-700 text-gray-600 dark:text-gray-400"
+            aria-label="Close menu"
+          >
+            <XIcon className="w-6 h-6" />
+          </button>
         </div>
 
         {/* Only show tier switcher to admin users */}
@@ -117,7 +157,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
           })}
         </nav>
 
-        <div className="flex items-center justify-center my-5">
+        {/* Desktop collapse button - hidden on mobile */}
+        <div className="hidden lg:flex items-center justify-center my-5">
           <Button
             variant="outline"
             size="icon"
@@ -142,7 +183,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
 
         <div className="border-t border-blue-100 dark:border-slate-800 pt-4">
           <button 
-            onClick={() => setView('profile')}
+            onClick={() => {
+              setView('profile');
+              setIsMobileOpen(false);
+            }}
             className={`w-full flex items-center gap-2 rounded-md hover:bg-blue-50 dark:hover:bg-slate-700 transition-all duration-200 min-h-[44px] ${isCollapsed ? 'justify-center p-2' : 'px-3 py-2.5'}`}
           >
             <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-200 to-emerald-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 shadow-sm">
@@ -157,7 +201,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
           </button>
           {!isCollapsed && (
             <Button
-              onClick={onLogout}
+              onClick={() => {
+                onLogout();
+                setIsMobileOpen(false);
+              }}
               variant="ghost"
               className="w-full mt-2 justify-start gap-2 text-sm text-slate-500 dark:text-slate-300"
               icon={<LogoutIcon className="w-5 h-5" />}
@@ -168,5 +215,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
         </div>
       </div>
     </aside>
+    </>
   );
 };

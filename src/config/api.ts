@@ -26,6 +26,10 @@ export const API_ENDPOINTS = {
   COURSE_DETAIL: (id: number) => `courses/${id}/`,
   COURSE_LESSONS: (id: number) => `courses/${id}/lessons/`,
   MY_COURSES: 'courses/my_courses/',
+  COURSE_PRICING: (id: number) => `courses/${id}/pricing/`,
+  COURSE_PURCHASE: (id: number) => `courses/${id}/purchase/`,
+  COURSE_TIP: (id: number) => `courses/${id}/tip/`,
+  CREATOR_DASHBOARD: 'courses/creator_dashboard/',
   START_COURSE: 'progress/start_course/',
   COMPLETE_LESSON: (id: number) => `progress/${id}/complete_lesson/`,
   

@@ -1,5 +1,9 @@
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
+from decimal import Decimal
+
+from payments.models import Payment
 
 
 class Course(models.Model):
@@ -102,3 +106,105 @@ class UserProgress(models.Model):
             completed = self.completed_lessons.count()
             self.progress_percentage = int((completed / total_lessons) * 100)
             self.save()
+
+
+class CoursePricing(models.Model):
+    """Pricing and monetization settings for a course."""
+
+    course = models.OneToOneField(Course, related_name='pricing', on_delete=models.CASCADE)
+    is_paid = models.BooleanField(default=False)
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    currency = models.CharField(max_length=3, default='KES')
+    free_preview_lessons = models.PositiveIntegerField(default=1)
+    allow_tips = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Pricing for {self.course.title}"
+
+    @property
+    def amount(self) -> Decimal:
+        return self.price if self.is_paid else Decimal('0')
+
+
+class ContentPurchase(models.Model):
+    """Tracks paid unlocks per user/course."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='content_purchases'
+    )
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name='purchases'
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default='KES')
+    payment = models.ForeignKey(Payment, on_delete=models.SET_NULL, null=True, blank=True, related_name='content_purchases')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['user', 'course']
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user} purchased {self.course}"
+
+
+class CreatorTip(models.Model):
+    """Tips from learners to creators."""
+
+    from_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='tips_sent'
+    )
+    to_creator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='tips_received'
+    )
+    course = models.ForeignKey(Course, on_delete=models.SET_NULL, null=True, blank=True, related_name='tips')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default='KES')
+    message = models.CharField(max_length=280, blank=True)
+    payment = models.ForeignKey(Payment, on_delete=models.SET_NULL, null=True, blank=True, related_name='tips')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Tip {self.amount} {self.currency} from {self.from_user} to {self.to_creator}"
+
+
+class CreatorEarnings(models.Model):
+    """Aggregated revenue per creator/month."""
+
+    creator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='earnings'
+    )
+    month = models.DateField()
+    gross_revenue = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    platform_fee = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    net_revenue = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    courses_sold = models.PositiveIntegerField(default=0)
+    tips_received = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['creator', 'month']
+        ordering = ['-month']
+
+    def __str__(self):
+        return f"{self.creator} earnings {self.month}"
+
+    @staticmethod
+    def month_start(dt=None):
+        dt = dt or timezone.now()
+        return timezone.datetime(dt.year, dt.month, 1, tzinfo=dt.tzinfo or timezone.utc)

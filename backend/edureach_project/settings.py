@@ -65,6 +65,8 @@ INSTALLED_APPS = [
     'community.apps.CommunityConfig',
     'ai_service.apps.AiServiceConfig',
     'notes.apps.NotesConfig',
+    'payments.apps.PaymentsConfig',
+    'study_groups.apps.StudyGroupsConfig',
 ]
 
 MIDDLEWARE = [
