@@ -3,7 +3,7 @@ import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { XIcon } from './icons/XIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { MarkdownRenderer } from './MarkdownRenderer';
-import { gradeEssayQuestion } from '../services/geminiService';
+import apiClient from '../services/api';
 import type { 
     Question, 
     QuizQuestion, 
@@ -92,14 +92,47 @@ export const QuizView: React.FC<QuizViewProps> = ({ quiz }) => {
 
       setIsGrading(prev => ({ ...prev, [q.id]: true }));
       
-      const result = await gradeEssayQuestion(
-          q.question_text,
-          studentAnswer,
-          q.model_solution || "No model solution provided.",
-          q.rubric_criteria
-      );
+      try {
+        const gradePrompt = `You are an expert educator. Grade the following student essay response.
 
-      setGradingResults(prev => ({ ...prev, [q.id]: result }));
+Question: ${q.question_text}
+
+Model Solution/Expected Answer: ${q.model_solution || "No model solution provided."}
+
+Student Answer: ${studentAnswer}
+
+Provide a JSON response with:
+- score (0-100)
+- feedback (detailed feedback on what was good and what could improve)
+
+Format: {"score": number, "feedback": "string"}`;
+
+        const response = await apiClient.post('/ai/chat/', {
+          message: gradePrompt,
+          context: q.question_text
+        });
+
+        const responseText = response.data.response || response.data;
+        
+        // Try to parse JSON from response
+        let result = { score: 0, feedback: "Could not parse grading response" };
+        try {
+          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            result = JSON.parse(jsonMatch[0]);
+          } else {
+            result = { score: 75, feedback: responseText };
+          }
+        } catch (e) {
+          result = { score: 75, feedback: responseText };
+        }
+
+        setGradingResults(prev => ({ ...prev, [q.id]: result }));
+      } catch (error) {
+        console.error('Error grading essay:', error);
+        setGradingResults(prev => ({ ...prev, [q.id]: { score: 0, feedback: "Error grading essay. Please try again." } }));
+      }
+      
       setIsGrading(prev => ({ ...prev, [q.id]: false }));
   };
 

@@ -303,69 +303,85 @@ class CourseViewSet(viewsets.ModelViewSet):
             "course_id": 123 (optional, defaults to personal course)
         }
         """
-        title = request.data.get('title', 'Learning Session')
-        video_id = self._extract_video_id(
-            request.data.get('video_id'),
-            request.data.get('video_url')
-        )
-        
-        if not video_id:
-            return Response(
-                {'error': 'Video ID or URL is required'},
-                status=status.HTTP_400_BAD_REQUEST
+        try:
+            title = request.data.get('title', 'Learning Session')
+            video_id = self._extract_video_id(
+                request.data.get('video_id'),
+                request.data.get('video_url')
             )
-        
-        # Determine course: use provided or create/get personal course
-        course_id = request.data.get('course_id')
-        if course_id:
-            try:
-                course = Course.objects.get(id=course_id, owner=request.user)
-            except Course.DoesNotExist:
+            
+            if not video_id:
                 return Response(
-                    {'error': 'Course not found or you do not own it'},
-                    status=status.HTTP_404_NOT_FOUND
+                    {'error': 'Video ID or URL is required'},
+                    status=status.HTTP_400_BAD_REQUEST
                 )
-        else:
-            # Ensure personal course exists
-            course, _ = Course.objects.get_or_create(
-                owner=request.user,
-                is_public=False,
-                title=self.PERSONAL_COURSE_TITLE,
-                defaults={
-                    'description': 'Auto-created course for personal learning sessions.',
-                }
+            
+            # Determine course: use provided or create/get personal course
+            course_id = request.data.get('course_id')
+            if course_id:
+                try:
+                    course = Course.objects.get(id=course_id, owner=request.user)
+                except Course.DoesNotExist:
+                    return Response(
+                        {'error': 'Course not found or you do not own it'},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+            else:
+                # Ensure personal course exists
+                course, _ = Course.objects.get_or_create(
+                    owner=request.user,
+                    is_public=False,
+                    title=self.PERSONAL_COURSE_TITLE,
+                    defaults={
+                        'description': 'Auto-created course for personal learning sessions.',
+                    }
+                )
+            
+            # Create lesson in the course
+            transcript = request.data.get('transcript', '')
+            transcript_language = request.data.get('transcript_language', 'en')
+            duration = request.data.get('duration', 'N/A')
+            description = request.data.get('description', '')
+            
+            # Build video_url - ensure it's always a valid URL
+            video_url = request.data.get('video_url')
+            if not video_url:
+                video_url = f'https://www.youtube.com/watch?v={video_id}'
+            
+            # Get the next order value: max existing order + 1
+            existing_lesson = course.lessons.order_by('-order').first()
+            next_order = (existing_lesson.order + 1) if existing_lesson else 0
+            
+            lesson = Lesson.objects.create(
+                course=course,
+                title=title,
+                video_id=video_id,
+                video_url=video_url,
+                duration=duration,
+                order=next_order,
+                description=description,
+                transcript=transcript,
+                transcript_language=transcript_language
             )
-        
-        # Create lesson in the course
-        transcript = request.data.get('transcript', '')
-        transcript_language = request.data.get('transcript_language', 'en')
-        duration = request.data.get('duration', 'N/A')
-        description = request.data.get('description', '')
-        
-        next_order = course.lessons.count()
-        
-        lesson = Lesson.objects.create(
-            course=course,
-            title=title,
-            video_id=video_id,
-            video_url=request.data.get('video_url') or f'https://www.youtube.com/watch?v={video_id}',
-            duration=duration,
-            order=next_order,
-            description=description,
-            transcript=transcript,
-            transcript_language=transcript_language
-        )
-        
-        serializer = LessonSerializer(lesson)
-        return Response(
-            {
-                'success': True,
-                'lesson': serializer.data,
-                'course': CourseSerializer(course, context={'request': request}).data,
-                'message': f'Session saved to course "{course.title}"'
-            },
-            status=status.HTTP_201_CREATED
-        )
+            
+            serializer = LessonSerializer(lesson)
+            return Response(
+                {
+                    'success': True,
+                    'lesson': serializer.data,
+                    'course': CourseSerializer(course, context={'request': request}).data,
+                    'message': f'Session saved to course "{course.title}"'
+                },
+                status=status.HTTP_201_CREATED
+            )
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in start_session: {str(e)}", exc_info=True)
+            return Response(
+                {'error': f'Failed to create session: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class LessonViewSet(viewsets.ModelViewSet):

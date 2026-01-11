@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { YouTubePlayer, type YouTubePlayerHandle } from './YouTubePlayer';
 import { AIAssistant } from './AIAssistant';
 import { StudyPanel } from './StudyPanel';
-import { generateResponseWithContext, generateQuiz } from '../services/geminiService';
 import { ChatMessage, QuizQuestion, Assessment, Lesson } from '../types';
+import apiClient from '../services/api';
 import { Button } from './ui/Button';
 import { PanelLeftIcon } from './icons/PanelLeftIcon';
 import { PanelRightIcon } from './icons/PanelRightIcon';
@@ -197,8 +197,13 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
          quizTranscript = [chunks[0], chunks[mid], chunks[chunks.length-1]].filter(Boolean).join('\n...\n');
       }
 
-      const newQuiz = await generateQuiz(quizTranscript);
-      setQuiz(newQuiz);
+      const response = await apiClient.post('/ai/generate-quiz/', {
+        transcript: quizTranscript,
+        num_questions: 5,
+        difficulty: 'medium'
+      });
+      
+      setQuiz(response.data.questions || response.data);
     } catch (error) {
       console.error("Failed to generate quiz", error);
       setMessages(prev => [...prev, { role: 'model', content: "Sorry, I couldn't generate a quiz at this moment. Please try again." }]);
@@ -239,10 +244,15 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
         optimizedMessage = `${message}\n\n[System: Keep response concise (2-3 sentences) unless asked for details.]`;
       }
 
-      const response = await generateResponseWithContext(optimizedMessage, context);
+      const response = await apiClient.post('/ai/chat/', {
+        message: optimizedMessage,
+        context: context
+      });
+
+      const responseText = response.data.response || response.data;
 
       setMessages(prev => prev.map((msg, mapIdx) => 
-        mapIdx === placeholderIndex ? { ...msg, content: response } : msg
+        mapIdx === placeholderIndex ? { ...msg, content: responseText } : msg
       ));
     } catch (err) {
       console.error('Chat error:', err);

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { SparklesIcon } from './icons/SparklesIcon';
-import { generateAssessmentFromSource, QuestionType } from '../services/geminiService';
 import type { Question, MultipleChoiceQuestion, ShortAnswerQuestion, EssayQuestion, PassageQuestion, ClozeQuestion, AssessmentMode, Course } from '../types';
 import { BookOpenIcon } from './icons/BookOpenIcon';
 import { SwordsIcon } from './icons/SwordsIcon';
+import apiClient from '../services/api';
+
+type QuestionType = 'multiple-choice' | 'essay' | 'short-answer' | 'passage' | 'cloze' | 'true-false';
 
 interface GenerateAIQuizPageProps {
   onQuizCreated: (quiz: any) => void;
@@ -102,13 +104,19 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
     try {
       const effectiveNumQuestions = questionType === 'passage' ? Math.ceil(numQuestions / 3) : numQuestions;
       
-      const result = await generateAssessmentFromSource(sourceText, topic, effectiveNumQuestions, questionType, assessmentMode);
+      // Call backend API instead of Gemini directly
+      const response = await apiClient.post('/ai/generate-quiz/', {
+        transcript: sourceText,
+        num_questions: effectiveNumQuestions,
+        difficulty: assessmentMode === 'exam' ? 'hard' : 'medium'
+      });
       
-      const mappedQuestions = mapToQuestionObjects(result.questions, questionType);
+      const result = response.data;
+      const mappedQuestions = mapToQuestionObjects(result.questions || [], questionType);
 
       const newQuiz = {
-        title: result.title,
-        description: result.description,
+        title: `AI Generated ${topic} Quiz`,
+        description: `Assessment generated from provided source material about ${topic}`,
         topic: topic,
         questions: mappedQuestions.length,
         questions_data: mappedQuestions, 
@@ -125,7 +133,7 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
       onQuizCreated(newQuiz);
     } catch (err) {
       console.error(err);
-      setError('Failed to generate assessment. The AI model may be unavailable. Please try again later.');
+      setError('Failed to generate assessment. Please try again later.');
     } finally {
       setIsLoading(false);
     }

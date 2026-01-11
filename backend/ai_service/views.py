@@ -177,16 +177,7 @@ def generate_quiz(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Configure Gemini
-        configure_gemini()
-        
-        # Create the model - ensure gemini-2.5-flash is used
-        model_name = getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash')
-        if 'flash' not in model_name.lower():
-            model_name = 'gemini-2.5-flash'
-        model = genai.GenerativeModel(model_name)
-        
-        # Construct the prompt - optimized for speed
+        # Use OpenRouter as primary AI provider
         prompt = f"""Generate {num_questions} {difficulty} difficulty quiz questions from this transcript:
 
 {transcript}
@@ -196,12 +187,8 @@ Return ONLY valid JSON (no extra text):
 
 Be concise. Questions should test key concepts."""
         
-        # Generate content with faster, concise output
-        response = call_generate_content_with_handling(
-            model,
-            prompt,
-            generation_config=genai.types.GenerationConfig(max_output_tokens=1000, temperature=0.7)
-        )
+        # Call OpenRouter
+        response = call_openrouter(prompt, max_tokens=1000)
         
         # Try to parse the response as JSON
         try:
@@ -229,10 +216,8 @@ Be concise. Questions should test key concepts."""
     
     except Exception as e:
         logger.error(f"Error generating quiz: {str(e)}", exc_info=True)
-        if 'GEMINI_QUOTA_EXCEEDED' in str(e):
-            return Response({'error': 'Gemini quota exceeded. Please check billing or retry later.'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         return Response(
-            {'error': str(e), 'type': type(e).__name__},
+            {'error': f'Failed to generate quiz: {str(e)}', 'type': type(e).__name__},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -259,15 +244,6 @@ def chat(request):
                 {'error': 'Message is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        # Configure Gemini
-        configure_gemini()
-        
-        # Create the model - ensure gemini-2.5-flash is used
-        model_name = getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash')
-        if 'flash' not in model_name.lower():
-            model_name = 'gemini-2.5-flash'
-        model = genai.GenerativeModel(model_name)
         
         # Check if user wants detailed response (from message)
         wants_detailed = any(keyword in message.lower() for keyword in [
@@ -306,16 +282,9 @@ If they ask something off-topic, politely redirect them back to the learning mat
         else:
             full_prompt = f"{system_instruction}\n\nUser Question: {message}"
         
-        # Generate content with appropriate token limits
+        # Generate content with appropriate token limits using OpenRouter
         max_tokens = 300 if wants_detailed else 150
-        response = call_generate_content_with_handling(
-            model,
-            full_prompt,
-            generation_config=genai.types.GenerationConfig(
-                max_output_tokens=max_tokens,
-                temperature=0.7
-            )
-        )
+        response = call_openrouter(full_prompt, max_tokens=max_tokens)
         
         return Response(
             {'response': response.text},
@@ -324,10 +293,8 @@ If they ask something off-topic, politely redirect them back to the learning mat
     
     except Exception as e:
         logger.error(f"Error in chat: {str(e)}", exc_info=True)
-        if 'GEMINI_QUOTA_EXCEEDED' in str(e):
-            return Response({'error': 'Gemini quota exceeded. Please check billing or retry later.'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         return Response(
-            {'error': str(e), 'type': type(e).__name__},
+            {'error': f'Failed to generate response: {str(e)}', 'type': type(e).__name__},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -359,15 +326,6 @@ def generate_study_plan(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Configure Gemini
-        configure_gemini()
-        
-        # Create the model - ensure gemini-2.5-flash is used
-        model_name = getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash')
-        if 'flash' not in model_name.lower():
-            model_name = 'gemini-2.5-flash'
-        model = genai.GenerativeModel(model_name)
-        
         # Construct a concise prompt
         prompt = f"""Create a {duration_weeks}-week study plan for {topic} ({skill_level} level).
 {f"Goal: {goals}" if goals else ""}
@@ -381,12 +339,8 @@ Milestones: [checkpoints]
 
 Keep it concise and actionable."""
         
-        # Generate content with moderate output
-        response = call_generate_content_with_handling(
-            model,
-            prompt,
-            generation_config=genai.types.GenerationConfig(max_output_tokens=600, temperature=0.7)
-        )
+        # Generate content with moderate output using OpenRouter
+        response = call_openrouter(prompt, max_tokens=600)
         
         return Response(
             {'study_plan': response.text},
@@ -394,10 +348,9 @@ Keep it concise and actionable."""
         )
     
     except Exception as e:
-        if 'GEMINI_QUOTA_EXCEEDED' in str(e):
-            return Response({'error': 'Gemini quota exceeded. Please check billing or retry later.'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        logger.error(f"Error generating study plan: {str(e)}", exc_info=True)
         return Response(
-            {'error': str(e)},
+            {'error': f'Failed to generate study plan: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -449,26 +402,12 @@ Output:
 Summary:\n- <one line summary>\nTakeaways:\n- item1\n- item2\n- item3
 """
 
-                # Prefer OpenRouter when configured explicitly
+                # Use OpenRouter as primary provider
                 try:
-                    if getattr(settings, 'PREFER_OPENROUTER', False):
-                        resp = call_openrouter(prompt, getattr(settings, 'OPENROUTER_MODEL', None), max_tokens=200)
-                    else:
-                        resp = call_generate_content_with_handling(
-                            model,
-                            prompt,
-                            generation_config=genai.types.GenerationConfig(max_output_tokens=200, temperature=0.2)
-                        )
-                except Exception as e:
-                    # If Gemini quota error or other failure, try OpenRouter as fallback
-                    if 'GEMINI_QUOTA_EXCEEDED' in str(e) or getattr(settings, 'OPENROUTER_API_KEY', None):
-                        try:
-                            resp = call_openrouter(prompt, getattr(settings, 'OPENROUTER_MODEL', None), max_tokens=200)
-                        except Exception as e2:
-                            logger.error(f"OpenRouter fallback failed: {str(e2)}")
-                            raise
-                    else:
-                        raise
+                    resp = call_openrouter(prompt, getattr(settings, 'OPENROUTER_MODEL', None), max_tokens=200)
+                except Exception as e2:
+                    logger.error(f"OpenRouter failed: {str(e2)}")
+                    raise
 
                 response = resp
 
@@ -484,19 +423,10 @@ Summary:\n- <one line summary>\nTakeaways:\n- item1\n- item2\n- item3
             combined_prompt = "Combine the following chunk summaries into a cohesive 3-4 sentence global summary and provide 5 concise key takeaways. Keep it factual and do not invent new information.\n\n" + "\n\n---\n\n".join([cs['summary'] for cs in chunk_summaries])
 
             try:
-                if getattr(settings, 'PREFER_OPENROUTER', False):
-                    combined_resp = call_openrouter(combined_prompt, getattr(settings, 'OPENROUTER_MODEL', None), max_tokens=400)
-                else:
-                    combined_resp = call_generate_content_with_handling(
-                        model,
-                        combined_prompt,
-                        generation_config=genai.types.GenerationConfig(max_output_tokens=400, temperature=0.2)
-                    )
+                combined_resp = call_openrouter(combined_prompt, getattr(settings, 'OPENROUTER_MODEL', None), max_tokens=400)
             except Exception as e:
-                if 'GEMINI_QUOTA_EXCEEDED' in str(e) or getattr(settings, 'OPENROUTER_API_KEY', None):
-                    combined_resp = call_openrouter(combined_prompt, getattr(settings, 'OPENROUTER_MODEL', None), max_tokens=400)
-                else:
-                    raise
+                logger.error(f"OpenRouter failed for global summary: {str(e)}")
+                raise
 
             global_summary = combined_resp.text.strip()
         except Exception as e:
@@ -510,9 +440,7 @@ Summary:\n- <one line summary>\nTakeaways:\n- item1\n- item2\n- item3
 
     except Exception as e:
         logger.error(f"Error in summarize_chunks: {str(e)}", exc_info=True)
-        if 'GEMINI_QUOTA_EXCEEDED' in str(e):
-            return Response({'error': 'Gemini quota exceeded. Please check billing or retry later.'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
-        return Response({'error': str(e), 'type': type(e).__name__}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'error': f'Failed to summarize chunks: {str(e)}', 'type': type(e).__name__}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
@@ -538,15 +466,6 @@ def explain_concept(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Configure Gemini
-        configure_gemini()
-        
-        # Create the model - ensure gemini-2.5-flash is used
-        model_name = getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash')
-        if 'flash' not in model_name.lower():
-            model_name = 'gemini-2.5-flash'
-        model = genai.GenerativeModel(model_name)
-        
         # Construct a concise prompt based on detail level
         level_prompts = {
             'simple': f'Explain "{concept}" in 2-3 sentences using simple language and a real-world example.',
@@ -556,12 +475,8 @@ def explain_concept(request):
         
         prompt = level_prompts.get(detail_level, level_prompts['detailed'])
         
-        # Generate content with concise output
-        response = call_generate_content_with_handling(
-            model,
-            prompt,
-            generation_config=genai.types.GenerationConfig(max_output_tokens=300, temperature=0.7)
-        )
+        # Generate content with concise output using OpenRouter
+        response = call_openrouter(prompt, max_tokens=300)
         
         return Response(
             {'explanation': response.text},
@@ -569,9 +484,8 @@ def explain_concept(request):
         )
     
     except Exception as e:
-        if 'GEMINI_QUOTA_EXCEEDED' in str(e):
-            return Response({'error': 'Gemini quota exceeded. Please check billing or retry later.'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        logger.error(f"Error explaining concept: {str(e)}", exc_info=True)
         return Response(
-            {'error': str(e)},
+            {'error': f'Failed to explain concept: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

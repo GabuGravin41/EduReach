@@ -334,19 +334,26 @@ GEMINI_MODEL_NAME = os.environ.get('GEMINI_MODEL_NAME', 'gemini-2.5-flash')
 # Fix for 405 error - disable automatic slash appending
 APPEND_SLASH = False
 
-# Gemini API Configuration with validation
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-if not GEMINI_API_KEY:
-    # Don't validate during collectstatic
+# OpenRouter API Configuration (PRIMARY AI PROVIDER - FREE)
+OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
+OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'tngtech/deepseek-r1t2-chimera:free')
+OPENROUTER_API_URL = os.environ.get('OPENROUTER_API_URL', 'https://api.openrouter.ai/v1/chat/completions')
+PREFER_OPENROUTER = os.environ.get('PREFER_OPENROUTER', 'False') == 'True'
+
+# Validate OpenRouter configuration
+if not OPENROUTER_API_KEY:
     import sys
     if 'collectstatic' not in sys.argv and not DEBUG:
-        raise ValueError("GEMINI_API_KEY environment variable must be set in production")
+        raise ValueError("OPENROUTER_API_KEY environment variable must be set in production")
     elif DEBUG:
-        GEMINI_API_KEY = 'dev-key-not-configured'
+        OPENROUTER_API_KEY = 'dev-key-not-configured'
     else:
-        GEMINI_API_KEY = 'dummy-key-for-build'
+        OPENROUTER_API_KEY = 'dummy-key-for-build'
 
+# Gemini API Configuration (OPTIONAL - for future use with paid plan)
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', None)
 GEMINI_MODEL_NAME = os.environ.get('GEMINI_MODEL_NAME', 'gemini-2.5-flash')
+
 
 # OpenRouter Fallback Configuration
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', None)
