@@ -1,4 +1,5 @@
 import apiClient from './api';
+import transcriptUtils from '../utils/transcript';
 
 export interface VideoInfo {
   video_id: string;
@@ -109,11 +110,15 @@ export const youtubeService = {
       };
     } catch (error: any) {
       console.error('Transcript extraction failed:', error);
+      // Surface backend error details when available (422 or 400)
+      const serverError = error?.response?.data;
+      const message = serverError?.error || serverError?.detail || error.message || 'Failed to extract transcript';
       return {
         success: false,
         video_id: videoId || '',
         transcript: '',
-        error: error.response?.data?.error || 'Failed to extract transcript'
+        error: message,
+        _server: serverError,
       };
     }
   },
@@ -205,5 +210,13 @@ export const youtubeService = {
   }): Promise<any> {
     const response = await apiClient.post(`/lessons/${lessonId}/save_quiz_as_assessment/`, data);
     return response.data;
+  }
+  ,
+  /**
+   * Process a raw transcript object (as returned from backend) into segments and character-based chunks.
+   * Returns { segments, chunks } where segments are { startMs, endMs, text } and chunks are { startMs, endMs, text }.
+   */
+  processTranscriptRaw(raw: any, maxChars: number = 3000, overlapChars: number = 400) {
+    return transcriptUtils.processRawTranscript(raw, maxChars, overlapChars);
   }
 };

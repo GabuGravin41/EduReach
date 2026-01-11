@@ -287,6 +287,86 @@ class CourseViewSet(viewsets.ModelViewSet):
         serializer = LessonSerializer(lesson)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def start_session(self, request):
+        """
+        Create a lesson for an ad-hoc learning session.
+        If no courseId provided, creates/uses user's 'Personal Sessions' course.
+        
+        POST /api/courses/start_session/
+        {
+            "title": "Session title",
+            "video_id": "YouTubeID",
+            "video_url": "https://...",
+            "transcript": "Transcript text or JSON",
+            "transcript_language": "en" (optional),
+            "course_id": 123 (optional, defaults to personal course)
+        }
+        """
+        title = request.data.get('title', 'Learning Session')
+        video_id = self._extract_video_id(
+            request.data.get('video_id'),
+            request.data.get('video_url')
+        )
+        
+        if not video_id:
+            return Response(
+                {'error': 'Video ID or URL is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Determine course: use provided or create/get personal course
+        course_id = request.data.get('course_id')
+        if course_id:
+            try:
+                course = Course.objects.get(id=course_id, owner=request.user)
+            except Course.DoesNotExist:
+                return Response(
+                    {'error': 'Course not found or you do not own it'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        else:
+            # Ensure personal course exists
+            course, _ = Course.objects.get_or_create(
+                owner=request.user,
+                is_public=False,
+                title=self.PERSONAL_COURSE_TITLE,
+                defaults={
+                    'description': 'Auto-created course for personal learning sessions.',
+                }
+            )
+        
+        # Create lesson in the course
+        transcript = request.data.get('transcript', '')
+        transcript_language = request.data.get('transcript_language', 'en')
+        duration = request.data.get('duration', 'N/A')
+        description = request.data.get('description', '')
+        
+        next_order = course.lessons.count()
+        
+        lesson = Lesson.objects.create(
+            course=course,
+            title=title,
+            video_id=video_id,
+            video_url=request.data.get('video_url') or f'https://www.youtube.com/watch?v={video_id}',
+            duration=duration,
+            order=next_order,
+            description=description,
+            transcript=transcript,
+            transcript_language=transcript_language
+        )
+        
+        serializer = LessonSerializer(lesson)
+        return Response(
+            {
+                'success': True,
+                'lesson': serializer.data,
+                'course': CourseSerializer(course, context={'request': request}).data,
+                'message': f'Session saved to course "{course.title}"'
+            },
+            status=status.HTTP_201_CREATED
+        )
+
 
 class LessonViewSet(viewsets.ModelViewSet):
     """ViewSet for managing lessons."""
@@ -302,6 +382,23 @@ class LessonViewSet(viewsets.ModelViewSet):
                 "You don't have permission to add lessons to this course."
             )
         serializer.save()
+    
+    def perform_update(self, serializer):
+        """Ensure the user owns the course before updating a lesson."""
+        lesson = self.get_object()
+        if lesson.course.owner != self.request.user:
+            raise permissions.PermissionDenied(
+                "You don't have permission to edit lessons in this course."
+            )
+        serializer.save()
+    
+    def perform_destroy(self, instance):
+        """Ensure the user owns the course before deleting a lesson."""
+        if instance.course.owner != self.request.user:
+            raise permissions.PermissionDenied(
+                "You don't have permission to delete lessons from this course."
+            )
+        instance.delete()
     
     @action(detail=True, methods=['post'])
     def fetch_transcript(self, request, pk=None):

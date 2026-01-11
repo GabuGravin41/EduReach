@@ -348,6 +348,12 @@ if not GEMINI_API_KEY:
 
 GEMINI_MODEL_NAME = os.environ.get('GEMINI_MODEL_NAME', 'gemini-2.5-flash')
 
+# OpenRouter Fallback Configuration
+OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', None)
+OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'tngtech/deepseek-r1t2-chimera:free')
+OPENROUTER_API_URL = os.environ.get('OPENROUTER_API_URL', 'https://api.openrouter.ai/v1/chat/completions')
+PREFER_OPENROUTER = os.environ.get('PREFER_OPENROUTER', 'False') == 'True'
+
 # Security settings for production
 if not DEBUG:
     # Railway handles SSL, don't redirect

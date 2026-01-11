@@ -9,6 +9,9 @@ import { PanelLeftIcon } from './icons/PanelLeftIcon';
 import { PanelRightIcon } from './icons/PanelRightIcon';
 import type { YouTubeEvent } from 'react-youtube';
 
+const PLAYER_HEIGHT_STORAGE_KEY = 'edureach_player_height';
+const DEFAULT_PLAYER_HEIGHT = 'aspect-video'; // Default: maintains 16:9 aspect ratio
+
 interface LearningSessionProps {
   videoId: string;
   transcript: string;
@@ -36,10 +39,70 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   const [completedSent, setCompletedSent] = useState(currentLesson?.isCompleted || false);
   const [quizSaved, setQuizSaved] = useState(false);
   const [isSavingQuiz, setIsSavingQuiz] = useState(false);
+  const [playerHeight, setPlayerHeight] = useState<number | null>(null);
+  const [isResizing, setIsResizing] = useState(false);
+  const [startY, setStartY] = useState(0);
   
   const videoRef = useRef<YouTubePlayerHandle | null>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const pendingSeekRef = useRef<number | null>(null);
+  const playerContainerRef = useRef<HTMLDivElement>(null);
+
+  // Load player height from localStorage on mount
+  useEffect(() => {
+    const savedHeight = localStorage.getItem(PLAYER_HEIGHT_STORAGE_KEY);
+    if (savedHeight) {
+      setPlayerHeight(parseInt(savedHeight, 10));
+    }
+  }, []);
+
+  // Handle resize start
+  const handleResizeStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsResizing(true);
+    setStartY(e.clientY);
+  };
+
+  // Handle resize during drag
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!playerContainerRef.current) return;
+      
+      const delta = e.clientY - startY;
+      const currentHeight = playerHeight || 360; // Default to ~360px (aspect-video default)
+      const newHeight = currentHeight + delta;
+      
+      // Min 200px, max 80% of viewport
+      const minHeight = 200;
+      const maxHeight = Math.floor(window.innerHeight * 0.8);
+      const constrainedHeight = Math.max(minHeight, Math.min(newHeight, maxHeight));
+      
+      setPlayerHeight(constrainedHeight);
+      setStartY(e.clientY); // Update startY for next frame
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      // Save to localStorage
+      if (playerHeight) {
+        localStorage.setItem(PLAYER_HEIGHT_STORAGE_KEY, playerHeight.toString());
+      }
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = isResizing ? 'row-resize' : 'default';
+    document.body.style.userSelect = 'none';
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+    };
+  }, [isResizing, startY, playerHeight]);
 
   // Initial Welcome Message if no history
   useEffect(() => {
@@ -259,11 +322,15 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
       </div>
       
       {/* Video and Notes Section */}
-      <div className={`flex flex-col gap-4 transition-all duration-300 ease-in-out ${
+      <div className={`flex flex-col gap-4 ${
         isAIPanelOpen ? 'lg:w-[70%]' : 'lg:w-full'
       } lg:h-full lg:min-h-0`}>
-        {/* Video Player */}
-        <div className="w-full aspect-video flex-none lg:aspect-auto lg:flex-1 lg:min-h-0 rounded-xl overflow-hidden bg-black shadow-lg relative z-10">
+        {/* Video Player Container with Resize Handle */}
+        <div 
+          ref={playerContainerRef}
+          className="w-full rounded-xl overflow-hidden bg-black shadow-lg relative group"
+          style={playerHeight ? { height: `${playerHeight}px`, flexShrink: 0 } : { aspectRatio: '16/9', flexShrink: 0 }}
+        >
           <YouTubePlayer 
             ref={videoRef}
             videoId={videoId} 
@@ -279,6 +346,17 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
              >
                 {isAIPanelOpen ? <PanelRightIcon className="w-5 h-5" /> : <PanelLeftIcon className="w-5 h-5" />}
              </button>
+          </div>
+
+          {/* Resize Handle - Bottom Border - LARGER and EASIER TO GRAB */}
+          <div
+            onMouseDown={handleResizeStart}
+            className={`absolute -bottom-2 left-0 right-0 h-4 cursor-row-resize flex items-center justify-center group z-50 ${
+              isResizing ? 'bg-blue-500 bg-opacity-60' : 'bg-blue-500 bg-opacity-0 hover:bg-opacity-40'
+            } transition-all`}
+            title="Drag down to make video taller, drag up to make it smaller"
+          >
+            <div className="w-12 h-1 bg-blue-400 rounded-full" />
           </div>
         </div>
         

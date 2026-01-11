@@ -76,15 +76,16 @@ class CourseSerializer(serializers.ModelSerializer):
 
 
 class CourseListSerializer(serializers.ModelSerializer):
-    """Lightweight serializer for course lists."""
+    """Lightweight serializer for course lists - now includes lessons."""
     owner_username = serializers.CharField(source='owner.username', read_only=True)
     lesson_count = serializers.SerializerMethodField()
+    lessons = LessonSerializer(many=True, read_only=True)
     
     class Meta:
         model = Course
         fields = [
             'id', 'title', 'description', 'owner_username',
-            'thumbnail', 'lesson_count', 'created_at'
+            'thumbnail', 'lesson_count', 'created_at', 'lessons'
         ]
 
     def get_lesson_count(self, obj):

@@ -7,6 +7,7 @@ import { PencilIcon } from './icons/PencilIcon';
 import { View, UserTier } from '../App';
 import { Button } from './ui/Button';
 import { DiscussionsPage } from './DiscussionsPage';
+import apiClient from '../src/services/api';
 import type { Course as ApiCourse, Lesson as ApiLesson } from '../src/services/courseService';
 
 // Use API types as baseline
@@ -43,6 +44,7 @@ interface CourseDetailPageProps {
     setView: (view: View) => void;
     onStartLesson: (payload: StartLessonPayload) => void;
     onAddLesson?: (courseId: number, lesson: { title: string; videoId: string; transcript?: string }) => Promise<void> | void;
+    onUpdateLesson?: (courseId: number, lessonId: number, updates: any) => void;
     userTier: UserTier;
     currentUserId?: number;
     onUpdateCourse?: (courseId: number, updates: Partial<Course>) => void;
@@ -54,7 +56,8 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     course, 
     setView, 
     onStartLesson, 
-    onAddLesson, 
+    onAddLesson,
+    onUpdateLesson,
     userTier, 
     currentUserId,
     onUpdateCourse,
@@ -72,6 +75,12 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     const [lessonForm, setLessonForm] = useState({ title: '', videoUrl: '' });
     const [isSavingLesson, setIsSavingLesson] = useState(false);
     const [lessonFormError, setLessonFormError] = useState('');
+    
+    // Lesson editing state
+    const [editingLessonId, setEditingLessonId] = useState<number | null>(null);
+    const [editingLessonTitle, setEditingLessonTitle] = useState('');
+    const [isSavingEdit, setIsSavingEdit] = useState(false);
+    const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
     useEffect(() => {
         if (course) {
@@ -137,6 +146,49 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
         const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/;
         const match = urlOrId.match(regex);
         return match ? match[1] : null;
+    };
+
+    const handleEditLesson = (lesson: Lesson) => {
+        setEditingLessonId(lesson.id);
+        setEditingLessonTitle(lesson.title);
+    };
+
+    const handleSaveLessonEdit = async (lessonId: number) => {
+        if (!editingLessonTitle.trim()) {
+            alert('Lesson title cannot be empty');
+            return;
+        }
+
+        try {
+            setIsSavingEdit(true);
+            await apiClient.patch(`/lessons/${lessonId}/`, {
+                title: editingLessonTitle
+            });
+            // Trigger parent to refresh courses
+            if (onUpdateLesson) {
+                onUpdateLesson(course.id, lessonId, { title: editingLessonTitle });
+            }
+            setEditingLessonId(null);
+        } catch (error) {
+            console.error('Failed to update lesson:', error);
+            alert('Failed to update lesson. Please try again.');
+        } finally {
+            setIsSavingEdit(false);
+        }
+    };
+
+    const handleDeleteLesson = async (lessonId: number) => {
+        try {
+            setDeleteConfirmId(null);
+            await apiClient.delete(`/lessons/${lessonId}/`);
+            // Trigger parent to refresh courses
+            if (onUpdateLesson) {
+                onUpdateLesson(course.id, lessonId, {});
+            }
+        } catch (error) {
+            console.error('Failed to delete lesson:', error);
+            alert('Failed to delete lesson. Please try again.');
+        }
     };
 
     const getLinkedAssessment = (lessonId: number) => {
@@ -254,6 +306,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                     <ul className="space-y-3">
                         {visibleLessons.map((lesson, index) => {
                             const linkedAssessment = getLinkedAssessment(lesson.id);
+                            const isEditing = editingLessonId === lesson.id;
                             
                             return (
                             <li key={index} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 rounded-xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-blue-200 dark:hover:border-slate-500 transition-all duration-200">
@@ -262,50 +315,110 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                                         <PlayIcon className="w-4 h-4 text-white" />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="font-semibold text-sm sm:text-base truncate text-gray-800 dark:text-white">{lesson.title}</p>
-                                        <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-gray-500 dark:text-gray-400 mt-1.5">
-                                            <span className="flex items-center gap-1 bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded-full">
-                                                <ClockIcon className="w-3 h-3" /> {lesson.duration}
-                                            </span>
-                                            {lesson.isCompleted && <span className="text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-100 dark:bg-emerald-900/30 px-2 py-1 rounded-full">✓ Completed</span>}
-                                            {linkedAssessment && (
-                                                <span 
-                                                    className="flex items-center gap-1 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 px-2 py-1 rounded-full font-medium cursor-pointer hover:bg-teal-200 dark:hover:bg-teal-900/50"
-                                                    onClick={(e) => { e.stopPropagation(); onSelectExam && onSelectExam(linkedAssessment.id); }}
+                                        {isEditing ? (
+                                            <div className="flex gap-2 items-center mb-2">
+                                                <input
+                                                    type="text"
+                                                    value={editingLessonTitle}
+                                                    onChange={(e) => setEditingLessonTitle(e.target.value)}
+                                                    className="flex-1 px-2 py-1 border border-slate-300 rounded text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                                                    placeholder="Lesson title"
+                                                    autoFocus
+                                                />
+                                                <button
+                                                    onClick={() => handleSaveLessonEdit(lesson.id)}
+                                                    disabled={isSavingEdit}
+                                                    className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50"
                                                 >
-                                                    <ClipboardCheckIcon className="w-3 h-3" /> Quiz Available
-                                                </span>
-                                            )}
-                                        </div>
+                                                    {isSavingEdit ? 'Saving...' : 'Save'}
+                                                </button>
+                                                <button
+                                                    onClick={() => setEditingLessonId(null)}
+                                                    className="px-3 py-1 bg-gray-400 text-white text-sm rounded hover:bg-gray-500"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <p className="font-semibold text-sm sm:text-base truncate text-gray-800 dark:text-white">{lesson.title}</p>
+                                                <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                                                    <span className="flex items-center gap-1 bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded-full">
+                                                        <ClockIcon className="w-3 h-3" /> {lesson.duration}
+                                                    </span>
+                                                    {lesson.isCompleted && <span className="text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-100 dark:bg-emerald-900/30 px-2 py-1 rounded-full">✓ Completed</span>}
+                                                    {linkedAssessment && (
+                                                        <span 
+                                                            className="flex items-center gap-1 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 px-2 py-1 rounded-full font-medium cursor-pointer hover:bg-teal-200 dark:hover:bg-teal-900/50"
+                                                            onClick={(e) => { e.stopPropagation(); onSelectExam && onSelectExam(linkedAssessment.id); }}
+                                                        >
+                                                            <ClipboardCheckIcon className="w-3 h-3" /> Quiz Available
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
-                                <div className="flex gap-2 w-full sm:w-auto">
-                                    {linkedAssessment && (
-                                        <Button
-                                            variant="secondary"
-                                            size="sm"
-                                            className="flex-1 sm:flex-none border-teal-200 text-teal-700 hover:bg-teal-50"
-                                            onClick={() => onSelectExam && onSelectExam(linkedAssessment.id)}
+                                {deleteConfirmId === lesson.id ? (
+                                    <div className="flex gap-2 w-full sm:w-auto bg-red-50 dark:bg-red-900/20 p-2 rounded">
+                                        <p className="text-sm text-red-700 dark:text-red-400 flex-1 flex items-center">Delete this lesson?</p>
+                                        <button
+                                            onClick={() => handleDeleteLesson(lesson.id)}
+                                            className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
                                         >
-                                            Take Quiz
+                                            Yes
+                                        </button>
+                                        <button
+                                            onClick={() => setDeleteConfirmId(null)}
+                                            className="px-3 py-1 bg-gray-400 text-white text-sm rounded hover:bg-gray-500"
+                                        >
+                                            No
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="flex gap-2 w-full sm:w-auto">
+                                        {linkedAssessment && (
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                className="flex-1 sm:flex-none border-teal-200 text-teal-700 hover:bg-teal-50"
+                                                onClick={() => onSelectExam && onSelectExam(linkedAssessment.id)}
+                                            >
+                                                Take Quiz
+                                            </Button>
+                                        )}
+                                        <Button
+                                            onClick={() =>
+                                                onStartLesson({
+                                                    videoId: lesson.videoId,
+                                                    transcript: lesson.transcript || dummyTranscript,
+                                                    title: lesson.title,
+                                                    courseId: course.id,
+                                                    lessonId: lesson.id,
+                                                    attachToCourse: false,
+                                                })
+                                            }
+                                            className="flex-1 sm:flex-none justify-center"
+                                        >
+                                            {lesson.isCompleted ? 'Review' : 'Start'}
                                         </Button>
-                                    )}
-                                    <Button
-                                        onClick={() =>
-                                            onStartLesson({
-                                                videoId: lesson.videoId,
-                                                transcript: lesson.transcript || dummyTranscript,
-                                                title: lesson.title,
-                                                courseId: course.id,
-                                                lessonId: lesson.id,
-                                                attachToCourse: false,
-                                            })
-                                        }
-                                        className="flex-1 sm:flex-none justify-center"
-                                    >
-                                        {lesson.isCompleted ? 'Review' : 'Start'}
-                                    </Button>
-                                </div>
+                                        <button
+                                            onClick={() => handleEditLesson(lesson)}
+                                            className="px-3 py-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                                            title="Edit lesson"
+                                        >
+                                            ✏️
+                                        </button>
+                                        <button
+                                            onClick={() => setDeleteConfirmId(lesson.id)}
+                                            className="px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                                            title="Delete lesson"
+                                        >
+                                            🗑️
+                                        </button>
+                                    </div>
+                                )}
                             </li>
                         )})}
                     </ul>

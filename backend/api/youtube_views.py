@@ -57,7 +57,8 @@ def extract_youtube_transcript(request):
                 'metadata': result['metadata'],
                 'transcript': result['transcript'],
                 'available_languages': result['available_languages'],
-                'chapters': result['chapters']
+                'chapters': result['chapters'],
+                'fallbacks': result.get('transcript', {}).get('fallbacks', [])
             }
             cache.set(cache_key, cache_data, 3600)  # 1 hour
             
@@ -67,11 +68,22 @@ def extract_youtube_transcript(request):
                 **cache_data
             })
         else:
-            return Response({
+            # Transcript extraction failed, but return 200 OK so frontend can handle gracefully
+            # (user can still start session without transcript or provide it manually)
+            failure_payload = {
                 'success': False,
-                'error': result.get('error', 'Failed to extract transcript'),
-                'url': url
-            }, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+                'error': result.get('error', 'Could not extract transcript from this video'),
+                'url': url,
+                'video_id': result.get('video_id'),
+                'transcript': {'transcript': '', 'segments': []},
+                'fallbacks': result.get('transcript', {}).get('fallbacks', [])
+            }
+            # Include any server-side debug snapshot from YouTube fetches
+            if result.get('server_debug'):
+                failure_payload['_server'] = result.get('server_debug')
+
+            # Return 200 OK instead of 422 - let frontend decide how to handle it
+            return Response(failure_payload, status=status.HTTP_200_OK)
             
     except Exception as e:
         return Response({

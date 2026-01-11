@@ -45,6 +45,8 @@ export const LoginScreen: React.FC = () => {
     } catch (err: any) {
       console.error('Authentication failed:', err);
       const data = err?.response?.data;
+      // Helpful debug logging in dev
+      if (data) console.debug('Auth error response data:', data);
       let message =
         err?.response?.data?.detail ||
         err?.response?.data?.non_field_errors?.[0];
@@ -60,7 +62,12 @@ export const LoginScreen: React.FC = () => {
       }
 
       if (!message) {
-        message = err?.message || 'Authentication failed. Please try again.';
+        // Prefer a server-provided message if present
+        message = (data && typeof data === 'string' && data) || err?.message || 'Authentication failed. Please try again.';
+      }
+      // In development, append raw server JSON to help debugging (not shown to end users in production)
+      if (process.env.NODE_ENV !== 'production' && data && typeof data === 'object') {
+        message = `${message} — ${JSON.stringify(data)}`;
       }
       setError(message);
     } finally {

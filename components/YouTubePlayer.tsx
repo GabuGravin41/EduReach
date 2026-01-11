@@ -1,5 +1,4 @@
-import React, { forwardRef, useImperativeHandle, useRef, useMemo } from 'react';
-import YouTube, { YouTubeProps, YouTubePlayer as GoogleYouTubePlayer } from 'react-youtube';
+import React, { forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react';
 
 export interface YouTubePlayerHandle {
   seekTo: (seconds: number) => void;
@@ -12,54 +11,84 @@ interface CustomYouTubePlayerProps {
   videoId: string;
   initialTime?: number;
   className?: string;
-  onReady?: YouTubeProps['onReady'];
-  onStateChange?: YouTubeProps['onStateChange'];
+  onReady?: () => void;
+  onStateChange?: () => void;
 }
 
 const YouTubePlayer = forwardRef<YouTubePlayerHandle, CustomYouTubePlayerProps>(
   ({ videoId, initialTime = 0, className = '', onReady, onStateChange }, ref) => {
-    const playerRef = useRef<GoogleYouTubePlayer | null>(null);
-
-    // Options for filling the container
-    const playerOptions = useMemo<YouTubeProps['opts']>(() => ({
-      height: '100%',
-      width: '100%',
-      playerVars: {
-        autoplay: 0,
-        modestbranding: 1,
-        rel: 0,
-        playsinline: 1,
-        start: Math.floor(initialTime),
-      },
-    }), [initialTime]);
+    const iframeRef = useRef<HTMLIFrameElement | null>(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     useImperativeHandle(ref, () => ({
-      seekTo: (seconds: number) => playerRef.current?.seekTo(seconds, true),
-      getCurrentTime: () => playerRef.current?.getCurrentTime() ?? 0,
-      pause: () => playerRef.current?.pauseVideo(),
-      play: () => playerRef.current?.playVideo(),
+      seekTo: (seconds: number) => {
+        if (iframeRef.current && iframeRef.current.contentWindow) {
+          iframeRef.current.contentWindow.postMessage({
+            event: 'command',
+            func: 'seekTo',
+            args: [seconds, true]
+          }, '*');
+        }
+      },
+      getCurrentTime: () => 0,
+      pause: () => {
+        if (iframeRef.current && iframeRef.current.contentWindow) {
+          iframeRef.current.contentWindow.postMessage({
+            event: 'command',
+            func: 'pauseVideo'
+          }, '*');
+        }
+      },
+      play: () => {
+        if (iframeRef.current && iframeRef.current.contentWindow) {
+          iframeRef.current.contentWindow.postMessage({
+            event: 'command',
+            func: 'playVideo'
+          }, '*');
+        }
+      },
     }), []);
 
-    const handleReady: YouTubeProps['onReady'] = (event) => {
-      playerRef.current = event.target;
-      if (initialTime > 0) {
-        event.target.seekTo(initialTime, true);
-      }
-      onReady?.(event);
+    useEffect(() => {
+      // Signal ready after iframe mounts
+      onReady?.();
+    }, [videoId, onReady]);
+
+    // Build the embed URL with nocookie domain to bypass consent banners
+    const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?start=${Math.floor(initialTime)}&autoplay=0&modestbranding=1&rel=0&playsinline=1&enablejsapi=1`;
+
+    const handleIframeError = () => {
+      setLoadError(`Unable to load video (${videoId})`);
     };
 
     return (
       <div className={`relative w-full h-full min-h-0 ${className}`}>
-        <YouTube
-          videoId={videoId}
-          opts={playerOptions}
-          onReady={handleReady}
-          onStateChange={onStateChange}
-          // The wrapper container from react-youtube
-          className="w-full h-full"
-          // The actual iframe
-          iframeClassName="absolute inset-0 w-full h-full"
-        />
+        {!loadError ? (
+          <iframe
+            ref={iframeRef}
+            src={embedUrl}
+            title={`YouTube video: ${videoId}`}
+            className="absolute inset-0 w-full h-full border-0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+            onError={handleIframeError}
+            onLoad={() => {
+              setLoadError(null);
+              onReady?.();
+            }}
+          />
+        ) : (
+          <div className="relative w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-800">
+            <div className="text-center p-6">
+              <p className="text-sm text-slate-700 dark:text-slate-300 mb-3">{loadError}</p>
+              <a
+                href={`https://www.youtube.com/watch?v=${videoId}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-block px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded font-medium transition"
+              >Watch on YouTube</a>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

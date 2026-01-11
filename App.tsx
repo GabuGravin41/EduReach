@@ -3,7 +3,7 @@ import { Assessment } from './types';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { authService } from './src/services/authService';
-import { useCourses, useCreateCourse, useCourse, COURSE_KEYS } from './src/hooks/useCourses';
+import { useCourses, useCreateCourse, useCourse, COURSE_KEYS, useMyCourses } from './src/hooks/useCourses';
 import { useAssessments, useCreateAssessment } from './src/hooks/useAssessments';
 import { usePosts, useCreatePost, useToggleLike, useAddComment, useDeletePost } from './src/hooks/useCommunity';
 import { Sidebar } from './components/Sidebar';
@@ -71,28 +71,17 @@ const initialAssessments: any[] = [];
 const initialPosts: any[] = [];
 
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
     const { user, logout, isLoading } = useAuth();
+    const queryClient = useQueryClient();
     const [currentView, setCurrentView] = useState<View>('dashboard');
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [userTier, setUserTier] = useState<UserTier>('free');
     
-    // Data State
-    const [courses, setCourses] = useState<Course[]>([
-      {
-          id: 1,
-          title: "React Fundamentals",
-          description: "Learn the basics of React including components, props, and state.",
-          progress: 35,
-          thumbnail: "",
-          isPublic: false,
-          lessons: [
-              { id: 101, title: "Intro to JSX", videoId: "bMknfKXIFA8", duration: "10:05", isCompleted: true, transcript: "Welcome to React..." },
-              { id: 102, title: "Components and Props", videoId: "4UZrsTqkcW4", duration: "15:20", isCompleted: false, transcript: "Today we talk about props..." }
-          ]
-      }
-    ]);
+    // Fetch courses from backend using React Query
+    const { data: coursesData = [] } = useCourses();
+    const courses = Array.isArray(coursesData) ? coursesData : [];
     const [assessments, setAssessments] = useState<Assessment[]>([
         { id: 1, title: "React Basics Quiz", topic: "React", questions: 10, time: 15, status: "completed", score: "9/10", assessment_type: "quiz", description: "Test your knowledge on components." }
     ]);
@@ -109,19 +98,18 @@ const App: React.FC = () => {
           setUserTier(user.tier);
       }
     }, [user]);
+
+    useEffect(() => {
+      console.log('Courses updated from React Query:', courses);
+    }, [courses]);
   
     const limits = {
         lessonsPerCourse: userTier === 'free' ? 5 : Infinity
     };
   
     const handleCourseCreated = (newCourse: any) => {
-        const course: Course = {
-            ...newCourse,
-            id: Date.now(),
-            progress: 0,
-            lessons: newCourse.lessons || []
-        };
-        setCourses([...courses, course]);
+        // Invalidate courses query to fetch fresh data from backend
+        queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() });
         setCurrentView('courses');
     };
   
@@ -171,8 +159,8 @@ const App: React.FC = () => {
                   userTier={userTier} 
                   assessments={assessments} 
                   onSelectExam={(id) => { setSelectedExamId(id); setCurrentView('exam_detail'); }} 
-                  onUpdateCourse={(cId, updates) => setCourses(courses.map(c => c.id === cId ? {...c, ...updates} : c))}
-                  onUpdateLesson={(cId, lId, updates) => setCourses(courses.map(c => c.id === cId ? {...c, lessons: c.lessons.map(l => l.id === lId ? {...l, ...updates} : l)} : c))}
+                  onUpdateCourse={(cId, updates) => { queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() }); }}
+                  onUpdateLesson={(cId, lId, updates) => { queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() }); }}
               />
            ) : <div>Course not found</div>;
         case 'assessments':
@@ -195,19 +183,25 @@ const App: React.FC = () => {
         case 'admin_panel':
            return <AdminDashboard stats={{totalUsers: 100, coursesCreated: courses.length, activeAssessments: assessments.length}} />;
         case 'setup_session':
-           return <SetupSession onSessionCreated={(data) => { setSessionData(data); setCurrentView('learning_session'); }} courses={courses} />;
+           return <SetupSession onSessionCreated={async (data) => { 
+             // Refresh courses after session is created (since a new personal course might have been created)
+             console.log('onSessionCreated called with data:', data);
+             console.log('Before invalidation, current courses:', courses);
+             // Wait for the query to refetch before proceeding
+             await queryClient.refetchQueries({ queryKey: COURSE_KEYS.lists() });
+             console.log('Query refetched, new courses:', courses);
+             setSessionData(data); 
+             setCurrentView('learning_session'); 
+           }} courses={courses} />;
         case 'learning_session':
            if (sessionData) {
-               const currentCourse = sessionData.courseId ? courses.find(c => c.id === sessionData.courseId) : undefined;
-               const currentLesson = sessionData.lessonId && currentCourse ? currentCourse.lessons.find(l => l.id === sessionData.lessonId) : undefined;
-               
                return <LearningSession 
                   videoId={sessionData.videoId} 
                   transcript={sessionData.transcript} 
                   courseId={sessionData.courseId || 0}
-                  currentLesson={currentLesson}
+                  currentLesson={null}
                   onUpdateLesson={(cId, lId, updates) => {
-                      setCourses(courses.map(c => c.id === cId ? { ...c, lessons: c.lessons.map(l => l.id === lId ? { ...l, ...updates } : l) } : c));
+                      queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() });
                   }}
                   onSaveAssessment={(assessment) => {
                       setAssessments([...assessments, assessment]);
@@ -249,7 +243,7 @@ const App: React.FC = () => {
     );
   };
 
-export default App;
+export default AppContent;
 
 // const AppContent: React.FC = () => {
 //     const { user, isLoading, isAuthenticated, logout } = useAuth();

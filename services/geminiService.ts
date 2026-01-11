@@ -1,13 +1,81 @@
 import { GoogleGenAI, Type, Chat } from "@google/genai";
 import type { QuizQuestion, AssessmentMode } from '../types';
 
-const API_KEY = process.env.GEMINI_API_KEY;
+// Support both Vite env var naming and a generic one
+const API_KEY = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
 if (!API_KEY) {
-  console.error("GEMINI_API_KEY environment variable is not set. Check your .env.local file and vite.config.ts");
-  throw new Error("GEMINI_API_KEY environment variable is not set");
+    console.warn(
+        'GEMINI API key not set (VITE_GEMINI_API_KEY or GEMINI_API_KEY). Gemini calls will fail until configured.'
+    );
 }
 
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+const ai = API_KEY ? new GoogleGenAI({ apiKey: API_KEY }) : null;
+
+// Allow changing model via env: VITE_GEMINI_MODEL or GEMINI_MODEL_NAME
+const DEFAULT_MODEL = process.env.VITE_GEMINI_MODEL || process.env.GEMINI_MODEL_NAME || 'gemini-2.5-flash';
+
+// Simple helper to sleep
+const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+// Request queue to prevent overwhelming the API
+let requestQueue: Promise<any> = Promise.resolve();
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 1000; // 1 second minimum between requests to respect API limits
+
+function enqueueRequest<T>(fn: () => Promise<T>): Promise<T> {
+    requestQueue = requestQueue.then(async () => {
+        const elapsed = Date.now() - lastRequestTime;
+        if (elapsed < MIN_REQUEST_INTERVAL) {
+            await sleep(MIN_REQUEST_INTERVAL - elapsed);
+        }
+        lastRequestTime = Date.now();
+        return fn();
+    });
+    return requestQueue;
+}
+
+function isRateLimitError(err: any) {
+    try {
+        if (!err) return false;
+        // Google client often wraps the payload in err.error
+        const code = err?.error?.code || err?.statusCode || err?.status;
+        if (code === 429) return true;
+        const msg = JSON.stringify(err?.error || err?.message || err || '');
+        return /quota|rate limit|RESOURCE_EXHAUSTED|429/i.test(msg);
+    } catch (_e) {
+        return false;
+    }
+}
+
+async function generateContentWithRetries(params: any, maxRetries = 5) {
+    if (!ai) throw new Error('Gemini client not initialized (missing API key)');
+
+    return enqueueRequest(async () => {
+        let attempt = 0;
+        let backoff = 2000; // start with 2 seconds (much longer to avoid 429s)
+
+        while (attempt <= maxRetries) {
+            try {
+                return await ai.models.generateContent(params);
+            } catch (err: any) {
+                attempt += 1;
+                if (isRateLimitError(err) && attempt <= maxRetries) {
+                    const jitter = Math.floor(Math.random() * 2000);
+                    const waitTime = backoff + jitter;
+                    console.warn(`Rate limited (429). Retrying in ${Math.round(waitTime / 1000)}s (attempt ${attempt}/${maxRetries})`);
+                    await sleep(waitTime);
+                    backoff = Math.min(backoff * 1.5, 30000); // cap at 30s, slower multiplier
+                    continue;
+                }
+                // Not a retryable error or retries exhausted
+                const errMsg = err?.error?.message || err?.message || JSON.stringify(err);
+                throw new Error(`Gemini API error: ${errMsg}`);
+            }
+        }
+        // Retries exhausted
+        throw new Error('Gemini API: Too many requests. Please wait and try again.');
+    });
+}
 
 const cleanJsonString = (str: string) => {
     // Remove markdown code blocks if present
@@ -140,7 +208,7 @@ export const generateAssessmentFromSource = async (
     questionType: QuestionType,
     mode: AssessmentMode = 'quiz'
 ): Promise<{ title: string; description: string; questions: any[] }> => {
-    const model = 'gemini-2.5-flash';
+    const model = process.env.VITE_GEMINI_MODEL || DEFAULT_MODEL;
 
     const questionSchema = getQuestionSchema(questionType);
 
@@ -194,7 +262,7 @@ export const generateAssessmentFromSource = async (
     }
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await generateContentWithRetries({
             model,
             contents: prompt,
             config: {
@@ -203,12 +271,15 @@ export const generateAssessmentFromSource = async (
                 responseSchema: assessmentSchema,
             }
         });
-        
+
         const jsonString = cleanJsonString(response.text);
         return JSON.parse(jsonString);
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error generating assessment:", error);
+        if (isRateLimitError(error)) {
+            throw new Error('Gemini quota or rate limit exceeded. Consider upgrading your plan or switching to a pro model.');
+        }
         throw new Error("Failed to generate assessment from source text.");
     }
 };
@@ -219,7 +290,7 @@ export const gradeEssayQuestion = async (
     modelSolution: string, 
     rubric?: any[]
 ): Promise<{ score: number; feedback: string }> => {
-    const model = 'gemini-2.5-flash';
+    const model = process.env.VITE_GEMINI_MODEL || DEFAULT_MODEL;
     
     const rubricText = rubric 
         ? JSON.stringify(rubric) 
@@ -251,7 +322,7 @@ export const gradeEssayQuestion = async (
     }`;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await generateContentWithRetries({
             model,
             contents: prompt,
             config: {
@@ -266,17 +337,20 @@ export const gradeEssayQuestion = async (
                 }
             }
         });
-        
+
         const jsonString = cleanJsonString(response.text);
         return JSON.parse(jsonString);
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error grading essay:", error);
+        if (isRateLimitError(error)) {
+            return { score: 0, feedback: 'Gemini quota exceeded; please try again later.' };
+        }
         return { score: 0, feedback: "Error grading submission. Please try again." };
     }
 };
 
 export const generateQuiz = async (transcript: string): Promise<QuizQuestion[]> => {
-  const model = 'gemini-2.5-flash';
+    const model = process.env.VITE_GEMINI_MODEL || DEFAULT_MODEL;
 
   // Truncate transcript if excessively long to prevent token errors before we even get to the model
   const effectiveTranscript = transcript.length > 50000 ? transcript.substring(0, 50000) + "...(truncated)" : transcript;
@@ -289,27 +363,30 @@ ${effectiveTranscript}
 ---
 `;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: model,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: quizSchema,
-      }
-    });
+        try {
+        const response = await generateContentWithRetries({
+            model: model,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: quizSchema,
+            }
+        });
 
-    const jsonString = cleanJsonString(response.text);
-    const quizData = JSON.parse(jsonString);
-    return quizData;
-  } catch (error) {
-    console.error("Error generating quiz:", error);
-    throw new Error("Failed to generate quiz from transcript.");
-  }
+        const jsonString = cleanJsonString(response.text);
+        const quizData = JSON.parse(jsonString);
+        return quizData;
+    } catch (error: any) {
+        console.error("Error generating quiz:", error);
+        if (isRateLimitError(error)) {
+            throw new Error('Gemini quota exceeded; please try again later or upgrade your plan.');
+        }
+        throw new Error("Failed to generate quiz from transcript.");
+    }
 };
 
 export const generateResponseWithContext = async (message: string, context: string): Promise<string> => {
-    const model = 'gemini-2.5-flash';
+    const model = process.env.VITE_GEMINI_MODEL || DEFAULT_MODEL;
     
     const prompt = `You are Edu, an AI learning assistant. Answer the user's question based ONLY on the provided context below.
     
@@ -323,20 +400,19 @@ User Question: ${message}
 Answer:`;
 
     try {
-        const response = await ai.models.generateContent({
-            model: model,
-            contents: prompt,
-        });
+        const response = await generateContentWithRetries({ model: model, contents: prompt });
         return response.text || "I couldn't generate a response.";
-    } catch (error) {
+    } catch (error: any) {
         console.error("Chat error:", error);
+        if (isRateLimitError(error)) return 'Gemini quota exceeded; please try again later.';
         return "I'm having trouble processing that request right now.";
     }
 };
 
 // Deprecated in favor of stateless generation for long transcripts, but kept for compatibility
 export const createChat = (transcript: string): Chat => {
-    const model = 'gemini-2.5-flash';
+    const model = process.env.VITE_GEMINI_MODEL || DEFAULT_MODEL;
+    if (!ai) throw new Error('Gemini client not initialized (missing API key)');
     const chat = ai.chats.create({
         model: model,
         config: {

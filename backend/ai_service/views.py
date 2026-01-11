@@ -7,8 +7,80 @@ import google.generativeai as genai
 import json
 import logging
 import re
+import requests
 
 logger = logging.getLogger(__name__)
+
+
+def _is_rate_limit_error(exc: Exception) -> bool:
+    try:
+        text = str(exc)
+        if 'RESOURCE_EXHAUSTED' in text or 'quota' in text.lower() or '429' in text:
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def call_generate_content_with_handling(model, *args, **kwargs):
+    try:
+        return model.generate_content(*args, **kwargs)
+    except Exception as e:
+        if _is_rate_limit_error(e):
+            # Raise a specific error that callers can translate to 429
+            raise RuntimeError('GEMINI_QUOTA_EXCEEDED: ' + str(e))
+        raise
+
+
+def call_openrouter(prompt: str, model_name: str = None, max_tokens: int = 400):
+    """Simple OpenRouter invocation as a fallback provider.
+
+    Uses settings.OPENROUTER_API_KEY and optional settings.OPENROUTER_API_URL.
+    Returns an object with a .text attribute for compatibility with Gemini responses.
+    """
+    api_key = getattr(settings, 'OPENROUTER_API_KEY', None)
+    if not api_key:
+        raise RuntimeError('OPENROUTER_API_KEY not configured')
+
+    api_url = getattr(settings, 'OPENROUTER_API_URL', 'https://api.openrouter.ai/v1/chat/completions')
+    model = model_name or getattr(settings, 'OPENROUTER_MODEL', 'gpt-4o-mini')
+
+    payload = {
+        'model': model,
+        'messages': [{'role': 'user', 'content': prompt}],
+        'max_tokens': max_tokens,
+    }
+
+    headers = {
+        'Authorization': f'Bearer {api_key}',
+        'Content-Type': 'application/json'
+    }
+
+    resp = requests.post(api_url, json=payload, headers=headers, timeout=60)
+    if resp.status_code >= 400:
+        raise RuntimeError(f'OpenRouter error: {resp.status_code} {resp.text}')
+
+    data = resp.json()
+    # Try common response shapes
+    text = None
+    try:
+        text = data.get('choices', [])[0].get('message', {}).get('content')
+    except Exception:
+        pass
+    if not text:
+        try:
+            text = data.get('choices', [])[0].get('text')
+        except Exception:
+            pass
+    if not text:
+        # fallback to raw stringified body
+        text = json.dumps(data)
+
+    class _R:
+        def __init__(self, t):
+            self.text = t
+
+    return _R(text)
 
 
 def chunk_text_for_ai(text: str, max_chunk_size: int = 3500):
@@ -125,7 +197,8 @@ Return ONLY valid JSON (no extra text):
 Be concise. Questions should test key concepts."""
         
         # Generate content with faster, concise output
-        response = model.generate_content(
+        response = call_generate_content_with_handling(
+            model,
             prompt,
             generation_config=genai.types.GenerationConfig(max_output_tokens=1000, temperature=0.7)
         )
@@ -156,6 +229,8 @@ Be concise. Questions should test key concepts."""
     
     except Exception as e:
         logger.error(f"Error generating quiz: {str(e)}", exc_info=True)
+        if 'GEMINI_QUOTA_EXCEEDED' in str(e):
+            return Response({'error': 'Gemini quota exceeded. Please check billing or retry later.'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         return Response(
             {'error': str(e), 'type': type(e).__name__},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -233,7 +308,8 @@ If they ask something off-topic, politely redirect them back to the learning mat
         
         # Generate content with appropriate token limits
         max_tokens = 300 if wants_detailed else 150
-        response = model.generate_content(
+        response = call_generate_content_with_handling(
+            model,
             full_prompt,
             generation_config=genai.types.GenerationConfig(
                 max_output_tokens=max_tokens,
@@ -248,6 +324,8 @@ If they ask something off-topic, politely redirect them back to the learning mat
     
     except Exception as e:
         logger.error(f"Error in chat: {str(e)}", exc_info=True)
+        if 'GEMINI_QUOTA_EXCEEDED' in str(e):
+            return Response({'error': 'Gemini quota exceeded. Please check billing or retry later.'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         return Response(
             {'error': str(e), 'type': type(e).__name__},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -304,7 +382,8 @@ Milestones: [checkpoints]
 Keep it concise and actionable."""
         
         # Generate content with moderate output
-        response = model.generate_content(
+        response = call_generate_content_with_handling(
+            model,
             prompt,
             generation_config=genai.types.GenerationConfig(max_output_tokens=600, temperature=0.7)
         )
@@ -315,10 +394,125 @@ Keep it concise and actionable."""
         )
     
     except Exception as e:
+        if 'GEMINI_QUOTA_EXCEEDED' in str(e):
+            return Response({'error': 'Gemini quota exceeded. Please check billing or retry later.'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         return Response(
             {'error': str(e)},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def summarize_chunks(request):
+    """
+    Summarize an array of transcript chunks and return per-chunk summaries plus a global summary.
+
+    Expected body:
+    {
+        "chunks": ["text chunk 1", "text chunk 2", ...]
+        -- OR --
+        "transcript": "full transcript string"
+    }
+    """
+    try:
+        chunks = request.data.get('chunks')
+        transcript = request.data.get('transcript', '')
+
+        if not chunks and not transcript:
+            return Response({'error': 'Either "chunks" or "transcript" is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # If transcript provided, chunk it using the same chunking as other endpoints
+        if not chunks and transcript:
+            chunks = chunk_text_for_ai(transcript)
+
+        if not isinstance(chunks, list) or len(chunks) == 0:
+            return Response({'error': 'No valid chunks to summarize'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Configure Gemini
+        configure_gemini()
+
+        model_name = getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash')
+        if 'flash' not in model_name.lower():
+            model_name = 'gemini-2.5-flash'
+        model = genai.GenerativeModel(model_name)
+
+        chunk_summaries = []
+        for idx, chunk_text in enumerate(chunks):
+            try:
+                prompt = f"""Summarize the following video transcript chunk in 2-3 concise sentences, then provide 3 bullet point key takeaways. Keep language simple and factual.
+
+Chunk {idx+1} of {len(chunks)}:
+{chunk_text}
+
+Output:
+Summary:\n- <one line summary>\nTakeaways:\n- item1\n- item2\n- item3
+"""
+
+                # Prefer OpenRouter when configured explicitly
+                try:
+                    if getattr(settings, 'PREFER_OPENROUTER', False):
+                        resp = call_openrouter(prompt, getattr(settings, 'OPENROUTER_MODEL', None), max_tokens=200)
+                    else:
+                        resp = call_generate_content_with_handling(
+                            model,
+                            prompt,
+                            generation_config=genai.types.GenerationConfig(max_output_tokens=200, temperature=0.2)
+                        )
+                except Exception as e:
+                    # If Gemini quota error or other failure, try OpenRouter as fallback
+                    if 'GEMINI_QUOTA_EXCEEDED' in str(e) or getattr(settings, 'OPENROUTER_API_KEY', None):
+                        try:
+                            resp = call_openrouter(prompt, getattr(settings, 'OPENROUTER_MODEL', None), max_tokens=200)
+                        except Exception as e2:
+                            logger.error(f"OpenRouter fallback failed: {str(e2)}")
+                            raise
+                    else:
+                        raise
+
+                response = resp
+
+                chunk_summaries.append({
+                    'index': idx,
+                    'summary': response.text.strip()
+                })
+            except Exception as e:
+                chunk_summaries.append({'index': idx, 'summary': f'Error generating summary: {str(e)}'})
+
+        # Combine chunk summaries into a global summary
+        try:
+            combined_prompt = "Combine the following chunk summaries into a cohesive 3-4 sentence global summary and provide 5 concise key takeaways. Keep it factual and do not invent new information.\n\n" + "\n\n---\n\n".join([cs['summary'] for cs in chunk_summaries])
+
+            try:
+                if getattr(settings, 'PREFER_OPENROUTER', False):
+                    combined_resp = call_openrouter(combined_prompt, getattr(settings, 'OPENROUTER_MODEL', None), max_tokens=400)
+                else:
+                    combined_resp = call_generate_content_with_handling(
+                        model,
+                        combined_prompt,
+                        generation_config=genai.types.GenerationConfig(max_output_tokens=400, temperature=0.2)
+                    )
+            except Exception as e:
+                if 'GEMINI_QUOTA_EXCEEDED' in str(e) or getattr(settings, 'OPENROUTER_API_KEY', None):
+                    combined_resp = call_openrouter(combined_prompt, getattr(settings, 'OPENROUTER_MODEL', None), max_tokens=400)
+                else:
+                    raise
+
+            global_summary = combined_resp.text.strip()
+        except Exception as e:
+            global_summary = f'Error generating global summary: {str(e)}'
+
+        return Response({
+            'success': True,
+            'chunk_summaries': chunk_summaries,
+            'global_summary': global_summary
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        logger.error(f"Error in summarize_chunks: {str(e)}", exc_info=True)
+        if 'GEMINI_QUOTA_EXCEEDED' in str(e):
+            return Response({'error': 'Gemini quota exceeded. Please check billing or retry later.'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        return Response({'error': str(e), 'type': type(e).__name__}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
@@ -363,7 +557,8 @@ def explain_concept(request):
         prompt = level_prompts.get(detail_level, level_prompts['detailed'])
         
         # Generate content with concise output
-        response = model.generate_content(
+        response = call_generate_content_with_handling(
+            model,
             prompt,
             generation_config=genai.types.GenerationConfig(max_output_tokens=300, temperature=0.7)
         )
@@ -374,6 +569,8 @@ def explain_concept(request):
         )
     
     except Exception as e:
+        if 'GEMINI_QUOTA_EXCEEDED' in str(e):
+            return Response({'error': 'Gemini quota exceeded. Please check billing or retry later.'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         return Response(
             {'error': str(e)},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR

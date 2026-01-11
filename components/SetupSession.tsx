@@ -82,34 +82,62 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
     }
     
     // If no transcript yet, try to fetch it
+    let finalTranscript = transcript;
     if (!transcript.trim() && autoFetchEnabled) {
       const fetchedTranscript = await fetchTranscript(youtubeUrl, language);
       if (fetchedTranscript) {
-        onSessionCreated({
-            videoId,
-            transcript: fetchedTranscript,
-            title: sessionTitle || 'Learning Session',
-            courseId: selectedCourseId !== 'none' ? Number(selectedCourseId) : null,
-        });
-        return;
+        finalTranscript = fetchedTranscript;
+      } else {
+        finalTranscript = '[Transcript could not be automatically extracted. You can provide it manually in the learning session.]';
       }
     }
     
-    if (!transcript.trim()) {
-      setError('Please provide a transcript for the video or enable auto-fetch.');
+    // Validate that we have either video ID or transcript
+    if (!videoId && !finalTranscript.trim()) {
+      setError('Please enter a valid YouTube URL or transcript.');
       return;
     }
     
+    // Call backend to save session to course
+    setIsLoading(true);
     try {
-      await onSessionCreated({
-        videoId,
-        transcript,
+      const courseId = selectedCourseId !== 'none' ? Number(selectedCourseId) : undefined;
+      
+      console.log('Starting session with:', { videoId, courseId, title: sessionTitle });
+      
+      const response = await apiClient.post('/courses/start_session/', {
         title: sessionTitle || 'Learning Session',
-        courseId: selectedCourseId !== 'none' ? Number(selectedCourseId) : null,
+        video_id: videoId,
+        video_url: youtubeUrl,
+        transcript: finalTranscript,
+        transcript_language: language,
+        course_id: courseId
       });
-    } catch (submissionError) {
-      console.error('Failed to start session', submissionError);
-      setError('Failed to start session. Please try again.');
+      
+      console.log('Session response:', response.data);
+      
+      const data = response.data;
+      if (data.success && data.lesson) {
+        // Session created successfully on backend, now load it in UI
+        console.log('Session created, navigating to learning session');
+        await onSessionCreated({
+          videoId,
+          transcript: finalTranscript,
+          title: sessionTitle || 'Learning Session',
+          courseId: data.course?.id,
+          lessonId: data.lesson.id
+        });
+      } else {
+        const errorMsg = data.error || 'Failed to start session';
+        console.error('Session creation failed:', errorMsg);
+        setError(errorMsg);
+      }
+    } catch (err: any) {
+      console.error('Failed to start session:', err);
+      const errorMsg = err.response?.data?.error || err.response?.data?.detail || err.message || 'Failed to start session. Please try again.';
+      setError(errorMsg);
+    } finally {
+      setIsLoading(false);
     }
   };
 
