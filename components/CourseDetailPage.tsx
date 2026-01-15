@@ -66,6 +66,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
 }) => {
     const [activeTab, setActiveTab] = useState<'lessons' | 'discussions' | 'notes' | 'manage'>('lessons');
     const [isEditingCourse, setIsEditingCourse] = useState(false);
+    const [lessonsWithNotes, setLessonsWithNotes] = useState<Lesson[]>([]);
     
     // Manage Course State (simple title/description editing)
     const [editForm, setEditForm] = useState({ title: '', description: '' });
@@ -85,8 +86,36 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     useEffect(() => {
         if (course) {
             setEditForm({ title: course.title, description: course.description });
+            // Load notes for all lessons in the course
+            loadLessonNotes();
         }
     }, [course]);
+
+    const loadLessonNotes = async () => {
+        if (!course?.lessons) return;
+        
+        try {
+            const lessonsData = await Promise.all(
+                course.lessons.map(async (lesson) => {
+                    try {
+                        const response = await apiClient.get(`/lessons/${lesson.id}/get_notes/`);
+                        if (response.data.success && response.data.notes) {
+                            return {
+                                ...lesson,
+                                notes: response.data.notes.notes || ''
+                            };
+                        }
+                    } catch (error) {
+                        console.error(`Failed to load notes for lesson ${lesson.id}:`, error);
+                    }
+                    return lesson;
+                })
+            );
+            setLessonsWithNotes(lessonsData.filter(Boolean) as Lesson[]);
+        } catch (error) {
+            console.error('Failed to load lesson notes:', error);
+        }
+    };
 
     if (!course) {
         return (
@@ -207,8 +236,8 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
         ? Math.round((completedCount / courseLessons.length) * 100) 
         : 0;
         
-    // Aggregate notes from all lessons
-    const aggregatedNotes = courseLessons.filter(l => l.notes && l.notes.trim().length > 0);
+    // Aggregate notes from all lessons (use lessonsWithNotes if available)
+    const aggregatedNotes = (lessonsWithNotes.length > 0 ? lessonsWithNotes : courseLessons).filter(l => l.notes && l.notes.trim().length > 0);
 
     return (
         <div>

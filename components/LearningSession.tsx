@@ -104,6 +104,24 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
     };
   }, [isResizing, startY, playerHeight]);
 
+  // Load existing notes when lesson starts
+  useEffect(() => {
+    if (!currentLesson?.id) return;
+
+    const loadNotes = async () => {
+      try {
+        const response = await apiClient.get(`/lessons/${currentLesson.id}/get_notes/`);
+        if (response.data.success && response.data.notes) {
+          setNotes(response.data.notes.notes || '');
+        }
+      } catch (error) {
+        console.error('Failed to load notes:', error);
+      }
+    };
+
+    loadNotes();
+  }, [currentLesson?.id]);
+
   // Initial Welcome Message if no history
   useEffect(() => {
     if (transcript && messages.length === 0) {
@@ -382,6 +400,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
                     notes={notes}
                     onNotesChange={setNotes}
                     videoId={videoId}
+                    lessonId={currentLesson?.id}
                 />
             </div>
         )}

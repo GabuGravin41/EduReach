@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TrophyIcon } from './icons/TrophyIcon';
 import { HeartIcon } from './icons/HeartIcon';
 import { MessageSquareIcon } from './icons/MessageSquareIcon';
 import { UserCircleIcon } from './icons/UserCircleIcon';
+import { discussionService, CourseChannel, DiscussionThread } from '../src/services/discussionService';
+import { ThreadModal } from './ThreadModal';
 import { TrashIcon } from './icons/TrashIcon';
 import { HashIcon } from './icons/HashIcon';
 import { TrendingIcon } from './icons/TrendingIcon';
@@ -45,13 +47,51 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
   const [newPostContent, setNewPostContent] = useState('');
   const [activeChannel, setActiveChannel] = useState('general');
 
-  const channels = [
-      { id: 'general', name: 'General', count: 124 },
-      { id: 'react', name: 'React Developers', count: 85 },
-      { id: 'python', name: 'Pythonistas', count: 62 },
-      { id: 'exams', name: 'Exam Prep', count: 45 },
-      { id: 'help', name: 'Homework Help', count: 30 },
-  ];
+    const channels = [
+            { id: 'general', name: 'General', count: 124 },
+            { id: 'react', name: 'React Developers', count: 85 },
+            { id: 'python', name: 'Pythonistas', count: 62 },
+            { id: 'exams', name: 'Exam Prep', count: 45 },
+            { id: 'help', name: 'Homework Help', count: 30 },
+    ];
+
+    const [apiChannels, setApiChannels] = useState<CourseChannel[]>([]);
+    const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
+    const [threads, setThreads] = useState<DiscussionThread[]>([]);
+    const [selectedThread, setSelectedThread] = useState<DiscussionThread | null>(null);
+    const [showComposer, setShowComposer] = useState(false);
+    const [newThreadTitle, setNewThreadTitle] = useState('');
+    const [newThreadContent, setNewThreadContent] = useState('');
+
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                const ch = await discussionService.listChannels();
+                if (!mounted) return;
+                setApiChannels(ch || []);
+                if (ch && ch.length > 0) setSelectedChannelId(ch[0].id);
+            } catch (err) {
+                console.error('Failed to load channels', err);
+            }
+        })();
+        return () => { mounted = false; };
+    }, []);
+
+    useEffect(() => {
+        if (!selectedChannelId) return;
+        let mounted = true;
+        (async () => {
+            try {
+                const th = await discussionService.getChannelThreads(selectedChannelId);
+                if (!mounted) return;
+                setThreads(th || []);
+            } catch (err) {
+                console.error('Failed to load threads for channel', selectedChannelId, err);
+            }
+        })();
+        return () => { mounted = false; };
+    }, [selectedChannelId]);
 
   const trendingTopics = [
       '#NextJS14', '#RustLang', '#AI_Ethics', '#WebAssembly'
@@ -83,7 +123,25 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
                     Channels
                 </h3>
                 <nav className="space-y-1">
-                    {channels.map(channel => (
+                    {apiChannels.length > 0 ? apiChannels.map(ch => (
+                        <button
+                            key={ch.id}
+                            onClick={() => { setSelectedChannelId(ch.id); setActiveChannel(ch.id.toString()); }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                activeChannel === ch.id.toString()
+                                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                            }`}
+                        >
+                            <span className="flex items-center gap-2">
+                                <HashIcon className="w-4 h-4 opacity-50" />
+                                {ch.course_title ?? `Channel ${ch.id}`}
+                            </span>
+                            <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 text-xs px-2 py-0.5 rounded-full">
+                                {ch.id}
+                            </span>
+                        </button>
+                    )) : channels.map(channel => (
                         <button
                             key={channel.id}
                             onClick={() => setActiveChannel(channel.id)}
@@ -160,6 +218,56 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
                             </button>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* Threads List (for selected channel) */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-4 border border-slate-200 dark:border-slate-700">
+                                <div className="flex items-center justify-between mb-3">
+                                        <h3 className="text-lg font-semibold">Recent Threads in #{activeChannel}</h3>
+                                        <button onClick={() => setShowComposer(true)} className="text-sm text-indigo-600 hover:underline">New Thread</button>
+                                </div>
+
+                                {showComposer && (
+                                    <div className="mb-4 p-3 border border-slate-100 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900/40">
+                                        <input value={newThreadTitle} onChange={(e) => setNewThreadTitle(e.target.value)} placeholder="Thread title" className="w-full mb-2 p-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800" />
+                                        <textarea value={newThreadContent} onChange={(e) => setNewThreadContent(e.target.value)} placeholder="Start the discussion..." className="w-full p-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 mb-2" />
+                                        <div className="flex gap-2 justify-end">
+                                            <button onClick={() => { setShowComposer(false); setNewThreadTitle(''); setNewThreadContent(''); }} className="px-3 py-1 rounded border">Cancel</button>
+                                            <button onClick={async () => {
+                                                const channelId = selectedChannelId ?? (apiChannels[0] && apiChannels[0].id) ?? 0;
+                                                if (!newThreadTitle.trim() || !newThreadContent.trim()) return;
+                                                try {
+                                                    const created = await discussionService.createThread({ channel: channelId, title: newThreadTitle.trim(), content: newThreadContent.trim() });
+                                                    setThreads(prev => [created, ...prev]);
+                                                    setShowComposer(false);
+                                                    setNewThreadTitle('');
+                                                    setNewThreadContent('');
+                                                } catch (err) {
+                                                    console.error('Failed to create thread', err);
+                                                }
+                                            }} className="px-3 py-1 rounded bg-indigo-600 text-white">Create</button>
+                                        </div>
+                                    </div>
+                                )}
+                <div className="space-y-3">
+                    {threads.length === 0 ? (
+                        <p className="text-sm text-slate-500">No threads yet — be the first to start a discussion.</p>
+                    ) : (
+                        threads.map(t => (
+                            <div key={t.id} onClick={() => setSelectedThread(t)} className="p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/40 cursor-pointer border border-transparent hover:border-slate-100 dark:hover:border-slate-700">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h4 className="font-semibold">{t.title}</h4>
+                                        <p className="text-sm text-slate-500">{t.author.username} • {new Date(t.created_at).toLocaleString()}</p>
+                                    </div>
+                                    <div className="text-sm text-slate-500">
+                                        <span className="inline-block px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded-full">{t.reply_count} replies</span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
 
@@ -243,6 +351,9 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
                 </div>
             </div>
         </div>
+                {selectedThread && (
+                        <ThreadModal threadId={selectedThread.id} onClose={() => setSelectedThread(null)} />
+                )}
     </div>
   );
 };

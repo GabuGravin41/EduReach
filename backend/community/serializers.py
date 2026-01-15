@@ -1,5 +1,13 @@
 from rest_framework import serializers
-from .models import Post, Comment, Like
+from .models import (
+    Post,
+    Comment,
+    Like,
+    CourseChannel,
+    DiscussionThread,
+    ThreadReply,
+    ThreadVote,
+)
 from users.serializers import UserSerializer
 from django.contrib.auth import get_user_model
 
@@ -91,14 +99,23 @@ class UserBasicSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class ThreadVoteSerializer(serializers.ModelSerializer):
+    """Serializer for thread votes (upvotes)."""
+    user_username = serializers.CharField(source='user.username', read_only=True)
+
+    class Meta:
+        model = ThreadVote
+        fields = ['id', 'reply', 'user', 'user_username', 'created_at']
+        read_only_fields = ['id', 'user', 'created_at']
+
+
 class ThreadReplySerializer(serializers.ModelSerializer):
     """Serializer for thread replies."""
     author = UserBasicSerializer(read_only=True)
     author_username = serializers.CharField(source='author.username', read_only=True)
     user_upvoted = serializers.SerializerMethodField()
-    
+
     class Meta:
-        from .models import ThreadReply
         model = ThreadReply
         fields = [
             'id',
@@ -119,7 +136,6 @@ class ThreadReplySerializer(serializers.ModelSerializer):
         """Check if current user upvoted this reply."""
         request = self.context.get('request')
         if request and request.user.is_authenticated:
-            from .models import ThreadVote
             return ThreadVote.objects.filter(
                 reply=obj,
                 user=request.user
@@ -134,9 +150,8 @@ class DiscussionThreadSerializer(serializers.ModelSerializer):
     replies = ThreadReplySerializer(many=True, read_only=True)
     reply_count = serializers.IntegerField(read_only=True)
     vote_count = serializers.IntegerField(read_only=True)
-    
+
     class Meta:
-        from .models import DiscussionThread
         model = DiscussionThread
         fields = [
             'id',
@@ -161,9 +176,8 @@ class DiscussionThreadListSerializer(serializers.ModelSerializer):
     author_username = serializers.CharField(source='author.username', read_only=True)
     reply_count = serializers.IntegerField(read_only=True)
     vote_count = serializers.IntegerField(read_only=True)
-    
+
     class Meta:
-        from .models import DiscussionThread
         model = DiscussionThread
         fields = [
             'id',
@@ -186,9 +200,8 @@ class CourseChannelSerializer(serializers.ModelSerializer):
         read_only=True
     )
     course_id = serializers.IntegerField(source='course.id', read_only=True)
-    
+
     class Meta:
-        from .models import CourseChannel
         model = CourseChannel
         fields = [
             'id',

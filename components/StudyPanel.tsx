@@ -10,12 +10,13 @@ interface StudyPanelProps {
   notes: string;
   onNotesChange: (notes: string) => void;
   videoId?: string;
+  lessonId?: number;
   transcriptRef?: React.Ref<HTMLDivElement>;
 }
 
 type ActiveTab = 'transcript' | 'notes';
 
-export const StudyPanel: React.FC<StudyPanelProps> = ({ transcript, notes, onNotesChange, videoId, transcriptRef }) => {
+export const StudyPanel: React.FC<StudyPanelProps> = ({ transcript, notes, onNotesChange, videoId, lessonId, transcriptRef }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('transcript');
 
   const TabButton: React.FC<{
@@ -69,7 +70,7 @@ export const StudyPanel: React.FC<StudyPanelProps> = ({ transcript, notes, onNot
         )}
         {activeTab === 'notes' && (
           <div className="absolute inset-0">
-            <NotesPanel notes={notes} onNotesChange={onNotesChange} videoId={videoId} />
+            <NotesPanel notes={notes} onNotesChange={onNotesChange} videoId={videoId} lessonId={lessonId} />
           </div>
         )}
       </div>

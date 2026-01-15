@@ -172,8 +172,45 @@ const AppContent: React.FC = () => {
         case 'exam_detail':
            const exam = assessments.find(a => a.id === selectedExamId);
            return exam ? <ExamDetailPage exam={exam} setView={setCurrentView} /> : <div>Exam not found</div>;
-        case 'community':
-           return <CommunityPage posts={posts} onPostCreated={(content) => setPosts([{id: Date.now(), author: user.username, avatar: UserCircleIcon, time: 'Just now', content, likes: 0, comments: [], liked: false}, ...posts])} onToggleLike={(id) => setPosts(posts.map(p => p.id === id ? {...p, likes: p.liked ? p.likes - 1 : p.likes + 1, liked: !p.liked} : p))} onAddComment={() => {}} userTier={userTier} onDeletePost={(id) => setPosts(posts.filter(p => p.id !== id))} userScore={120} username={user.username} />;
+        case 'community': {
+           const { data: apiPosts = [], isLoading: postsLoading } = usePosts();
+           const createPostMutation = useCreatePost();
+           const toggleLikeMutation = useToggleLike();
+           const addCommentMutation = useAddComment();
+           const deletePostMutation = useDeletePost();
+
+           const mappedPosts = Array.isArray(apiPosts)
+             ? apiPosts.map(p => ({
+                 id: p.id,
+                 author: p.author,
+                 avatar: UserCircleIcon,
+                 time: p.created_at ? new Date(p.created_at).toLocaleString() : 'Just now',
+                 content: p.content,
+                 likes: p.likes ?? 0,
+                 comments: p.comments ?? [],
+                 liked: p.liked ?? false,
+               }))
+             : [];
+
+           return (
+             <CommunityPage
+               posts={mappedPosts}
+               onPostCreated={async (content) => {
+                 try {
+                   await createPostMutation.mutateAsync({ content });
+                 } catch (err) {
+                   console.error('Create post failed', err);
+                 }
+               }}
+               onToggleLike={(id) => toggleLikeMutation.mutate(id)}
+               onAddComment={async (postId, comment) => addCommentMutation.mutate({ postId, data: { content: comment } })}
+               userTier={userTier}
+               onDeletePost={(id) => deletePostMutation.mutate(id)}
+               userScore={120}
+               username={user.username}
+             />
+           );
+        }
         case 'study_groups':
            return <StudyGroupsPage />;
         case 'billing':

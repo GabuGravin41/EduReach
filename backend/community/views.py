@@ -147,6 +147,31 @@ class CourseChannelViewSet(viewsets.ReadOnlyModelViewSet):
         context['request'] = self.request
         return context
 
+    def perform_create(self, serializer):
+        """Ensure only allowed users can create threads in a channel."""
+        from courses.models import UserProgress
+
+        channel = None
+        # Channel may be provided via serializer.validated_data or request.data
+        channel = serializer.validated_data.get('channel') if hasattr(serializer, 'validated_data') else None
+        if not channel:
+            # Try to get channel from request data
+            channel_id = self.request.data.get('channel')
+            if channel_id:
+                from .models import CourseChannel
+                channel = CourseChannel.objects.filter(id=channel_id).first()
+
+        # If channel is linked to a course and the course is private, enforce membership
+        if channel and getattr(channel, 'course', None):
+            course = channel.course
+            if not course.is_public:
+                user = self.request.user
+                # Allow staff or course owner
+                if not (user.is_staff or course.owner == user or UserProgress.objects.filter(user=user, course=course).exists()):
+                    raise permissions.PermissionDenied('You must be enrolled in the course to post in this channel.')
+
+        serializer.save(author=self.request.user)
+
     @action(
         detail=True,
         methods=['get'],
@@ -203,7 +228,28 @@ class DiscussionThreadViewSet(viewsets.ModelViewSet):
         return context
 
     def perform_create(self, serializer):
-        """Auto-set author to current user."""
+        """Auto-set author to current user with permission checks."""
+        # Ensure reply posting follows channel permissions
+        reply_thread = None
+        try:
+            reply_thread = serializer.validated_data.get('thread')
+        except Exception:
+            reply_thread = None
+
+        if not reply_thread:
+            thread_id = self.request.data.get('thread')
+            if thread_id:
+                from .models import DiscussionThread
+                reply_thread = DiscussionThread.objects.filter(id=thread_id).first()
+
+        # If thread belongs to a course channel that is private, ensure membership
+        if reply_thread and getattr(reply_thread, 'channel', None) and getattr(reply_thread.channel, 'course', None):
+            from courses.models import UserProgress
+            course = reply_thread.channel.course
+            user = self.request.user
+            if not (user.is_staff or course.owner == user or UserProgress.objects.filter(user=user, course=course).exists()):
+                raise permissions.PermissionDenied('You must be enrolled in the course to reply to this thread.')
+
         serializer.save(author=self.request.user)
 
     def perform_update(self, serializer):

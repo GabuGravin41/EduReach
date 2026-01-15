@@ -68,6 +68,34 @@ export const studyGroupService = {
     });
     return data;
   },
+
+  async deleteGroupPost(postId: number): Promise<void> {
+    await apiClient.delete(`/study-groups/group-posts/${postId}/`);
+  },
+
+  async getMembers(groupId: number): Promise<{ id: number; username: string }[]> {
+    const { data } = await apiClient.get(`/study-groups/groups/${groupId}/members/`);
+    return data;
+  },
+
+  async inviteMember(groupId: number, email: string): Promise<void> {
+    await apiClient.post(`/study-groups/groups/${groupId}/invite/`, { email });
+  },
+
+  async getChallenges(groupId: number) {
+    const { data } = await apiClient.get('/study-groups/challenges/', { params: { group: groupId } });
+    return data;
+  },
+
+  async participateChallenge(challengeId: number, payload: { score?: number; completed?: boolean }) {
+    const { data } = await apiClient.post(`/study-groups/challenges/${challengeId}/participate/`, payload);
+    return data;
+  },
+
+  async getChallengeLeaderboard(challengeId: number) {
+    const { data } = await apiClient.get(`/study-groups/challenges/${challengeId}/leaderboard/`);
+    return data;
+  },
 };
 
 export default studyGroupService;

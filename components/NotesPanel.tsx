@@ -9,6 +9,7 @@ interface NotesPanelProps {
   courseName?: string;
   lessonName?: string;
   videoId?: string;
+  lessonId?: number;
   onAutoSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void;
 }
 
@@ -18,6 +19,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
   courseName = 'Course',
   lessonName = 'Lesson',
   videoId,
+  lessonId,
   onAutoSaveStatusChange,
 }) => {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -44,13 +46,19 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
 
     saveTimeoutRef.current = setTimeout(async () => {
       try {
-        await apiClient.post('/youtube/save-notes/', {
-          video_id: videoId,
-          notes,
-          timestamps: [],
-          lesson_name: lessonName,
-          course_name: courseName,
-        });
+        // Use lesson endpoint if available, otherwise fall back to YouTube notes endpoint
+        if (lessonId) {
+          await apiClient.post(`/lessons/${lessonId}/save_notes/`, {
+            notes,
+            timestamps: [],
+          });
+        } else {
+          await apiClient.post('/youtube/save-notes/', {
+            video_id: videoId,
+            notes,
+            timestamps: [],
+          });
+        }
         setSaveStatus('saved');
       } catch (error) {
         console.error('Failed to autosave notes', error);
@@ -63,7 +71,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [notes, videoId, courseName, lessonName]);
+  }, [notes, videoId, lessonId]);
 
   useEffect(() => {
     onAutoSaveStatusChange?.(saveStatus);
