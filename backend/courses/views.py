@@ -6,6 +6,7 @@ from django.utils import timezone
 from decimal import Decimal, InvalidOperation
 from datetime import timedelta
 import re
+from ai_service.views import call_ai
 from .models import (
     Course,
     Lesson,
@@ -576,30 +577,16 @@ class LessonViewSet(viewsets.ModelViewSet):
         num_questions = request.data.get('num_questions', 5)
         difficulty = request.data.get('difficulty', 'medium')
         
-        # Call AI service to generate quiz
+        # Call AI service to generate quiz using unified provider (Gemini primary, OpenRouter fallback)
         try:
-            from django.conf import settings
-            import google.generativeai as genai
             import json
-            
-            # Validate GEMINI_API_KEY
-            if not settings.GEMINI_API_KEY:
-                return Response({
-                    'error': 'GEMINI_API_KEY is not configured. Please set it in your environment variables.',
-                    'can_fetch': False
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
-            # Configure Gemini
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel('gemini-2.5-flash')
-            
-            # Construct prompt
+
             prompt = f"""
             Based on the following video transcript, generate {num_questions} {difficulty} difficulty quiz questions.
-            
+
             Transcript:
-            {transcript[:3000]}  # Limit to first 3000 chars to avoid token limits
-            
+            {transcript[:3000]}
+
             Please generate questions in the following JSON format:
             {{
                 "questions": [
@@ -612,27 +599,25 @@ class LessonViewSet(viewsets.ModelViewSet):
                     }}
                 ]
             }}
-            
+
             Ensure the questions are relevant to the transcript content and test understanding of key concepts.
             """
-            
-            # Generate content
-            response = model.generate_content(prompt)
-            
-            # Parse response
-            response_text = response.text.strip()
-            
-            # Remove markdown code blocks if present
+
+            # Use shared AI call helper (handles Gemini vs OpenRouter and rate limits)
+            response_text = call_ai(prompt, max_tokens=1000)
+
+            # Normalize and parse JSON
+            response_text = response_text.strip()
             if response_text.startswith('```json'):
                 response_text = response_text[7:]
             if response_text.startswith('```'):
                 response_text = response_text[3:]
             if response_text.endswith('```'):
                 response_text = response_text[:-3]
-            
             response_text = response_text.strip()
+
             quiz_data = json.loads(response_text)
-            
+
             return Response({
                 'success': True,
                 'lesson_id': lesson.id,
@@ -640,12 +625,12 @@ class LessonViewSet(viewsets.ModelViewSet):
                 'quiz': quiz_data,
                 'transcript_source': 'auto' if lesson.transcript else 'manual'
             })
-            
+
         except json.JSONDecodeError:
             return Response({
                 'success': False,
                 'error': 'Failed to parse AI response',
-                'raw_response': response.text
+                'raw_response': response_text
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
             return Response({

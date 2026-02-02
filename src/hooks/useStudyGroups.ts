@@ -7,6 +7,7 @@ export const STUDY_GROUP_KEYS = {
   list: (filter: string) => [...STUDY_GROUP_KEYS.lists(), filter] as const,
   detail: (id: number) => [...STUDY_GROUP_KEYS.all, 'detail', id] as const,
   posts: (groupId: number) => [...STUDY_GROUP_KEYS.all, 'posts', groupId] as const,
+  members: (groupId: number) => [...STUDY_GROUP_KEYS.all, 'members', groupId] as const,
 };
 
 export const useStudyGroups = (opts?: { courseId?: number }) => {
@@ -67,4 +68,23 @@ export const useCreateStudyGroupPost = () => {
   });
 };
 
+export const useStudyGroupMembers = (groupId: number) => {
+  return useQuery({
+    queryKey: STUDY_GROUP_KEYS.members(groupId),
+    queryFn: () => studyGroupService.getMembers(groupId),
+    enabled: !!groupId,
+  });
+};
+
+export const useInviteStudyGroupMember = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ groupId, email }: { groupId: number; email: string }) =>
+      studyGroupService.inviteMember(groupId, email),
+    onSuccess: (_data, variables) => {
+      // Refresh members list after inviting
+      queryClient.invalidateQueries({ queryKey: STUDY_GROUP_KEYS.members(variables.groupId) });
+    },
+  });
+};
 

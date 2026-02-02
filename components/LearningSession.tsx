@@ -39,6 +39,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   const [completedSent, setCompletedSent] = useState(currentLesson?.isCompleted || false);
   const [quizSaved, setQuizSaved] = useState(false);
   const [isSavingQuiz, setIsSavingQuiz] = useState(false);
+  const [quizError, setQuizError] = useState<string | null>(null);
   const [playerHeight, setPlayerHeight] = useState<number | null>(null);
   const [isResizing, setIsResizing] = useState(false);
   const [startY, setStartY] = useState(0);
@@ -207,6 +208,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
     if (!transcript) return;
     setIsLoading(true);
     setQuizSaved(false);
+    setQuizError(null);
     try {
       let quizTranscript = transcript;
       if (transcript.length > 10000) {
@@ -220,8 +222,35 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
         num_questions: 5,
         difficulty: 'medium'
       });
-      
-      setQuiz(response.data.questions || response.data);
+      const data = response.data as any;
+
+      if (data && data.success === false) {
+        const message = data.error || 'We could not generate this quiz right now. Please try again in a moment.';
+        setQuiz(null);
+        setQuizError(message);
+        setMessages(prev => [...prev, { role: 'model', content: message }]);
+        return;
+      }
+
+      if (data && typeof data.raw_response === 'string' && data.raw_response.trim().length > 0) {
+        const message = 'The AI response was not in a quiz format. Please try again or shorten the video/transcript.';
+        setQuiz(null);
+        setQuizError(message);
+        setMessages(prev => [...prev, { role: 'model', content: message }]);
+        return;
+      }
+
+      const questions = data && (data.questions || data);
+
+      if (!questions || !Array.isArray(questions)) {
+        const message = 'The AI did not return any quiz questions. Please try again.';
+        setQuiz(null);
+        setQuizError(message);
+        setMessages(prev => [...prev, { role: 'model', content: message }]);
+        return;
+      }
+
+      setQuiz(questions);
     } catch (error) {
       console.error("Failed to generate quiz", error);
       setMessages(prev => [...prev, { role: 'model', content: "Sorry, I couldn't generate a quiz at this moment. Please try again." }]);
@@ -420,6 +449,11 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
           `}
         >
           <div className="h-full w-full overflow-hidden flex flex-col">
+              {quizError && (
+                <div className="px-3 py-2 text-xs text-rose-800 bg-rose-50 border-b border-rose-200">
+                  {quizError}
+                </div>
+              )}
               <AIAssistant 
               messages={messages}
               isLoading={isLoading}

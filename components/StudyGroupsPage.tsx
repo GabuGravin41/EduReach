@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { useStudyGroups, useCreateStudyGroup, useJoinStudyGroup, useLeaveStudyGroup } from '../hooks/useStudyGroups';
+import { 
+  useStudyGroups, 
+  useCreateStudyGroup, 
+  useJoinStudyGroup, 
+  useLeaveStudyGroup,
+  useStudyGroupPosts,
+  useCreateStudyGroupPost,
+  useStudyGroupMembers,
+  useInviteStudyGroupMember,
+} from '../src/hooks/useStudyGroups';
 import { StudyGroup } from '../services/studyGroupService';
 import { Button } from './ui/Button';
 import { UsersIcon } from './icons/UsersIcon';
@@ -11,14 +20,8 @@ import { CalendarIcon } from './icons/CalendarIcon';
 import { UserCircleIcon } from './icons/UserCircleIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 
-// Extended Study Group Interface for the detail view
-interface StudyGroupDetail extends StudyGroup {
-    upcomingEvents?: { id: string, title: string, time: string, attendees: number }[];
-    members?: { id: string, name: string, role: string }[];
-}
-
 export const StudyGroupsPage: React.FC = () => {
-  const { data: groups = [], isLoading } = useStudyGroups();
+  const { data: groupsData, isLoading } = useStudyGroups();
   const createGroupMutation = useCreateStudyGroup();
   const joinGroupMutation = useJoinStudyGroup();
   const leaveGroupMutation = useLeaveStudyGroup();
@@ -28,9 +31,19 @@ export const StudyGroupsPage: React.FC = () => {
   const [description, setDescription] = useState('');
   
   // State for detailed group view
-  const [activeGroup, setActiveGroup] = useState<StudyGroupDetail | null>(null);
+  const [activeGroup, setActiveGroup] = useState<StudyGroup | null>(null);
   const [groupTab, setGroupTab] = useState<'overview' | 'members' | 'events' | 'invites'>('overview');
   const [inviteEmail, setInviteEmail] = useState('');
+
+  const createPostMutation = useCreateStudyGroupPost();
+  const inviteMemberMutation = useInviteStudyGroupMember();
+
+  // Normalize groups data: backend may return either an array or a paginated object
+  const groups: StudyGroup[] = Array.isArray(groupsData)
+    ? groupsData
+    : (groupsData && (groupsData as any).results && Array.isArray((groupsData as any).results)
+        ? (groupsData as any).results
+        : []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,26 +64,14 @@ export const StudyGroupsPage: React.FC = () => {
   };
 
   const enterGroup = (group: StudyGroup) => {
-      // Mock fetching detailed data
-      const detailedGroup: StudyGroupDetail = {
-          ...group,
-          upcomingEvents: [
-              { id: 'e1', title: 'Weekly Code Review', time: 'Tomorrow, 5:00 PM', attendees: 4 },
-              { id: 'e2', title: 'React Hooks Deep Dive', time: 'Saturday, 2:00 PM', attendees: 8 },
-          ],
-          members: [
-              { id: 'm1', name: 'Alice_Dev', role: 'Admin' },
-              { id: 'm2', name: 'Bob_Code', role: 'Member' },
-              { id: 'm3', name: 'Charlie_JS', role: 'Member' },
-              { id: 'm4', name: 'You', role: 'Member' }
-          ]
-      };
-      setActiveGroup(detailedGroup);
+      setActiveGroup(group);
       setGroupTab('overview');
   };
 
   // If a group is active, render the detailed dashboard
   if (activeGroup) {
+      const { data: groupPosts = [], isLoading: postsLoading } = useStudyGroupPosts(activeGroup.id);
+      const { data: members = [], isLoading: membersLoading } = useStudyGroupMembers(activeGroup.id);
       return (
         <div className="h-full flex flex-col">
             <button 
@@ -134,16 +135,33 @@ export const StudyGroupsPage: React.FC = () => {
                                     Discussion Board
                                 </h3>
                                 <div className="space-y-4">
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                                        <p className="font-semibold text-sm">Best resources for useEffect?</p>
-                                        <p className="text-xs text-slate-500 mt-1">Posted by Alice • 2h ago</p>
-                                    </div>
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                                        <p className="font-semibold text-sm">Can someone explain memoization?</p>
-                                        <p className="text-xs text-slate-500 mt-1">Posted by Bob • 5h ago</p>
-                                    </div>
-                                    <Button variant="outline" size="sm" className="w-full">View All Discussions</Button>
-                                </div>
+                                    {postsLoading ? (
+                                        <p className="text-sm text-slate-500">Loading discussions...</p>
+                                    ) : groupPosts.length === 0 ? (
+                                        <p className="text-sm text-slate-500">No posts yet. Start the first discussion for this group.</p>
+                                    ) : (
+                                        groupPosts.slice(0, 3).map(post => (
+                                            <div key={post.id} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                                                <p className="font-semibold text-sm">{post.content}</p>
+                                                <p className="text-xs text-slate-500 mt-1">
+                                                    {post.author.username} • {new Date(post.created_at).toLocaleString()}
+                                                </p>
+                                            </div>
+                                        ))
+                                    )}
+                                    {/* Simple composer for new post */}
+                                    <button
+                                        onClick={async () => {
+                                            const content = prompt('Start a new discussion');
+                                            if (content && content.trim()) {
+                                                await createPostMutation.mutateAsync({ groupId: activeGroup.id, content: content.trim() });
+                                            }
+                                        }}
+                                        className="w-full px-3 py-2 text-sm font-medium rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                    >
+                                        New Discussion
+                                    </button>
+                                 </div>
                              </div>
 
                              <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700">
@@ -151,49 +169,38 @@ export const StudyGroupsPage: React.FC = () => {
                                     <CalendarIcon className="w-5 h-5 text-green-500" />
                                     Next Session
                                 </h3>
-                                {activeGroup.upcomingEvents && activeGroup.upcomingEvents[0] ? (
-                                    <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-100 dark:border-green-800">
-                                        <h4 className="font-bold text-green-800 dark:text-green-300">{activeGroup.upcomingEvents[0].title}</h4>
-                                        <div className="flex items-center gap-2 mt-2 text-sm text-green-700 dark:text-green-400">
-                                            <ClockIcon className="w-4 h-4" />
-                                            {activeGroup.upcomingEvents[0].time}
-                                        </div>
-                                        <Button className="mt-4 w-full" size="sm">Join Session</Button>
-                                    </div>
-                                ) : <p>No upcoming sessions.</p>}
+                                <p className="text-sm text-slate-500">No upcoming sessions yet. Once events are scheduled for this group, they will show up here.</p>
                              </div>
                         </div>
                     )}
 
                     {groupTab === 'members' && (
                         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                            <table className="w-full text-left">
-                                <thead className="bg-slate-50 dark:bg-slate-700 text-slate-500 text-xs uppercase font-semibold">
-                                    <tr>
-                                        <th className="px-6 py-4">Name</th>
-                                        <th className="px-6 py-4">Role</th>
-                                        <th className="px-6 py-4">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                                    {activeGroup.members?.map(m => (
-                                        <tr key={m.id}>
-                                            <td className="px-6 py-4 flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 flex items-center justify-center font-bold text-xs">
-                                                    {m.name.substring(0,2).toUpperCase()}
-                                                </div>
-                                                <span className="font-medium">{m.name}</span>
-                                            </td>
-                                            <td className="px-6 py-4 text-sm text-slate-500">{m.role}</td>
-                                            <td className="px-6 py-4">
-                                                <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Online
-                                                </span>
-                                            </td>
+                            {membersLoading ? (
+                                <div className="p-6 text-sm text-slate-500">Loading members...</div>
+                            ) : members.length === 0 ? (
+                                <div className="p-6 text-sm text-slate-500">No members found for this group.</div>
+                            ) : (
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-50 dark:bg-slate-700 text-slate-500 text-xs uppercase font-semibold">
+                                        <tr>
+                                            <th className="px-6 py-4">Name</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                        {members.map(m => (
+                                            <tr key={m.id}>
+                                                <td className="px-6 py-4 flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 flex items-center justify-center font-bold text-xs">
+                                                        {m.username.substring(0,2).toUpperCase()}
+                                                    </div>
+                                                    <span className="font-medium">{m.username}</span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
                         </div>
                     )}
 
@@ -201,26 +208,8 @@ export const StudyGroupsPage: React.FC = () => {
                          <div className="space-y-4">
                              <div className="flex justify-between items-center mb-4">
                                  <h3 className="text-xl font-bold">Upcoming Study Sessions</h3>
-                                 <Button size="sm"><PlusCircleIcon className="w-4 h-4 mr-2"/> Schedule Event</Button>
                              </div>
-                             {activeGroup.upcomingEvents?.map(event => (
-                                 <div key={event.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                                     <div className="flex items-center gap-4">
-                                         <div className="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-lg text-indigo-600">
-                                             <CalendarIcon className="w-6 h-6" />
-                                         </div>
-                                         <div>
-                                             <h4 className="font-bold text-lg">{event.title}</h4>
-                                             <p className="text-slate-500 text-sm flex items-center gap-2">
-                                                 <ClockIcon className="w-4 h-4" /> {event.time}
-                                                 <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
-                                                 {event.attendees} Attending
-                                             </p>
-                                         </div>
-                                     </div>
-                                     <Button variant="outline">RSVP</Button>
-                                 </div>
-                             ))}
+                             <p className="text-sm text-slate-500">No upcoming sessions yet. Once events are scheduled for this group, they will appear here.</p>
                          </div>
                     )}
 
@@ -252,7 +241,16 @@ export const StudyGroupsPage: React.FC = () => {
                                         onChange={(e) => setInviteEmail(e.target.value)}
                                         className="flex-1 p-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500"
                                     />
-                                    <Button disabled={!inviteEmail} onClick={() => { alert(`Invite sent to ${inviteEmail}`); setInviteEmail(''); }}>Send Invite</Button>
+                                    <Button 
+                                      disabled={!inviteEmail || inviteMemberMutation.isPending} 
+                                      onClick={async () => { 
+                                        if (!inviteEmail) return; 
+                                        await inviteMemberMutation.mutateAsync({ groupId: activeGroup.id, email: inviteEmail }); 
+                                        setInviteEmail(''); 
+                                      }}
+                                    >
+                                      {inviteMemberMutation.isPending ? 'Sending...' : 'Send Invite'}
+                                    </Button>
                                 </div>
                             </div>
                         </div>

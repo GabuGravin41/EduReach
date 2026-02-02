@@ -10,6 +10,7 @@ import { HashIcon } from './icons/HashIcon';
 import { TrendingIcon } from './icons/TrendingIcon';
 import { CalendarIcon } from './icons/CalendarIcon';
 import { UserTier } from '../App';
+import { useCommunityLeaderboard, useCommunityTrendingTopics } from '../src/hooks/useCommunityAnalytics';
 
 interface Post {
   id: number;
@@ -63,6 +64,10 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
     const [newThreadTitle, setNewThreadTitle] = useState('');
     const [newThreadContent, setNewThreadContent] = useState('');
 
+    // Community analytics (leaderboard + trending topics)
+    const { data: apiLeaderboard = [] } = useCommunityLeaderboard();
+    const { data: apiTrendingTopics = [] } = useCommunityTrendingTopics();
+
     useEffect(() => {
         let mounted = true;
         (async () => {
@@ -93,18 +98,38 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
         return () => { mounted = false; };
     }, [selectedChannelId]);
 
-  const trendingTopics = [
+  const staticTrendingTopics = [
       '#NextJS14', '#RustLang', '#AI_Ethics', '#WebAssembly'
   ];
 
-  // Dynamic Leaderboard merging static mock users with the current user
-  const leaderboard = [
+  const staticLeaderboard = [
     { name: 'Alice_Dev', points: 2450, role: 'Top Contributor' },
     { name: 'Bob_Code', points: 1980, role: 'Rising Star' },
-    { name: username, points: userScore, role: 'You' }, // Dynamic User
     { name: 'Charlie_JS', points: 1540, role: 'Member' },
     { name: 'Dave_AI', points: 800, role: 'Member' },
-  ].sort((a, b) => b.points - a.points); // Sort by points descending
+  ];
+
+  // Prefer backend leaderboard if available, otherwise fall back to static + current user
+  const leaderboard = (
+    apiLeaderboard.length > 0
+      ? apiLeaderboard.map(entry => ({
+          name: entry.username,
+          points: entry.points,
+          role: entry.role ?? 'Member',
+        }))
+      : staticLeaderboard
+  )
+    // Ensure current user is present as "You"
+    .concat(
+      username
+        ? [{ name: username, points: userScore, role: 'You' }]
+        : []
+    )
+    .sort((a, b) => b.points - a.points);
+
+  const trendingTopics = apiTrendingTopics.length > 0
+    ? apiTrendingTopics.map(t => t.tag)
+    : staticTrendingTopics;
 
   const handlePostSubmit = () => {
     if (newPostContent.trim()) {

@@ -70,6 +70,50 @@ const initialAssessments: any[] = [];
 
 const initialPosts: any[] = [];
 
+type CommunityViewProps = {
+  userTier: UserTier;
+  username: string;
+};
+
+const CommunityView: React.FC<CommunityViewProps> = ({ userTier, username }) => {
+  const { data: apiPosts = [], isLoading: postsLoading } = usePosts();
+  const createPostMutation = useCreatePost();
+  const toggleLikeMutation = useToggleLike();
+  const addCommentMutation = useAddComment();
+  const deletePostMutation = useDeletePost();
+
+  const mappedPosts = Array.isArray(apiPosts)
+    ? apiPosts.map(p => ({
+        id: p.id,
+        author: p.author,
+        avatar: UserCircleIcon,
+        time: p.created_at ? new Date(p.created_at).toLocaleString() : 'Just now',
+        content: p.content,
+        likes: p.likes ?? 0,
+        comments: p.comments ?? [],
+        liked: p.liked ?? false,
+      }))
+    : [];
+
+  return (
+    <CommunityPage
+      posts={mappedPosts}
+      onPostCreated={async (content) => {
+        try {
+          await createPostMutation.mutateAsync({ content });
+        } catch (err) {
+          console.error('Create post failed', err);
+        }
+      }}
+      onToggleLike={(id) => toggleLikeMutation.mutate(id)}
+      onAddComment={async (postId, comment) => addCommentMutation.mutate({ postId, data: { content: comment } })}
+      userTier={userTier}
+      onDeletePost={(id) => deletePostMutation.mutate(id)}
+      userScore={120}
+      username={username}
+    />
+  );
+};
 
 const AppContent: React.FC = () => {
     const { user, logout, isLoading } = useAuth();
@@ -172,45 +216,8 @@ const AppContent: React.FC = () => {
         case 'exam_detail':
            const exam = assessments.find(a => a.id === selectedExamId);
            return exam ? <ExamDetailPage exam={exam} setView={setCurrentView} /> : <div>Exam not found</div>;
-        case 'community': {
-           const { data: apiPosts = [], isLoading: postsLoading } = usePosts();
-           const createPostMutation = useCreatePost();
-           const toggleLikeMutation = useToggleLike();
-           const addCommentMutation = useAddComment();
-           const deletePostMutation = useDeletePost();
-
-           const mappedPosts = Array.isArray(apiPosts)
-             ? apiPosts.map(p => ({
-                 id: p.id,
-                 author: p.author,
-                 avatar: UserCircleIcon,
-                 time: p.created_at ? new Date(p.created_at).toLocaleString() : 'Just now',
-                 content: p.content,
-                 likes: p.likes ?? 0,
-                 comments: p.comments ?? [],
-                 liked: p.liked ?? false,
-               }))
-             : [];
-
-           return (
-             <CommunityPage
-               posts={mappedPosts}
-               onPostCreated={async (content) => {
-                 try {
-                   await createPostMutation.mutateAsync({ content });
-                 } catch (err) {
-                   console.error('Create post failed', err);
-                 }
-               }}
-               onToggleLike={(id) => toggleLikeMutation.mutate(id)}
-               onAddComment={async (postId, comment) => addCommentMutation.mutate({ postId, data: { content: comment } })}
-               userTier={userTier}
-               onDeletePost={(id) => deletePostMutation.mutate(id)}
-               userScore={120}
-               username={user.username}
-             />
-           );
-        }
+        case 'community':
+           return <CommunityView userTier={userTier} username={user.username} />;
         case 'study_groups':
            return <StudyGroupsPage />;
         case 'billing':

@@ -32,6 +32,33 @@ def call_generate_content_with_handling(model, *args, **kwargs):
         raise
 
 
+def call_gemini(prompt: str, max_output_tokens: int = 400):
+    """Call Gemini model with basic configuration and error handling.
+
+    Raises RuntimeError('GEMINI_QUOTA_EXCEEDED: ...') when quota/rate limit issues
+    are detected so callers can trigger OpenRouter fallback.
+    """
+    configure_gemini()
+
+    model_name = getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash')
+    if 'flash' not in model_name.lower():
+        # Ensure we use a fast, cheaper model by default
+        model_name = 'gemini-2.5-flash'
+
+    model = genai.GenerativeModel(model_name)
+    logger.debug("Calling Gemini model %s", model_name)
+
+    # Use helper that normalizes rate limit / quota errors
+    response = call_generate_content_with_handling(
+        model,
+        prompt,
+        generation_config={
+            'max_output_tokens': max_output_tokens,
+        },
+    )
+    return response
+
+
 def call_openrouter(prompt: str, model_name: str = None, max_tokens: int = 400):
     """Simple OpenRouter invocation as a fallback provider.
 
@@ -81,6 +108,45 @@ def call_openrouter(prompt: str, model_name: str = None, max_tokens: int = 400):
             self.text = t
 
     return _R(text)
+
+
+def call_ai(prompt: str, *, max_tokens: int = 400, prefer_openrouter: bool | None = None):
+    """Unified AI entry point.
+
+    - Uses Gemini as primary when GEMINI_API_KEY is configured and
+      PREFER_OPENROUTER is False.
+    - When Gemini quota is exceeded or a clear rate/429 error is detected,
+      falls back to OpenRouter.
+    - If Gemini is not configured or prefer_openrouter is True, goes straight
+      to OpenRouter.
+    """
+    # Determine preference: explicit arg overrides settings, else use settings
+    if prefer_openrouter is None:
+        prefer_openrouter = getattr(settings, 'PREFER_OPENROUTER', False)
+
+    gemini_configured = bool(getattr(settings, 'GEMINI_API_KEY', None))
+
+    # Try Gemini first when configured and not preferring OpenRouter
+    if gemini_configured and not prefer_openrouter:
+        try:
+            resp = call_gemini(prompt, max_output_tokens=max_tokens)
+            return resp.text
+        except RuntimeError as e:
+            # Explicitly tagged quota/429 errors from call_generate_content_with_handling
+            if 'GEMINI_QUOTA_EXCEEDED' in str(e):
+                logger.warning("Gemini quota exceeded, falling back to OpenRouter: %s", e)
+            else:
+                # Other runtime errors bubble up; they usually indicate misconfig
+                logger.error("Gemini runtime error, falling back to OpenRouter: %s", e, exc_info=True)
+            # Fall through to OpenRouter
+        except Exception as e:
+            # Any non-quota error from Gemini: log and fall back
+            logger.error("Gemini call failed, falling back to OpenRouter: %s", e, exc_info=True)
+
+    # If Gemini is not available or failed, use OpenRouter
+    logger.debug("Calling OpenRouter as fallback (or primary if preferred)")
+    resp = call_openrouter(prompt, max_tokens=max_tokens)
+    return resp.text
 
 
 def chunk_text_for_ai(text: str, max_chunk_size: int = 3500):
@@ -177,7 +243,7 @@ def generate_quiz(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Use OpenRouter as primary AI provider
+        # Unified AI provider (Gemini primary, OpenRouter fallback)
         prompt = f"""Generate {num_questions} {difficulty} difficulty quiz questions from this transcript:
 
 {transcript}
@@ -186,14 +252,14 @@ Return ONLY valid JSON (no extra text):
 {{"questions": [{{"question": "?", "type": "mcq", "options": ["A", "B", "C", "D"], "correct_answer": "A", "explanation": "Why"}}]}}
 
 Be concise. Questions should test key concepts."""
-        
-        # Call OpenRouter
-        response = call_openrouter(prompt, max_tokens=1000)
-        
+
+        # Call AI (Gemini first, OpenRouter fallback)
+        response_text = call_ai(prompt, max_tokens=1000)
+
         # Try to parse the response as JSON
         try:
             # Extract JSON from response
-            response_text = response.text.strip()
+            response_text = response_text.strip()
             
             # Remove markdown code blocks if present
             if response_text.startswith('```json'):
@@ -205,12 +271,12 @@ Be concise. Questions should test key concepts."""
             
             response_text = response_text.strip()
             quiz_data = json.loads(response_text)
-            
+
             return Response(quiz_data, status=status.HTTP_200_OK)
         except json.JSONDecodeError:
             # If JSON parsing fails, return the raw response
             return Response(
-                {'raw_response': response.text},
+                {'raw_response': response_text},
                 status=status.HTTP_200_OK
             )
     
@@ -281,13 +347,13 @@ If they ask something off-topic, politely redirect them back to the learning mat
             full_prompt = f"{system_instruction}\n\nVideo/Learning Context:\n{optimized_context}\n\nUser Question: {message}"
         else:
             full_prompt = f"{system_instruction}\n\nUser Question: {message}"
-        
-        # Generate content with appropriate token limits using OpenRouter
+
+        # Generate content with appropriate token limits using Gemini first, then OpenRouter
         max_tokens = 300 if wants_detailed else 150
-        response = call_openrouter(full_prompt, max_tokens=max_tokens)
-        
+        response_text = call_ai(full_prompt, max_tokens=max_tokens)
+
         return Response(
-            {'response': response.text},
+            {'response': response_text},
             status=status.HTTP_200_OK
         )
     
@@ -338,12 +404,12 @@ Key resources: [3-4 links]
 Milestones: [checkpoints]
 
 Keep it concise and actionable."""
-        
-        # Generate content with moderate output using OpenRouter
-        response = call_openrouter(prompt, max_tokens=600)
-        
+
+        # Generate content with moderate output using Gemini first, then OpenRouter
+        response_text = call_ai(prompt, max_tokens=600)
+
         return Response(
-            {'study_plan': response.text},
+            {'study_plan': response_text},
             status=status.HTTP_200_OK
         )
     
@@ -382,14 +448,6 @@ def summarize_chunks(request):
         if not isinstance(chunks, list) or len(chunks) == 0:
             return Response({'error': 'No valid chunks to summarize'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Configure Gemini
-        configure_gemini()
-
-        model_name = getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash')
-        if 'flash' not in model_name.lower():
-            model_name = 'gemini-2.5-flash'
-        model = genai.GenerativeModel(model_name)
-
         chunk_summaries = []
         for idx, chunk_text in enumerate(chunks):
             try:
@@ -402,18 +460,12 @@ Output:
 Summary:\n- <one line summary>\nTakeaways:\n- item1\n- item2\n- item3
 """
 
-                # Use OpenRouter as primary provider
-                try:
-                    resp = call_openrouter(prompt, getattr(settings, 'OPENROUTER_MODEL', None), max_tokens=200)
-                except Exception as e2:
-                    logger.error(f"OpenRouter failed: {str(e2)}")
-                    raise
-
-                response = resp
+                # Use unified AI provider (Gemini first, OpenRouter fallback)
+                summary_text = call_ai(prompt, max_tokens=200)
 
                 chunk_summaries.append({
                     'index': idx,
-                    'summary': response.text.strip()
+                    'summary': summary_text.strip()
                 })
             except Exception as e:
                 chunk_summaries.append({'index': idx, 'summary': f'Error generating summary: {str(e)}'})
@@ -422,13 +474,7 @@ Summary:\n- <one line summary>\nTakeaways:\n- item1\n- item2\n- item3
         try:
             combined_prompt = "Combine the following chunk summaries into a cohesive 3-4 sentence global summary and provide 5 concise key takeaways. Keep it factual and do not invent new information.\n\n" + "\n\n---\n\n".join([cs['summary'] for cs in chunk_summaries])
 
-            try:
-                combined_resp = call_openrouter(combined_prompt, getattr(settings, 'OPENROUTER_MODEL', None), max_tokens=400)
-            except Exception as e:
-                logger.error(f"OpenRouter failed for global summary: {str(e)}")
-                raise
-
-            global_summary = combined_resp.text.strip()
+            global_summary = call_ai(combined_prompt, max_tokens=400).strip()
         except Exception as e:
             global_summary = f'Error generating global summary: {str(e)}'
 
@@ -474,12 +520,12 @@ def explain_concept(request):
         }
         
         prompt = level_prompts.get(detail_level, level_prompts['detailed'])
-        
-        # Generate content with concise output using OpenRouter
-        response = call_openrouter(prompt, max_tokens=300)
-        
+
+        # Generate content with concise output using Gemini first, then OpenRouter
+        response_text = call_ai(prompt, max_tokens=300)
+
         return Response(
-            {'explanation': response.text},
+            {'explanation': response_text},
             status=status.HTTP_200_OK
         )
     
