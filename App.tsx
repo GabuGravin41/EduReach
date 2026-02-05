@@ -122,6 +122,7 @@ const AppContent: React.FC = () => {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [userTier, setUserTier] = useState<UserTier>('free');
+    const [sessionExpiredNotice, setSessionExpiredNotice] = useState('');
     
     // Fetch courses from backend using React Query
     const { data: coursesData = [] } = useCourses();
@@ -142,6 +143,15 @@ const AppContent: React.FC = () => {
           setUserTier(user.tier);
       }
     }, [user]);
+
+    useEffect(() => {
+      const handler = () => {
+        setSessionExpiredNotice('Your session expired. Please log in again.');
+        setTimeout(() => setSessionExpiredNotice(''), 4000);
+      };
+      window.addEventListener('auth:expired', handler as EventListener);
+      return () => window.removeEventListener('auth:expired', handler as EventListener);
+    }, []);
 
     useEffect(() => {
       console.log('Courses updated from React Query:', courses);
@@ -182,7 +192,16 @@ const AppContent: React.FC = () => {
     }
   
     if (!user) {
-      return <LoginScreen />;
+      return (
+        <>
+          {sessionExpiredNotice && (
+            <div className="fixed top-4 right-4 bg-amber-100 border border-amber-200 text-amber-900 px-4 py-3 rounded-lg shadow-lg z-50">
+              {sessionExpiredNotice}
+            </div>
+          )}
+          <LoginScreen />
+        </>
+      );
     }
   
     const renderContent = () => {

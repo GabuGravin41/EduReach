@@ -4,7 +4,7 @@ import { View } from '../App';
 import type { Assessment, Question } from '../types';
 import { QuizView } from './QuizView';
 import { assessmentService, AssessmentAttempt } from '../src/services/assessmentService';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../src/contexts/AuthContext';
 
 interface ExamDetailPageProps {
     exam: Assessment;
