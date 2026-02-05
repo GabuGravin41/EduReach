@@ -8,8 +8,11 @@ import {
   useCreateStudyGroupPost,
   useStudyGroupMembers,
   useInviteStudyGroupMember,
+  useStudyGroupChallenges,
+  useCreateStudyGroupChallenge,
 } from '../src/hooks/useStudyGroups';
 import { StudyGroup } from '../services/studyGroupService';
+import { useAssessments } from '../src/hooks/useAssessments';
 import { Button } from './ui/Button';
 import { UsersIcon } from './icons/UsersIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
@@ -34,9 +37,51 @@ export const StudyGroupsPage: React.FC = () => {
   const [activeGroup, setActiveGroup] = useState<StudyGroup | null>(null);
   const [groupTab, setGroupTab] = useState<'overview' | 'members' | 'events' | 'invites'>('overview');
   const [inviteEmail, setInviteEmail] = useState('');
+  const [challengeTitle, setChallengeTitle] = useState('');
+  const [challengeDescription, setChallengeDescription] = useState('');
+  const [selectedAssessmentId, setSelectedAssessmentId] = useState<string>('');
+  const [challengeStart, setChallengeStart] = useState('');
+  const [challengeEnd, setChallengeEnd] = useState('');
 
   const createPostMutation = useCreateStudyGroupPost();
   const inviteMemberMutation = useInviteStudyGroupMember();
+  const createChallengeMutation = useCreateStudyGroupChallenge();
+  const { data: assessmentsData = [] } = useAssessments();
+
+  const activeGroupId = activeGroup?.id;
+  const { data: groupPosts = [], isLoading: postsLoading } = useStudyGroupPosts(
+    activeGroupId ? Number(activeGroupId) : 0
+  );
+  const { data: members = [], isLoading: membersLoading } = useStudyGroupMembers(
+    activeGroupId ? Number(activeGroupId) : 0
+  );
+  const { data: challengesData = [] } = useStudyGroupChallenges(
+    activeGroupId ? Number(activeGroupId) : 0
+  );
+
+  const normalizedPosts = Array.isArray(groupPosts)
+    ? groupPosts
+    : (groupPosts && (groupPosts as any).results && Array.isArray((groupPosts as any).results)
+        ? (groupPosts as any).results
+        : []);
+
+  const normalizedMembers = Array.isArray(members)
+    ? members
+    : (members && (members as any).results && Array.isArray((members as any).results)
+        ? (members as any).results
+        : []);
+
+  const normalizedChallenges = Array.isArray(challengesData)
+    ? challengesData
+    : (challengesData && (challengesData as any).results && Array.isArray((challengesData as any).results)
+        ? (challengesData as any).results
+        : []);
+
+  const normalizedAssessments = Array.isArray(assessmentsData)
+    ? assessmentsData
+    : (assessmentsData && (assessmentsData as any).results && Array.isArray((assessmentsData as any).results)
+        ? (assessmentsData as any).results
+        : []);
 
   // Normalize groups data: backend may return either an array or a paginated object
   const groups: StudyGroup[] = Array.isArray(groupsData)
@@ -57,9 +102,9 @@ export const StudyGroupsPage: React.FC = () => {
   const handleJoinToggle = (group: StudyGroup, e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (group.is_member) {
-      leaveGroupMutation.mutate(group.id);
+      leaveGroupMutation.mutate(Number(group.id));
     } else {
-      joinGroupMutation.mutate(group.id);
+      joinGroupMutation.mutate(Number(group.id));
     }
   };
 
@@ -68,10 +113,25 @@ export const StudyGroupsPage: React.FC = () => {
       setGroupTab('overview');
   };
 
+  const handleCreateChallenge = async () => {
+    if (!activeGroupId || !challengeTitle.trim()) return;
+    await createChallengeMutation.mutateAsync({
+      group: Number(activeGroupId),
+      title: challengeTitle.trim(),
+      description: challengeDescription.trim() || undefined,
+      assessment: selectedAssessmentId ? Number(selectedAssessmentId) : null,
+      start_date: challengeStart || undefined,
+      end_date: challengeEnd || null,
+    });
+    setChallengeTitle('');
+    setChallengeDescription('');
+    setSelectedAssessmentId('');
+    setChallengeStart('');
+    setChallengeEnd('');
+  };
+
   // If a group is active, render the detailed dashboard
   if (activeGroup) {
-      const { data: groupPosts = [], isLoading: postsLoading } = useStudyGroupPosts(activeGroup.id);
-      const { data: members = [], isLoading: membersLoading } = useStudyGroupMembers(activeGroup.id);
       return (
         <div className="h-full flex flex-col">
             <button 
@@ -113,7 +173,7 @@ export const StudyGroupsPage: React.FC = () => {
                             <button
                                 key={tab}
                                 onClick={() => setGroupTab(tab as any)}
-                                className={`py-4 font-semibold text-sm capitalize border-b-2 transition-colors ${
+                                className={`py-4 px-1 text-sm font-semibold border-b-2 transition-colors ${
                                     groupTab === tab 
                                     ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' 
                                     : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -137,10 +197,10 @@ export const StudyGroupsPage: React.FC = () => {
                                 <div className="space-y-4">
                                     {postsLoading ? (
                                         <p className="text-sm text-slate-500">Loading discussions...</p>
-                                    ) : groupPosts.length === 0 ? (
+                                    ) : normalizedPosts.length === 0 ? (
                                         <p className="text-sm text-slate-500">No posts yet. Start the first discussion for this group.</p>
                                     ) : (
-                                        groupPosts.slice(0, 3).map(post => (
+                                        normalizedPosts.slice(0, 3).map(post => (
                                             <div key={post.id} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
                                                 <p className="font-semibold text-sm">{post.content}</p>
                                                 <p className="text-xs text-slate-500 mt-1">
@@ -178,7 +238,7 @@ export const StudyGroupsPage: React.FC = () => {
                         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                             {membersLoading ? (
                                 <div className="p-6 text-sm text-slate-500">Loading members...</div>
-                            ) : members.length === 0 ? (
+                            ) : normalizedMembers.length === 0 ? (
                                 <div className="p-6 text-sm text-slate-500">No members found for this group.</div>
                             ) : (
                                 <table className="w-full text-left">
@@ -188,7 +248,7 @@ export const StudyGroupsPage: React.FC = () => {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                                        {members.map(m => (
+                                        {normalizedMembers.map(m => (
                                             <tr key={m.id}>
                                                 <td className="px-6 py-4 flex items-center gap-3">
                                                     <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 flex items-center justify-center font-bold text-xs">
@@ -205,12 +265,87 @@ export const StudyGroupsPage: React.FC = () => {
                     )}
 
                     {groupTab === 'events' && (
-                         <div className="space-y-4">
-                             <div className="flex justify-between items-center mb-4">
-                                 <h3 className="text-xl font-bold">Upcoming Study Sessions</h3>
-                             </div>
-                             <p className="text-sm text-slate-500">No upcoming sessions yet. Once events are scheduled for this group, they will appear here.</p>
-                         </div>
+                        <div className="space-y-6">
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                                    <ClockIcon className="w-5 h-5 text-indigo-500" />
+                                    Create Group Challenge
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <input
+                                        value={challengeTitle}
+                                        onChange={(e) => setChallengeTitle(e.target.value)}
+                                        placeholder="Challenge title"
+                                        className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                                    />
+                                    <select
+                                        value={selectedAssessmentId}
+                                        onChange={(e) => setSelectedAssessmentId(e.target.value)}
+                                        className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                                    >
+                                        <option value="">Link an assessment (optional)</option>
+                                        {normalizedAssessments.map((assessment: any) => (
+                                            <option key={assessment.id} value={assessment.id}>
+                                                {assessment.title}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <input
+                                        value={challengeStart}
+                                        onChange={(e) => setChallengeStart(e.target.value)}
+                                        type="datetime-local"
+                                        className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                                    />
+                                    <input
+                                        value={challengeEnd}
+                                        onChange={(e) => setChallengeEnd(e.target.value)}
+                                        type="datetime-local"
+                                        className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                                    />
+                                </div>
+                                <textarea
+                                    value={challengeDescription}
+                                    onChange={(e) => setChallengeDescription(e.target.value)}
+                                    placeholder="Description (optional)"
+                                    className="mt-4 w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                                />
+                                <Button
+                                    className="mt-4"
+                                    onClick={handleCreateChallenge}
+                                    disabled={createChallengeMutation.isPending}
+                                >
+                                    Create Challenge
+                                </Button>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <h3 className="text-lg font-bold mb-4">Active Challenges</h3>
+                                {normalizedChallenges.length === 0 ? (
+                                    <p className="text-sm text-slate-500">No challenges yet for this group.</p>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {normalizedChallenges.map((challenge: any) => (
+                                            <div key={challenge.id} className="p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <p className="font-semibold">{challenge.title}</p>
+                                                        {challenge.assessment_title && (
+                                                            <p className="text-xs text-slate-500">Assessment: {challenge.assessment_title}</p>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-xs text-slate-500">
+                                                        {challenge.start_date ? new Date(challenge.start_date).toLocaleString() : 'Anytime'}
+                                                    </span>
+                                                </div>
+                                                {challenge.description && (
+                                                    <p className="text-sm text-slate-600 mt-2">{challenge.description}</p>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     )}
 
                     {groupTab === 'invites' && (

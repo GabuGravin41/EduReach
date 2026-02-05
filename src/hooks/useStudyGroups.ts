@@ -8,6 +8,7 @@ export const STUDY_GROUP_KEYS = {
   detail: (id: number) => [...STUDY_GROUP_KEYS.all, 'detail', id] as const,
   posts: (groupId: number) => [...STUDY_GROUP_KEYS.all, 'posts', groupId] as const,
   members: (groupId: number) => [...STUDY_GROUP_KEYS.all, 'members', groupId] as const,
+  challenges: (groupId: number) => [...STUDY_GROUP_KEYS.all, 'challenges', groupId] as const,
 };
 
 export const useStudyGroups = (opts?: { courseId?: number }) => {
@@ -84,6 +85,24 @@ export const useInviteStudyGroupMember = () => {
     onSuccess: (_data, variables) => {
       // Refresh members list after inviting
       queryClient.invalidateQueries({ queryKey: STUDY_GROUP_KEYS.members(variables.groupId) });
+    },
+  });
+};
+
+export const useStudyGroupChallenges = (groupId: number) => {
+  return useQuery({
+    queryKey: STUDY_GROUP_KEYS.challenges(groupId),
+    queryFn: () => studyGroupService.getChallenges(groupId),
+    enabled: !!groupId,
+  });
+};
+
+export const useCreateStudyGroupChallenge = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: studyGroupService.createChallenge,
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: STUDY_GROUP_KEYS.challenges(variables.group) });
     },
   });
 };

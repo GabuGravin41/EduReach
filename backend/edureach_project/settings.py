@@ -166,14 +166,12 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-
-# Whitenoise configuration for production
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Media files (user uploads)
-MEDIA_URL = 'media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+# Media uploads (assessment answer images)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Ensure logs directory exists (prevents FileHandler errors on first run)
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
@@ -337,7 +335,7 @@ APPEND_SLASH = False
 # OpenRouter API Configuration (PRIMARY AI PROVIDER - FREE)
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
 OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'tngtech/deepseek-r1t2-chimera:free')
-OPENROUTER_API_URL = os.environ.get('OPENROUTER_API_URL', 'https://api.openrouter.ai/v1/chat/completions')
+OPENROUTER_API_URL = os.environ.get('OPENROUTER_API_URL', 'https://openrouter.ai/api/v1/chat/completions')
 PREFER_OPENROUTER = os.environ.get('PREFER_OPENROUTER', 'False') == 'True'
 
 # Validate OpenRouter configuration
@@ -353,13 +351,6 @@ if not OPENROUTER_API_KEY:
 # Gemini API Configuration (OPTIONAL - for future use with paid plan)
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', None)
 GEMINI_MODEL_NAME = os.environ.get('GEMINI_MODEL_NAME', 'gemini-2.5-flash')
-
-
-# OpenRouter Fallback Configuration
-OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', None)
-OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'tngtech/deepseek-r1t2-chimera:free')
-OPENROUTER_API_URL = os.environ.get('OPENROUTER_API_URL', 'https://api.openrouter.ai/v1/chat/completions')
-PREFER_OPENROUTER = os.environ.get('PREFER_OPENROUTER', 'False') == 'True'
 
 # Security settings for production
 if not DEBUG:

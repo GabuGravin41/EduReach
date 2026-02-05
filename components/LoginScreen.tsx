@@ -29,9 +29,6 @@ export const LoginScreen: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Mock login delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
       if (isLogin) {
         await login(username, password);
       } else {

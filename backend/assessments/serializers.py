@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Assessment, Question, UserAttempt
+from .models import Assessment, Question, UserAttempt, AssessmentAnswerImage
 from users.serializers import UserSerializer
 
 
@@ -36,7 +36,7 @@ class AssessmentSerializer(serializers.ModelSerializer):
         model = Assessment
         fields = [
             'id', 'title', 'topic', 'description', 'creator',
-            'time_limit_minutes', 'is_public', 'questions',
+            'time_limit_minutes', 'is_public', 'questions', 'share_token',
             'question_count', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'creator', 'created_at', 'updated_at']
@@ -55,7 +55,7 @@ class AssessmentListSerializer(serializers.ModelSerializer):
         model = Assessment
         fields = [
             'id', 'title', 'topic', 'description',
-            'creator_username', 'time_limit_minutes',
+            'creator_username', 'time_limit_minutes', 'share_token',
             'question_count', 'related_lessons', 'created_at'
         ]
 
@@ -73,17 +73,25 @@ class AssessmentListSerializer(serializers.ModelSerializer):
         } for lesson in lessons]
 
 
+class AssessmentAnswerImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AssessmentAnswerImage
+        fields = ['id', 'attempt', 'question_id', 'image', 'uploaded_at']
+        read_only_fields = ['id', 'uploaded_at']
+
+
 class UserAttemptSerializer(serializers.ModelSerializer):
     """Serializer for UserAttempt model."""
     assessment_title = serializers.CharField(source='assessment.title', read_only=True)
     user_username = serializers.CharField(source='user.username', read_only=True)
+    answer_images = AssessmentAnswerImageSerializer(many=True, read_only=True)
     
     class Meta:
         model = UserAttempt
         fields = [
             'id', 'user', 'user_username', 'assessment',
             'assessment_title', 'status', 'score', 'percentage',
-            'answers', 'started_at', 'submitted_at', 'time_taken_minutes'
+            'answers', 'answer_images', 'started_at', 'submitted_at', 'time_taken_minutes'
         ]
         read_only_fields = [
             'id', 'user', 'score', 'percentage',
@@ -94,3 +102,9 @@ class UserAttemptSerializer(serializers.ModelSerializer):
 class SubmitAnswersSerializer(serializers.Serializer):
     """Serializer for submitting assessment answers."""
     answers = serializers.JSONField()
+
+
+class ManualGradeSerializer(serializers.Serializer):
+    attempt_id = serializers.IntegerField()
+    score = serializers.CharField(max_length=20)
+    percentage = serializers.FloatField()

@@ -3,6 +3,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
+import uuid
 import json
 User = get_user_model()
 
@@ -36,6 +37,8 @@ class Assessment(models.Model):
         related_name='related_assessments',
         help_text='Videos tagged as relevant to this assessment'
     )
+
+    share_token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -155,6 +158,26 @@ class UserAttempt(models.Model):
             self.time_taken_minutes = int(time_diff.total_seconds() / 60)
         
         self.save()
+
+
+class AssessmentAnswerImage(models.Model):
+    """Image upload for a specific question in an assessment attempt."""
+
+    attempt = models.ForeignKey(
+        UserAttempt,
+        on_delete=models.CASCADE,
+        related_name='answer_images'
+    )
+    question_id = models.CharField(max_length=100)
+    image = models.ImageField(upload_to='assessment_answers/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-uploaded_at']
+        unique_together = ['attempt', 'question_id', 'image']
+
+    def __str__(self):
+        return f"Answer image for attempt {self.attempt_id} q{self.question_id}"
 
 
 class VideoNotes(models.Model):

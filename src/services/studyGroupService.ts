@@ -14,6 +14,18 @@ export interface StudyGroup {
   created_at: string;
 }
 
+export interface StudyGroupChallenge {
+  id: number;
+  group: StudyGroup;
+  title: string;
+  description?: string;
+  assessment?: number | null;
+  assessment_title?: string;
+  start_date: string;
+  end_date?: string | null;
+  created_at: string;
+}
+
 export interface StudyGroupPost {
   id: number;
   group: number;
@@ -84,6 +96,18 @@ export const studyGroupService = {
 
   async getChallenges(groupId: number) {
     const { data } = await apiClient.get('/study-groups/challenges/', { params: { group: groupId } });
+    return data;
+  },
+
+  async createChallenge(payload: {
+    group: number;
+    title: string;
+    description?: string;
+    assessment?: number | null;
+    start_date?: string;
+    end_date?: string | null;
+  }) {
+    const { data } = await apiClient.post('/study-groups/challenges/', payload);
     return data;
   },
 

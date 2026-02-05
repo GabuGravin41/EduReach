@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { XIcon } from './icons/XIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import apiClient from '../services/api';
+import { assessmentService } from '../src/services/assessmentService';
 import type { 
     Question, 
     QuizQuestion, 
@@ -18,9 +19,11 @@ import { Button } from './ui/Button';
 
 interface QuizViewProps {
   quiz: QuizQuestion[] | Question[] | null;
+  timeLimitMinutes?: number;
+  assessmentId?: number;
 }
 
-export const QuizView: React.FC<QuizViewProps> = ({ quiz }) => {
+export const QuizView: React.FC<QuizViewProps> = ({ quiz, timeLimitMinutes, assessmentId }) => {
   // Normalize input to standard Question[] format
   const questions: Question[] = useMemo(() => {
     if (!quiz || !Array.isArray(quiz)) return [];
@@ -76,14 +79,53 @@ export const QuizView: React.FC<QuizViewProps> = ({ quiz }) => {
 
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
+  const [timeLeftSeconds, setTimeLeftSeconds] = useState<number | null>(
+    timeLimitMinutes ? Math.max(0, Math.round(timeLimitMinutes * 60)) : null
+  );
   
   // State for individual AI grading of essays
   const [gradingResults, setGradingResults] = useState<Record<string, { score: number, feedback: string }>>({});
   const [isGrading, setIsGrading] = useState<Record<string, boolean>>({});
+  const [uploadingImages, setUploadingImages] = useState<Record<string, boolean>>({});
 
   const handleAnswerChange = (questionId: string, value: any) => {
     if (isSubmitted) return;
     setAnswers(prev => ({ ...prev, [questionId]: value }));
+  };
+
+  const handleUploadImage = async (questionId: string, file: File) => {
+    if (!assessmentId) return;
+    setUploadingImages(prev => ({ ...prev, [questionId]: true }));
+    try {
+      await assessmentService.uploadAnswerImage(assessmentId, questionId, file);
+    } catch (error) {
+      console.error('Image upload failed:', error);
+    } finally {
+      setUploadingImages(prev => ({ ...prev, [questionId]: false }));
+    }
+  };
+
+  useEffect(() => {
+    if (!timeLimitMinutes || isSubmitted) return;
+    setTimeLeftSeconds(Math.max(0, Math.round(timeLimitMinutes * 60)));
+    const interval = setInterval(() => {
+      setTimeLeftSeconds((prev) => {
+        if (prev === null) return prev;
+        if (prev <= 1) {
+          clearInterval(interval);
+          setIsSubmitted(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timeLimitMinutes, isSubmitted]);
+
+  const formatTime = (totalSeconds: number) => {
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
   const handleGradeEssay = async (q: EssayQuestion) => {
@@ -298,13 +340,26 @@ Format: {"score": number, "feedback": "string"}`;
 
   return (
     <div className="p-6 h-full overflow-y-auto bg-white dark:bg-slate-800">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Assessment</h3>
-        {isSubmitted && (
-            <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
-                Score: {results.earned} / {results.total}
-            </div>
-        )}
+      <div className="flex flex-col gap-4 mb-6">
+        <div className="flex justify-between items-center">
+          <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Assessment</h3>
+          <div className="flex items-center gap-4">
+            {timeLeftSeconds !== null && !isSubmitted && (
+              <div className="text-sm font-semibold text-rose-600 dark:text-rose-400">
+                Time left: {formatTime(timeLeftSeconds)}
+              </div>
+            )}
+            {isSubmitted && (
+                <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
+                    Score: {results.earned} / {results.total}
+                </div>
+            )}
+          </div>
+        </div>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          You can type answers directly (LaTeX supported). If you’re not comfortable typing math, you can upload an image instead.
+          Typed answers can be graded instantly; image uploads are stored for manual review.
+        </div>
       </div>
 
       <div className="space-y-8 max-w-4xl mx-auto">
@@ -405,6 +460,26 @@ Format: {"score": number, "feedback": "string"}`;
                                 Correct answers: {(q as ShortAnswerQuestion).correct_answers?.join(', ')}
                             </div>
                         )}
+                        {assessmentId && (
+                          <div className="mt-3 flex items-center gap-3 text-xs text-slate-500">
+                            <label className="inline-flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleUploadImage(q.id, file);
+                                  e.currentTarget.value = '';
+                                }}
+                              />
+                              <span className="px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
+                                Upload image answer
+                              </span>
+                            </label>
+                            {uploadingImages[q.id] && <span>Uploading...</span>}
+                          </div>
+                        )}
                     </div>
                 )}
 
@@ -484,6 +559,26 @@ Format: {"score": number, "feedback": "string"}`;
                                     </div>
                                 )}
                             </div>
+                        )}
+                        {assessmentId && (
+                          <div className="mt-3 flex items-center gap-3 text-xs text-slate-500">
+                            <label className="inline-flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleUploadImage(q.id, file);
+                                  e.currentTarget.value = '';
+                                }}
+                              />
+                              <span className="px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
+                                Upload image answer
+                              </span>
+                            </label>
+                            {uploadingImages[q.id] && <span>Uploading...</span>}
+                          </div>
                         )}
                     </div>
                 )}

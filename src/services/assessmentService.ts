@@ -18,6 +18,12 @@ export interface Assessment {
   };
 }
 
+export interface ManualGradePayload {
+  attempt_id: number;
+  score: string;
+  percentage: number;
+}
+
 export interface AssessmentQuestion {
   id: number;
   question: string;
@@ -53,6 +59,75 @@ export const assessmentService = {
       return response.data;
     } catch (error) {
       console.error('Error fetching assessments:', error);
+      throw error;
+    }
+  },
+
+  async getAttempts(assessmentId: number, shareToken?: string): Promise<AssessmentAttempt[]> {
+    try {
+      const response = await apiClient.get(
+        `${API_ENDPOINTS.ASSESSMENT_DETAIL(assessmentId)}attempts/`,
+        { params: shareToken ? { share_token: shareToken } : undefined }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching attempts:', error);
+      throw error;
+    }
+  },
+
+  async manualGrade(assessmentId: number, payload: ManualGradePayload, shareToken?: string) {
+    try {
+      const response = await apiClient.post(
+        `${API_ENDPOINTS.ASSESSMENT_DETAIL(assessmentId)}manual-grade/`,
+        payload,
+        { params: shareToken ? { share_token: shareToken } : undefined }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error saving manual grade:', error);
+      throw error;
+    }
+  },
+
+  async exportAttempts(assessmentId: number, shareToken?: string) {
+    try {
+      const response = await apiClient.get(
+        `${API_ENDPOINTS.ASSESSMENT_DETAIL(assessmentId)}export-attempts/`,
+        {
+          params: shareToken ? { share_token: shareToken } : undefined,
+          responseType: 'blob',
+        }
+      );
+      return response.data as Blob;
+    } catch (error) {
+      console.error('Error exporting attempts:', error);
+      throw error;
+    }
+  },
+
+  async exportAttemptsPDF(assessmentId: number, shareToken?: string) {
+    try {
+      const response = await apiClient.get(
+        `${API_ENDPOINTS.ASSESSMENT_DETAIL(assessmentId)}export-attempts-pdf/`,
+        {
+          params: shareToken ? { share_token: shareToken } : undefined,
+          responseType: 'blob',
+        }
+      );
+      return response.data as Blob;
+    } catch (error) {
+      console.error('Error exporting attempts PDF:', error);
+      throw error;
+    }
+  },
+
+  async joinChallenge(assessmentId: number) {
+    try {
+      const response = await apiClient.post(`${API_ENDPOINTS.ASSESSMENT_DETAIL(assessmentId)}join-challenge/`);
+      return response.data;
+    } catch (error) {
+      console.error('Error joining challenge:', error);
       throw error;
     }
   },
@@ -122,6 +197,24 @@ export const assessmentService = {
       return response.data;
     } catch (error) {
       console.error('Error submitting assessment:', error);
+      throw error;
+    }
+  },
+
+  async uploadAnswerImage(assessmentId: number, questionId: string, file: File) {
+    try {
+      const formData = new FormData();
+      formData.append('question_id', questionId);
+      formData.append('image', file);
+
+      const response = await apiClient.post(
+        `${API_ENDPOINTS.ASSESSMENT_DETAIL(assessmentId)}upload-answer-image/`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error uploading answer image:', error);
       throw error;
     }
   },

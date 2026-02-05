@@ -149,4 +149,6 @@ export interface Assessment {
     source_url?: string;
     assessment_type?: AssessmentMode;
     context?: AssessmentContext;
+    share_token?: string;
+    creator?: { id: number; username?: string };
 }

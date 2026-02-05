@@ -83,8 +83,18 @@ def call_openrouter(prompt: str, model_name: str = None, max_tokens: int = 400):
         'Content-Type': 'application/json'
     }
 
+    app_url = getattr(settings, 'OPENROUTER_APP_URL', None)
+    app_name = getattr(settings, 'OPENROUTER_APP_NAME', None)
+    if app_url:
+        headers['HTTP-Referer'] = app_url
+    if app_name:
+        headers['X-Title'] = app_name
+
     resp = requests.post(api_url, json=payload, headers=headers, timeout=60)
     if resp.status_code >= 400:
+        logger.error(
+            "OpenRouter error: %s %s", resp.status_code, resp.text
+        )
         raise RuntimeError(f'OpenRouter error: {resp.status_code} {resp.text}')
 
     data = resp.json()
@@ -357,6 +367,12 @@ If they ask something off-topic, politely redirect them back to the learning mat
             status=status.HTTP_200_OK
         )
     
+    except requests.exceptions.RequestException as e:
+        logger.error(f"OpenRouter connectivity error in chat: {str(e)}", exc_info=True)
+        return Response(
+            {'error': 'AI service unreachable. Check network/DNS or OpenRouter URL.', 'type': type(e).__name__},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
     except Exception as e:
         logger.error(f"Error in chat: {str(e)}", exc_info=True)
         return Response(

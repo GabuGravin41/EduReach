@@ -66,6 +66,7 @@ class ChallengeParticipationSerializer(serializers.ModelSerializer):
 class StudyGroupChallengeSerializer(serializers.ModelSerializer):
     group = StudyGroupSerializer(read_only=True)
     participations = ChallengeParticipationSerializer(many=True, read_only=True)
+    assessment_title = serializers.CharField(source='assessment.title', read_only=True)
 
     class Meta:
         model = StudyGroupChallenge
@@ -75,6 +76,7 @@ class StudyGroupChallengeSerializer(serializers.ModelSerializer):
             'title',
             'description',
             'assessment',
+            'assessment_title',
             'start_date',
             'end_date',
             'participations',
