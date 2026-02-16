@@ -6,16 +6,18 @@ export interface Assessment {
   title: string;
   description?: string;
   topic: string;
-  questions: AssessmentQuestion[];
-  time_limit?: number; // in minutes
-  status: 'pending' | 'in_progress' | 'completed';
+  questions?: AssessmentQuestion[];
+  question_count?: number;
+  time_limit?: number; // in minutes (legacy)
+  time_limit_minutes?: number;
+  is_public?: boolean;
+  results_visibility?: 'private' | 'opt_in_public' | 'public';
+  status?: 'pending' | 'in_progress' | 'completed';
   score?: string;
+  share_token?: string;
+  creator?: { id: number; username?: string };
   created_at: string;
   updated_at: string;
-  author?: {
-    id: number;
-    username: string;
-  };
 }
 
 export interface ManualGradePayload {
@@ -40,16 +42,25 @@ export interface CreateAssessmentData {
   topic: string;
   questions: Omit<AssessmentQuestion, 'id' | 'order'>[];
   time_limit?: number;
+  questions_data?: any[];
+  results_visibility?: 'private' | 'opt_in_public' | 'public';
+  is_public?: boolean;
 }
 
 export interface AssessmentAttempt {
   id: number;
-  assessment: Assessment;
+  assessment: number | Assessment;
+  user?: { id: number; username?: string };
+  user_username?: string;
+  status?: string;
+  percentage?: number;
+  is_public_result?: boolean;
   started_at: string;
-  completed_at?: string;
-  answers: Record<number, string>; // question_id -> answer
-  score?: number;
-  max_score: number;
+  submitted_at?: string;
+  answers: Record<number | string, string>; // question_id -> answer
+  score?: number | string;
+  max_score?: number;
+  answer_images?: Array<{ id: number; question_id: string; image: string; uploaded_at: string }>;
 }
 
 export const assessmentService = {
@@ -150,6 +161,24 @@ export const assessmentService = {
       console.error('Error fetching assessment:', error);
       throw error;
     }
+  },
+
+  async getPublicResults(assessmentId: number): Promise<AssessmentAttempt[]> {
+    const response = await apiClient.get(
+      `${API_ENDPOINTS.ASSESSMENT_DETAIL(assessmentId)}public-results/`
+    );
+    return response.data;
+  },
+
+  async setResultVisibility(
+    assessmentId: number,
+    isPublicResult: boolean
+  ): Promise<AssessmentAttempt> {
+    const response = await apiClient.post(
+      `${API_ENDPOINTS.ASSESSMENT_DETAIL(assessmentId)}set-result-visibility/`,
+      { is_public_result: isPublicResult }
+    );
+    return response.data;
   },
 
   async createAssessment(data: CreateAssessmentData): Promise<Assessment> {

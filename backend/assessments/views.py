@@ -1,6 +1,7 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
 from django.db import models
 from django.utils import timezone
@@ -61,9 +62,24 @@ class AssessmentViewSet(viewsets.ModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         assessment = self.get_object()
         share_token = request.query_params.get('share_token')
-        if assessment.creator != request.user and share_token != str(assessment.share_token):
+        if (
+            assessment.creator != request.user
+            and not assessment.is_public
+            and share_token != str(assessment.share_token)
+        ):
             return Response({'detail': 'Not authorized.'}, status=status.HTTP_403_FORBIDDEN)
         return super().retrieve(request, *args, **kwargs)
+
+    def perform_update(self, serializer):
+        assessment = self.get_object()
+        if assessment.creator != self.request.user:
+            raise PermissionDenied('Only the creator can edit this assessment.')
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if instance.creator != self.request.user:
+            raise PermissionDenied('Only the creator can delete this assessment.')
+        instance.delete()
 
     @action(detail=True, methods=['get'])
     def questions(self, request, pk=None):
@@ -132,7 +148,53 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         # Update answers and calculate score
         attempt.answers = serializer.validated_data['answers']
         attempt.calculate_score()
+
+        # Enforce creator-level visibility policy.
+        if assessment.results_visibility == Assessment.ResultsVisibility.PUBLIC:
+            attempt.is_public_result = True
+        elif assessment.results_visibility == Assessment.ResultsVisibility.PRIVATE:
+            attempt.is_public_result = False
+        attempt.save(update_fields=['is_public_result'])
         
+        return Response(UserAttemptSerializer(attempt).data)
+
+    @action(detail=True, methods=['get'], url_path='public-results')
+    def public_results(self, request, pk=None):
+        assessment = self.get_object()
+        base_qs = UserAttempt.objects.filter(
+            assessment=assessment,
+            status=UserAttempt.Status.GRADED
+        ).select_related('user')
+
+        if assessment.results_visibility == Assessment.ResultsVisibility.PRIVATE:
+            return Response([])
+        if assessment.results_visibility == Assessment.ResultsVisibility.PUBLIC:
+            attempts = base_qs
+        else:
+            attempts = base_qs.filter(is_public_result=True)
+
+        serializer = UserAttemptSerializer(attempts, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='set-result-visibility')
+    def set_result_visibility(self, request, pk=None):
+        assessment = self.get_object()
+        attempt = get_object_or_404(
+            UserAttempt,
+            assessment=assessment,
+            user=request.user,
+            status=UserAttempt.Status.GRADED
+        )
+        requested = bool(request.data.get('is_public_result', False))
+
+        if assessment.results_visibility == Assessment.ResultsVisibility.PUBLIC:
+            attempt.is_public_result = True
+        elif assessment.results_visibility == Assessment.ResultsVisibility.PRIVATE:
+            attempt.is_public_result = False
+        else:
+            attempt.is_public_result = requested
+
+        attempt.save(update_fields=['is_public_result'])
         return Response(UserAttemptSerializer(attempt).data)
 
     @action(detail=True, methods=['get'], url_path='attempts')
@@ -178,7 +240,17 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         attempts = UserAttempt.objects.filter(assessment=assessment).select_related('user')
         buffer = StringIO()
         writer = csv.writer(buffer)
-        writer.writerow(['attempt_id', 'user', 'score', 'percentage', 'status', 'submitted_at'])
+        writer.writerow([
+            'attempt_id',
+            'user',
+            'score',
+            'percentage',
+            'status',
+            'is_public_result',
+            'submitted_at',
+            'answers_json',
+            'answer_images'
+        ])
         for attempt in attempts:
             writer.writerow([
                 attempt.id,
@@ -186,7 +258,10 @@ class AssessmentViewSet(viewsets.ModelViewSet):
                 attempt.score,
                 attempt.percentage,
                 attempt.status,
+                attempt.is_public_result,
                 attempt.submitted_at,
+                attempt.answers,
+                '; '.join([img.image.url for img in attempt.answer_images.all()])
             ])
 
         response = HttpResponse(buffer.getvalue(), content_type='text/csv')

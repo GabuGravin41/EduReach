@@ -261,7 +261,8 @@ else:
         if not valid_origins and IS_RUNSERVER:
             CORS_ALLOWED_ORIGINS = development_cors
         else:
-            CORS_ALLOWED_ORIGINS = valid_origins
+            # Keep production origins, but also allow localhost for active testing.
+            CORS_ALLOWED_ORIGINS = list(dict.fromkeys(valid_origins + development_cors))
     else:
         # During collectstatic, use a valid dummy value
         CORS_ALLOWED_ORIGINS = ['http://localhost']

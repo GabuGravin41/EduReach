@@ -13,49 +13,83 @@ interface ExamDetailPageProps {
 
 export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView }) => {
     const { user } = useAuth();
-    const shareToken = exam.share_token;
-    const isCreator = !!(user && exam.creator && user.id === exam.creator.id);
-    const inviteLink = shareToken ? `${window.location.origin}/?assessment=${exam.id}&share_token=${shareToken}` : '';
+    const [liveExam, setLiveExam] = React.useState<any>(exam);
+    const shareToken = liveExam?.share_token;
+    const isCreator = !!(user && liveExam?.creator && user.id === liveExam.creator.id);
+    const inviteLink = shareToken ? `${window.location.origin}/?assessment=${liveExam.id}&share_token=${shareToken}` : '';
 
     const [attempts, setAttempts] = React.useState<AssessmentAttempt[]>([]);
     const [isLoadingAttempts, setIsLoadingAttempts] = React.useState(false);
+    const [publicAttempts, setPublicAttempts] = React.useState<AssessmentAttempt[]>([]);
+    const [myResultPublic, setMyResultPublic] = React.useState(false);
+    const [isSavingVisibility, setIsSavingVisibility] = React.useState(false);
     const [gradingMap, setGradingMap] = React.useState<Record<number, { score: string; percentage: string }>>({});
     const [copyState, setCopyState] = React.useState<'idle' | 'copied' | 'error'>('idle');
+
+    React.useEffect(() => {
+        setLiveExam(exam);
+    }, [exam]);
+
+    React.useEffect(() => {
+        const load = async () => {
+            try {
+                const detail = await assessmentService.getAssessment(exam.id);
+                setLiveExam(detail as any);
+            } catch {
+                // keep fallback exam object from props for offline mode
+            }
+        };
+        load();
+    }, [exam.id]);
+
+    React.useEffect(() => {
+        loadPublicAttempts();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [liveExam?.id]);
 
     const loadAttempts = async () => {
         if (!isCreator && !shareToken) return;
         setIsLoadingAttempts(true);
         try {
-            const data = await assessmentService.getAttempts(exam.id, shareToken);
+            const data = await assessmentService.getAttempts(liveExam.id, shareToken);
             setAttempts(data);
         } finally {
             setIsLoadingAttempts(false);
         }
     };
 
+    const loadPublicAttempts = async () => {
+        try {
+            const data = await assessmentService.getPublicResults(liveExam.id);
+            setPublicAttempts(data);
+        } catch (error) {
+            console.error('Failed to load public results', error);
+        }
+    };
+
     const handleExport = async () => {
-        const blob = await assessmentService.exportAttempts(exam.id, shareToken);
+        const blob = await assessmentService.exportAttempts(liveExam.id, shareToken);
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `assessment_${exam.id}_attempts.csv`;
+        a.download = `assessment_${liveExam.id}_attempts.csv`;
         a.click();
         window.URL.revokeObjectURL(url);
     };
 
     const handleExportPDF = async () => {
-        const blob = await assessmentService.exportAttemptsPDF(exam.id, shareToken);
+        const blob = await assessmentService.exportAttemptsPDF(liveExam.id, shareToken);
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `assessment_${exam.id}_attempts.pdf`;
+        a.download = `assessment_${liveExam.id}_attempts.pdf`;
         a.click();
         window.URL.revokeObjectURL(url);
     };
 
     const handleJoinChallenge = async () => {
         try {
-            await assessmentService.joinChallenge(exam.id);
+            await assessmentService.joinChallenge(liveExam.id);
             alert('Joined challenge successfully!');
         } catch (error: any) {
             alert(error.response?.data?.detail || 'Failed to join challenge');
@@ -66,12 +100,33 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
         const entry = gradingMap[attemptId];
         if (!entry?.score || !entry?.percentage) return;
         const percentage = Number(entry.percentage);
-        await assessmentService.manualGrade(exam.id, {
+        await assessmentService.manualGrade(liveExam.id, {
             attempt_id: attemptId,
             score: entry.score,
             percentage: isNaN(percentage) ? 0 : percentage,
         }, shareToken);
         await loadAttempts();
+    };
+
+    const handleResultVisibilitySave = async () => {
+        setIsSavingVisibility(true);
+        try {
+            await assessmentService.setResultVisibility(liveExam.id, myResultPublic);
+            await loadPublicAttempts();
+        } finally {
+            setIsSavingVisibility(false);
+        }
+    };
+
+    const handlePolicyChange = async (value: 'private' | 'opt_in_public' | 'public') => {
+        if (!isCreator) return;
+        try {
+            const updated = await assessmentService.updateAssessment(liveExam.id, { results_visibility: value } as any);
+            setLiveExam(updated as any);
+            await loadPublicAttempts();
+        } catch (error) {
+            console.error('Failed to update results visibility policy', error);
+        }
     };
 
     const handleCopyInvite = async () => {
@@ -99,7 +154,27 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
     }
 
     // Convert legacy question formats if needed or use questions_data
-    const quizData = exam.questions_data || [];
+    const quizData = liveExam?.questions_data || (liveExam?.questions || []).map((q: any) => ({
+        id: String(q.id),
+        type:
+            q.question_type === 'mcq'
+                ? 'multiple_choice'
+                : q.question_type === 'true_false'
+                ? 'true_false'
+                : q.question_type === 'essay'
+                ? 'essay'
+                : 'short_answer',
+        question_text: q.question_text,
+        options: q.options || [],
+        correct_answer_index: Array.isArray(q.options) ? q.options.indexOf(q.correct_answer) : 0,
+        correct_answers: q.correct_answer ? [q.correct_answer] : [],
+        correct_answer: q.correct_answer,
+        points: q.points || 1,
+        explanation: q.explanation || '',
+        case_sensitive: false,
+        exact_match: false,
+        max_length: 400,
+    }));
 
     return (
         <div className="h-full flex flex-col">
@@ -112,14 +187,14 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                     Back to Assessments
                 </button>
                 <div className="text-sm font-medium text-slate-500">
-                    {exam.time} Minutes Limit
+                    {liveExam.time || liveExam.time_limit_minutes || 30} Minutes Limit
                 </div>
             </div>
 
             <div className="flex-1 min-h-0 bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
                 <div className="p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                    <h1 className="text-2xl font-bold text-slate-800 dark:text-white">{exam.title}</h1>
-                    <p className="text-slate-600 dark:text-slate-400 mt-1">{exam.description}</p>
+                    <h1 className="text-2xl font-bold text-slate-800 dark:text-white">{liveExam.title}</h1>
+                    <p className="text-slate-600 dark:text-slate-400 mt-1">{liveExam.description}</p>
                     {!isCreator && (
                         <button
                             onClick={handleJoinChallenge}
@@ -132,7 +207,11 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                 <div className="flex-1 min-h-0 overflow-hidden grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
                     <div className="min-h-0">
                         {quizData.length > 0 ? (
-                            <QuizView quiz={quizData as Question[]} timeLimitMinutes={exam.time} assessmentId={exam.id} />
+                            <QuizView
+                                quiz={quizData as Question[]}
+                                timeLimitMinutes={liveExam.time || liveExam.time_limit_minutes || 30}
+                                assessmentId={liveExam.id}
+                            />
                         ) : (
                             <div className="h-full flex items-center justify-center text-slate-500">
                                 No questions found for this assessment.
@@ -168,6 +247,42 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                                     </div>
                                 </div>
                             )}
+                            {isCreator && (
+                                <div className="mb-4">
+                                    <p className="text-xs text-slate-500 mb-1">Result visibility policy</p>
+                                    <select
+                                        value={liveExam.results_visibility || 'opt_in_public'}
+                                        onChange={(e) => handlePolicyChange(e.target.value as 'private' | 'opt_in_public' | 'public')}
+                                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                                    >
+                                        <option value="private">Instructor only</option>
+                                        <option value="opt_in_public">Students choose public/private</option>
+                                        <option value="public">Always public to participants</option>
+                                    </select>
+                                </div>
+                            )}
+                            {!isCreator && (liveExam.results_visibility || 'opt_in_public') === 'opt_in_public' && (
+                                <div className="mb-4">
+                                    <p className="text-xs text-slate-500 mb-1">My result visibility</p>
+                                    <div className="flex gap-2">
+                                        <select
+                                            value={myResultPublic ? 'public' : 'private'}
+                                            onChange={(e) => setMyResultPublic(e.target.value === 'public')}
+                                            className="flex-1 px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                                        >
+                                            <option value="private">Private</option>
+                                            <option value="public">Public</option>
+                                        </select>
+                                        <button
+                                            onClick={handleResultVisibilitySave}
+                                            disabled={isSavingVisibility}
+                                            className="px-3 py-2 text-xs rounded-lg bg-indigo-600 text-white"
+                                        >
+                                            {isSavingVisibility ? 'Saving...' : 'Save'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                             <button
                                 onClick={handleExport}
                                 className="w-full mb-2 px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold"
@@ -179,6 +294,12 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                                 className="w-full mb-4 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold"
                             >
                                 Export Attempts (PDF)
+                            </button>
+                            <button
+                                onClick={loadPublicAttempts}
+                                className="w-full mb-4 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-semibold"
+                            >
+                                Load Public Results
                             </button>
                             {isLoadingAttempts ? (
                                 <p className="text-sm text-slate-500">Loading attempts...</p>
@@ -221,6 +342,24 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                                                     className="px-2 py-1 text-xs rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
                                                 />
                                             </div>
+                                            {Array.isArray(attempt.answer_images) && attempt.answer_images.length > 0 && (
+                                                <div className="mt-3 space-y-2">
+                                                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Submitted image solutions</p>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        {attempt.answer_images.map((img) => (
+                                                            <a
+                                                                key={img.id}
+                                                                href={img.image}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="block rounded border border-slate-200 dark:border-slate-700 overflow-hidden"
+                                                            >
+                                                                <img src={img.image} alt={`Answer ${img.question_id}`} className="w-full h-24 object-cover" />
+                                                            </a>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                             <button
                                                 onClick={() => handleManualGrade(attempt.id)}
                                                 className="mt-2 w-full px-2 py-1 text-xs rounded bg-indigo-600 text-white"
@@ -229,6 +368,22 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                                             </button>
                                         </div>
                                     ))}
+                                </div>
+                            )}
+                            {publicAttempts.length > 0 && (
+                                <div className="mt-6">
+                                    <h4 className="text-sm font-bold mb-2">Public leaderboard</h4>
+                                    <div className="space-y-2">
+                                        {publicAttempts
+                                            .slice()
+                                            .sort((a, b) => (Number(b.percentage || 0) - Number(a.percentage || 0)))
+                                            .map((attempt) => (
+                                                <div key={`pub-${attempt.id}`} className="flex items-center justify-between text-xs border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2">
+                                                    <span>{attempt.user?.username || attempt.user_username || 'Student'}</span>
+                                                    <span>{attempt.score || '-'} ({attempt.percentage ?? 0}%)</span>
+                                                </div>
+                                            ))}
+                                    </div>
                                 </div>
                             )}
                         </div>

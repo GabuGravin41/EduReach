@@ -10,6 +10,11 @@ User = get_user_model()
 
 class Assessment(models.Model):
     """Model for assessments/quizzes."""
+    class ResultsVisibility(models.TextChoices):
+        PRIVATE = 'private', 'Private (Instructor only)'
+        OPT_IN_PUBLIC = 'opt_in_public', 'Students choose public/private'
+        PUBLIC = 'public', 'Public to all participants'
+
     title = models.CharField(max_length=200)
     topic = models.CharField(max_length=100)
     description = models.TextField()
@@ -21,6 +26,12 @@ class Assessment(models.Model):
     )
     time_limit_minutes = models.PositiveIntegerField(default=30)
     is_public = models.BooleanField(default=True)
+    results_visibility = models.CharField(
+        max_length=20,
+        choices=ResultsVisibility.choices,
+        default=ResultsVisibility.OPT_IN_PUBLIC,
+        help_text='Controls whether student results are visible publicly.'
+    )
     
     # Video linking - for quizzes generated from or associated with videos
     source_lesson = models.ForeignKey(
@@ -120,6 +131,10 @@ class UserAttempt(models.Model):
     score = models.CharField(max_length=20, default='0/0')
     percentage = models.FloatField(default=0.0)
     answers = models.JSONField(default=dict)
+    is_public_result = models.BooleanField(
+        default=False,
+        help_text='Whether this attempt result is visible to other students.'
+    )
     started_at = models.DateTimeField(auto_now_add=True)
     submitted_at = models.DateTimeField(null=True, blank=True)
     time_taken_minutes = models.PositiveIntegerField(null=True, blank=True)

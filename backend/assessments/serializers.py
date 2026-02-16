@@ -31,18 +31,141 @@ class AssessmentSerializer(serializers.ModelSerializer):
     creator = UserSerializer(read_only=True)
     questions = QuestionSerializer(many=True, read_only=True)
     question_count = serializers.SerializerMethodField()
+    questions_data = serializers.ListField(write_only=True, required=False)
     
     class Meta:
         model = Assessment
         fields = [
             'id', 'title', 'topic', 'description', 'creator',
-            'time_limit_minutes', 'is_public', 'questions', 'share_token',
+            'time_limit_minutes', 'is_public', 'results_visibility',
+            'questions', 'questions_data', 'share_token',
             'question_count', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'creator', 'created_at', 'updated_at']
 
     def get_question_count(self, obj):
         return obj.questions.count()
+
+    def create(self, validated_data):
+        questions_data = validated_data.pop('questions_data', [])
+        assessment = Assessment.objects.create(**validated_data)
+
+        for idx, q in enumerate(questions_data):
+            q_type = q.get('type') or q.get('question_type') or 'short_answer'
+
+            if q_type in ['multiple_choice', 'mcq']:
+                options = q.get('options') or []
+                correct_idx = q.get('correct_answer_index', 0)
+                try:
+                    correct_answer = options[int(correct_idx)]
+                except Exception:
+                    correct_answer = options[0] if options else ''
+                Question.objects.create(
+                    assessment=assessment,
+                    question_text=q.get('question_text') or q.get('question') or '',
+                    question_type=Question.QuestionType.MCQ,
+                    options=options,
+                    correct_answer=correct_answer,
+                    points=q.get('points', 1),
+                    order=idx,
+                    explanation=q.get('explanation', '')
+                )
+                continue
+
+            if q_type in ['true_false', 'truefalse']:
+                correct_bool = q.get('correct_answer', True)
+                correct_answer = 'true' if bool(correct_bool) else 'false'
+                Question.objects.create(
+                    assessment=assessment,
+                    question_text=q.get('question_text') or q.get('question') or '',
+                    question_type=Question.QuestionType.TRUE_FALSE,
+                    options=['true', 'false'],
+                    correct_answer=correct_answer,
+                    points=q.get('points', 1),
+                    order=idx,
+                    explanation=q.get('explanation', '')
+                )
+                continue
+
+            if q_type == 'passage':
+                sub_questions = q.get('questions') or []
+                for sub_idx, sub_q in enumerate(sub_questions):
+                    sub_type = sub_q.get('question_type', 'short_answer')
+                    if sub_type == 'multiple_choice':
+                        options = sub_q.get('options') or []
+                        correct = sub_q.get('correct_answer', 0)
+                        if isinstance(correct, int):
+                            correct_answer = options[correct] if options and 0 <= correct < len(options) else ''
+                        else:
+                            correct_answer = str(correct)
+                        Question.objects.create(
+                            assessment=assessment,
+                            question_text=sub_q.get('question_text') or '',
+                            question_type=Question.QuestionType.MCQ,
+                            options=options,
+                            correct_answer=correct_answer,
+                            points=sub_q.get('points', 1),
+                            order=(idx * 100) + sub_idx,
+                            explanation=sub_q.get('explanation', '')
+                        )
+                    else:
+                        Question.objects.create(
+                            assessment=assessment,
+                            question_text=sub_q.get('question_text') or '',
+                            question_type=Question.QuestionType.SHORT_ANSWER,
+                            options=[],
+                            correct_answer=str(sub_q.get('correct_answer', '')),
+                            points=sub_q.get('points', 1),
+                            order=(idx * 100) + sub_idx,
+                            explanation=sub_q.get('explanation', '')
+                        )
+                continue
+
+            if q_type == 'cloze':
+                import re
+                text = q.get('question_text', '')
+                blanks = re.findall(r'\[(.*?)\]', text)
+                for blank_idx, blank in enumerate(blanks):
+                    Question.objects.create(
+                        assessment=assessment,
+                        question_text=f"{text} (blank #{blank_idx + 1})",
+                        question_type=Question.QuestionType.SHORT_ANSWER,
+                        options=[],
+                        correct_answer=blank,
+                        points=max(1, int((q.get('points', 2) or 2) / max(1, len(blanks)))),
+                        order=(idx * 100) + blank_idx,
+                        explanation=q.get('explanation', '')
+                    )
+                continue
+
+            if q_type == 'essay':
+                Question.objects.create(
+                    assessment=assessment,
+                    question_text=q.get('question_text') or q.get('question') or '',
+                    question_type=Question.QuestionType.ESSAY,
+                    options=[],
+                    # Essays are manually graded, so keep a placeholder.
+                    correct_answer='manual_grade',
+                    points=q.get('points', 10),
+                    order=idx,
+                    explanation=q.get('explanation', '')
+                )
+                continue
+
+            # Default fallback: short answer
+            correct_answers = q.get('correct_answers') or []
+            Question.objects.create(
+                assessment=assessment,
+                question_text=q.get('question_text') or q.get('question') or '',
+                question_type=Question.QuestionType.SHORT_ANSWER,
+                options=[],
+                correct_answer=(correct_answers[0] if correct_answers else q.get('correct_answer', '')),
+                points=q.get('points', 1),
+                order=idx,
+                explanation=q.get('explanation', '')
+            )
+
+        return assessment
 
 
 class AssessmentListSerializer(serializers.ModelSerializer):
@@ -56,6 +179,7 @@ class AssessmentListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'topic', 'description',
             'creator_username', 'time_limit_minutes', 'share_token',
+            'is_public', 'results_visibility',
             'question_count', 'related_lessons', 'created_at'
         ]
 
@@ -91,7 +215,8 @@ class UserAttemptSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'user', 'user_username', 'assessment',
             'assessment_title', 'status', 'score', 'percentage',
-            'answers', 'answer_images', 'started_at', 'submitted_at', 'time_taken_minutes'
+            'answers', 'answer_images', 'is_public_result',
+            'started_at', 'submitted_at', 'time_taken_minutes'
         ]
         read_only_fields = [
             'id', 'user', 'score', 'percentage',

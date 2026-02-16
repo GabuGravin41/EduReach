@@ -87,6 +87,16 @@ export const QuizView: React.FC<QuizViewProps> = ({ quiz, timeLimitMinutes, asse
   const [gradingResults, setGradingResults] = useState<Record<string, { score: number, feedback: string }>>({});
   const [isGrading, setIsGrading] = useState<Record<string, boolean>>({});
   const [uploadingImages, setUploadingImages] = useState<Record<string, boolean>>({});
+  const [uploadedImages, setUploadedImages] = useState<Record<string, boolean>>({});
+  const [attemptReady, setAttemptReady] = useState(false);
+  const [isSubmittingAttempt, setIsSubmittingAttempt] = useState(false);
+  const [submitError, setSubmitError] = useState<string>('');
+
+  const ensureAttemptStarted = async () => {
+    if (!assessmentId || attemptReady) return;
+    await assessmentService.startAssessment(assessmentId);
+    setAttemptReady(true);
+  };
 
   const handleAnswerChange = (questionId: string, value: any) => {
     if (isSubmitted) return;
@@ -97,13 +107,43 @@ export const QuizView: React.FC<QuizViewProps> = ({ quiz, timeLimitMinutes, asse
     if (!assessmentId) return;
     setUploadingImages(prev => ({ ...prev, [questionId]: true }));
     try {
+      await ensureAttemptStarted();
       await assessmentService.uploadAnswerImage(assessmentId, questionId, file);
+      setUploadedImages(prev => ({ ...prev, [questionId]: true }));
     } catch (error) {
       console.error('Image upload failed:', error);
     } finally {
       setUploadingImages(prev => ({ ...prev, [questionId]: false }));
     }
   };
+
+  const submitAttempt = async () => {
+    if (!assessmentId) {
+      setIsSubmitted(true);
+      return;
+    }
+
+    setSubmitError('');
+    setIsSubmittingAttempt(true);
+    try {
+      await ensureAttemptStarted();
+      await assessmentService.submitAssessment(assessmentId, answers as Record<number, string>);
+      setIsSubmitted(true);
+    } catch (error: any) {
+      const detail = error?.response?.data?.detail || 'Failed to submit to server. Please retry.';
+      setSubmitError(detail);
+    } finally {
+      setIsSubmittingAttempt(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!assessmentId) return;
+    ensureAttemptStarted().catch((error) => {
+      console.error('Could not start assessment attempt', error);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assessmentId]);
 
   useEffect(() => {
     if (!timeLimitMinutes || isSubmitted) return;
@@ -113,7 +153,7 @@ export const QuizView: React.FC<QuizViewProps> = ({ quiz, timeLimitMinutes, asse
         if (prev === null) return prev;
         if (prev <= 1) {
           clearInterval(interval);
-          setIsSubmitted(true);
+          submitAttempt();
           return 0;
         }
         return prev - 1;
@@ -360,6 +400,11 @@ Format: {"score": number, "feedback": "string"}`;
           You can type answers directly (LaTeX supported). If you’re not comfortable typing math, you can upload an image instead.
           Typed answers can be graded instantly; image uploads are stored for manual review.
         </div>
+        {submitError && (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            {submitError}
+          </div>
+        )}
       </div>
 
       <div className="space-y-8 max-w-4xl mx-auto">
@@ -478,6 +523,7 @@ Format: {"score": number, "feedback": "string"}`;
                               </span>
                             </label>
                             {uploadingImages[q.id] && <span>Uploading...</span>}
+                            {!uploadingImages[q.id] && uploadedImages[q.id] && <span className="text-emerald-600">Uploaded</span>}
                           </div>
                         )}
                     </div>
@@ -578,6 +624,7 @@ Format: {"score": number, "feedback": "string"}`;
                               </span>
                             </label>
                             {uploadingImages[q.id] && <span>Uploading...</span>}
+                            {!uploadingImages[q.id] && uploadedImages[q.id] && <span className="text-emerald-600">Uploaded</span>}
                           </div>
                         )}
                     </div>
@@ -597,11 +644,12 @@ Format: {"score": number, "feedback": "string"}`;
       {!isSubmitted && (
           <div className="max-w-4xl mx-auto mt-8 flex justify-end">
             <Button 
-                onClick={() => setIsSubmitted(true)}
+                onClick={submitAttempt}
                 size="lg"
+                disabled={isSubmittingAttempt}
                 className="w-full md:w-auto"
             >
-                Submit Assessment
+                {isSubmittingAttempt ? 'Submitting...' : 'Submit Assessment'}
             </Button>
           </div>
       )}

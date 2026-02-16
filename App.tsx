@@ -73,6 +73,41 @@ const initialPosts: any[] = [];
 const COURSES_CACHE_KEY = 'edureach:courses-cache:v1';
 const LOCAL_ASSESSMENTS_KEY = 'edureach:local-assessments:v1';
 
+const mapApiAssessmentToUi = (assessment: any): Assessment => ({
+  id: assessment.id,
+  title: assessment.title,
+  topic: assessment.topic || 'General',
+  questions: Number(assessment.question_count ?? assessment.questions?.length ?? 0),
+  time: Number(assessment.time_limit_minutes ?? assessment.time_limit ?? 30),
+  status: 'pending',
+  score: '-',
+  description: assessment.description,
+  created_at: assessment.created_at,
+  share_token: assessment.share_token,
+  creator: assessment.creator,
+  questions_data: assessment.questions?.map((q: any) => ({
+    id: String(q.id),
+    type:
+      q.question_type === 'mcq'
+        ? 'multiple_choice'
+        : q.question_type === 'true_false'
+        ? 'true_false'
+        : q.question_type === 'essay'
+        ? 'essay'
+        : 'short_answer',
+    question_text: q.question_text,
+    options: q.options || [],
+    correct_answer_index: Array.isArray(q.options) ? q.options.indexOf(q.correct_answer) : 0,
+    correct_answers: q.correct_answer ? [q.correct_answer] : [],
+    correct_answer: q.correct_answer,
+    points: q.points || 1,
+    explanation: q.explanation || '',
+    case_sensitive: false,
+    exact_match: false,
+    max_length: 400,
+  })),
+});
+
 type CommunityViewProps = {
   userTier: UserTier;
   username: string;
@@ -140,9 +175,12 @@ const AppContent: React.FC = () => {
     
     // Fetch courses from backend using React Query
     const { data: coursesData = [] } = useCourses();
+    const { data: assessmentsData = [] } = useAssessments();
+    const createAssessmentMutation = useCreateAssessment();
     const apiCourses = Array.isArray(coursesData) ? coursesData : [];
+    const apiAssessments = Array.isArray(assessmentsData) ? assessmentsData : [];
     const courses = apiCourses.length > 0 ? apiCourses : cachedCourses;
-    const [assessments, setAssessments] = useState<Assessment[]>(() => {
+    const [localAssessments, setLocalAssessments] = useState<Assessment[]>(() => {
       if (typeof window === 'undefined') {
         return [
           { id: 1, title: "React Basics Quiz", topic: "React", questions: 10, time: 15, status: "completed", score: "9/10", assessment_type: "quiz", description: "Test your knowledge on components." }
@@ -158,6 +196,10 @@ const AppContent: React.FC = () => {
         { id: 1, title: "React Basics Quiz", topic: "React", questions: 10, time: 15, status: "completed", score: "9/10", assessment_type: "quiz", description: "Test your knowledge on components." }
       ];
     });
+    const assessments = [
+      ...apiAssessments.map(mapApiAssessmentToUi),
+      ...localAssessments,
+    ];
     const [posts, setPosts] = useState<any[]>([
         { id: 1, author: "Alice", avatar: UserCircleIcon, time: "2h ago", content: "Just finished the React course! Highly recommend it.", likes: 5, comments: [{author: "Bob", content: "Nice job!"}], liked: false }
     ]);
@@ -181,9 +223,9 @@ const AppContent: React.FC = () => {
 
     useEffect(() => {
       if (typeof window !== 'undefined') {
-        localStorage.setItem(LOCAL_ASSESSMENTS_KEY, JSON.stringify(assessments));
+        localStorage.setItem(LOCAL_ASSESSMENTS_KEY, JSON.stringify(localAssessments));
       }
-    }, [assessments]);
+    }, [localAssessments]);
 
     useEffect(() => {
       const handler = () => {
@@ -238,16 +280,28 @@ const AppContent: React.FC = () => {
         setCurrentView('courses');
     };
   
-    const handleExamCreated = (newExam: any) => {
-        const exam: Assessment = {
+    const handleExamCreated = async (newExam: any) => {
+        try {
+          await createAssessmentMutation.mutateAsync({
+            title: newExam.title,
+            topic: newExam.topic || 'General',
+            description: newExam.description || '',
+            time_limit: newExam.time || newExam.time_limit_minutes || 30,
+            questions: [],
+            questions_data: newExam.questions_data || [],
+          });
+          setCurrentView('assessments');
+        } catch (error) {
+          const exam: Assessment = {
             ...newExam,
             id: Date.now(),
             status: 'pending',
             score: '-',
-            questions: newExam.questions || (newExam.questions_data ? newExam.questions_data.length : 0)
-        };
-        setAssessments([...assessments, exam]);
-        setCurrentView('assessments');
+            questions: newExam.questions || (newExam.questions_data ? newExam.questions_data.length : 0),
+          };
+          setLocalAssessments((prev) => [...prev, exam]);
+          setCurrentView('assessments');
+        }
     };
   
     // Show loading spinner while checking authentication
@@ -340,7 +394,7 @@ const AppContent: React.FC = () => {
                       queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() });
                   }}
                   onSaveAssessment={(assessment) => {
-                      setAssessments([...assessments, assessment]);
+                      setLocalAssessments((prev) => [...prev, assessment]);
                   }}
                />;
            }
