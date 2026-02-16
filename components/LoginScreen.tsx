@@ -42,6 +42,10 @@ export const LoginScreen: React.FC = () => {
     } catch (err: any) {
       console.error('Authentication failed:', err);
       const data = err?.response?.data;
+      if (!navigator.onLine) {
+        setError('No backend connection. Reconnect to sign in, or continue with your last cached session if available.');
+        return;
+      }
       // Helpful debug logging in dev
       if (data) console.debug('Auth error response data:', data);
       let message =

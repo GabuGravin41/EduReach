@@ -70,6 +70,8 @@ const initialCourses: Course[] = [];
 const initialAssessments: any[] = [];
 
 const initialPosts: any[] = [];
+const COURSES_CACHE_KEY = 'edureach:courses-cache:v1';
+const LOCAL_ASSESSMENTS_KEY = 'edureach:local-assessments:v1';
 
 type CommunityViewProps = {
   userTier: UserTier;
@@ -125,13 +127,37 @@ const AppContent: React.FC = () => {
     const [userTier, setUserTier] = useState<UserTier>('free');
     const [sessionExpiredNotice, setSessionExpiredNotice] = useState('');
     const [aiStatus, setAiStatus] = useState<'unknown' | 'up' | 'down'>('unknown');
+    const [isOffline, setIsOffline] = useState<boolean>(typeof navigator !== 'undefined' ? !navigator.onLine : false);
+    const [cachedCourses, setCachedCourses] = useState<Course[]>(() => {
+      if (typeof window === 'undefined') return [];
+      try {
+        const raw = localStorage.getItem(COURSES_CACHE_KEY);
+        return raw ? (JSON.parse(raw) as Course[]) : [];
+      } catch {
+        return [];
+      }
+    });
     
     // Fetch courses from backend using React Query
     const { data: coursesData = [] } = useCourses();
-    const courses = Array.isArray(coursesData) ? coursesData : [];
-    const [assessments, setAssessments] = useState<Assessment[]>([
+    const apiCourses = Array.isArray(coursesData) ? coursesData : [];
+    const courses = apiCourses.length > 0 ? apiCourses : cachedCourses;
+    const [assessments, setAssessments] = useState<Assessment[]>(() => {
+      if (typeof window === 'undefined') {
+        return [
+          { id: 1, title: "React Basics Quiz", topic: "React", questions: 10, time: 15, status: "completed", score: "9/10", assessment_type: "quiz", description: "Test your knowledge on components." }
+        ];
+      }
+      try {
+        const raw = localStorage.getItem(LOCAL_ASSESSMENTS_KEY);
+        if (raw) return JSON.parse(raw) as Assessment[];
+      } catch {
+        // ignore parse failures and fall through to default
+      }
+      return [
         { id: 1, title: "React Basics Quiz", topic: "React", questions: 10, time: 15, status: "completed", score: "9/10", assessment_type: "quiz", description: "Test your knowledge on components." }
-    ]);
+      ];
+    });
     const [posts, setPosts] = useState<any[]>([
         { id: 1, author: "Alice", avatar: UserCircleIcon, time: "2h ago", content: "Just finished the React course! Highly recommend it.", likes: 5, comments: [{author: "Bob", content: "Nice job!"}], liked: false }
     ]);
@@ -145,6 +171,19 @@ const AppContent: React.FC = () => {
           setUserTier(user.tier);
       }
     }, [user]);
+
+    useEffect(() => {
+      if (apiCourses.length > 0 && typeof window !== 'undefined') {
+        setCachedCourses(apiCourses);
+        localStorage.setItem(COURSES_CACHE_KEY, JSON.stringify(apiCourses));
+      }
+    }, [apiCourses]);
+
+    useEffect(() => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(LOCAL_ASSESSMENTS_KEY, JSON.stringify(assessments));
+      }
+    }, [assessments]);
 
     useEffect(() => {
       const handler = () => {
@@ -163,6 +202,25 @@ const AppContent: React.FC = () => {
       return () => {
         window.removeEventListener('ai:up', handleUp as EventListener);
         window.removeEventListener('ai:down', handleDown as EventListener);
+      };
+    }, []);
+
+    useEffect(() => {
+      const onOnline = () => setIsOffline(false);
+      const onOffline = () => setIsOffline(true);
+      const apiOnline = () => setIsOffline(false);
+      const apiOffline = () => setIsOffline(true);
+
+      window.addEventListener('online', onOnline);
+      window.addEventListener('offline', onOffline);
+      window.addEventListener('network:online', apiOnline as EventListener);
+      window.addEventListener('network:offline', apiOffline as EventListener);
+
+      return () => {
+        window.removeEventListener('online', onOnline);
+        window.removeEventListener('offline', onOffline);
+        window.removeEventListener('network:online', apiOnline as EventListener);
+        window.removeEventListener('network:offline', apiOffline as EventListener);
       };
     }, []);
 
@@ -314,6 +372,11 @@ const AppContent: React.FC = () => {
               </button>
            </header>
            <main className={`flex-1 overflow-y-auto ${currentView === 'learning_session' ? 'p-0 sm:p-4 lg:p-8' : 'p-4 sm:p-6 lg:p-8'}`}>
+              {isOffline && (
+                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                  Offline mode: using cached data. Some actions need backend connection.
+                </div>
+              )}
               {currentView !== 'learning_session' && (
                 <div className="mb-4 flex items-center justify-end">
                   <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${

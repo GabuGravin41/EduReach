@@ -27,6 +27,8 @@ export interface User {
   created_at: string;
 }
 
+const CACHED_USER_KEY = 'cached_user';
+
 export const authService = {
   async login(credentials: LoginCredentials) {
     const response = await apiClient.post(API_ENDPOINTS.LOGIN, credentials);
@@ -62,25 +64,49 @@ export const authService = {
     } finally {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
+      localStorage.removeItem(CACHED_USER_KEY);
     }
   },
 
   async getCurrentUser(): Promise<User> {
     const response = await apiClient.get(API_ENDPOINTS.USER_ME);
-    return response.data;
+    const user = response.data as User;
+    localStorage.setItem(CACHED_USER_KEY, JSON.stringify(user));
+    return user;
   },
 
   async updateProfile(data: Partial<User>): Promise<User> {
     const response = await apiClient.put(API_ENDPOINTS.USER_ME, data);
-    return response.data;
+    const user = response.data as User;
+    localStorage.setItem(CACHED_USER_KEY, JSON.stringify(user));
+    return user;
   },
 
   async upgradeTier(tier: UserTier): Promise<User> {
     const response = await apiClient.post(API_ENDPOINTS.UPGRADE_TIER, { tier });
-    return response.data;
+    const user = response.data as User;
+    localStorage.setItem(CACHED_USER_KEY, JSON.stringify(user));
+    return user;
   },
 
   isAuthenticated(): boolean {
     return !!localStorage.getItem('access_token');
+  },
+
+  getCachedUser(): User | null {
+    try {
+      const raw = localStorage.getItem(CACHED_USER_KEY);
+      return raw ? (JSON.parse(raw) as User) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  cacheUser(user: User): void {
+    localStorage.setItem(CACHED_USER_KEY, JSON.stringify(user));
+  },
+
+  clearCachedUser(): void {
+    localStorage.removeItem(CACHED_USER_KEY);
   },
 };

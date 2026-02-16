@@ -20,14 +20,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     // Check if user is logged in on mount
     const initAuth = async () => {
+      const cachedUser = authService.getCachedUser();
+      if (cachedUser) {
+        setUser(cachedUser);
+      }
+
       if (authService.isAuthenticated()) {
         try {
           const userData = await authService.getCurrentUser();
           setUser(userData);
         } catch (error) {
           console.error('Failed to fetch user:', error);
-          authService.logout();
+          // Keep a cached session for offline/static frontend mode.
+          if (!cachedUser) {
+            authService.clearCachedUser();
+          }
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('network:offline'));
+          }
         }
+      } else if (!navigator.onLine && cachedUser) {
+        // Allow previously-cached users to continue in offline mode.
+        setUser(cachedUser);
       }
       setIsLoading(false);
     };
@@ -36,9 +50,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const login = async (username: string, password: string) => {
-    await authService.login({ username, password });
-    const userData = await authService.getCurrentUser();
-    setUser(userData);
+    try {
+      await authService.login({ username, password });
+      const userData = await authService.getCurrentUser();
+      setUser(userData);
+    } catch (error) {
+      const cachedUser = authService.getCachedUser();
+      if (!navigator.onLine && cachedUser && cachedUser.username === username) {
+        setUser(cachedUser);
+        return;
+      }
+      throw error;
+    }
   };
 
   const register = async (username: string, email: string, password: string) => {
@@ -58,8 +81,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const refreshUser = async () => {
-    const userData = await authService.getCurrentUser();
-    setUser(userData);
+    try {
+      const userData = await authService.getCurrentUser();
+      setUser(userData);
+    } catch (error) {
+      const cachedUser = authService.getCachedUser();
+      if (cachedUser) {
+        setUser(cachedUser);
+        return;
+      }
+      throw error;
+    }
   };
 
   return (

@@ -1,5 +1,12 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { API_CONFIG } from '../config/api';
+import {
+  buildRequestCacheKey,
+  isLikelyNetworkError,
+  readCachedResponse,
+  shouldCacheRequest,
+  writeCachedResponse,
+} from '../utils/requestCache';
 
 // Create axios instance
 const apiClient: AxiosInstance = axios.create({
@@ -15,12 +22,21 @@ export const aiClient: AxiosInstance = axios.create({
   headers: API_CONFIG.HEADERS,
 });
 
+type CacheableConfig = InternalAxiosRequestConfig & {
+  _retry?: boolean;
+  _cacheKey?: string;
+  cacheMaxAgeMs?: number;
+};
+
 // Request interceptor - Add JWT token to every request
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('access_token');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    if (shouldCacheRequest(config)) {
+      (config as CacheableConfig)._cacheKey = buildRequestCacheKey(config);
     }
     return config;
   },
@@ -47,9 +63,21 @@ aiClient.interceptors.request.use(
 
 // Response interceptor - Handle token refresh and errors
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const config = response.config as CacheableConfig;
+    if (config._cacheKey && shouldCacheRequest(config)) {
+      writeCachedResponse(config._cacheKey, {
+        data: response.data,
+        status: response.status,
+      });
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('network:online'));
+    }
+    return response;
+  },
   async (error: AxiosError) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    const originalRequest = error.config as CacheableConfig;
 
     // Handle 401 Unauthorized - try to refresh token
     if (error.response?.status === 401 && !originalRequest._retry) {
@@ -89,6 +117,30 @@ apiClient.interceptors.response.use(
       }
     }
 
+    const canServeCached = !!(originalRequest?._cacheKey && shouldCacheRequest(originalRequest));
+    const networkDown = isLikelyNetworkError({
+      response: error.response,
+      code: error.code,
+      message: error.message,
+    });
+    const serverError = (error.response?.status || 0) >= 500;
+    if (canServeCached && (networkDown || serverError)) {
+      const cached = readCachedResponse(originalRequest._cacheKey!, originalRequest.cacheMaxAgeMs);
+      if (cached) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('network:offline'));
+        }
+        return Promise.resolve({
+          data: cached.data,
+          status: cached.status,
+          statusText: cached.stale ? 'OK (stale cache)' : 'OK (cache)',
+          headers: { 'x-edureach-cache': cached.stale ? 'stale' : 'hit' },
+          config: originalRequest,
+          request: undefined,
+        });
+      }
+    }
+
     // Log all errors for debugging
     console.error('API Error:', {
       status: error.response?.status,
@@ -106,6 +158,7 @@ aiClient.interceptors.response.use(
   (response) => {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('ai:up'));
+      window.dispatchEvent(new CustomEvent('network:online'));
     }
     return response;
   },

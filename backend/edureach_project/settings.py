@@ -5,6 +5,8 @@ Django settings for edureach_project.
 from pathlib import Path
 from dotenv import load_dotenv
 import os
+import sys
+import re
 from datetime import timedelta
 
 # Load environment variables
@@ -12,19 +14,31 @@ load_dotenv()
 
 # Build paths inside the project
 BASE_DIR = Path(__file__).resolve().parent.parent
+ENVIRONMENT = os.environ.get('ENVIRONMENT', 'development').strip().lower()
+IS_RUNSERVER = 'runserver' in sys.argv
+IS_COLLECTSTATIC = 'collectstatic' in sys.argv
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in ('1', 'true', 'yes', 'on')
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('SECRET_KEY')
 if not SECRET_KEY:
-    if os.environ.get('ENVIRONMENT') != 'production':
+    if ENVIRONMENT != 'production':
         SECRET_KEY = 'dev-insecure-key-only-for-development'
     else:
         raise ValueError("SECRET_KEY environment variable must be set in production")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'
-if DEBUG and os.environ.get('ENVIRONMENT') == 'production':
+default_debug = True if (ENVIRONMENT != 'production' or IS_RUNSERVER) else False
+DEBUG = _env_bool('DEBUG', default_debug)
+if DEBUG and ENVIRONMENT == 'production' and not IS_RUNSERVER:
     raise ValueError("DEBUG must be False in production")
+IS_STRICT_PRODUCTION = (ENVIRONMENT == 'production' and not DEBUG)
 
 # Allowed hosts from environment variable (comma-separated)
 allowed_hosts_env = os.environ.get(
@@ -34,7 +48,7 @@ allowed_hosts_env = os.environ.get(
 ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(',') if host.strip()]
 
 # Validate ALLOWED_HOSTS in production
-if not DEBUG and len(ALLOWED_HOSTS) == 0:
+if IS_STRICT_PRODUCTION and len(ALLOWED_HOSTS) == 0:
     raise ValueError("ALLOWED_HOSTS must be configured in production environment")
 
 # Application definition
@@ -102,13 +116,10 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'edureach_project.wsgi.application'
 
-# Database Configuration
-import sys
-
 # Check if DATABASE_URL is provided for PostgreSQL
 db_url = os.environ.get('DATABASE_URL')
 
-if db_url and 'collectstatic' not in sys.argv:
+if db_url and not IS_COLLECTSTATIC:
     # Production with PostgreSQL (RECOMMENDED for Railway)
     try:
         import dj_database_url
@@ -133,7 +144,7 @@ else:
     }
     
     # Warning for production
-    if not DEBUG and 'collectstatic' not in sys.argv:
+    if IS_STRICT_PRODUCTION and not IS_COLLECTSTATIC:
         import warnings
         warnings.warn(
             "WARNING: Using SQLite in production without DATABASE_URL. "
@@ -227,18 +238,33 @@ if DEBUG:
     CORS_ALLOWED_ORIGINS = development_cors
 else:
     # Don't validate CORS during collectstatic
-    import sys
-    if 'collectstatic' not in sys.argv:
+    if not IS_COLLECTSTATIC:
         cors_origins_env = os.environ.get('CORS_ALLOWED_ORIGINS', '').strip()
         if not cors_origins_env:
             raise ValueError(
                 "CORS_ALLOWED_ORIGINS environment variable must be set in production. "
                 "Format: https://yourdomain.com,https://www.yourdomain.com"
             )
-        CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
+        parsed_origins = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
+        valid_origins = [o for o in parsed_origins if re.match(r'^https?://', o)]
+        invalid_origins = [o for o in parsed_origins if o not in valid_origins]
+
+        if invalid_origins and IS_STRICT_PRODUCTION:
+            raise ValueError(
+                "Invalid CORS_ALLOWED_ORIGINS entries: "
+                + ", ".join(invalid_origins)
+                + ". Use full origins like https://example.com"
+            )
+
+        # Local escape hatch: when using production env values on local runserver,
+        # fall back to development origins so local startup doesn't fail.
+        if not valid_origins and IS_RUNSERVER:
+            CORS_ALLOWED_ORIGINS = development_cors
+        else:
+            CORS_ALLOWED_ORIGINS = valid_origins
     else:
-        # During collectstatic, use a dummy value
-        CORS_ALLOWED_ORIGINS = ['*']
+        # During collectstatic, use a valid dummy value
+        CORS_ALLOWED_ORIGINS = ['http://localhost']
 
 # Allow Capacitor mobile app origins
 CORS_ALLOWED_ORIGIN_REGEXES = [
@@ -336,8 +362,7 @@ PREFER_OPENROUTER = os.environ.get('PREFER_OPENROUTER', 'True') == 'True'
 
 # Validate OpenRouter configuration
 if not OPENROUTER_API_KEY:
-    import sys
-    if 'collectstatic' not in sys.argv and not DEBUG:
+    if not IS_COLLECTSTATIC and IS_STRICT_PRODUCTION:
         raise ValueError("OPENROUTER_API_KEY environment variable must be set in production")
     elif DEBUG:
         OPENROUTER_API_KEY = 'dev-key-not-configured'

@@ -1,4 +1,11 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
+import {
+  buildRequestCacheKey,
+  isLikelyNetworkError,
+  readCachedResponse,
+  shouldCacheRequest,
+  writeCachedResponse,
+} from '../src/utils/requestCache';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
@@ -15,6 +22,9 @@ axiosInstance.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    if (shouldCacheRequest(config)) {
+      (config as any)._cacheKey = buildRequestCacheKey(config as any);
+    }
     return config;
   },
   (error) => {
@@ -24,7 +34,16 @@ axiosInstance.interceptors.request.use(
 
 // Response interceptor to handle token refresh
 axiosInstance.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const config = response.config as any;
+    if (config?._cacheKey && shouldCacheRequest(config)) {
+      writeCachedResponse(config._cacheKey, { data: response.data, status: response.status });
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('network:online'));
+    }
+    return response;
+  },
   async (error: AxiosError) => {
     const originalRequest: any = error.config;
 
@@ -60,6 +79,31 @@ axiosInstance.interceptors.response.use(
         localStorage.removeItem('user');
         window.location.href = '/login';
         return Promise.reject(refreshError);
+      }
+    }
+
+    if (originalRequest?._cacheKey && shouldCacheRequest(originalRequest)) {
+      const networkDown = isLikelyNetworkError({
+        response: error.response,
+        code: error.code,
+        message: error.message,
+      });
+      const serverError = (error.response?.status || 0) >= 500;
+      if (networkDown || serverError) {
+        const cached = readCachedResponse(originalRequest._cacheKey);
+        if (cached) {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('network:offline'));
+          }
+          return Promise.resolve({
+            data: cached.data,
+            status: cached.status,
+            statusText: cached.stale ? 'OK (stale cache)' : 'OK (cache)',
+            headers: { 'x-edureach-cache': cached.stale ? 'stale' : 'hit' },
+            config: originalRequest,
+            request: undefined,
+          });
+        }
       }
     }
 

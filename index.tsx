@@ -7,9 +7,15 @@ import { AuthProvider } from './src/contexts/AuthContext';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: 1000 * 60 * 10, // 10 minutes
+      gcTime: 1000 * 60 * 60 * 24, // 24 hours cache retention
       retry: 1,
       refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      networkMode: 'offlineFirst',
+    },
+    mutations: {
+      networkMode: 'offlineFirst',
     },
   },
 });
