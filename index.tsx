@@ -35,3 +35,35 @@ root.render(
     </QueryClientProvider>
   </React.StrictMode>
 );
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    const notifyUpdateAvailable = () => {
+      window.dispatchEvent(new CustomEvent('sw:update-available'));
+    };
+
+    navigator.serviceWorker.register(`/sw.js?v=${encodeURIComponent(__APP_BUILD_ID__)}`).then((registration) => {
+      (window as any).__EDUREACH_SW_REG__ = registration;
+
+      if (registration.waiting) {
+        notifyUpdateAvailable();
+      }
+
+      registration.addEventListener('updatefound', () => {
+        const installing = registration.installing;
+        if (!installing) return;
+        installing.addEventListener('statechange', () => {
+          if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+            notifyUpdateAvailable();
+          }
+        });
+      });
+
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.location.reload();
+      });
+    }).catch((error) => {
+      console.error('Service worker registration failed:', error);
+    });
+  });
+}

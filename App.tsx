@@ -73,6 +73,11 @@ const initialPosts: any[] = [];
 const COURSES_CACHE_KEY = 'edureach:courses-cache:v1';
 const LOCAL_ASSESSMENTS_KEY = 'edureach:local-assessments:v1';
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
+
 const mapApiAssessmentToUi = (assessment: any): Assessment => ({
   id: assessment.id,
   title: assessment.title,
@@ -163,6 +168,9 @@ const AppContent: React.FC = () => {
     const [sessionExpiredNotice, setSessionExpiredNotice] = useState('');
     const [aiStatus, setAiStatus] = useState<'unknown' | 'up' | 'down'>('unknown');
     const [isOffline, setIsOffline] = useState<boolean>(typeof navigator !== 'undefined' ? !navigator.onLine : false);
+    const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
+    const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+    const [showUpdateToast, setShowUpdateToast] = useState(false);
     const [cachedCourses, setCachedCourses] = useState<Course[]>(() => {
       if (typeof window === 'undefined') return [];
       try {
@@ -267,6 +275,34 @@ const AppContent: React.FC = () => {
     }, []);
 
     useEffect(() => {
+      const onBeforeInstallPrompt = (event: Event) => {
+        event.preventDefault();
+        setInstallEvent(event as BeforeInstallPromptEvent);
+        setShowInstallPrompt(true);
+      };
+
+      const onAppInstalled = () => {
+        setInstallEvent(null);
+        setShowInstallPrompt(false);
+      };
+
+      window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+      window.addEventListener('appinstalled', onAppInstalled);
+      return () => {
+        window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+        window.removeEventListener('appinstalled', onAppInstalled);
+      };
+    }, []);
+
+    useEffect(() => {
+      const onSwUpdateAvailable = () => setShowUpdateToast(true);
+      window.addEventListener('sw:update-available', onSwUpdateAvailable as EventListener);
+      return () => {
+        window.removeEventListener('sw:update-available', onSwUpdateAvailable as EventListener);
+      };
+    }, []);
+
+    useEffect(() => {
       console.log('Courses updated from React Query:', courses);
     }, [courses]);
   
@@ -302,6 +338,24 @@ const AppContent: React.FC = () => {
           setLocalAssessments((prev) => [...prev, exam]);
           setCurrentView('assessments');
         }
+    };
+
+    const handleInstallApp = async () => {
+      if (!installEvent) return;
+      await installEvent.prompt();
+      const choice = await installEvent.userChoice;
+      if (choice.outcome === 'accepted') {
+        setShowInstallPrompt(false);
+      }
+    };
+
+    const handleRefreshToUpdate = () => {
+      const registration = (window as any).__EDUREACH_SW_REG__ as ServiceWorkerRegistration | undefined;
+      if (registration?.waiting) {
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        return;
+      }
+      window.location.reload();
     };
   
     // Show loading spinner while checking authentication
@@ -426,9 +480,47 @@ const AppContent: React.FC = () => {
               </button>
            </header>
            <main className={`flex-1 overflow-y-auto ${currentView === 'learning_session' ? 'p-0 sm:p-4 lg:p-8' : 'p-4 sm:p-6 lg:p-8'}`}>
+              {showInstallPrompt && installEvent && (
+                <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-900 flex items-center justify-between gap-3">
+                  <span>Install EduReach for faster access and better offline support.</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleInstallApp}
+                      className="rounded bg-indigo-600 text-white px-2.5 py-1 hover:bg-indigo-700"
+                    >
+                      Install
+                    </button>
+                    <button
+                      onClick={() => setShowInstallPrompt(false)}
+                      className="rounded border border-indigo-300 px-2.5 py-1 hover:bg-indigo-100"
+                    >
+                      Not now
+                    </button>
+                  </div>
+                </div>
+              )}
               {isOffline && (
                 <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
                   Offline mode: using cached data. Some actions need backend connection.
+                </div>
+              )}
+              {showUpdateToast && (
+                <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900 flex items-center justify-between gap-3">
+                  <span>New version available.</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleRefreshToUpdate}
+                      className="rounded bg-emerald-600 text-white px-2.5 py-1 hover:bg-emerald-700"
+                    >
+                      Refresh
+                    </button>
+                    <button
+                      onClick={() => setShowUpdateToast(false)}
+                      className="rounded border border-emerald-300 px-2.5 py-1 hover:bg-emerald-100"
+                    >
+                      Later
+                    </button>
+                  </div>
                 </div>
               )}
               {currentView !== 'learning_session' && (
