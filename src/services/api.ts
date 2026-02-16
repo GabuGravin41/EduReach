@@ -103,9 +103,19 @@ apiClient.interceptors.response.use(
 
 // Same response interceptor for aiClient
 aiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ai:up'));
+    }
+    return response;
+  },
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    if ([500, 502, 503, 504].includes(error.response?.status || 0)) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('ai:down'));
+      }
+    }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;

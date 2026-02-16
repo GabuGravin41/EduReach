@@ -48,6 +48,7 @@ export type View =
   | 'exam_detail' 
   | 'community' 
   | 'study_groups' 
+  | 'pricing'
   | 'billing' 
   | 'profile' 
   | 'admin_panel' 
@@ -123,6 +124,7 @@ const AppContent: React.FC = () => {
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [userTier, setUserTier] = useState<UserTier>('free');
     const [sessionExpiredNotice, setSessionExpiredNotice] = useState('');
+    const [aiStatus, setAiStatus] = useState<'unknown' | 'up' | 'down'>('unknown');
     
     // Fetch courses from backend using React Query
     const { data: coursesData = [] } = useCourses();
@@ -151,6 +153,17 @@ const AppContent: React.FC = () => {
       };
       window.addEventListener('auth:expired', handler as EventListener);
       return () => window.removeEventListener('auth:expired', handler as EventListener);
+    }, []);
+
+    useEffect(() => {
+      const handleUp = () => setAiStatus('up');
+      const handleDown = () => setAiStatus('down');
+      window.addEventListener('ai:up', handleUp as EventListener);
+      window.addEventListener('ai:down', handleDown as EventListener);
+      return () => {
+        window.removeEventListener('ai:up', handleUp as EventListener);
+        window.removeEventListener('ai:down', handleDown as EventListener);
+      };
     }, []);
 
     useEffect(() => {
@@ -209,7 +222,7 @@ const AppContent: React.FC = () => {
         case 'dashboard':
           return <Dashboard onStartSession={() => setCurrentView('setup_session')} onSelectCourse={(id) => { setSelectedCourseId(id); setCurrentView('course_detail'); }} userTier={userTier} />;
         case 'courses':
-          return <MyCoursesPage courses={courses} onSelectCourse={(id) => { setSelectedCourseId(id); setCurrentView('course_detail'); }} onNewCourse={() => setCurrentView('create_course')} userTier={userTier} />;
+          return <MyCoursesPage courses={courses} onSelectCourse={(id) => { setSelectedCourseId(id); setCurrentView('course_detail'); }} onNewCourse={() => setCurrentView('create_course')} userTier={userTier} currentUserId={user?.id} />;
         case 'create_course':
           return <CreateCoursePage onCourseCreated={handleCourseCreated} onCancel={() => setCurrentView('courses')} lessonLimit={limits.lessonsPerCourse} setView={setCurrentView} />;
         case 'course_detail':
@@ -227,11 +240,13 @@ const AppContent: React.FC = () => {
               />
            ) : <div>Course not found</div>;
         case 'assessments':
-           return <AssessmentsPage assessments={assessments} onSelectExam={(id) => { setSelectedExamId(id); setCurrentView('exam_detail'); }} setView={setCurrentView} userTier={userTier} tierUsage={{assessments_used: assessments.length, assessments_limit: userTier === 'free' ? 2 : Infinity, resets_at: 'Month End'}} />;
+           return <EnhancedAssessmentsPage assessments={assessments} onSelectExam={(id) => { setSelectedExamId(id); setCurrentView('exam_detail'); }} setView={setCurrentView} userTier={userTier} tierUsage={{assessments_used: assessments.length, assessments_limit: userTier === 'free' ? 2 : Infinity, resets_at: '2099-12-31T23:59:59.000Z'}} />;
         case 'create_exam':
            return <CreateExamPage onExamCreated={handleExamCreated} onCancel={() => setCurrentView('assessments')} userTier={userTier} courses={courses} />;
         case 'generate_ai_quiz':
            return <GenerateAIQuizPage onQuizCreated={handleExamCreated} onCancel={() => setCurrentView('assessments')} courses={courses} />;
+        case 'pricing':
+           return <PricingPage currentTier={userTier} onSelectTier={() => setCurrentView('billing')} />;
         case 'exam_detail':
            const exam = assessments.find(a => a.id === selectedExamId);
            return exam ? <ExamDetailPage exam={exam} setView={setCurrentView} /> : <div>Exam not found</div>;
@@ -299,6 +314,19 @@ const AppContent: React.FC = () => {
               </button>
            </header>
            <main className={`flex-1 overflow-y-auto ${currentView === 'learning_session' ? 'p-0 sm:p-4 lg:p-8' : 'p-4 sm:p-6 lg:p-8'}`}>
+              {currentView !== 'learning_session' && (
+                <div className="mb-4 flex items-center justify-end">
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                    aiStatus === 'up'
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                      : aiStatus === 'down'
+                      ? 'bg-rose-50 border-rose-200 text-rose-700'
+                      : 'bg-slate-50 border-slate-200 text-slate-500'
+                  }`}>
+                    AI: {aiStatus === 'up' ? 'Online' : aiStatus === 'down' ? 'Offline' : 'Checking'}
+                  </span>
+                </div>
+              )}
               {renderContent()}
            </main>
         </div>

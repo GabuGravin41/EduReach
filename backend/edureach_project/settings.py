@@ -325,18 +325,14 @@ LOGGING = {
     },
 }
 
-# Gemini API Configuration
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
-GEMINI_MODEL_NAME = os.environ.get('GEMINI_MODEL_NAME', 'gemini-2.5-flash')
-
 # Fix for 405 error - disable automatic slash appending
 APPEND_SLASH = False
 
 # OpenRouter API Configuration (PRIMARY AI PROVIDER - FREE)
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
-OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'tngtech/deepseek-r1t2-chimera:free')
+OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'deepseek/deepseek-r1-0528:free')
 OPENROUTER_API_URL = os.environ.get('OPENROUTER_API_URL', 'https://openrouter.ai/api/v1/chat/completions')
-PREFER_OPENROUTER = os.environ.get('PREFER_OPENROUTER', 'False') == 'True'
+PREFER_OPENROUTER = os.environ.get('PREFER_OPENROUTER', 'True') == 'True'
 
 # Validate OpenRouter configuration
 if not OPENROUTER_API_KEY:

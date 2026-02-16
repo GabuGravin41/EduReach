@@ -235,6 +235,8 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     const actualProgress = courseLessons.length > 0 
         ? Math.round((completedCount / courseLessons.length) * 100) 
         : 0;
+    const nextLesson = courseLessons.find(l => !l.isCompleted) || courseLessons[0];
+    const startLabel = actualProgress > 0 ? 'Resume' : 'Start';
         
     // Aggregate notes from all lessons (use lessonsWithNotes if available)
     const aggregatedNotes = (lessonsWithNotes.length > 0 ? lessonsWithNotes : courseLessons).filter(l => l.notes && l.notes.trim().length > 0);
@@ -249,8 +251,31 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
 
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg shadow-orange-900/5 overflow-hidden border border-orange-100 dark:border-orange-900/20">
                 <div className="p-4 sm:p-6 lg:p-8 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-800 dark:to-gray-700">
-                    <h1 className="text-2xl sm:text-3xl font-bold mb-3 text-gray-800 dark:text-white leading-tight">{course.title}</h1>
-                    <p className="text-sm sm:text-base leading-relaxed mb-6 text-gray-600 dark:text-gray-300">{course.description}</p>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h1 className="text-2xl sm:text-3xl font-bold mb-3 text-gray-800 dark:text-white leading-tight">{course.title}</h1>
+                            <p className="text-sm sm:text-base leading-relaxed mb-6 text-gray-600 dark:text-gray-300">{course.description}</p>
+                        </div>
+                        <div className="sm:pt-1">
+                            <button
+                                onClick={() => {
+                                    if (!nextLesson) return;
+                                    onStartLesson({
+                                        videoId: nextLesson.videoId,
+                                        transcript: nextLesson.transcript || dummyTranscript,
+                                        title: nextLesson.title,
+                                        courseId: course.id,
+                                        lessonId: nextLesson.id,
+                                        attachToCourse: true,
+                                    });
+                                }}
+                                className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+                            >
+                                <PlayIcon className="w-4 h-4" />
+                                {startLabel}
+                            </button>
+                        </div>
+                    </div>
                     
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-4 text-sm">
                         <span className="text-gray-600 dark:text-gray-400 font-medium">

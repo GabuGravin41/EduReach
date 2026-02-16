@@ -3,6 +3,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.db import models
+from django.utils import timezone
+from datetime import timedelta
 from .models import Assessment, Question, UserAttempt, AssessmentAnswerImage
 from .serializers import (
     AssessmentSerializer, AssessmentListSerializer,
@@ -33,7 +35,28 @@ class AssessmentViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Set the creator to the current user."""
+        from rest_framework.exceptions import PermissionDenied
+
+        try:
+            usage = self.request.user.get_current_usage()
+            if not usage.can_create_assessment():
+                limits = usage.get_tier_limits()
+                raise PermissionDenied(
+                    f'Monthly assessment limit reached ({limits["assessments"]}). Upgrade your plan to create more.'
+                )
+        except PermissionDenied:
+            raise
+        except Exception:
+            # If usage tracking fails, do not block assessment creation.
+            pass
+
         serializer.save(creator=self.request.user)
+        try:
+            usage = self.request.user.get_current_usage()
+            usage.assessments_created += 1
+            usage.save(update_fields=['assessments_created', 'updated_at'])
+        except Exception:
+            pass
 
     def retrieve(self, request, *args, **kwargs):
         assessment = self.get_object()
@@ -235,37 +258,38 @@ class AssessmentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='join-challenge')
     def join_challenge(self, request, pk=None):
         assessment = self.get_object()
-        # Create or get study group challenge for this assessment
+        # Create or get a lightweight challenge around this assessment.
         from study_groups.models import StudyGroup, StudyGroupChallenge, ChallengeParticipation
-        # Find or create a default study group for this assessment
+
         group, _ = StudyGroup.objects.get_or_create(
             name=f"Challenge: {assessment.title}",
             defaults={
                 'description': f"Challenge group for {assessment.title}",
                 'creator': request.user,
-                'is_active': True
             }
         )
-        # Find or create challenge
+
+        # Ensure the user is also a member of the group.
+        group.members.add(request.user)
+
         challenge, _ = StudyGroupChallenge.objects.get_or_create(
-            study_group=group,
+            group=group,
             assessment=assessment,
             defaults={
                 'title': f"Challenge: {assessment.title}",
                 'description': f"Complete {assessment.title}",
-                'start_time': timezone.now(),
-                'end_time': timezone.now() + timezone.timedelta(days=7),
-                'is_active': True
+                'start_date': timezone.now(),
+                'end_date': timezone.now() + timedelta(days=7),
             }
         )
-        # Add participation
+
         participation, created = ChallengeParticipation.objects.get_or_create(
-            user=request.user,
             challenge=challenge,
-            defaults={'status': 'joined'}
+            user=request.user,
+            defaults={'completed': False, 'score': 0}
         )
         if not created:
-            return Response({'detail': 'Already joined challenge.'}, status=400)
+            return Response({'detail': 'Already joined challenge.'}, status=status.HTTP_200_OK)
         return Response({'detail': 'Joined challenge successfully.'})
 
     @action(detail=True, methods=['post'], url_path='upload-answer-image')

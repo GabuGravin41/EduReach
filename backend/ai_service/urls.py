@@ -3,7 +3,7 @@ from .views import generate_study_plan, explain_concept, summarize_chunks, chat,
 from . import debug_views
 
 urlpatterns = [
-    # Production AI endpoints (use unified call_ai with Gemini primary, OpenRouter fallback)
+    # Production AI endpoints (use unified call_ai with OpenRouter preferred by settings)
     path('ai/generate-quiz/', generate_quiz, name='generate_quiz'),
     path('ai/chat/', chat, name='chat'),
     path('ai/study-plan/', generate_study_plan, name='generate_study_plan'),

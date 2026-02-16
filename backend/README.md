@@ -1,6 +1,6 @@
 # EduReach Backend API
 
-A robust Django REST API backend for the EduReach educational platform with AI-powered features using Google's Gemini API.
+A robust Django REST API backend for the EduReach educational platform with AI-powered features using OpenRouter (DeepSeek R1 by default).
 
 ## Features
 
@@ -8,7 +8,7 @@ A robust Django REST API backend for the EduReach educational platform with AI-p
 - **Course Management**: Create and manage courses with lessons and track user progress
 - **Assessments**: Create quizzes and exams with automatic grading
 - **Community**: Social features with posts, comments, and likes
-- **AI Service**: Secure proxy for Gemini API with quiz generation, chat, study plans, and concept explanations
+- **AI Service**: Secure proxy for OpenRouter (DeepSeek R1 by default) with quiz generation, chat, study plans, and concept explanations
 - **JWT Authentication**: Secure token-based authentication
 - **CORS Enabled**: Ready for React frontend integration
 
@@ -72,13 +72,10 @@ Edit `.env` and add your configurations:
 ```env
 SECRET_KEY=your-django-secret-key-generate-a-strong-one
 DEBUG=True
-GEMINI_API_KEY=your-google-gemini-api-key
+OPENROUTER_API_KEY=your-openrouter-api-key
+OPENROUTER_MODEL=deepseek/deepseek-r1-0528:free
+PREFER_OPENROUTER=True
 ```
-
-**Getting a Gemini API Key:**
-1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Create a new API key
-3. Copy and paste it into your `.env` file
 
 ### 4. Database Setup
 
@@ -186,7 +183,7 @@ Use the superuser credentials you created during setup.
 2. **Generate a strong SECRET_KEY** for production
 3. **Set DEBUG=False** in production
 4. **Use HTTPS** in production
-5. **Keep GEMINI_API_KEY secure** - never expose it to the frontend
+5. **Keep OPENROUTER_API_KEY secure** - never expose it to the frontend
 6. **Use environment-specific settings** for different deployments
 
 ## Testing API with Tools
@@ -235,7 +232,7 @@ curl -X POST http://localhost:8000/api/auth/login/ \
 1. **Import errors**: Ensure virtual environment is activated
 2. **Database errors**: Run migrations: `python manage.py migrate`
 3. **CORS errors**: Check CORS settings in `settings.py`
-4. **Gemini API errors**: Verify API key in `.env` file
+4. **AI provider errors**: Verify `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` in `.env`
 
 ## Contributing
 

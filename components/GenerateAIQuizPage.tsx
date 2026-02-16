@@ -26,27 +26,36 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
   const [selectedCourseId, setSelectedCourseId] = useState<number | ''>('');
   const [selectedLessonId, setSelectedLessonId] = useState<number | ''>('');
 
-  const mapToQuestionObjects = (rawQuestions: any[], type: QuestionType): Question[] => {
-      return rawQuestions.map((q, index) => {
-          const baseId = `ai-gen-${Date.now()}-${index}`;
-          
+  const mapToQuestionObjects = (questions: any[], type: string) => {
+      if (!Array.isArray(questions)) return [];
+
+      return questions.map((q, idx) => {
+          const baseId = `${Date.now()}-${idx}`;
+          const normalized = {
+              ...q,
+              correctAnswer: q.correctAnswer ?? q.correct_answer,
+              correct_answer: q.correct_answer ?? q.correctAnswer,
+              question: q.question ?? q.question_text,
+              options: q.options ?? q.choices ?? [],
+          };
           if (type === 'essay') {
               return {
                   id: baseId,
                   type: 'essay',
-                  question_text: q.question,
-                  max_words: 500,
+                  question_text: normalized.question,
                   points: assessmentMode === 'exam' ? 20 : 10,
-                  rubric_criteria: q.rubric_criteria || [],
-                  model_solution: q.model_solution,
+                  explanation: normalized.explanation,
+                  rubric_criteria: normalized.rubric_criteria || [],
+                  model_solution: normalized.model_solution,
+                  max_words: normalized.max_words || 250,
                   ai_grading_enabled: true
               } as EssayQuestion;
           } else if (type === 'short-answer') {
               return {
                   id: baseId,
                   type: 'short_answer',
-                  question_text: q.question,
-                  correct_answers: [q.correctAnswer || ''],
+                  question_text: normalized.question,
+                  correct_answers: [normalized.correctAnswer || ''],
                   points: assessmentMode === 'exam' ? 10 : 5,
                   case_sensitive: false,
                   exact_match: false,
@@ -56,35 +65,37 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
               return {
                   id: baseId,
                   type: 'cloze',
-                  question_text: q.question,
+                  question_text: normalized.question,
                   points: assessmentMode === 'exam' ? 5 : 2,
-                  explanation: q.explanation
+                  explanation: normalized.explanation
               } as ClozeQuestion;
           } else if (type === 'passage') {
               return {
                   id: baseId,
                   type: 'passage',
-                  passage_title: q.passage_title || 'Reading Passage',
-                  passage_text: q.passage_text,
-                  word_count: q.passage_text?.split(/\s+/).length || 0,
-                  questions: q.questions.map((subQ: any, subIdx: number) => ({
+                  passage_title: normalized.passage_title || 'Reading Passage',
+                  passage_text: normalized.passage_text,
+                  word_count: normalized.passage_text?.split(/\s+/).length || 0,
+                  questions: (normalized.questions || []).map((subQ: any, subIdx: number) => ({
                       id: `${baseId}-sub-${subIdx}`,
-                      question_text: subQ.question_text,
+                      question_text: subQ.question_text ?? subQ.question,
                       question_type: 'multiple_choice',
-                      options: subQ.options,
-                      correct_answer: subQ.correct_answer,
+                      options: subQ.options ?? subQ.choices ?? [],
+                      correct_answer: subQ.correct_answer ?? subQ.correctAnswer,
                       points: 2
                   })),
                   difficulty: assessmentMode === 'exam' ? 'hard' : 'medium',
-                  points: q.questions?.length * 2 || 10
+                  points: (normalized.questions?.length || 5) * 2
               } as PassageQuestion;
           } else {
+              const options = normalized.options || [];
+              const correctIndex = options.indexOf(normalized.correctAnswer);
               return {
                   id: baseId,
                   type: 'multiple_choice',
-                  question_text: q.question,
-                  options: q.options || [],
-                  correct_answer_index: q.options ? q.options.indexOf(q.correctAnswer) : 0,
+                  question_text: normalized.question,
+                  options,
+                  correct_answer_index: correctIndex >= 0 ? correctIndex : 0,
                   points: assessmentMode === 'exam' ? 5 : 1
               } as MultipleChoiceQuestion;
           }
@@ -112,7 +123,16 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
       });
       
       const result = response.data;
-      const mappedQuestions = mapToQuestionObjects(result.questions || [], questionType);
+      if (result?.raw_response) {
+        setError('AI returned an unexpected format. Please try again or shorten your text.');
+        return;
+      }
+      const questions = Array.isArray(result?.questions) ? result.questions : Array.isArray(result) ? result : [];
+      const mappedQuestions = mapToQuestionObjects(questions, questionType);
+      if (!mappedQuestions.length) {
+        setError('AI did not return any quiz questions. Please try again.');
+        return;
+      }
 
       const newQuiz = {
         title: `AI Generated ${topic} Quiz`,
@@ -131,9 +151,14 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
         } : undefined
       };
       onQuizCreated(newQuiz);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError('Failed to generate assessment. Please try again later.');
+      const status = err?.response?.status;
+      if (status === 500 || status === 502 || status === 503) {
+        setError('AI temporarily unavailable. Please try again later.');
+      } else {
+        setError('Failed to generate assessment. Please try again later.');
+      }
     } finally {
       setIsLoading(false);
     }

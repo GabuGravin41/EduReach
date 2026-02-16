@@ -70,7 +70,7 @@ def call_openrouter(prompt: str, model_name: str = None, max_tokens: int = 400):
         raise RuntimeError('OPENROUTER_API_KEY not configured')
 
     api_url = getattr(settings, 'OPENROUTER_API_URL', 'https://api.openrouter.ai/v1/chat/completions')
-    model = model_name or getattr(settings, 'OPENROUTER_MODEL', 'gpt-4o-mini')
+    model = model_name or getattr(settings, 'OPENROUTER_MODEL', 'deepseek/deepseek-r1-0528:free')
 
     payload = {
         'model': model,
@@ -136,27 +136,66 @@ def call_ai(prompt: str, *, max_tokens: int = 400, prefer_openrouter: bool | Non
 
     gemini_configured = bool(getattr(settings, 'GEMINI_API_KEY', None))
 
-    # Try Gemini first when configured and not preferring OpenRouter
-    if gemini_configured and not prefer_openrouter:
+    def _try_gemini() -> str | None:
+        if not gemini_configured:
+            return None
         try:
             resp = call_gemini(prompt, max_output_tokens=max_tokens)
             return resp.text
         except RuntimeError as e:
-            # Explicitly tagged quota/429 errors from call_generate_content_with_handling
             if 'GEMINI_QUOTA_EXCEEDED' in str(e):
-                logger.warning("Gemini quota exceeded, falling back to OpenRouter: %s", e)
+                logger.warning("Gemini quota exceeded: %s", e)
             else:
-                # Other runtime errors bubble up; they usually indicate misconfig
-                logger.error("Gemini runtime error, falling back to OpenRouter: %s", e, exc_info=True)
-            # Fall through to OpenRouter
+                logger.error("Gemini runtime error: %s", e, exc_info=True)
         except Exception as e:
-            # Any non-quota error from Gemini: log and fall back
-            logger.error("Gemini call failed, falling back to OpenRouter: %s", e, exc_info=True)
+            logger.error("Gemini call failed: %s", e, exc_info=True)
+        return None
 
-    # If Gemini is not available or failed, use OpenRouter
-    logger.debug("Calling OpenRouter as fallback (or primary if preferred)")
-    resp = call_openrouter(prompt, max_tokens=max_tokens)
-    return resp.text
+    def _try_openrouter() -> str | None:
+        try:
+            resp = call_openrouter(prompt, max_tokens=max_tokens)
+            return resp.text
+        except Exception as e:
+            logger.error("OpenRouter call failed: %s", e, exc_info=True)
+            return None
+
+    if prefer_openrouter:
+        response = _try_openrouter()
+        if response:
+            return response
+        # Fallback to Gemini when OpenRouter is unstable
+        response = _try_gemini()
+        if response:
+            return response
+    else:
+        response = _try_gemini()
+        if response:
+            return response
+        response = _try_openrouter()
+        if response:
+            return response
+
+    raise RuntimeError('No AI provider available (Gemini/OpenRouter failed)')
+
+
+def _check_ai_usage_quota(user):
+    """Return (allowed: bool, usage_obj). Fails open if usage tracking is unavailable."""
+    try:
+        usage = user.get_current_usage()
+        return usage.can_use_ai(), usage
+    except Exception:
+        logger.warning("AI usage quota check failed; allowing request", exc_info=True)
+        return True, None
+
+
+def _increment_ai_usage(user):
+    """Increment AI usage count for the current month."""
+    try:
+        usage = user.get_current_usage()
+        usage.ai_queries_used += 1
+        usage.save(update_fields=['ai_queries_used', 'updated_at'])
+    except Exception:
+        logger.warning("Failed to increment AI usage counter", exc_info=True)
 
 
 def chunk_text_for_ai(text: str, max_chunk_size: int = 3500):
@@ -253,7 +292,15 @@ def generate_quiz(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Unified AI provider (Gemini primary, OpenRouter fallback)
+        can_use_ai, usage = _check_ai_usage_quota(request.user)
+        if not can_use_ai:
+            limits = usage.get_tier_limits() if usage else {'ai_queries': 0}
+            return Response(
+                {'error': f'Monthly AI limit reached ({limits["ai_queries"]}). Upgrade your plan to continue.'},
+                status=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+
+        # Unified AI provider (OpenRouter preferred, Gemini fallback if configured)
         prompt = f"""Generate {num_questions} {difficulty} difficulty quiz questions from this transcript:
 
 {transcript}
@@ -281,10 +328,12 @@ Be concise. Questions should test key concepts."""
             
             response_text = response_text.strip()
             quiz_data = json.loads(response_text)
+            _increment_ai_usage(request.user)
 
             return Response(quiz_data, status=status.HTTP_200_OK)
         except json.JSONDecodeError:
             # If JSON parsing fails, return the raw response
+            _increment_ai_usage(request.user)
             return Response(
                 {'raw_response': response_text},
                 status=status.HTTP_200_OK
@@ -321,6 +370,14 @@ def chat(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        can_use_ai, usage = _check_ai_usage_quota(request.user)
+        if not can_use_ai:
+            limits = usage.get_tier_limits() if usage else {'ai_queries': 0}
+            return Response(
+                {'error': f'Monthly AI limit reached ({limits["ai_queries"]}). Upgrade your plan to continue.'},
+                status=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+
         # Check if user wants detailed response (from message)
         wants_detailed = any(keyword in message.lower() for keyword in [
             'explain more', 'tell me more', 'detailed', 'deep dive', 
@@ -361,6 +418,7 @@ If they ask something off-topic, politely redirect them back to the learning mat
         # Generate content with appropriate token limits using Gemini first, then OpenRouter
         max_tokens = 300 if wants_detailed else 150
         response_text = call_ai(full_prompt, max_tokens=max_tokens)
+        _increment_ai_usage(request.user)
 
         return Response(
             {'response': response_text},
@@ -408,6 +466,14 @@ def generate_study_plan(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        can_use_ai, usage = _check_ai_usage_quota(request.user)
+        if not can_use_ai:
+            limits = usage.get_tier_limits() if usage else {'ai_queries': 0}
+            return Response(
+                {'error': f'Monthly AI limit reached ({limits["ai_queries"]}). Upgrade your plan to continue.'},
+                status=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+
         # Construct a concise prompt
         prompt = f"""Create a {duration_weeks}-week study plan for {topic} ({skill_level} level).
 {f"Goal: {goals}" if goals else ""}
@@ -423,6 +489,7 @@ Keep it concise and actionable."""
 
         # Generate content with moderate output using Gemini first, then OpenRouter
         response_text = call_ai(prompt, max_tokens=600)
+        _increment_ai_usage(request.user)
 
         return Response(
             {'study_plan': response_text},
@@ -451,6 +518,14 @@ def summarize_chunks(request):
     }
     """
     try:
+        can_use_ai, usage = _check_ai_usage_quota(request.user)
+        if not can_use_ai:
+            limits = usage.get_tier_limits() if usage else {'ai_queries': 0}
+            return Response(
+                {'error': f'Monthly AI limit reached ({limits["ai_queries"]}). Upgrade your plan to continue.'},
+                status=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+
         chunks = request.data.get('chunks')
         transcript = request.data.get('transcript', '')
 
@@ -494,6 +569,8 @@ Summary:\n- <one line summary>\nTakeaways:\n- item1\n- item2\n- item3
         except Exception as e:
             global_summary = f'Error generating global summary: {str(e)}'
 
+        _increment_ai_usage(request.user)
+
         return Response({
             'success': True,
             'chunk_summaries': chunk_summaries,
@@ -528,6 +605,14 @@ def explain_concept(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        can_use_ai, usage = _check_ai_usage_quota(request.user)
+        if not can_use_ai:
+            limits = usage.get_tier_limits() if usage else {'ai_queries': 0}
+            return Response(
+                {'error': f'Monthly AI limit reached ({limits["ai_queries"]}). Upgrade your plan to continue.'},
+                status=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+
         # Construct a concise prompt based on detail level
         level_prompts = {
             'simple': f'Explain "{concept}" in 2-3 sentences using simple language and a real-world example.',
@@ -539,6 +624,7 @@ def explain_concept(request):
 
         # Generate content with concise output using Gemini first, then OpenRouter
         response_text = call_ai(prompt, max_tokens=300)
+        _increment_ai_usage(request.user)
 
         return Response(
             {'explanation': response_text},

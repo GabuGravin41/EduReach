@@ -50,7 +50,28 @@ class CourseViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Set the owner to the current user."""
+        from rest_framework.exceptions import PermissionDenied
+
+        try:
+            usage = self.request.user.get_current_usage()
+            if not usage.can_create_course():
+                limits = usage.get_tier_limits()
+                raise PermissionDenied(
+                    f'Monthly course limit reached ({limits["courses"]}). Upgrade your plan to create more courses.'
+                )
+        except PermissionDenied:
+            raise
+        except Exception:
+            # If usage tracking fails, do not block course creation.
+            pass
+
         serializer.save(owner=self.request.user)
+        try:
+            usage = self.request.user.get_current_usage()
+            usage.courses_created += 1
+            usage.save(update_fields=['courses_created', 'updated_at'])
+        except Exception:
+            pass
 
     @action(detail=True, methods=['get'])
     def lessons(self, request, pk=None):
@@ -808,8 +829,6 @@ class LessonViewSet(viewsets.ModelViewSet):
         }
         """
         from assessments.models import VideoNotes
-        from django.conf import settings
-        import google.generativeai as genai
         
         lesson = self.get_object()
         user_message = request.data.get('message', '')
@@ -858,13 +877,32 @@ Student Question: {user_message}
 Provide a clear, educational response that references specific parts of the video when relevant."""
         
         try:
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel('gemini-2.5-flash')
-            response = model.generate_content(context)
-            
+            try:
+                usage = request.user.get_current_usage()
+                if not usage.can_use_ai():
+                    return Response({
+                        'success': False,
+                        'error': 'Monthly AI limit reached. Upgrade your plan to continue.'
+                    }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+            except Exception:
+                usage = None
+
+            # Reuse unified AI provider call (OpenRouter preferred, Gemini fallback if configured)
+            response_text = call_ai(context, max_tokens=500)
+
+            # Track AI usage where available
+            if usage is None:
+                try:
+                    usage = request.user.get_current_usage()
+                except Exception:
+                    usage = None
+            if usage is not None:
+                usage.ai_queries_used += 1
+                usage.save(update_fields=['ai_queries_used', 'updated_at'])
+
             return Response({
                 'success': True,
-                'response': response.text,
+                'response': response_text,
                 'has_transcript': bool(transcript),
                 'has_notes': bool(user_notes)
             })

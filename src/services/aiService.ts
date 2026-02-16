@@ -1,4 +1,4 @@
-import apiClient from './apiClient';
+import apiClient from './api';
 import type { QuizQuestion, ChatMessage } from '../types';
 
 const aiService = {
@@ -9,9 +9,9 @@ const aiService = {
         { timeout: 60000 } // Increased timeout for large contexts
       );
       return response.data.response;
-    } catch (error) {
+    } catch (error: any) {
       console.error('AI Chat Error:', error);
-      if (error.code === 'ECONNABORTED') {
+      if (error?.code === 'ECONNABORTED') {
         throw new Error('Request timed out. The transcript might be too long. Please try again.');
       }
       throw new Error(`Chat failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -29,9 +29,9 @@ const aiService = {
         throw new Error('Invalid quiz format received');
       }
       return response.data.questions;
-    } catch (error) {
+    } catch (error: any) {
       console.error('AI Service Error:', error);
-      if (error.code === 'ECONNABORTED') {
+      if (error?.code === 'ECONNABORTED') {
         throw new Error('Quiz generation timed out. Please try with a shorter transcript.');
       }
       throw new Error(`Quiz generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);

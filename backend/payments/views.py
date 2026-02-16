@@ -1,6 +1,7 @@
 import uuid
 from decimal import Decimal, InvalidOperation
 from datetime import timedelta
+import re
 
 from django.utils import timezone
 from django.db import transaction
@@ -55,7 +56,6 @@ class PaymentInitiateView(APIView):
         amount = request.data.get('amount')
         currency = request.data.get('currency', 'KES')
         reference_code = request.data.get('reference_code', '')
-        status_override = request.data.get('status')  # for sandbox/testing only
 
         if not method_id or not amount:
             return Response(
@@ -73,15 +73,27 @@ class PaymentInitiateView(APIView):
         except (InvalidOperation, TypeError):
             return Response({'detail': 'Amount must be a number'}, status=status.HTTP_400_BAD_REQUEST)
 
+        if amount_value <= 0:
+            return Response({'detail': 'Amount must be greater than 0'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Reasonable guardrails to avoid accidental huge charges from bad clients
+        if amount_value > Decimal('200000'):
+            return Response({'detail': 'Amount exceeds maximum allowed'}, status=status.HTTP_400_BAD_REQUEST)
+
+        currency = str(currency or '').upper().strip()
+        if not re.match(r'^[A-Z]{3}$', currency):
+            return Response({'detail': 'Currency must be a valid 3-letter code (e.g. KES)'}, status=status.HTTP_400_BAD_REQUEST)
+
         payment_status = Payment.Status.PENDING
-        if status_override in Payment.Status.values:
-            payment_status = status_override
 
         metadata = request.data.get('metadata', {}) or {}
+        if not isinstance(metadata, dict):
+            return Response({'detail': 'metadata must be an object'}, status=status.HTTP_400_BAD_REQUEST)
+
         payment = Payment.objects.create(
             user=user,
             amount=amount_value,
-            currency=currency.upper(),
+            currency=currency,
             status=payment_status,
             method=method,
             transaction_id=str(uuid.uuid4()),
@@ -98,10 +110,15 @@ class PaymentInitiateView(APIView):
             if not phone_number:
                 payment.mark_failed({'error': 'Missing phone number'})
                 return Response({'detail': 'phone_number is required for M-Pesa payments'}, status=status.HTTP_400_BAD_REQUEST)
+            normalized_phone = str(phone_number).strip()
+            # Kenya MSISDN in E.164-like format without plus (e.g. 2547XXXXXXXX)
+            if not re.match(r'^2547\d{8}$', normalized_phone):
+                payment.mark_failed({'error': 'Invalid phone number format'})
+                return Response({'detail': 'phone_number must be in format 2547XXXXXXXX'}, status=status.HTTP_400_BAD_REQUEST)
             try:
                 mpesa_service = MPesaService()
                 response_payload = mpesa_service.initiate_stk_push(
-                    phone_number=phone_number,
+                    phone_number=normalized_phone,
                     amount=float(amount_value),
                     account_reference=f'EDU{user.id}',
                     transaction_desc='EduReach Subscription',
