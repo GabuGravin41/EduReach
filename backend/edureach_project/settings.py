@@ -182,7 +182,10 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Media uploads (assessment answer images)
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_ROOT = os.environ.get('MEDIA_ROOT', os.path.join(BASE_DIR, 'media'))
+# Temporary launch-safe option to let Django serve uploaded media in production.
+# For long-term scale, switch to object storage (e.g., S3/Cloudinary).
+SERVE_MEDIA_FILES = _env_bool('SERVE_MEDIA_FILES', DEBUG)
 
 # Ensure logs directory exists (prevents FileHandler errors on first run)
 LOG_DIR = os.path.join(BASE_DIR, 'logs')

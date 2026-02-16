@@ -1,12 +1,14 @@
 #!/bin/bash
 
+set -e
+
 echo "Starting EduReach Backend..."
 
-# Run database migrations (don't exit on error)
-python manage.py migrate --noinput || echo "Migration failed, continuing..."
+# Run database migrations
+python manage.py migrate --noinput
 
-# Collect static files (don't exit on error)
-python manage.py collectstatic --noinput || echo "Static files collection failed, continuing..."
+# Collect static files
+python manage.py collectstatic --noinput
 
 # Start Gunicorn (this must succeed)
 echo "Starting Gunicorn server..."

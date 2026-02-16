@@ -22,6 +22,11 @@ const tierDescriptions: Record<UserTier, string> = {
 export const UserProfilePage: React.FC = () => {
     const { user } = useAuth();
     const [isEditing, setIsEditing] = useState(false);
+    const [versionCopyState, setVersionCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+    const buildDate = Number.isNaN(Date.parse(__APP_BUILD_ID__)) ? null : new Date(__APP_BUILD_ID__);
+    const appVersionLabel = buildDate
+        ? `${buildDate.toLocaleDateString()} ${buildDate.toLocaleTimeString()}`
+        : __APP_BUILD_ID__;
     const [formData, setFormData] = useState({
         first_name: user?.first_name || '',
         last_name: user?.last_name || '',
@@ -44,6 +49,17 @@ export const UserProfilePage: React.FC = () => {
             bio: user?.bio || ''
         });
         setIsEditing(false);
+    };
+
+    const handleCopyVersion = async () => {
+        try {
+            await navigator.clipboard.writeText(appVersionLabel);
+            setVersionCopyState('copied');
+        } catch {
+            setVersionCopyState('error');
+        } finally {
+            window.setTimeout(() => setVersionCopyState('idle'), 2000);
+        }
     };
 
     if (!user) return null;
@@ -226,6 +242,21 @@ export const UserProfilePage: React.FC = () => {
                                         <span className="text-slate-800 dark:text-slate-100 font-medium">
                                             {new Date(user.created_at).toLocaleDateString()}
                                         </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-slate-600 dark:text-slate-400">Current app version:</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-slate-800 dark:text-slate-100 font-medium text-right">
+                                                {appVersionLabel}
+                                            </span>
+                                            <button
+                                                onClick={handleCopyVersion}
+                                                className="rounded border border-slate-300 dark:border-slate-500 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
+                                                title="Copy app version"
+                                            >
+                                                {versionCopyState === 'copied' ? 'Copied' : versionCopyState === 'error' ? 'Failed' : 'Copy'}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
