@@ -7,7 +7,25 @@ import {
   writeCachedResponse,
 } from '../src/utils/requestCache';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const DEFAULT_API_BASE = 'http://localhost:8000/api';
+const pickValidBaseUrl = (value?: string): string => {
+  if (!value || typeof value !== 'string') return DEFAULT_API_BASE;
+  const candidates = value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (candidate.includes('*')) continue;
+    if (/^https?:\/\//i.test(candidate)) {
+      const trimmed = candidate.replace(/\/+$/, '');
+      return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+    }
+  }
+
+  return DEFAULT_API_BASE;
+};
+const API_BASE_URL = pickValidBaseUrl(import.meta.env.VITE_API_BASE_URL);
 
 // Create axios instance
 const axiosInstance: AxiosInstance = axios.create({

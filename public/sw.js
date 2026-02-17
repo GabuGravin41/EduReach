@@ -59,6 +59,11 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
+  // Ignore unsupported schemes such as chrome-extension:// to avoid Cache API errors.
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return;
+  }
+
   if (request.method !== 'GET') {
     return;
   }

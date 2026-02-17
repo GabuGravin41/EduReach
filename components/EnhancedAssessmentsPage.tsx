@@ -161,9 +161,11 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
     const [filterType, setFilterType] = useState<'all' | 'completed' | 'pending'>('all');
     const [sortBy, setSortBy] = useState<'recent' | 'difficulty' | 'score'>('recent');
 
-    const features = TIER_FEATURES[userTier];
-    const canCreateMore = tierUsage.assessments_used < tierUsage.assessments_limit;
-    const daysUntilReset = Math.ceil((new Date(tierUsage.resets_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    const safeTier: UserTier = userTier in TIER_FEATURES ? userTier : 'free';
+    const features = TIER_FEATURES[safeTier];
+    const usage = tierUsage ?? { assessments_used: 0, assessments_limit: Infinity, resets_at: new Date().toISOString() };
+    const canCreateMore = usage.assessments_used < usage.assessments_limit;
+    const daysUntilReset = Math.ceil((new Date(usage.resets_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 
     const handleChallengeClick = (e: React.MouseEvent, title: string) => {
         e.stopPropagation();
@@ -233,10 +235,10 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                     <div className="text-center">
                         <p className="text-sm text-slate-600 dark:text-slate-400">Monthly Usage</p>
                         <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">
-                            {tierUsage.assessments_used} / {tierUsage.assessments_limit === Infinity ? '∞' : tierUsage.assessments_limit}
+                            {usage.assessments_used} / {usage.assessments_limit === Infinity ? '∞' : usage.assessments_limit}
                         </p>
                         <p className="text-xs text-slate-500 dark:text-slate-500">
-                            {tierUsage.assessments_limit !== Infinity && `Resets in ${daysUntilReset} days`}
+                            {usage.assessments_limit !== Infinity && `Resets in ${daysUntilReset} days`}
                         </p>
                     </div>
                 </div>
@@ -251,7 +253,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                             Current Plan: <span className="font-semibold text-indigo-600 dark:text-indigo-400">{features.name}</span> - {features.price}
                         </p>
                     </div>
-                    {userTier === 'free' && (
+                    {safeTier === 'free' && (
                         <button 
                             onClick={() => setView('pricing')}
                             className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-colors font-medium"

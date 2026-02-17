@@ -38,7 +38,7 @@ default_debug = True if (ENVIRONMENT != 'production' or IS_RUNSERVER) else False
 DEBUG = _env_bool('DEBUG', default_debug)
 if DEBUG and ENVIRONMENT == 'production' and not IS_RUNSERVER:
     raise ValueError("DEBUG must be False in production")
-IS_STRICT_PRODUCTION = (ENVIRONMENT == 'production' and not DEBUG)
+IS_STRICT_PRODUCTION = (ENVIRONMENT == 'production' and not DEBUG and not IS_RUNSERVER)
 
 # Allowed hosts from environment variable (comma-separated)
 allowed_hosts_env = os.environ.get(
@@ -252,7 +252,7 @@ else:
         valid_origins = [o for o in parsed_origins if re.match(r'^https?://', o)]
         invalid_origins = [o for o in parsed_origins if o not in valid_origins]
 
-        if invalid_origins and IS_STRICT_PRODUCTION:
+        if invalid_origins and IS_STRICT_PRODUCTION and not IS_RUNSERVER:
             raise ValueError(
                 "Invalid CORS_ALLOWED_ORIGINS entries: "
                 + ", ".join(invalid_origins)
@@ -361,7 +361,7 @@ APPEND_SLASH = False
 # OpenRouter API Configuration (PRIMARY AI PROVIDER - FREE)
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
 OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'deepseek/deepseek-r1-0528:free')
-OPENROUTER_API_URL = os.environ.get('OPENROUTER_API_URL', 'https://openrouter.ai/api/v1/chat/completions')
+OPENROUTER_API_URL = os.environ.get('OPENROUTER_API_URL', 'https://api.openrouter.ai/v1/chat/completions')
 PREFER_OPENROUTER = os.environ.get('PREFER_OPENROUTER', 'True') == 'True'
 
 # Validate OpenRouter configuration

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../src/contexts/AuthContext';
+import { authService } from '../src/services/authService';
 import { UserCircleIcon } from './icons/UserCircleIcon';
 import { UserTier } from '../App';
 
@@ -20,13 +21,16 @@ const tierDescriptions: Record<UserTier, string> = {
 };
 
 export const UserProfilePage: React.FC = () => {
-    const { user } = useAuth();
+    const { user, refreshUser } = useAuth();
     const [isEditing, setIsEditing] = useState(false);
     const [versionCopyState, setVersionCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+    const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+    const [saveMessage, setSaveMessage] = useState('');
     const buildDate = Number.isNaN(Date.parse(__APP_BUILD_ID__)) ? null : new Date(__APP_BUILD_ID__);
     const appVersionLabel = buildDate
         ? `${buildDate.toLocaleDateString()} ${buildDate.toLocaleTimeString()}`
         : __APP_BUILD_ID__;
+    const safeTier: UserTier = (user?.tier && user.tier in tierNames) ? user.tier : 'free';
     const [formData, setFormData] = useState({
         first_name: user?.first_name || '',
         last_name: user?.last_name || '',
@@ -35,10 +39,23 @@ export const UserProfilePage: React.FC = () => {
     });
 
     const handleSave = async () => {
-        // TODO: Implement profile update API call
-        console.log('Saving profile:', formData);
-        setIsEditing(false);
-        alert('Profile updated successfully!');
+        setSaveState('saving');
+        setSaveMessage('');
+        try {
+            await authService.updateProfile({
+                first_name: formData.first_name,
+                last_name: formData.last_name,
+                email: formData.email,
+                bio: formData.bio,
+            });
+            await refreshUser();
+            setSaveState('saved');
+            setSaveMessage('Profile updated successfully.');
+            setIsEditing(false);
+        } catch (error: any) {
+            setSaveState('error');
+            setSaveMessage(error?.response?.data?.detail || 'Failed to update profile. Please try again.');
+        }
     };
 
     const handleCancel = () => {
@@ -68,9 +85,9 @@ export const UserProfilePage: React.FC = () => {
         <div className="max-w-4xl mx-auto">
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg overflow-hidden">
                 {/* Header */}
-                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-8 py-12">
+                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-6 sm:px-8 py-10 sm:py-12">
                     <div className="flex items-center space-x-6">
-                        <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center">
+                        <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-white/20 flex items-center justify-center ring-4 ring-white/30">
                             <UserCircleIcon className="w-16 h-16 text-white" />
                         </div>
                         <div className="text-white">
@@ -83,7 +100,7 @@ export const UserProfilePage: React.FC = () => {
                             </p>
                             <div className="flex items-center mt-3">
                                 <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-medium">
-                                    {tierNames[user.tier]}
+                                    {tierNames[safeTier]}
                                 </span>
                             </div>
                         </div>
@@ -91,11 +108,11 @@ export const UserProfilePage: React.FC = () => {
                 </div>
 
                 {/* Content */}
-                <div className="p-8">
+                <div className="p-6 sm:p-8">
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         {/* Profile Information */}
                         <div className="lg:col-span-2">
-                            <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center justify-between mb-6 gap-3">
                                 <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
                                     Profile Information
                                 </h2>
@@ -110,9 +127,10 @@ export const UserProfilePage: React.FC = () => {
                                     <div className="space-x-3">
                                         <button
                                             onClick={handleSave}
+                                            disabled={saveState === 'saving'}
                                             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                                         >
-                                            Save
+                                            {saveState === 'saving' ? 'Saving...' : 'Save'}
                                         </button>
                                         <button
                                             onClick={handleCancel}
@@ -123,6 +141,15 @@ export const UserProfilePage: React.FC = () => {
                                     </div>
                                 )}
                             </div>
+                            {saveMessage && (
+                                <div className={`mb-4 rounded-lg border px-3 py-2 text-sm ${
+                                    saveState === 'error'
+                                        ? 'border-rose-200 bg-rose-50 text-rose-700'
+                                        : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                }`}>
+                                    {saveMessage}
+                                </div>
+                            )}
 
                             <div className="space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -210,18 +237,18 @@ export const UserProfilePage: React.FC = () => {
                                 <div className="text-center mb-4">
                                     <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900 rounded-full flex items-center justify-center mx-auto mb-3">
                                         <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                                            {user.tier === 'pro_plus' ? 'P+' : user.tier.charAt(0).toUpperCase()}
+                                            {safeTier === 'pro_plus' ? 'P+' : safeTier.charAt(0).toUpperCase()}
                                         </span>
                                     </div>
                                     <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
-                                        {tierNames[user.tier]}
+                                        {tierNames[safeTier]}
                                     </h4>
                                     <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
-                                        {tierDescriptions[user.tier]}
+                                        {tierDescriptions[safeTier]}
                                     </p>
                                 </div>
 
-                                {user.tier !== 'admin' && user.tier !== 'pro_plus' && (
+                                {safeTier !== 'admin' && safeTier !== 'pro_plus' && (
                                     <button className="w-full mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
                                         Upgrade Plan
                                     </button>
@@ -240,7 +267,13 @@ export const UserProfilePage: React.FC = () => {
                                     <div className="flex justify-between">
                                         <span className="text-slate-600 dark:text-slate-400">Member since:</span>
                                         <span className="text-slate-800 dark:text-slate-100 font-medium">
-                                            {new Date(user.created_at).toLocaleDateString()}
+                                            {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown'}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-slate-600 dark:text-slate-400">Email status:</span>
+                                        <span className="text-slate-800 dark:text-slate-100 font-medium">
+                                            {user.email ? 'Configured' : 'Missing'}
                                         </span>
                                     </div>
                                     <div className="flex justify-between">

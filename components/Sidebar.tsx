@@ -60,7 +60,8 @@ const RoleSwitcher: React.FC<{ currentTier: UserTier; onTierChange: (tier: UserT
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout, onNewSession, isCollapsed, setIsCollapsed, userTier, onTierChange, isMobileOpen, setIsMobileOpen }) => {
   // Only show admin-specific UI elements to admin users
-  const isAdmin = userTier === 'admin';
+  const safeTier: UserTier = userTier in tierNames ? userTier : 'free';
+  const isAdmin = safeTier === 'admin';
   
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: DashboardIcon, adminOnly: false },
@@ -113,14 +114,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
         px-3 py-4 flex flex-col 
         border-r border-blue-100/60 dark:border-slate-800 
         transition-all duration-300 shadow-lg
-        overflow-hidden
+        overflow-y-auto
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         ${isCollapsed ? 'w-20' : 'w-64'}
       `}>
       {/* Header Section - Fixed at top */}
       <div className="flex-shrink-0">
         {/* Mobile Close Button */}
-        <div className="flex items-center justify-between mb-6 lg:mb-6">
+        <div className="flex items-center justify-between mb-4 lg:mb-6">
           <div className={`flex items-center gap-2 ${isCollapsed ? 'justify-center px-0' : 'px-3'}`}>
             <SparklesIcon className="w-7 h-7 text-blue-600" />
             {!isCollapsed && <span className="text-xl font-bold text-gray-800 dark:text-white">EduReach</span>}
@@ -136,14 +137,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
         </div>
 
         {/* Only show tier switcher to admin users */}
-        {isAdmin && <RoleSwitcher currentTier={userTier} onTierChange={onTierChange} isCollapsed={isCollapsed} />}
+        {isAdmin && <RoleSwitcher currentTier={safeTier} onTierChange={onTierChange} isCollapsed={isCollapsed} />}
 
         <Button
           onClick={onNewSession}
           title="New Session"
           variant="primary"
-          size={isCollapsed ? 'icon' : 'md'}
-          className={`w-full mb-5 ${isCollapsed ? '' : 'gap-2'}`}
+          size={isCollapsed ? 'icon' : 'sm'}
+          className={`w-full mb-3 text-sm ${isCollapsed ? '' : 'gap-2'}`}
           icon={<NewSessionIcon className="w-5 h-5" />}
         >
           {!isCollapsed && 'New Session'}
@@ -151,9 +152,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
       </div>
 
       {/* Navigation Section - Scrollable on mobile */}
-      <nav className="space-y-2 overflow-y-auto flex-1 min-h-0 lg:overflow-y-visible lg:flex-none">
+      <nav className="space-y-1 overflow-y-auto flex-1 min-h-0 lg:overflow-y-visible lg:flex-none">
         {navItems.map(item => {
-          if (item.adminOnly && userTier !== 'admin') {
+          if (item.adminOnly && safeTier !== 'admin') {
               return null;
           }
           return <NavItem key={item.id} {...item} />
@@ -175,16 +176,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
 
       {/* Footer Section - Fixed at bottom */}
       <div className="flex-shrink-0 mt-auto">
-        {!isCollapsed && userTier !== 'pro' && userTier !== 'pro_plus' && userTier !== 'admin' && (
-            <div className="p-4 mb-4 bg-gradient-to-br from-blue-50 to-emerald-50 dark:from-slate-800 dark:to-slate-700 rounded-md text-center border border-blue-100 dark:border-slate-700">
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">You are on the <span className="capitalize font-bold text-blue-600 dark:text-emerald-300">{userTier}</span> plan.</p>
+        {!isCollapsed && safeTier !== 'pro' && safeTier !== 'pro_plus' && safeTier !== 'admin' && (
+            <div className="hidden lg:block p-4 mb-4 bg-gradient-to-br from-blue-50 to-emerald-50 dark:from-slate-800 dark:to-slate-700 rounded-md text-center border border-blue-100 dark:border-slate-700">
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">You are on the <span className="capitalize font-bold text-blue-600 dark:text-emerald-300">{safeTier}</span> plan.</p>
                 <Button onClick={() => setView('billing')} className="mt-3 w-full justify-center gap-2" size="md" icon={<UpgradeIcon className="w-4 h-4" />}>
                     Upgrade Plan
                 </Button>
             </div>
         )}
 
-        <div className="border-t border-blue-100 dark:border-slate-800 pt-4">
+        <div className="hidden lg:block border-t border-blue-100 dark:border-slate-800 pt-4">
           <button 
             onClick={() => {
               setView('profile');
@@ -198,7 +199,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
             {!isCollapsed && (
               <div className="flex-1 min-w-0 text-left">
                 <p className="font-semibold text-sm truncate text-gray-700 dark:text-white">Profile</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{tierNames[userTier]}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{tierNames[safeTier]}</p>
               </div>
             )}
           </button>
@@ -215,6 +216,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
               Logout
             </Button>
           )}
+        </div>
+        <div className="lg:hidden border-t border-blue-100 dark:border-slate-800 pt-3 mt-2">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                setView('profile');
+                setIsMobileOpen(false);
+              }}
+              className="px-3 py-2 rounded-md border border-blue-100 dark:border-slate-700 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-slate-700"
+            >
+              Profile
+            </button>
+            <button
+              onClick={() => {
+                onLogout();
+                setIsMobileOpen(false);
+              }}
+              className="px-3 py-2 rounded-md border border-rose-200 dark:border-rose-900 text-sm font-medium text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/30"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </div>
     </aside>

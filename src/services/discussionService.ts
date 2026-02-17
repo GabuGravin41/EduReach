@@ -31,7 +31,8 @@ export interface ThreadReply {
   created_at: string;
 }
 
-const BASE = '/community';
+// Backend mounts community routes directly under /api/
+const BASE = '';
 
 export const discussionService = {
   async listChannels(): Promise<CourseChannel[]> {

@@ -36,6 +36,12 @@ const StudyGroupsPage = lazy(() => import('./components/StudyGroupsPage').then(m
 
   
 export type UserTier = 'free' | 'learner' | 'pro' | 'pro_plus' | 'admin';
+const VALID_TIERS: UserTier[] = ['free', 'learner', 'pro', 'pro_plus', 'admin'];
+const normalizeUserTier = (value: unknown): UserTier => {
+  return (typeof value === 'string' && VALID_TIERS.includes(value as UserTier))
+    ? (value as UserTier)
+    : 'free';
+};
 
 export type View =
   | 'dashboard' 
@@ -218,7 +224,7 @@ const AppContent: React.FC = () => {
   
     useEffect(() => {
       if (user) {
-          setUserTier(user.tier);
+          setUserTier(normalizeUserTier(user.tier));
       }
     }, [user]);
 
@@ -302,10 +308,6 @@ const AppContent: React.FC = () => {
       };
     }, []);
 
-    useEffect(() => {
-      console.log('Courses updated from React Query:', courses);
-    }, [courses]);
-  
     const limits = {
         lessonsPerCourse: userTier === 'free' ? 5 : Infinity
     };

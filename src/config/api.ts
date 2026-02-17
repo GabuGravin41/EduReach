@@ -1,4 +1,24 @@
-const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const DEFAULT_API_BASE = 'http://localhost:8000/api';
+
+const pickValidBaseUrl = (value?: string): string => {
+  if (!value || typeof value !== 'string') return DEFAULT_API_BASE;
+  const candidates = value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  for (const candidate of candidates) {
+    // Skip wildcard-like entries such as *.onrender.com
+    if (candidate.includes('*')) continue;
+    if (/^https?:\/\//i.test(candidate)) {
+      return candidate;
+    }
+  }
+
+  return DEFAULT_API_BASE;
+};
+
+const rawBaseUrl = pickValidBaseUrl(import.meta.env.VITE_API_BASE_URL);
 const trimmedBaseUrl = rawBaseUrl.replace(/\/+$/, '');
 const normalizedBaseUrl = trimmedBaseUrl.endsWith('/api') ? trimmedBaseUrl : `${trimmedBaseUrl}/api`;
 

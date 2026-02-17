@@ -141,11 +141,26 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     },
   });
 
+  const normalizeTier = (tier: unknown): UserTier => {
+    switch (tier) {
+      case 'free':
+      case 'learner':
+      case 'pro':
+      case 'pro_plus':
+      case 'admin':
+        return tier;
+      default:
+        return 'free';
+    }
+  };
+  const safeCurrentTier = normalizeTier(currentTier);
+
   const currentPlanLabel = useMemo(() => {
-    if (currentTier && currentTier !== 'free') return currentTier.replace('_', ' ');
+    if (safeCurrentTier !== 'free') return safeCurrentTier.replace('_', ' ');
     if (!subscriptionQuery.data) return 'Free';
-    return subscriptionQuery.data.tier.replace('_', ' ');
-  }, [subscriptionQuery.data, currentTier]);
+    const backendTier = subscriptionQuery.data.tier || 'free';
+    return String(backendTier).replace('_', ' ');
+  }, [subscriptionQuery.data, safeCurrentTier]);
 
   const selectedMethod = useMemo(() => {
     const methods = Array.isArray(methodsQuery.data) ? methodsQuery.data : [];
@@ -261,7 +276,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                 {(Object.keys(tiers) as Array<'learner' | 'pro' | 'pro_plus'>).map((tierKey) => {
                     const tier = tiers[tierKey];
                     const isSelected = selectedTier === tierKey;
-                    const isCurrent = currentTier === tierKey;
+                    const isCurrent = safeCurrentTier === tierKey;
 
                     return (
                         <div 
@@ -396,9 +411,9 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                         onClick={handleStartPayment} 
                         isLoading={initiatePaymentMutation.isPending}
                         className="w-full justify-center"
-                        disabled={currentTier === selectedTier}
+                        disabled={safeCurrentTier === selectedTier}
                     >
-                        {currentTier === selectedTier ? 'Current Plan Active' : `Pay ${tiers[selectedTier].price}`}
+                        {safeCurrentTier === selectedTier ? 'Current Plan Active' : `Pay ${tiers[selectedTier].price}`}
                     </Button>
                     
                     <Button

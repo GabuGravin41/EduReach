@@ -12,6 +12,17 @@ import requests
 logger = logging.getLogger(__name__)
 
 
+class AIProviderUnavailableError(RuntimeError):
+    """Raised when all configured AI providers fail."""
+
+    def __init__(self, details=None):
+        self.details = details or []
+        message = "No AI provider available."
+        if self.details:
+            message = f"{message} " + " | ".join(self.details)
+        super().__init__(message)
+
+
 def _is_rate_limit_error(exc: Exception) -> bool:
     try:
         text = str(exc)
@@ -66,7 +77,7 @@ def call_openrouter(prompt: str, model_name: str = None, max_tokens: int = 400):
     Returns an object with a .text attribute for compatibility with Gemini responses.
     """
     api_key = getattr(settings, 'OPENROUTER_API_KEY', None)
-    if not api_key:
+    if not api_key or api_key in {'dev-key-not-configured', 'dummy-key-for-build'}:
         raise RuntimeError('OPENROUTER_API_KEY not configured')
 
     api_url = getattr(settings, 'OPENROUTER_API_URL', 'https://api.openrouter.ai/v1/chat/completions')
@@ -136,8 +147,15 @@ def call_ai(prompt: str, *, max_tokens: int = 400, prefer_openrouter: bool | Non
 
     gemini_configured = bool(getattr(settings, 'GEMINI_API_KEY', None))
 
+    provider_failures = []
+
+    def _short_error_text(error: Exception, max_chars: int = 240) -> str:
+        text = str(error).replace('\n', ' ').strip()
+        return text[:max_chars] + ('...' if len(text) > max_chars else '')
+
     def _try_gemini() -> str | None:
         if not gemini_configured:
+            provider_failures.append('Gemini not configured')
             return None
         try:
             resp = call_gemini(prompt, max_output_tokens=max_tokens)
@@ -145,10 +163,13 @@ def call_ai(prompt: str, *, max_tokens: int = 400, prefer_openrouter: bool | Non
         except RuntimeError as e:
             if 'GEMINI_QUOTA_EXCEEDED' in str(e):
                 logger.warning("Gemini quota exceeded: %s", e)
+                provider_failures.append('Gemini quota exceeded')
             else:
                 logger.error("Gemini runtime error: %s", e, exc_info=True)
+                provider_failures.append(f'Gemini runtime error: {_short_error_text(e)}')
         except Exception as e:
             logger.error("Gemini call failed: %s", e, exc_info=True)
+            provider_failures.append(f'Gemini error: {_short_error_text(e)}')
         return None
 
     def _try_openrouter() -> str | None:
@@ -157,6 +178,7 @@ def call_ai(prompt: str, *, max_tokens: int = 400, prefer_openrouter: bool | Non
             return resp.text
         except Exception as e:
             logger.error("OpenRouter call failed: %s", e, exc_info=True)
+            provider_failures.append(f'OpenRouter error: {_short_error_text(e)}')
             return None
 
     if prefer_openrouter:
@@ -175,7 +197,7 @@ def call_ai(prompt: str, *, max_tokens: int = 400, prefer_openrouter: bool | Non
         if response:
             return response
 
-    raise RuntimeError('No AI provider available (Gemini/OpenRouter failed)')
+    raise AIProviderUnavailableError(provider_failures)
 
 
 def _check_ai_usage_quota(user):
@@ -339,6 +361,16 @@ Be concise. Questions should test key concepts."""
                 status=status.HTTP_200_OK
             )
     
+    except AIProviderUnavailableError as e:
+        logger.warning("AI unavailable in generate_quiz: %s", e)
+        return Response(
+            {
+                'error': 'AI service temporarily unavailable. Verify OPENROUTER_API_KEY and provider quota, then retry.',
+                'details': e.details,
+                'type': type(e).__name__
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
     except Exception as e:
         logger.error(f"Error generating quiz: {str(e)}", exc_info=True)
         return Response(
@@ -425,6 +457,16 @@ If they ask something off-topic, politely redirect them back to the learning mat
             status=status.HTTP_200_OK
         )
     
+    except AIProviderUnavailableError as e:
+        logger.warning("AI unavailable in chat: %s", e)
+        return Response(
+            {
+                'error': 'AI service temporarily unavailable. Verify OPENROUTER_API_KEY and provider quota, then retry.',
+                'details': e.details,
+                'type': type(e).__name__
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
     except requests.exceptions.RequestException as e:
         logger.error(f"OpenRouter connectivity error in chat: {str(e)}", exc_info=True)
         return Response(
@@ -496,6 +538,16 @@ Keep it concise and actionable."""
             status=status.HTTP_200_OK
         )
     
+    except AIProviderUnavailableError as e:
+        logger.warning("AI unavailable in generate_study_plan: %s", e)
+        return Response(
+            {
+                'error': 'AI service temporarily unavailable. Verify OPENROUTER_API_KEY and provider quota, then retry.',
+                'details': e.details,
+                'type': type(e).__name__
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
     except Exception as e:
         logger.error(f"Error generating study plan: {str(e)}", exc_info=True)
         return Response(
@@ -577,6 +629,16 @@ Summary:\n- <one line summary>\nTakeaways:\n- item1\n- item2\n- item3
             'global_summary': global_summary
         }, status=status.HTTP_200_OK)
 
+    except AIProviderUnavailableError as e:
+        logger.warning("AI unavailable in summarize_chunks: %s", e)
+        return Response(
+            {
+                'error': 'AI service temporarily unavailable. Verify OPENROUTER_API_KEY and provider quota, then retry.',
+                'details': e.details,
+                'type': type(e).__name__
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
     except Exception as e:
         logger.error(f"Error in summarize_chunks: {str(e)}", exc_info=True)
         return Response({'error': f'Failed to summarize chunks: {str(e)}', 'type': type(e).__name__}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -631,6 +693,16 @@ def explain_concept(request):
             status=status.HTTP_200_OK
         )
     
+    except AIProviderUnavailableError as e:
+        logger.warning("AI unavailable in explain_concept: %s", e)
+        return Response(
+            {
+                'error': 'AI service temporarily unavailable. Verify OPENROUTER_API_KEY and provider quota, then retry.',
+                'details': e.details,
+                'type': type(e).__name__
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
     except Exception as e:
         logger.error(f"Error explaining concept: {str(e)}", exc_info=True)
         return Response(
