@@ -61,12 +61,15 @@ class CourseSerializer(serializers.ModelSerializer):
     lessons = LessonSerializer(many=True, read_only=True)
     lesson_count = serializers.SerializerMethodField()
     pricing = CoursePricingSerializer(read_only=True)
+    progress = serializers.SerializerMethodField()
+    completed_lesson_ids = serializers.SerializerMethodField()
     
     class Meta:
         model = Course
         fields = [
             'id', 'title', 'description', 'owner', 'thumbnail',
-            'is_public', 'lessons', 'lesson_count', 'pricing',
+            'is_public', 'lessons', 'lesson_count', 'pricing', 'progress',
+            'completed_lesson_ids',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'owner', 'created_at', 'updated_at']
@@ -74,22 +77,65 @@ class CourseSerializer(serializers.ModelSerializer):
     def get_lesson_count(self, obj):
         return obj.lessons.count()
 
+    def _get_user_progress(self, obj):
+        request = self.context.get('request')
+        if not request or not getattr(request, 'user', None) or not request.user.is_authenticated:
+            return None
+        return UserProgress.objects.filter(user=request.user, course=obj).first()
+
+    def get_progress(self, obj):
+        progress = self._get_user_progress(obj)
+        if progress:
+            return progress.progress_percentage
+        return 0
+
+    def get_completed_lesson_ids(self, obj):
+        progress = self._get_user_progress(obj)
+        if not progress:
+            return []
+        return list(progress.completed_lessons.values_list('id', flat=True))
+
+    def validate_title(self, value):
+        return (value or '').strip()
+
 
 class CourseListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for course lists - now includes lessons."""
+    owner = UserSerializer(read_only=True)
     owner_username = serializers.CharField(source='owner.username', read_only=True)
     lesson_count = serializers.SerializerMethodField()
     lessons = LessonSerializer(many=True, read_only=True)
+    progress = serializers.SerializerMethodField()
+    completed_lesson_ids = serializers.SerializerMethodField()
     
     class Meta:
         model = Course
         fields = [
-            'id', 'title', 'description', 'owner_username',
-            'thumbnail', 'lesson_count', 'created_at', 'lessons'
+            'id', 'title', 'description', 'owner', 'owner_username',
+            'thumbnail', 'is_public', 'lesson_count', 'progress',
+            'completed_lesson_ids', 'created_at', 'updated_at', 'lessons'
         ]
 
     def get_lesson_count(self, obj):
         return obj.lessons.count()
+
+    def _get_user_progress(self, obj):
+        request = self.context.get('request')
+        if not request or not getattr(request, 'user', None) or not request.user.is_authenticated:
+            return None
+        return UserProgress.objects.filter(user=request.user, course=obj).first()
+
+    def get_progress(self, obj):
+        progress = self._get_user_progress(obj)
+        if progress:
+            return progress.progress_percentage
+        return 0
+
+    def get_completed_lesson_ids(self, obj):
+        progress = self._get_user_progress(obj)
+        if not progress:
+            return []
+        return list(progress.completed_lessons.values_list('id', flat=True))
 
 
 class UserProgressSerializer(serializers.ModelSerializer):

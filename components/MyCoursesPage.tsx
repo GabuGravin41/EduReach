@@ -10,9 +10,10 @@ interface MyCoursesPageProps {
     onNewCourse: () => void;
     userTier: UserTier;
     currentUserId?: number;
+    highlightedCourseId?: number;
 }
 
-export const MyCoursesPage: React.FC<MyCoursesPageProps> = ({ courses, onSelectCourse, onNewCourse, userTier, currentUserId }) => {
+export const MyCoursesPage: React.FC<MyCoursesPageProps> = ({ courses, onSelectCourse, onNewCourse, userTier, currentUserId, highlightedCourseId }) => {
   const pageTitle = userTier === 'admin' ? 'Platform Courses' : 'My Courses';
   const hasCourses = courses.length > 0;
   const [activeFilter, setActiveFilter] = React.useState<'all' | 'public' | 'mine' | 'in_progress'>('all');
@@ -68,9 +69,18 @@ export const MyCoursesPage: React.FC<MyCoursesPageProps> = ({ courses, onSelectC
             const visibility = (course.is_public ?? course.isPublic) ? 'Public' : 'Private';
             const progress = typeof course.progress === 'number' ? course.progress : 0;
             const actionLabel = progress > 0 ? 'Resume' : 'Start';
+            const isHighlighted = highlightedCourseId === course.id;
 
             return (
-              <div key={course.id} onClick={() => onSelectCourse(course.id)} className="bg-white dark:bg-slate-800 rounded-xl shadow-lg shadow-slate-900/5 overflow-hidden cursor-pointer group flex flex-col">
+              <div
+                key={course.id}
+                onClick={() => onSelectCourse(course.id)}
+                className={`rounded-xl overflow-hidden cursor-pointer group flex flex-col transition-all ${
+                  isHighlighted
+                    ? 'bg-emerald-50 dark:bg-emerald-900/20 border-2 border-emerald-400 shadow-xl shadow-emerald-900/20'
+                    : 'bg-white dark:bg-slate-800 shadow-lg shadow-slate-900/5'
+                }`}
+              >
                 <div className="h-40 bg-slate-200 dark:bg-slate-700 flex items-center justify-center relative overflow-hidden">
                    {course.thumbnail ? (
                        <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
@@ -83,6 +93,11 @@ export const MyCoursesPage: React.FC<MyCoursesPageProps> = ({ courses, onSelectC
                    <span className="absolute top-3 right-3 text-xs font-semibold px-2 py-1 rounded-full bg-white/90 text-slate-700">
                       {visibility}
                    </span>
+                   {isHighlighted && (
+                     <span className="absolute top-3 left-3 text-xs font-semibold px-2 py-1 rounded-full bg-emerald-600 text-white">
+                       Newly saved
+                     </span>
+                   )}
                 </div>
                 <div className="p-4 flex flex-col flex-grow">
                   <div className="flex items-center justify-between gap-2 mb-1">

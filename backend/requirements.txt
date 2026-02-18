@@ -28,6 +28,7 @@ Pillow==11.0.0
 
 # PDF generation
 reportlab==4.0.8
+pypdf>=5.0.0
 
 # Production server
 gunicorn==21.2.0

@@ -23,6 +23,7 @@ export interface Course {
   is_public?: boolean;
   lessons: Lesson[];
   progress?: number;
+  completed_lesson_ids?: number[];
   created_at?: string;
   updated_at?: string;
   owner?: CourseOwner;
@@ -34,6 +35,10 @@ export interface Lesson {
   title: string;
   videoId: string;
   transcript?: string;
+  manual_transcript?: string;
+  has_transcript?: boolean;
+  transcript_language?: string;
+  transcript_fetched_at?: string | null;
   isCompleted?: boolean;
   duration: string;
   order?: number;
@@ -55,6 +60,7 @@ export interface AddLessonPayload {
   transcript?: string;
   transcript_language?: string;
   manual_transcript?: string;
+  auto_fetch_transcript?: boolean;
 }
 
 const normalizeListResponse = <T>(data: any): T[] => {
@@ -88,13 +94,21 @@ export const courseService = {
 
   // Create new course
   async createCourse(data: CreateCourseData): Promise<Course> {
-    const response = await apiClient.post(API_ENDPOINTS.COURSES, data);
+    const response = await apiClient.post(API_ENDPOINTS.COURSES, {
+      title: data.title,
+      description: data.description,
+      is_public: data.isPublic,
+    });
     return response.data;
   },
 
   // Update course
   async updateCourse(id: number, data: Partial<CreateCourseData>): Promise<Course> {
-    const response = await apiClient.put(API_ENDPOINTS.COURSE_DETAIL(id), data);
+    const payload: Record<string, unknown> = {};
+    if (typeof data.title === 'string') payload.title = data.title;
+    if (typeof data.description === 'string') payload.description = data.description;
+    if (typeof data.isPublic === 'boolean') payload.is_public = data.isPublic;
+    const response = await apiClient.patch(API_ENDPOINTS.COURSE_DETAIL(id), payload);
     return response.data;
   },
 

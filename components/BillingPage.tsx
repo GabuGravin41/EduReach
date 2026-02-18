@@ -13,9 +13,11 @@ interface BillingPageProps {
   onSubscriptionActivated?: (tier: 'learner' | 'pro' | 'pro_plus') => void;
 }
 
+type CurrencyCode = 'USD' | 'KES';
+
 interface TierInfo {
   name: string;
-  price: string;
+  monthlyPrice: Record<CurrencyCode, number>;
   priceSuffix: string;
   description: string;
   features: string[];
@@ -25,7 +27,7 @@ interface TierInfo {
 const tiers: Record<'learner' | 'pro' | 'pro_plus', TierInfo> = {
   learner: {
     name: 'Learner',
-    price: '250 KES',
+    monthlyPrice: { USD: 4, KES: 350 },
     priceSuffix: '/ month',
     description: 'Break past the basic limits with expanded creation tools.',
     features: [
@@ -40,7 +42,7 @@ const tiers: Record<'learner' | 'pro' | 'pro_plus', TierInfo> = {
   },
   pro: {
     name: 'Pro',
-    price: '600 KES',
+    monthlyPrice: { USD: 11, KES: 950 },
     priceSuffix: '/ month',
     description: 'For power users and content creators who want the best.',
     features: [
@@ -54,7 +56,7 @@ const tiers: Record<'learner' | 'pro' | 'pro_plus', TierInfo> = {
   },
   pro_plus: {
     name: 'Pro Plus',
-    price: '900 KES',
+    monthlyPrice: { USD: 19, KES: 1700 },
     priceSuffix: '/ month',
     description: 'The ultimate toolkit for educators and lifelong learners.',
     features: [
@@ -75,15 +77,44 @@ const FeatureListItem: React.FC<{ children: React.ReactNode }> = ({ children }) 
   </li>
 );
 
+const CURRENCY_STORAGE_KEY = 'edureach:billing-currency:v1';
+
+const detectKenyaUser = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    if (tz.toLowerCase().includes('nairobi')) return true;
+    const locale = Intl.DateTimeFormat().resolvedOptions().locale || '';
+    if (locale.toUpperCase().includes('-KE')) return true;
+    const langs = navigator.languages || [navigator.language];
+    return langs.some((lang) => String(lang).toUpperCase().includes('-KE'));
+  } catch {
+    return false;
+  }
+};
+
+const formatAmount = (currency: CurrencyCode, amount: number): string =>
+  currency === 'KES'
+    ? `${amount.toLocaleString()} KES`
+    : `$${amount.toLocaleString()}`;
+
 export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', onSubscriptionActivated }) => {
   const queryClient = useQueryClient();
   const [selectedTier, setSelectedTier] = useState<'learner' | 'pro' | 'pro_plus'>('learner');
+  const [currency, setCurrency] = useState<CurrencyCode>(() => {
+    if (typeof window === 'undefined') return 'USD';
+    const saved = localStorage.getItem(CURRENCY_STORAGE_KEY);
+    if (saved === 'USD' || saved === 'KES') return saved;
+    return detectKenyaUser() ? 'KES' : 'USD';
+  });
   
   const [selectedMethodId, setSelectedMethodId] = useState<number | null>(null);
   const [latestPayment, setLatestPayment] = useState<Payment | null>(null);
   const [paymentMessage, setPaymentMessage] = useState<string>('');
   const [mpesaPhone, setMpesaPhone] = useState('');
   const [cardToken, setCardToken] = useState('');
+
+  const selectedPrice = tiers[selectedTier].monthlyPrice[currency];
 
   const subscriptionQuery = useQuery<Subscription>({
     queryKey: ['subscription'],
@@ -173,14 +204,15 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
       return;
     }
 
-    const plan = tiers[selectedTier];
-    const amount = parseInt(plan.price.split(' ')[0]); 
+    const effectiveCurrency: CurrencyCode =
+      selectedMethod?.name === 'mpesa' ? 'KES' : currency;
+    const amount = tiers[selectedTier].monthlyPrice[effectiveCurrency];
     
     const payload: any = {
       payment_method_id: selectedMethodId,
       amount: amount,
-      currency: 'KES',
-      metadata: { tier: selectedTier },
+      currency: effectiveCurrency,
+      metadata: { tier: selectedTier, display_currency: currency },
     };
 
     if (selectedMethod?.name === 'mpesa') {
@@ -225,6 +257,12 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
       setSelectedMethodId(methods[0].id);
     }
   }, [methodsQuery.data, selectedMethodId]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(CURRENCY_STORAGE_KEY, currency);
+    }
+  }, [currency]);
 
   return (
     <div className="space-y-8">
@@ -271,7 +309,25 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Plans Selection */}
         <div className="lg:col-span-2 space-y-6">
-            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Select a Plan</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Select a Plan</h2>
+                <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-600 p-1 bg-white dark:bg-slate-800">
+                    {(['USD', 'KES'] as CurrencyCode[]).map((code) => (
+                        <button
+                            key={code}
+                            type="button"
+                            onClick={() => setCurrency(code)}
+                            className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                                currency === code
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                            }`}
+                        >
+                            {code}
+                        </button>
+                    ))}
+                </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {(Object.keys(tiers) as Array<'learner' | 'pro' | 'pro_plus'>).map((tierKey) => {
                     const tier = tiers[tierKey];
@@ -304,7 +360,9 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                             <div className="mb-4">
                                 <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">{tier.name}</h3>
                                 <div className="flex items-baseline mt-1">
-                                    <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">{tier.price}</span>
+                                    <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                                      {formatAmount(currency, tier.monthlyPrice[currency])}
+                                    </span>
                                     <span className="text-sm text-slate-500 ml-1">{tier.priceSuffix}</span>
                                 </div>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 line-clamp-2 min-h-[2.5rem]">{tier.description}</p>
@@ -333,6 +391,23 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                     );
                 })}
             </div>
+            <div className="rounded-xl border border-indigo-200 dark:border-indigo-900/40 bg-gradient-to-r from-indigo-50 to-cyan-50 dark:from-indigo-900/20 dark:to-cyan-900/10 p-5">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Enterprise / Institution</p>
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mt-1">Bring EduReach to your entire school or classroom network</h3>
+                        <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+                            Includes onboarding support, bulk seats, admin controls, and custom onboarding for Olympiad/coaching programs.
+                        </p>
+                    </div>
+                    <a
+                        href="mailto:hello@edureach.app?subject=Enterprise%20Plan%20Inquiry"
+                        className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+                    >
+                        Contact Sales
+                    </a>
+                </div>
+            </div>
         </div>
 
         {/* Payment Processing */}
@@ -345,7 +420,9 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                     <p className="text-sm text-slate-500 mb-1">Selected Plan</p>
                     <div className="flex justify-between items-center">
                         <span className="font-bold text-lg text-slate-800 dark:text-slate-100">{tiers[selectedTier].name}</span>
-                        <span className="font-bold text-indigo-600 dark:text-indigo-400">{tiers[selectedTier].price}</span>
+                        <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                          {formatAmount(currency, selectedPrice)}
+                        </span>
                     </div>
                 </div>
 
@@ -389,6 +466,11 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                             placeholder="2547XXXXXXXX"
                             className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
+                        {currency !== 'KES' && (
+                            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                                M-Pesa charges in KES. Amount will be billed in KES for this payment.
+                            </p>
+                        )}
                     </div>
                 )}
 
@@ -413,7 +495,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                         className="w-full justify-center"
                         disabled={safeCurrentTier === selectedTier}
                     >
-                        {safeCurrentTier === selectedTier ? 'Current Plan Active' : `Pay ${tiers[selectedTier].price}`}
+                        {safeCurrentTier === selectedTier ? 'Current Plan Active' : `Pay ${formatAmount(currency, selectedPrice)}`}
                     </Button>
                     
                     <Button

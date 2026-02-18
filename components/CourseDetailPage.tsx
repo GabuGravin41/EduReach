@@ -43,11 +43,22 @@ interface CourseDetailPageProps {
     course: Course;
     setView: (view: View) => void;
     onStartLesson: (payload: StartLessonPayload) => void;
-    onAddLesson?: (courseId: number, lesson: { title: string; videoId: string; transcript?: string }) => Promise<void> | void;
+    onAddLesson?: (
+        courseId: number,
+        lesson: {
+            title: string;
+            videoId: string;
+            videoUrl?: string;
+            transcript?: string;
+            transcriptLanguage?: string;
+            autoFetchTranscript?: boolean;
+        }
+    ) => Promise<void> | void;
     onUpdateLesson?: (courseId: number, lessonId: number, updates: any) => void;
     userTier: UserTier;
     currentUserId?: number;
     onUpdateCourse?: (courseId: number, updates: Partial<Course>) => void;
+    onDeleteCourse?: (courseId: number) => Promise<void> | void;
     assessments?: Assessment[];
     onSelectExam?: (examId: number) => void;
 }
@@ -61,6 +72,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     userTier, 
     currentUserId,
     onUpdateCourse,
+    onDeleteCourse,
     assessments = [],
     onSelectExam
 }) => {
@@ -73,7 +85,12 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
 
     // Quick lesson add form
     const [isLessonFormOpen, setIsLessonFormOpen] = useState(false);
-    const [lessonForm, setLessonForm] = useState({ title: '', videoUrl: '' });
+    const [lessonForm, setLessonForm] = useState({
+        title: '',
+        videoUrl: '',
+        transcriptLanguage: 'en',
+        autoFetchTranscript: true,
+    });
     const [isSavingLesson, setIsSavingLesson] = useState(false);
     const [lessonFormError, setLessonFormError] = useState('');
     
@@ -82,6 +99,15 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     const [editingLessonTitle, setEditingLessonTitle] = useState('');
     const [isSavingEdit, setIsSavingEdit] = useState(false);
     const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+    const [isDeletingCourse, setIsDeletingCourse] = useState(false);
+    const [completingLessonId, setCompletingLessonId] = useState<number | null>(null);
+    const [transcriptModalLesson, setTranscriptModalLesson] = useState<Lesson | null>(null);
+    const [manualTranscript, setManualTranscript] = useState('');
+    const [transcriptLanguageInput, setTranscriptLanguageInput] = useState('en');
+    const [isSavingTranscript, setIsSavingTranscript] = useState(false);
+    const [isRetryingTranscript, setIsRetryingTranscript] = useState(false);
+    const [transcriptModalError, setTranscriptModalError] = useState('');
+    const canManageCourse = Boolean(currentUserId && course?.owner?.id === currentUserId);
 
     useEffect(() => {
         if (course) {
@@ -90,6 +116,12 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
             loadLessonNotes();
         }
     }, [course]);
+
+    useEffect(() => {
+        if (!canManageCourse && activeTab === 'manage') {
+            setActiveTab('lessons');
+        }
+    }, [canManageCourse, activeTab]);
 
     const loadLessonNotes = async () => {
         if (!course?.lessons) return;
@@ -131,6 +163,10 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     const dummyTranscript = `This is a placeholder transcript for the selected video. In a real application, this would be fetched from a server or provided by the user. It demonstrates the flow of starting a lesson from the course page.`;
 
     const handleQuickLessonSubmit = async () => {
+        if (!canManageCourse) {
+            setLessonFormError('You can only add lessons to courses you created.');
+            return;
+        }
         if (!lessonForm.title || !lessonForm.videoUrl) {
             setLessonFormError('Provide both a lesson title and video URL');
             return;
@@ -149,13 +185,28 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
             await onAddLesson(course.id, {
                 title: lessonForm.title,
                 videoId,
+                videoUrl: lessonForm.videoUrl,
                 transcript: '',
+                transcriptLanguage: lessonForm.transcriptLanguage,
+                autoFetchTranscript: lessonForm.autoFetchTranscript,
             });
-            setLessonForm({ title: '', videoUrl: '' });
+            setLessonForm({
+                title: '',
+                videoUrl: '',
+                transcriptLanguage: 'en',
+                autoFetchTranscript: true,
+            });
             setIsLessonFormOpen(false);
         } catch (error) {
             console.error('Failed to add lesson', error);
-            setLessonFormError('Failed to add lesson. Please try again.');
+            const apiError = (error as any)?.response?.data;
+            const friendly =
+                apiError?.error ||
+                apiError?.detail ||
+                ((error as any)?.response?.status === 403
+                    ? 'You do not have permission to add lessons to this course.'
+                    : 'Failed to add lesson. Please try again.');
+            setLessonFormError(friendly);
         } finally {
             setIsSavingLesson(false);
         }
@@ -169,6 +220,39 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
             });
         }
         setIsEditingCourse(false);
+    };
+
+    const handleDeleteCourse = async () => {
+        if (!onDeleteCourse || isDeletingCourse) return;
+        const confirmed = window.confirm(
+            `Delete "${course.title}"? This permanently removes the course and all its lessons.`
+        );
+        if (!confirmed) return;
+
+        try {
+            setIsDeletingCourse(true);
+            await onDeleteCourse(course.id);
+        } catch (error) {
+            console.error('Failed to delete course:', error);
+            alert('Failed to delete course. Please try again.');
+        } finally {
+            setIsDeletingCourse(false);
+        }
+    };
+
+    const handleMarkLessonComplete = async (lessonId: number) => {
+        try {
+            setCompletingLessonId(lessonId);
+            await apiClient.post(`/lessons/${lessonId}/mark_complete/`, {});
+            if (onUpdateLesson) {
+                onUpdateLesson(course.id, lessonId, { isCompleted: true });
+            }
+        } catch (error) {
+            console.error('Failed to mark lesson complete:', error);
+            alert('Failed to update progress. Please try again.');
+        } finally {
+            setCompletingLessonId(null);
+        }
     };
 
     const extractVideoId = (urlOrId: string): string | null => {
@@ -220,6 +304,91 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
         }
     };
 
+    const openTranscriptModal = (lesson: Lesson) => {
+        setTranscriptModalLesson(lesson);
+        setManualTranscript(lesson.manual_transcript || lesson.transcript || '');
+        setTranscriptLanguageInput(lesson.transcript_language || 'en');
+        setTranscriptModalError('');
+    };
+
+    const closeTranscriptModal = () => {
+        setTranscriptModalLesson(null);
+        setManualTranscript('');
+        setTranscriptModalError('');
+    };
+
+    const refreshLessonData = (lessonId: number) => {
+        if (onUpdateLesson) {
+            onUpdateLesson(course.id, lessonId, {});
+        }
+    };
+
+    const formatTranscriptUpdateTime = (lesson?: Lesson | null) => {
+        if (!lesson?.transcript_fetched_at) return 'Never';
+        try {
+            return new Date(lesson.transcript_fetched_at).toLocaleString();
+        } catch {
+            return 'Unknown';
+        }
+    };
+
+    const handleRetryTranscriptFetch = async () => {
+        if (!transcriptModalLesson) return;
+        try {
+            setIsRetryingTranscript(true);
+            setTranscriptModalError('');
+            const response = await apiClient.post(
+                `/lessons/${transcriptModalLesson.id}/fetch_transcript/`,
+                {
+                    language: transcriptLanguageInput,
+                    force_refresh: true,
+                }
+            );
+
+            if (response.data?.success) {
+                refreshLessonData(transcriptModalLesson.id);
+                closeTranscriptModal();
+                return;
+            }
+
+            setTranscriptModalError(
+                response.data?.error || 'Could not fetch transcript automatically. Paste manually below.'
+            );
+        } catch (error: any) {
+            setTranscriptModalError(
+                error?.response?.data?.error || 'Auto-fetch failed. Paste transcript manually below.'
+            );
+        } finally {
+            setIsRetryingTranscript(false);
+        }
+    };
+
+    const handleSaveManualTranscript = async () => {
+        if (!transcriptModalLesson) return;
+        if (!manualTranscript.trim()) {
+            setTranscriptModalError('Paste transcript text before saving.');
+            return;
+        }
+        try {
+            setIsSavingTranscript(true);
+            setTranscriptModalError('');
+            await apiClient.post(
+                `/lessons/${transcriptModalLesson.id}/update_manual_transcript/`,
+                {
+                    manual_transcript: manualTranscript,
+                }
+            );
+            refreshLessonData(transcriptModalLesson.id);
+            closeTranscriptModal();
+        } catch (error: any) {
+            setTranscriptModalError(
+                error?.response?.data?.error || 'Failed to save manual transcript.'
+            );
+        } finally {
+            setIsSavingTranscript(false);
+        }
+    };
+
     const getLinkedAssessment = (lessonId: number) => {
         return assessments.find(a => 
             a.context?.courseId === course.id && 
@@ -227,14 +396,44 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
         );
     };
 
-    const courseLessons = Array.isArray(course.lessons) ? course.lessons : [];
+    const getTranscriptStatus = (lesson: Lesson) => {
+        const hasTranscript = lesson.has_transcript ?? Boolean(lesson.transcript || lesson.manual_transcript);
+        if (hasTranscript) {
+            const label = lesson.transcript_language
+                ? `Transcript ready (${lesson.transcript_language.toUpperCase()})`
+                : 'Transcript ready';
+            return {
+                label,
+                isMissing: false,
+                className:
+                    'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+            };
+        }
+        return {
+            label: 'Transcript missing',
+            isMissing: true,
+            className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+        };
+    };
+
+    const completedLessonIds = new Set<number>(
+        Array.isArray((course as any).completed_lesson_ids) ? (course as any).completed_lesson_ids : []
+    );
+    const courseLessons = (Array.isArray(course.lessons) ? course.lessons : []).map((lesson) => ({
+        ...lesson,
+        isCompleted: completedLessonIds.size > 0
+            ? completedLessonIds.has(lesson.id)
+            : Boolean(lesson.isCompleted),
+    }));
     const lessonLimit = userTier === 'free' ? 5 : Infinity;
     const visibleLessons = courseLessons.slice(0, lessonLimit);
     
     const completedCount = courseLessons.filter(l => l.isCompleted).length;
-    const actualProgress = courseLessons.length > 0 
-        ? Math.round((completedCount / courseLessons.length) * 100) 
+    const computedProgress = courseLessons.length > 0
+        ? Math.round((completedCount / courseLessons.length) * 100)
         : 0;
+    const apiProgress = typeof course.progress === 'number' ? course.progress : undefined;
+    const actualProgress = apiProgress ?? computedProgress;
     const nextLesson = courseLessons.find(l => !l.isCompleted) || courseLessons[0];
     const startLabel = actualProgress > 0 ? 'Resume' : 'Start';
         
@@ -300,23 +499,32 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                         <button onClick={() => setActiveTab('lessons')} className={`py-3 sm:py-4 px-3 sm:px-4 font-semibold border-b-3 transition-all whitespace-nowrap text-sm sm:text-base rounded-t-lg ${activeTab === 'lessons' ? 'border-orange-500 text-orange-600 dark:text-orange-400 bg-white dark:bg-gray-700 shadow-sm' : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-orange-600 dark:hover:text-orange-400'}`}>Lessons ({courseLessons.length})</button>
                         <button onClick={() => setActiveTab('notes')} className={`py-3 sm:py-4 px-3 sm:px-4 font-semibold border-b-3 transition-all whitespace-nowrap text-sm sm:text-base rounded-t-lg ${activeTab === 'notes' ? 'border-orange-500 text-orange-600 dark:text-orange-400 bg-white dark:bg-gray-700 shadow-sm' : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-orange-600 dark:hover:text-orange-400'}`}>My Notes ({aggregatedNotes.length})</button>
                         <button onClick={() => setActiveTab('discussions')} className={`py-3 sm:py-4 px-3 sm:px-4 font-semibold border-b-3 transition-all whitespace-nowrap text-sm sm:text-base rounded-t-lg ${activeTab === 'discussions' ? 'border-orange-500 text-orange-600 dark:text-orange-400 bg-white dark:bg-gray-700 shadow-sm' : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-orange-600 dark:hover:text-orange-400'}`}>Discussions</button>
-                        <button onClick={() => setActiveTab('manage')} className={`py-3 sm:py-4 px-3 sm:px-4 font-semibold border-b-3 transition-all whitespace-nowrap text-sm sm:text-base rounded-t-lg ${activeTab === 'manage' ? 'border-orange-500 text-orange-600 dark:text-orange-400 bg-white dark:bg-gray-700 shadow-sm' : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-orange-600 dark:hover:text-orange-400'}`}>Manage Course</button>
+                        {canManageCourse && (
+                            <button onClick={() => setActiveTab('manage')} className={`py-3 sm:py-4 px-3 sm:px-4 font-semibold border-b-3 transition-all whitespace-nowrap text-sm sm:text-base rounded-t-lg ${activeTab === 'manage' ? 'border-orange-500 text-orange-600 dark:text-orange-400 bg-white dark:bg-gray-700 shadow-sm' : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-orange-600 dark:hover:text-orange-400'}`}>Manage Course</button>
+                        )}
                     </div>
                 </div>
 
                 {activeTab === 'lessons' && (
                 <div className="bg-white dark:bg-slate-900 p-4 sm:p-6">
+                    {!canManageCourse && (
+                        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
+                            This course is read-only for your account. You can start lessons, but only the course creator can add or edit lessons.
+                        </div>
+                    )}
                     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                         <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
                             📖 Lessons
                         </h2>
-                        <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => setIsLessonFormOpen((prev) => !prev)}
-                        >
-                            {isLessonFormOpen ? 'Close form' : 'Add lesson'}
-                        </Button>
+                        {canManageCourse && (
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => setIsLessonFormOpen((prev) => !prev)}
+                            >
+                                {isLessonFormOpen ? 'Close form' : 'Add lesson'}
+                            </Button>
+                        )}
                     </div>
                     {isLessonFormOpen && (
                         <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
@@ -335,6 +543,29 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                                     onChange={(e) => setLessonForm({ ...lessonForm, videoUrl: e.target.value })}
                                     className="w-full rounded-md border border-slate-300 bg-transparent p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600"
                                 />
+                            </div>
+                            <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                <select
+                                    value={lessonForm.transcriptLanguage}
+                                    onChange={(e) => setLessonForm({ ...lessonForm, transcriptLanguage: e.target.value })}
+                                    className="w-full rounded-md border border-slate-300 bg-transparent p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600"
+                                >
+                                    <option value="en">English transcript</option>
+                                    <option value="es">Spanish transcript</option>
+                                    <option value="fr">French transcript</option>
+                                    <option value="de">German transcript</option>
+                                    <option value="hi">Hindi transcript</option>
+                                    <option value="pt">Portuguese transcript</option>
+                                </select>
+                                <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                                    <input
+                                        type="checkbox"
+                                        checked={lessonForm.autoFetchTranscript}
+                                        onChange={(e) => setLessonForm({ ...lessonForm, autoFetchTranscript: e.target.checked })}
+                                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    Auto-pull transcript from YouTube
+                                </label>
                             </div>
                             {lessonFormError && (
                                 <p className="mt-2 text-sm text-rose-500">
@@ -361,6 +592,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                         {visibleLessons.map((lesson, index) => {
                             const linkedAssessment = getLinkedAssessment(lesson.id);
                             const isEditing = editingLessonId === lesson.id;
+                            const transcriptStatus = getTranscriptStatus(lesson);
                             
                             return (
                             <li key={index} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 rounded-xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-blue-200 dark:hover:border-slate-500 transition-all duration-200">
@@ -399,6 +631,27 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                                                 <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-gray-500 dark:text-gray-400 mt-1.5">
                                                     <span className="flex items-center gap-1 bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded-full">
                                                         <ClockIcon className="w-3 h-3" /> {lesson.duration}
+                                                    </span>
+                                                    <span
+                                                        className={`px-2 py-1 rounded-full font-medium ${transcriptStatus.className} ${
+                                                            transcriptStatus.isMissing && canManageCourse
+                                                                ? 'cursor-pointer hover:opacity-80'
+                                                                : ''
+                                                        }`}
+                                                        onClick={() => {
+                                                            if (transcriptStatus.isMissing && canManageCourse) {
+                                                                openTranscriptModal(lesson);
+                                                            }
+                                                        }}
+                                                        title={
+                                                            transcriptStatus.isMissing && canManageCourse
+                                                                ? 'Add transcript manually or retry auto-fetch'
+                                                                : transcriptStatus.isMissing
+                                                                ? 'Transcript missing'
+                                                                : 'Transcript is available'
+                                                        }
+                                                    >
+                                                        {transcriptStatus.label}
                                                     </span>
                                                     {lesson.isCompleted && <span className="text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-100 dark:bg-emerald-900/30 px-2 py-1 rounded-full">✓ Completed</span>}
                                                     {linkedAssessment && (
@@ -457,20 +710,34 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                                         >
                                             {lesson.isCompleted ? 'Review' : 'Start'}
                                         </Button>
-                                        <button
-                                            onClick={() => handleEditLesson(lesson)}
-                                            className="px-3 py-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                                            title="Edit lesson"
-                                        >
-                                            ✏️
-                                        </button>
-                                        <button
-                                            onClick={() => setDeleteConfirmId(lesson.id)}
-                                            className="px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                                            title="Delete lesson"
-                                        >
-                                            🗑️
-                                        </button>
+                                        {!lesson.isCompleted && (
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                onClick={() => handleMarkLessonComplete(lesson.id)}
+                                                isLoading={completingLessonId === lesson.id}
+                                            >
+                                                Mark complete
+                                            </Button>
+                                        )}
+                                        {canManageCourse && (
+                                            <>
+                                                <button
+                                                    onClick={() => handleEditLesson(lesson)}
+                                                    className="px-3 py-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                                                    title="Edit lesson"
+                                                >
+                                                    ✏️
+                                                </button>
+                                                <button
+                                                    onClick={() => setDeleteConfirmId(lesson.id)}
+                                                    className="px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                                                    title="Delete lesson"
+                                                >
+                                                    🗑️
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 )}
                             </li>
@@ -574,13 +841,87 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                                         <p className="text-sm text-slate-500 mb-1">Description</p>
                                         <p>{course.description}</p>
                                     </div>
-                                    <Button onClick={() => setIsEditingCourse(true)}>Edit Details</Button>
+                                    <div className="flex flex-wrap gap-3">
+                                        <Button onClick={() => setIsEditingCourse(true)}>Edit Details</Button>
+                                        <Button
+                                            variant="secondary"
+                                            className="border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-700 dark:text-rose-300 dark:hover:bg-rose-900/20"
+                                            onClick={handleDeleteCourse}
+                                            isLoading={isDeletingCourse}
+                                            disabled={!onDeleteCourse}
+                                        >
+                                            Delete Course
+                                        </Button>
+                                    </div>
                                 </div>
                             )}
                         </div>
                     </div>
                 )}
             </div>
+            {transcriptModalLesson && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                    <div className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                            Add Transcript - {transcriptModalLesson.title}
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                            Retry auto-fetch or paste transcript manually to unlock AI lesson features.
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            Last transcript update: {formatTranscriptUpdateTime(transcriptModalLesson)}
+                        </p>
+
+                        <div className="mt-4 flex flex-wrap items-center gap-3">
+                            <select
+                                value={transcriptLanguageInput}
+                                onChange={(e) => setTranscriptLanguageInput(e.target.value)}
+                                className="rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600"
+                            >
+                                <option value="en">English</option>
+                                <option value="es">Spanish</option>
+                                <option value="fr">French</option>
+                                <option value="de">German</option>
+                                <option value="hi">Hindi</option>
+                                <option value="pt">Portuguese</option>
+                            </select>
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={handleRetryTranscriptFetch}
+                                isLoading={isRetryingTranscript}
+                            >
+                                Retry auto-fetch
+                            </Button>
+                        </div>
+
+                        <textarea
+                            value={manualTranscript}
+                            onChange={(e) => setManualTranscript(e.target.value)}
+                            rows={10}
+                            placeholder="Paste transcript here..."
+                            className="mt-4 w-full rounded-md border border-slate-300 bg-transparent p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600"
+                        />
+
+                        {transcriptModalError && (
+                            <p className="mt-2 text-sm text-rose-500">{transcriptModalError}</p>
+                        )}
+
+                        <div className="mt-4 flex justify-end gap-2">
+                            <Button type="button" variant="ghost" onClick={closeTranscriptModal}>
+                                Cancel
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={handleSaveManualTranscript}
+                                isLoading={isSavingTranscript}
+                            >
+                                Save transcript
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

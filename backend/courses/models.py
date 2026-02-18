@@ -29,6 +29,12 @@ class Course(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['owner', 'title'],
+                name='unique_course_title_per_owner',
+            ),
+        ]
 
 
 class Lesson(models.Model):

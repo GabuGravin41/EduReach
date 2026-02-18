@@ -362,6 +362,9 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
     // 0 = ended
     if (event.data === 0 && !completedSent && currentLesson) {
         setCompletedSent(true);
+        apiClient.post(`/lessons/${currentLesson.id}/mark_complete/`, {}).catch((error) => {
+          console.error('Failed to mark lesson complete:', error);
+        });
         onUpdateLesson(courseId, currentLesson.id, { isCompleted: true });
     }
   };

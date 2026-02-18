@@ -16,6 +16,7 @@ interface GenerateAIQuizPageProps {
 export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCreated, onCancel, courses }) => {
   const [topic, setTopic] = useState('');
   const [sourceText, setSourceText] = useState('');
+  const [contextPdf, setContextPdf] = useState<File | null>(null);
   const [numQuestions, setNumQuestions] = useState(5);
   const [questionType, setQuestionType] = useState<QuestionType>('multiple-choice');
   const [assessmentMode, setAssessmentMode] = useState<AssessmentMode>('quiz');
@@ -25,6 +26,7 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
   // Linking
   const [selectedCourseId, setSelectedCourseId] = useState<number | ''>('');
   const [selectedLessonId, setSelectedLessonId] = useState<number | ''>('');
+  const [pdfInfoMessage, setPdfInfoMessage] = useState('');
 
   const mapToQuestionObjects = (questions: any[], type: string) => {
       if (!Array.isArray(questions)) return [];
@@ -105,27 +107,35 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!topic.trim() || !sourceText.trim()) {
-      setError('Please provide both a topic and some source text.');
+    if (!topic.trim() || (!sourceText.trim() && !contextPdf)) {
+      setError('Please provide a topic and either source text or a PDF context file.');
       return;
     }
     setError('');
     setIsLoading(true);
+    setPdfInfoMessage('');
 
     try {
       const effectiveNumQuestions = questionType === 'passage' ? Math.ceil(numQuestions / 3) : numQuestions;
-      
+
+      const formData = new FormData();
+      formData.append('transcript', sourceText);
+      formData.append('num_questions', String(effectiveNumQuestions));
+      formData.append('difficulty', assessmentMode === 'exam' ? 'hard' : 'medium');
+      if (contextPdf) {
+        formData.append('context_pdf', contextPdf);
+      }
+
       // Call backend API instead of Gemini directly
-      const response = await apiClient.post('/ai/generate-quiz/', {
-        transcript: sourceText,
-        num_questions: effectiveNumQuestions,
-        difficulty: assessmentMode === 'exam' ? 'hard' : 'medium'
-      });
+      const response = await apiClient.post('/ai/generate-quiz/', formData);
       
       const result = response.data;
       if (result?.raw_response) {
         setError('AI returned an unexpected format. Please try again or shorten your text.');
         return;
+      }
+      if (typeof result?.pdf_context_pages_used === 'number') {
+        setPdfInfoMessage(`Used ${result.pdf_context_pages_used} PDF page(s) as context.`);
       }
       const questions = Array.isArray(result?.questions) ? result.questions : Array.isArray(result) ? result : [];
       const mappedQuestions = mapToQuestionObjects(questions, questionType);
@@ -154,7 +164,10 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
     } catch (err: any) {
       console.error(err);
       const status = err?.response?.status;
-      if (status === 500 || status === 502 || status === 503) {
+      const detail = err?.response?.data?.error || err?.response?.data?.detail;
+      if (detail) {
+        setError(detail);
+      } else if (status === 500 || status === 502 || status === 503) {
         setError('AI temporarily unavailable. Please try again later.');
       } else {
         setError('Failed to generate assessment. Please try again later.');
@@ -242,6 +255,30 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
                 ? "Enter specific level (e.g. 'IMO level', 'Graduate Physics') or paste source material..." 
                 : "Paste an article, transcript, or simple notes here..."}
             className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-vertical" />
+        </div>
+
+        <div>
+          <label htmlFor="contextPdf" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            PDF Context (Optional)
+          </label>
+          <input
+            id="contextPdf"
+            type="file"
+            accept="application/pdf"
+            onChange={(e) => setContextPdf(e.target.files?.[0] || null)}
+            className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Page limits by tier: Learner 8, Pro 20, Pro+ 40. Upload text-based PDFs for best results.
+          </p>
+          {contextPdf && (
+            <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">
+              Selected: {contextPdf.name}
+            </p>
+          )}
+          {pdfInfoMessage && (
+            <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">{pdfInfoMessage}</p>
+          )}
         </div>
 
         {/* Linking Section */}

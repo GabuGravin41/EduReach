@@ -1,10 +1,13 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 from django.db import models
+from django.db import IntegrityError
 from django.utils import timezone
 from decimal import Decimal, InvalidOperation
 from datetime import timedelta
+from django.shortcuts import get_object_or_404
 import re
 from ai_service.views import call_ai
 from .models import (
@@ -65,13 +68,41 @@ class CourseViewSet(viewsets.ModelViewSet):
             # If usage tracking fails, do not block course creation.
             pass
 
-        serializer.save(owner=self.request.user)
+        requested_title = serializer.validated_data.get('title', '')
+        unique_title = self._build_unique_title_for_owner(self.request.user, requested_title)
+        try:
+            serializer.save(owner=self.request.user, title=unique_title)
+        except IntegrityError:
+            fallback_title = self._build_unique_title_for_owner(self.request.user, unique_title)
+            serializer.save(owner=self.request.user, title=fallback_title)
         try:
             usage = self.request.user.get_current_usage()
             usage.courses_created += 1
             usage.save(update_fields=['courses_created', 'updated_at'])
         except Exception:
             pass
+
+    def perform_update(self, serializer):
+        requested_title = serializer.validated_data.get('title')
+        if requested_title is not None:
+            serializer.validated_data['title'] = self._build_unique_title_for_owner(
+                self.request.user,
+                requested_title,
+                exclude_course_id=serializer.instance.id,
+            )
+        try:
+            serializer.save()
+        except IntegrityError:
+            if requested_title is None:
+                raise ValidationError({
+                    'detail': ['Could not save course updates. Please try again.']
+                })
+            fallback_title = self._build_unique_title_for_owner(
+                self.request.user,
+                serializer.validated_data.get('title', requested_title),
+                exclude_course_id=serializer.instance.id,
+            )
+            serializer.save(title=fallback_title)
 
     @action(detail=True, methods=['get'])
     def lessons(self, request, pk=None):
@@ -99,6 +130,42 @@ class CourseViewSet(viewsets.ModelViewSet):
             video_url
         )
         return match.group(1) if match else None
+
+    def _split_title_suffix(self, title: str):
+        match = re.match(r'^(.*?)(?:\s\((\d+)\))?$', (title or '').strip())
+        if not match:
+            return (title or '').strip(), None
+        base = (match.group(1) or '').strip()
+        suffix = match.group(2)
+        return base, int(suffix) if suffix else None
+
+    def _build_unique_title_for_owner(self, owner, requested_title: str, exclude_course_id: int = None) -> str:
+        requested = (requested_title or '').strip()
+        if not requested:
+            return requested
+
+        queryset = Course.objects.filter(owner=owner)
+        if exclude_course_id:
+            queryset = queryset.exclude(id=exclude_course_id)
+        existing_titles = list(queryset.values_list('title', flat=True))
+
+        has_exact_collision = any((title or '').strip().casefold() == requested.casefold() for title in existing_titles)
+        if not has_exact_collision:
+            return requested
+
+        base, _ = self._split_title_suffix(requested)
+        base = base or requested
+
+        used_numbers = set()
+        for title in existing_titles:
+            existing_base, existing_suffix = self._split_title_suffix(title or '')
+            if existing_base.casefold() == base.casefold():
+                used_numbers.add(existing_suffix if existing_suffix is not None else 1)
+
+        suffix = 2
+        while suffix in used_numbers:
+            suffix += 1
+        return f'{base} ({suffix})'
 
     def _get_pricing(self, course: Course) -> CoursePricing:
         pricing, _ = CoursePricing.objects.get_or_create(course=course)
@@ -273,15 +340,15 @@ class CourseViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        title = request.data.get('title')
+        title = (request.data.get('title') or '').strip()
         video_id = self._extract_video_id(
             request.data.get('video_id'),
             request.data.get('video_url')
         )
 
-        if not title or not video_id:
+        if not video_id:
             return Response(
-                {'error': 'Both title and video identifier/url are required.'},
+                {'error': 'Video identifier/url is required.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -290,14 +357,47 @@ class CourseViewSet(viewsets.ModelViewSet):
         transcript = request.data.get('transcript', '')
         transcript_language = request.data.get('transcript_language', 'en')
         manual_transcript = request.data.get('manual_transcript', '')
+        auto_fetch_raw = request.data.get('auto_fetch_transcript', True)
+        if isinstance(auto_fetch_raw, str):
+            auto_fetch_transcript = auto_fetch_raw.strip().lower() in ('1', 'true', 'yes', 'on')
+        else:
+            auto_fetch_transcript = bool(auto_fetch_raw)
 
-        next_order = course.lessons.count()
+        # Avoid unique(order) collisions when lessons were deleted/reordered.
+        existing_lesson = course.lessons.order_by('-order').first()
+        next_order = (existing_lesson.order + 1) if existing_lesson else 0
+
+        video_url = request.data.get('video_url') or f'https://www.youtube.com/watch?v={video_id}'
+
+        metadata = {}
+
+        # If transcript is not provided manually, try auto-fetching from YouTube.
+        if not transcript and auto_fetch_transcript:
+            try:
+                service = YouTubeTranscriptService()
+                result = service.extract_complete_video_data(video_url, transcript_language)
+                if result.get('success'):
+                    transcript_data = result.get('transcript', {})
+                    transcript = transcript_data.get('transcript', '') or transcript
+
+                    metadata = result.get('metadata', {})
+                    if duration == 'N/A' and metadata.get('duration'):
+                        duration = str(metadata.get('duration'))
+                else:
+                    # Keep lesson creation resilient; frontend can still add manual transcript.
+                    pass
+            except Exception:
+                # Transcript pull failures should not block lesson creation.
+                pass
+
+        if not title:
+            title = metadata.get('title') or f'Lesson {next_order + 1}'
 
         lesson = Lesson.objects.create(
             course=course,
             title=title,
             video_id=video_id,
-            video_url=request.data.get('video_url') or f'https://www.youtube.com/watch?v={video_id}',
+            video_url=video_url,
             duration=duration,
             order=next_order,
             description=description,
@@ -570,6 +670,26 @@ class LessonViewSet(viewsets.ModelViewSet):
             'message': 'Manual transcript updated successfully',
             'manual_transcript': lesson.manual_transcript,
             'has_auto_transcript': bool(lesson.transcript)
+        })
+
+    @action(detail=True, methods=['post'])
+    def mark_complete(self, request, pk=None):
+        """
+        Mark lesson as complete for the current user and update course progress.
+        """
+        lesson = self.get_object()
+        progress, _ = UserProgress.objects.get_or_create(
+            user=request.user,
+            course=lesson.course
+        )
+        progress.completed_lessons.add(lesson)
+        progress.update_progress()
+        return Response({
+            'success': True,
+            'course_id': lesson.course_id,
+            'lesson_id': lesson.id,
+            'progress_percentage': progress.progress_percentage,
+            'completed_lesson_ids': list(progress.completed_lessons.values_list('id', flat=True)),
         })
     
     @action(detail=True, methods=['post'])

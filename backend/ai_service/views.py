@@ -8,6 +8,12 @@ import json
 import logging
 import re
 import requests
+from io import BytesIO
+
+try:
+    from pypdf import PdfReader
+except Exception:  # pragma: no cover - optional dependency safety
+    PdfReader = None
 
 logger = logging.getLogger(__name__)
 
@@ -220,6 +226,48 @@ def _increment_ai_usage(user):
         logger.warning("Failed to increment AI usage counter", exc_info=True)
 
 
+def _pdf_page_limit_for_user(user) -> int:
+    tier = getattr(user, 'tier', 'free')
+    if tier in ('pro_plus', 'admin'):
+        return 40
+    if tier == 'pro':
+        return 20
+    if tier == 'learner':
+        return 8
+    return 5
+
+
+def _extract_text_from_pdf_file(uploaded_file, max_pages: int) -> tuple[str, int, int]:
+    if PdfReader is None:
+        raise RuntimeError('PDF parsing dependency not installed (pypdf).')
+
+    if not uploaded_file:
+        return '', 0, 0
+
+    filename = getattr(uploaded_file, 'name', '') or ''
+    if not filename.lower().endswith('.pdf'):
+        raise ValueError('Only PDF files are supported for context upload.')
+
+    raw = uploaded_file.read()
+    reader = PdfReader(BytesIO(raw))
+    total_pages = len(reader.pages)
+
+    if total_pages > max_pages:
+        raise ValueError(
+            f'PDF has {total_pages} pages. Your tier allows up to {max_pages} pages for AI context.'
+        )
+
+    texts = []
+    for i in range(total_pages):
+        page = reader.pages[i]
+        page_text = (page.extract_text() or '').strip()
+        if page_text:
+            texts.append(page_text)
+
+    combined_text = '\n\n'.join(texts).strip()
+    return combined_text, total_pages, len(combined_text)
+
+
 def chunk_text_for_ai(text: str, max_chunk_size: int = 3500):
     if not text:
         return []
@@ -304,15 +352,12 @@ def generate_quiz(request):
     """
     try:
         # Get request data
-        transcript = request.data.get('transcript', '')
+        transcript = (request.data.get('transcript', '') or '').strip()
         num_questions = request.data.get('num_questions', 5)
         difficulty = request.data.get('difficulty', 'medium')
-        
-        if not transcript:
-            return Response(
-                {'error': 'Transcript is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        uploaded_pdf = request.FILES.get('context_pdf')
+        pdf_context = ''
+        pdf_pages = 0
         
         can_use_ai, usage = _check_ai_usage_quota(request.user)
         if not can_use_ai:
@@ -322,10 +367,46 @@ def generate_quiz(request):
                 status=status.HTTP_429_TOO_MANY_REQUESTS
             )
 
+        if uploaded_pdf:
+            max_pages = _pdf_page_limit_for_user(request.user)
+            try:
+                pdf_context, pdf_pages, pdf_chars = _extract_text_from_pdf_file(uploaded_pdf, max_pages=max_pages)
+            except ValueError as e:
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                logger.error("Failed to parse PDF context: %s", e, exc_info=True)
+                return Response(
+                    {'error': 'Could not read PDF. Try a text-based PDF or fewer pages.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if not pdf_context:
+                return Response(
+                    {'error': 'PDF uploaded, but no readable text was found.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Keep prompt size bounded to reduce token spend.
+            if len(pdf_context) > 18000:
+                pdf_context = pdf_context[:18000]
+
+        combined_context_parts = []
+        if transcript:
+            combined_context_parts.append(transcript)
+        if pdf_context:
+            combined_context_parts.append(f"[PDF Context]\n{pdf_context}")
+        combined_context = "\n\n---\n\n".join(combined_context_parts).strip()
+
+        if not combined_context:
+            return Response(
+                {'error': 'Provide transcript text or upload a PDF context file.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         # Unified AI provider (OpenRouter preferred, Gemini fallback if configured)
         prompt = f"""Generate {num_questions} {difficulty} difficulty quiz questions from this transcript:
 
-{transcript}
+{combined_context}
 
 Return ONLY valid JSON (no extra text):
 {{"questions": [{{"question": "?", "type": "mcq", "options": ["A", "B", "C", "D"], "correct_answer": "A", "explanation": "Why"}}]}}
@@ -352,7 +433,10 @@ Be concise. Questions should test key concepts."""
             quiz_data = json.loads(response_text)
             _increment_ai_usage(request.user)
 
-            return Response(quiz_data, status=status.HTTP_200_OK)
+            payload = quiz_data
+            if isinstance(payload, dict) and pdf_pages:
+                payload['pdf_context_pages_used'] = pdf_pages
+            return Response(payload, status=status.HTTP_200_OK)
         except json.JSONDecodeError:
             # If JSON parsing fails, return the raw response
             _increment_ai_usage(request.user)

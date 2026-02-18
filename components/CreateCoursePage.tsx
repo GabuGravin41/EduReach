@@ -7,7 +7,7 @@ import { View } from '../App';
 import { youtubeService } from '../src/services/youtubeService';
 
 interface CreateCoursePageProps {
-  onCourseCreated: (course: any) => void;
+  onCourseCreated: (course: any) => Promise<void> | void;
   onCancel: () => void;
   lessonLimit: number;
   setView: (view: View) => void;
@@ -33,20 +33,14 @@ interface Lesson {
   error?: string;
 }
 
-interface VideoMetadata {
-  title: string;
-  description: string;
-  thumbnail?: string;
-  duration?: number;
-  hasTranscript?: boolean;
-  videoId: string;
-}
-
 export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCreated, onCancel, lessonLimit, setView }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(true);
-  const [lessons, setLessons] = useState<Lesson[]>([{ title: '', videoId: '' }]);
+  const [lessons, setLessons] = useState<Lesson[]>([
+    { id: 'lesson-1', title: '', videoId: '', isCompleted: false, duration: 'N/A' }
+  ]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleAddLesson = () => {
     if (lessons.length >= lessonLimit) {
@@ -54,7 +48,10 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
         setView('billing');
         return;
     }
-    setLessons([...lessons, { title: '', videoId: '' }]);
+    setLessons([
+      ...lessons,
+      { id: `lesson-${Date.now()}`, title: '', videoId: '', isCompleted: false, duration: 'N/A' }
+    ]);
   };
 
   const handleRemoveLesson = (index: number) => {
@@ -73,7 +70,7 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
     setLessons(newLessons);
   };
   
-  const validateVideo = async (index: number) => {
+  const validateVideo = async (index: number): Promise<boolean> => {
     const lesson = lessons[index];
     const videoId = extractVideoId(lesson.videoId);
     
@@ -82,7 +79,7 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
       newLessons[index].error = 'Invalid YouTube URL or Video ID';
       newLessons[index].validated = false;
       setLessons(newLessons);
-      return;
+      return false;
     }
     
     const newLessons = [...lessons];
@@ -90,7 +87,6 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
     setLessons([...newLessons]);
     
     try {
-      const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
       const metadata = await youtubeService.getVideoMetadata({ videoId });
       const transcript = await youtubeService.extractTranscript({ videoId });
       
@@ -112,26 +108,40 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
       }
       
       setLessons([...newLessons]);
+      return true;
     } catch (error: any) {
-      newLessons[index].validated = false;
+      // Keep creation resilient: valid YouTube IDs should still be allowed even if
+      // metadata/transcript auto-fetch fails due to transient network/provider issues.
+      newLessons[index].validated = true;
       newLessons[index].validating = false;
-      newLessons[index].error = 'Video not found or unavailable';
+      newLessons[index].error = 'Could not auto-fetch details; you can still save this course.';
       setLessons([...newLessons]);
+      return true;
     }
   };
   
   const extractVideoId = (url: string): string => {
+    const trimmed = url.trim();
+    if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-    const match = url.match(regex);
-    return match ? match[1] : url; // Return original string if no match, maybe show error later
+    const match = trimmed.match(regex);
+    return match ? match[1] : '';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     
-    // Validate all videos before submission
-    const unvalidatedLessons = lessons.filter(l => !l.validated);
-    if (unvalidatedLessons.length > 0) {
+    // Auto-validate all videos before submission (same spirit as New Session flow).
+    const pendingIndexes = lessons
+      .map((lesson, idx) => (!lesson.validated ? idx : -1))
+      .filter(idx => idx >= 0);
+    if (pendingIndexes.length > 0) {
+      await Promise.all(pendingIndexes.map(idx => validateVideo(idx)));
+    }
+
+    const stillInvalid = lessons.some((lesson) => !extractVideoId(lesson.videoId));
+    if (stillInvalid) {
       alert('Please validate all video URLs before creating the course.');
       return;
     }
@@ -150,7 +160,12 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
       })),
       thumbnail: '/placeholder.svg',
     };
-    onCourseCreated(courseData);
+    try {
+      setIsSubmitting(true);
+      await onCourseCreated(courseData);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const atLessonLimit = lessons.length >= lessonLimit;
@@ -187,7 +202,45 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
                 </div>
                 <div className="flex-1">
                   <label className="block text-xs font-medium mb-1">YouTube URL or Video ID</label>
-                  <input type="text" value={lesson.videoId} onChange={e => handleLessonChange(index, 'videoId', e.target.value)} required placeholder="e.g., zNzzGgr2mhk" className="w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={lesson.videoId}
+                      onChange={e => handleLessonChange(index, 'videoId', e.target.value)}
+                      onPaste={() => {
+                        // Match New Session behavior: auto-fetch details immediately after paste.
+                        setTimeout(() => validateVideo(index), 50);
+                      }}
+                      onBlur={() => {
+                        if (lessons[index].videoId.trim()) {
+                          validateVideo(index);
+                        }
+                      }}
+                      required
+                      placeholder="e.g., https://www.youtube.com/watch?v=... or zNzzGgr2mhk"
+                      className="w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => validateVideo(index)}
+                      disabled={!lesson.videoId.trim() || lesson.validating}
+                      className="px-3 py-2 text-xs rounded-md border border-indigo-300 text-indigo-700 hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-700 dark:text-indigo-300 dark:hover:bg-indigo-900/20"
+                    >
+                      {lesson.validating ? 'Checking...' : 'Auto-fill'}
+                    </button>
+                  </div>
+                  {lesson.validated && !lesson.error && (
+                    <p className="mt-1 flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+                      <CheckCircleIcon className="w-3.5 h-3.5" />
+                      Video validated
+                    </p>
+                  )}
+                  {!!lesson.error && (
+                    <p className={`mt-1 flex items-center gap-1 text-xs ${lesson.validated ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                      <XCircleIcon className="w-3.5 h-3.5" />
+                      {lesson.error}
+                    </p>
+                  )}
                 </div>
                 <button type="button" onClick={() => handleRemoveLesson(index)} disabled={lessons.length <= 1} className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"><TrashIcon className="w-5 h-5" /></button>
               </div>
@@ -204,8 +257,21 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
         </div>
 
         <div className="flex justify-end gap-4 pt-6 border-t border-slate-200 dark:border-slate-700">
-          <button type="button" onClick={onCancel} className="px-6 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold hover:bg-slate-300 dark:hover:bg-slate-600">Cancel</button>
-          <button type="submit" className="px-6 py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700">Save Course</button>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="px-6 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="px-6 py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {isSubmitting ? 'Saving course...' : 'Save Course'}
+          </button>
         </div>
       </form>
     </div>

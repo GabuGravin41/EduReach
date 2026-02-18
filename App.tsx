@@ -78,11 +78,15 @@ const initialAssessments: any[] = [];
 const initialPosts: any[] = [];
 const COURSES_CACHE_KEY = 'edureach:courses-cache:v1';
 const LOCAL_ASSESSMENTS_KEY = 'edureach:local-assessments:v1';
+const LAST_VIEW_KEY = 'edureach:last-view:v1';
+const LAST_SELECTED_COURSE_KEY = 'edureach:last-course-id:v1';
+const LAST_SELECTED_EXAM_KEY = 'edureach:last-exam-id:v1';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
 }
+type CourseCreationToast = { type: 'success' | 'error'; message: string } | null;
 
 const mapApiAssessmentToUi = (assessment: any): Assessment => ({
   id: assessment.id,
@@ -167,7 +171,17 @@ const CommunityView: React.FC<CommunityViewProps> = ({ userTier, username }) => 
 const AppContent: React.FC = () => {
     const { user, logout, isLoading } = useAuth();
     const queryClient = useQueryClient();
-    const [currentView, setCurrentView] = useState<View>('dashboard');
+    const [currentView, setCurrentView] = useState<View>(() => {
+      if (typeof window === 'undefined') return 'dashboard';
+      const saved = localStorage.getItem(LAST_VIEW_KEY);
+      const allowed: View[] = [
+        'dashboard', 'courses', 'create_course', 'course_detail', 'assessments',
+        'create_exam', 'generate_ai_quiz', 'exam_detail', 'community',
+        'study_groups', 'pricing', 'billing', 'profile', 'admin_panel',
+        'setup_session', 'learning_session',
+      ];
+      return allowed.includes(saved as View) ? (saved as View) : 'dashboard';
+    });
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [userTier, setUserTier] = useState<UserTier>('free');
@@ -177,6 +191,8 @@ const AppContent: React.FC = () => {
     const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
     const [showInstallPrompt, setShowInstallPrompt] = useState(false);
     const [showUpdateToast, setShowUpdateToast] = useState(false);
+    const [courseCreationToast, setCourseCreationToast] = useState<CourseCreationToast>(null);
+    const [recentlyCreatedCourseId, setRecentlyCreatedCourseId] = useState<number | null>(null);
     const [cachedCourses, setCachedCourses] = useState<Course[]>(() => {
       if (typeof window === 'undefined') return [];
       try {
@@ -191,6 +207,7 @@ const AppContent: React.FC = () => {
     const { data: coursesData = [] } = useCourses();
     const { data: assessmentsData = [] } = useAssessments();
     const createAssessmentMutation = useCreateAssessment();
+    const createCourseMutation = useCreateCourse();
     const apiCourses = Array.isArray(coursesData) ? coursesData : [];
     const apiAssessments = Array.isArray(assessmentsData) ? assessmentsData : [];
     const courses = apiCourses.length > 0 ? apiCourses : cachedCourses;
@@ -218,9 +235,20 @@ const AppContent: React.FC = () => {
         { id: 1, author: "Alice", avatar: UserCircleIcon, time: "2h ago", content: "Just finished the React course! Highly recommend it.", likes: 5, comments: [{author: "Bob", content: "Nice job!"}], liked: false }
     ]);
     
-    const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
-    const [selectedExamId, setSelectedExamId] = useState<number | null>(null);
+    const [selectedCourseId, setSelectedCourseId] = useState<number | null>(() => {
+      if (typeof window === 'undefined') return null;
+      const raw = localStorage.getItem(LAST_SELECTED_COURSE_KEY);
+      const parsed = raw ? Number(raw) : NaN;
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    });
+    const [selectedExamId, setSelectedExamId] = useState<number | null>(() => {
+      if (typeof window === 'undefined') return null;
+      const raw = localStorage.getItem(LAST_SELECTED_EXAM_KEY);
+      const parsed = raw ? Number(raw) : NaN;
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    });
     const [sessionData, setSessionData] = useState<SessionData | null>(null);
+    const selectedCourseQuery = useCourse(selectedCourseId ?? 0);
   
     useEffect(() => {
       if (user) {
@@ -308,14 +336,171 @@ const AppContent: React.FC = () => {
       };
     }, []);
 
+    useEffect(() => {
+      if (!courseCreationToast) return;
+      const timeout = window.setTimeout(() => setCourseCreationToast(null), 4000);
+      return () => window.clearTimeout(timeout);
+    }, [courseCreationToast]);
+
+    useEffect(() => {
+      if (typeof window === 'undefined') return;
+      localStorage.setItem(LAST_VIEW_KEY, currentView);
+    }, [currentView]);
+
+    useEffect(() => {
+      if (typeof window === 'undefined') return;
+      if (selectedCourseId) {
+        localStorage.setItem(LAST_SELECTED_COURSE_KEY, String(selectedCourseId));
+      } else {
+        localStorage.removeItem(LAST_SELECTED_COURSE_KEY);
+      }
+    }, [selectedCourseId]);
+
+    useEffect(() => {
+      if (typeof window === 'undefined') return;
+      if (selectedExamId) {
+        localStorage.setItem(LAST_SELECTED_EXAM_KEY, String(selectedExamId));
+      } else {
+        localStorage.removeItem(LAST_SELECTED_EXAM_KEY);
+      }
+    }, [selectedExamId]);
+
+    useEffect(() => {
+      if (!recentlyCreatedCourseId) return;
+      const timeout = window.setTimeout(() => setRecentlyCreatedCourseId(null), 15000);
+      return () => window.clearTimeout(timeout);
+    }, [recentlyCreatedCourseId]);
+
     const limits = {
         lessonsPerCourse: userTier === 'free' ? 5 : Infinity
     };
+
+    const invalidateCourseQueries = async (courseId?: number) => {
+      const tasks: Promise<unknown>[] = [
+        queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() }),
+        queryClient.invalidateQueries({ queryKey: COURSE_KEYS.my() }),
+      ];
+      if (courseId) {
+        tasks.push(queryClient.invalidateQueries({ queryKey: COURSE_KEYS.detail(courseId) }));
+      }
+      await Promise.all(tasks);
+    };
+
+    const handleAddLessonToCourse = async (
+      courseId: number,
+      lesson: {
+        title: string;
+        videoId: string;
+        videoUrl?: string;
+        transcript?: string;
+        transcriptLanguage?: string;
+        autoFetchTranscript?: boolean;
+      }
+    ) => {
+      await courseService.addLessonToCourse(courseId, {
+        title: lesson.title,
+        video_id: lesson.videoId,
+        video_url: lesson.videoUrl,
+        transcript: lesson.transcript ?? '',
+        transcript_language: lesson.transcriptLanguage ?? 'en',
+        auto_fetch_transcript: lesson.autoFetchTranscript ?? true,
+      });
+      await invalidateCourseQueries(courseId);
+    };
   
-    const handleCourseCreated = (newCourse: any) => {
-        // Invalidate courses query to fetch fresh data from backend
-        queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() });
+    const handleCourseCreated = async (newCourse: any) => {
+        try {
+          const createdCourse = await createCourseMutation.mutateAsync({
+            title: newCourse.title,
+            description: newCourse.description,
+            isPublic: Boolean(newCourse.isPublic),
+            lessons: [],
+          });
+
+          const lessons = Array.isArray(newCourse.lessons) ? newCourse.lessons : [];
+          for (const lesson of lessons) {
+            if (!lesson?.videoId) continue;
+            await courseService.addLessonToCourse(createdCourse.id, {
+              title: lesson.title || 'Lesson',
+              video_id: lesson.videoId,
+              transcript: lesson.transcript || '',
+              duration: lesson.duration || 'N/A',
+              auto_fetch_transcript: !(lesson.transcript && String(lesson.transcript).trim().length > 0),
+            });
+          }
+
+          await queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() });
+          await queryClient.invalidateQueries({ queryKey: COURSE_KEYS.my() });
+          await queryClient.invalidateQueries({ queryKey: COURSE_KEYS.detail(createdCourse.id) });
+          setSelectedCourseId(createdCourse.id);
+          setRecentlyCreatedCourseId(createdCourse.id);
+          setCourseCreationToast({
+            type: 'success',
+            message: `Course "${createdCourse.title}" created with ${lessons.length} lesson${lessons.length === 1 ? '' : 's'}.`,
+          });
+          setCurrentView('courses');
+        } catch (error) {
+          console.error('Failed to create course:', error);
+          const message =
+            (error as any)?.response?.data?.error ||
+            (error as any)?.response?.data?.detail ||
+            'Failed to create course. Please try again.';
+          setCourseCreationToast({
+            type: 'error',
+            message,
+          });
+        }
+    };
+
+    const handleDeleteCourse = async (courseId: number) => {
+      try {
+        await courseService.deleteCourse(courseId);
+        await queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() });
+        await queryClient.invalidateQueries({ queryKey: COURSE_KEYS.my() });
         setCurrentView('courses');
+        setSelectedCourseId(null);
+        setCourseCreationToast({
+          type: 'success',
+          message: 'Course deleted successfully.',
+        });
+      } catch (error) {
+        const message =
+          (error as any)?.response?.data?.error ||
+          (error as any)?.response?.data?.detail ||
+          'Failed to delete course. Please try again.';
+        setCourseCreationToast({
+          type: 'error',
+          message,
+        });
+      }
+    };
+
+    const handleUpdateCourseDetails = async (courseId: number, updates: Partial<Course>) => {
+      try {
+        await courseService.updateCourse(courseId, {
+          title: updates.title,
+          description: updates.description,
+          isPublic: typeof updates.is_public === 'boolean' ? updates.is_public : updates.isPublic,
+          lessons: [],
+        });
+        await queryClient.invalidateQueries({ queryKey: COURSE_KEYS.detail(courseId) });
+        await queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() });
+        await queryClient.invalidateQueries({ queryKey: COURSE_KEYS.my() });
+        setCourseCreationToast({
+          type: 'success',
+          message: 'Course details saved successfully.',
+        });
+      } catch (error) {
+        const message =
+          (error as any)?.response?.data?.title?.[0] ||
+          (error as any)?.response?.data?.error ||
+          (error as any)?.response?.data?.detail ||
+          'Failed to save course details.';
+        setCourseCreationToast({
+          type: 'error',
+          message,
+        });
+      }
     };
   
     const handleExamCreated = async (newExam: any) => {
@@ -390,21 +575,32 @@ const AppContent: React.FC = () => {
         case 'dashboard':
           return <Dashboard onStartSession={() => setCurrentView('setup_session')} onSelectCourse={(id) => { setSelectedCourseId(id); setCurrentView('course_detail'); }} userTier={userTier} />;
         case 'courses':
-          return <MyCoursesPage courses={courses} onSelectCourse={(id) => { setSelectedCourseId(id); setCurrentView('course_detail'); }} onNewCourse={() => setCurrentView('create_course')} userTier={userTier} currentUserId={user?.id} />;
+          return <MyCoursesPage courses={courses} onSelectCourse={(id) => { setSelectedCourseId(id); setCurrentView('course_detail'); }} onNewCourse={() => setCurrentView('create_course')} userTier={userTier} currentUserId={user?.id} highlightedCourseId={recentlyCreatedCourseId ?? undefined} />;
         case 'create_course':
           return <CreateCoursePage onCourseCreated={handleCourseCreated} onCancel={() => setCurrentView('courses')} lessonLimit={limits.lessonsPerCourse} setView={setCurrentView} />;
         case 'course_detail':
-           const course = courses.find(c => c.id === selectedCourseId);
+           if (!selectedCourseId) {
+             return <MyCoursesPage courses={courses} onSelectCourse={(id) => { setSelectedCourseId(id); setCurrentView('course_detail'); }} onNewCourse={() => setCurrentView('create_course')} userTier={userTier} currentUserId={user?.id} highlightedCourseId={recentlyCreatedCourseId ?? undefined} />;
+           }
+           const courseFromList = courses.find(c => c.id === selectedCourseId);
+           const course = selectedCourseQuery.data ?? courseFromList;
            return course ? (
               <CourseDetailPage 
                   course={course} 
                   setView={setCurrentView} 
                   onStartLesson={(data) => { setSessionData(data); setCurrentView('learning_session'); }} 
+                  onAddLesson={handleAddLessonToCourse}
                   userTier={userTier} 
+                  currentUserId={user?.id}
                   assessments={assessments} 
                   onSelectExam={(id) => { setSelectedExamId(id); setCurrentView('exam_detail'); }} 
-                  onUpdateCourse={(cId, updates) => { queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() }); }}
-                  onUpdateLesson={(cId, lId, updates) => { queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() }); }}
+                  onUpdateCourse={handleUpdateCourseDetails}
+                  onUpdateLesson={(cId, lId, updates) => {
+                    queryClient.invalidateQueries({ queryKey: COURSE_KEYS.detail(cId) });
+                    queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() });
+                    queryClient.invalidateQueries({ queryKey: COURSE_KEYS.my() });
+                  }}
+                  onDeleteCourse={handleDeleteCourse}
               />
            ) : <div>Course not found</div>;
         case 'assessments':
@@ -523,6 +719,23 @@ const AppContent: React.FC = () => {
                       Later
                     </button>
                   </div>
+                </div>
+              )}
+              {courseCreationToast && (
+                <div
+                  className={`mb-4 rounded-lg border px-3 py-2 text-xs font-medium flex items-center justify-between gap-3 ${
+                    courseCreationToast.type === 'success'
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                      : 'border-rose-200 bg-rose-50 text-rose-900'
+                  }`}
+                >
+                  <span>{courseCreationToast.message}</span>
+                  <button
+                    onClick={() => setCourseCreationToast(null)}
+                    className="rounded border px-2 py-1 hover:bg-black/5"
+                  >
+                    Dismiss
+                  </button>
                 </div>
               )}
               {currentView !== 'learning_session' && (

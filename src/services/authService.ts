@@ -76,7 +76,7 @@ export const authService = {
   },
 
   async updateProfile(data: Partial<User>): Promise<User> {
-    const response = await apiClient.put(API_ENDPOINTS.USER_ME, data);
+    const response = await apiClient.patch(API_ENDPOINTS.USER_ME, data);
     const user = response.data as User;
     localStorage.setItem(CACHED_USER_KEY, JSON.stringify(user));
     return user;

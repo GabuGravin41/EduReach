@@ -7,10 +7,12 @@ interface PricingPageProps {
   onSelectTier: (tier: 'learner' | 'pro' | 'pro_plus') => void;
 }
 
+type CurrencyCode = 'USD' | 'KES';
+
 // FIX: Define a type for tier objects to make `isPopular` an optional property, resolving TypeScript errors.
 interface TierInfo {
   name: string;
-  price: string;
+  monthlyPrice: Record<CurrencyCode, number>;
   priceSuffix: string;
   description: string;
   features: string[];
@@ -20,7 +22,7 @@ interface TierInfo {
 const tiers: Record<'free' | 'learner' | 'pro' | 'pro_plus', TierInfo> = {
   free: {
     name: 'Free',
-    price: '0 KES',
+    monthlyPrice: { USD: 0, KES: 0 },
     priceSuffix: '/ month',
     description: "For new users to explore the platform's core features.",
     features: [
@@ -35,7 +37,7 @@ const tiers: Record<'free' | 'learner' | 'pro' | 'pro_plus', TierInfo> = {
   },
   learner: {
     name: 'Learner',
-    price: '250 KES',
+    monthlyPrice: { USD: 4, KES: 350 },
     priceSuffix: '/ month',
     description: 'For dedicated students who want to break past the limits.',
     features: [
@@ -52,7 +54,7 @@ const tiers: Record<'free' | 'learner' | 'pro' | 'pro_plus', TierInfo> = {
   },
   pro: {
     name: 'Pro',
-    price: '600 KES',
+    monthlyPrice: { USD: 11, KES: 950 },
     priceSuffix: '/ month',
     description: 'For power users and content creators who want the best.',
     features: [
@@ -69,7 +71,7 @@ const tiers: Record<'free' | 'learner' | 'pro' | 'pro_plus', TierInfo> = {
   },
   pro_plus: {
     name: 'Pro Plus',
-    price: '900 KES',
+    monthlyPrice: { USD: 19, KES: 1700 },
     priceSuffix: '/ month',
     description: 'The ultimate toolkit for educators and lifelong learners.',
     features: [
@@ -84,6 +86,27 @@ const tiers: Record<'free' | 'learner' | 'pro' | 'pro_plus', TierInfo> = {
   },
 };
 
+const CURRENCY_STORAGE_KEY = 'edureach:billing-currency:v1';
+
+const detectKenyaUser = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    if (tz.toLowerCase().includes('nairobi')) return true;
+    const locale = Intl.DateTimeFormat().resolvedOptions().locale || '';
+    if (locale.toUpperCase().includes('-KE')) return true;
+    const langs = navigator.languages || [navigator.language];
+    return langs.some((lang) => String(lang).toUpperCase().includes('-KE'));
+  } catch {
+    return false;
+  }
+};
+
+const formatAmount = (currency: CurrencyCode, amount: number): string =>
+  currency === 'KES'
+    ? `${amount.toLocaleString()} KES`
+    : `$${amount.toLocaleString()}`;
+
 const FeatureListItem: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <li className="flex items-start gap-3">
     <CheckCircleIcon className="w-5 h-5 text-teal-500 flex-shrink-0 mt-1" />
@@ -92,6 +115,19 @@ const FeatureListItem: React.FC<{ children: React.ReactNode }> = ({ children }) 
 );
 
 export const PricingPage: React.FC<PricingPageProps> = ({ currentTier, onSelectTier }) => {
+  const [currency, setCurrency] = React.useState<CurrencyCode>(() => {
+    if (typeof window === 'undefined') return 'USD';
+    const saved = localStorage.getItem(CURRENCY_STORAGE_KEY);
+    if (saved === 'USD' || saved === 'KES') return saved;
+    return detectKenyaUser() ? 'KES' : 'USD';
+  });
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(CURRENCY_STORAGE_KEY, currency);
+    }
+  }, [currency]);
+
   return (
     <div>
       <div className="text-center mb-12">
@@ -99,6 +135,22 @@ export const PricingPage: React.FC<PricingPageProps> = ({ currentTier, onSelectT
         <p className="mt-4 text-lg text-slate-500 dark:text-slate-400 max-w-2xl mx-auto">
           Start for free to explore the essentials, or upgrade to unlock powerful AI features and unlimited content creation.
         </p>
+        <div className="mt-6 inline-flex rounded-lg border border-slate-300 dark:border-slate-600 p-1 bg-white dark:bg-slate-800">
+          {(['USD', 'KES'] as CurrencyCode[]).map((code) => (
+            <button
+              key={code}
+              type="button"
+              onClick={() => setCurrency(code)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                currency === code
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+              }`}
+            >
+              {code}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 max-w-7xl mx-auto items-start">
@@ -116,7 +168,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ currentTier, onSelectT
               <h3 className="text-2xl font-bold">{tier.name}</h3>
               <p className="mt-4 text-slate-500 dark:text-slate-400 min-h-[3rem]">{tier.description}</p>
               <div className="mt-6">
-                <span className="text-5xl font-extrabold">{tier.price}</span>
+                <span className="text-5xl font-extrabold">{formatAmount(currency, tier.monthlyPrice[currency])}</span>
                 <span className="text-lg font-medium text-slate-500 dark:text-slate-400">{tier.priceSuffix}</span>
               </div>
               <ul className="mt-8 space-y-4 flex-grow">
@@ -153,6 +205,23 @@ export const PricingPage: React.FC<PricingPageProps> = ({ currentTier, onSelectT
             </div>
           );
         })}
+      </div>
+      <div className="mt-8 max-w-7xl mx-auto rounded-2xl border border-indigo-200 dark:border-indigo-900/40 bg-gradient-to-r from-indigo-50 to-cyan-50 dark:from-indigo-900/20 dark:to-cyan-900/10 p-6">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Enterprise / Institutions</p>
+            <h3 className="text-xl font-bold mt-1 text-slate-900 dark:text-slate-100">Need EduReach for a full school, campus, or coaching program?</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mt-2">
+              Get bulk student onboarding, instructor workspaces, classroom analytics, and dedicated support for large deployments.
+            </p>
+          </div>
+          <a
+            href="mailto:hello@edureach.app?subject=Enterprise%20Plan%20Inquiry"
+            className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+          >
+            Contact Sales
+          </a>
+        </div>
       </div>
     </div>
   );
