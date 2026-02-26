@@ -57,3 +57,43 @@ class UserViewSet(viewsets.ModelViewSet):
         user.tier = new_tier
         user.save()
         return Response(UserSerializer(user).data)
+
+    @action(detail=False, methods=['get'])
+    def leaderboard(self, request):
+        """Global XP leaderboard."""
+        # Top 10 public users
+        top_users = User.objects.filter(show_xp_publicly=True).order_by('-xp_points')[:10]
+        serializer = UserSerializer(top_users, many=True)
+        
+        # User's own rank
+        user_rank = User.objects.filter(show_xp_publicly=True, xp_points__gt=request.user.xp_points).count() + 1
+        
+        return Response({
+            'top_users': serializer.data,
+            'user_rank': user_rank if request.user.show_xp_publicly else None,
+            'user_stats': UserSerializer(request.user).data
+        })
+
+    @action(detail=False, methods=['get'], url_path='me/usage')
+    def usage(self, request):
+        """Current user's monthly usage and tier limits for the frontend."""
+        try:
+            usage = request.user.get_current_usage()
+        except Exception:
+            return Response(
+                {'error': 'Could not load usage.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        limits = usage.get_tier_limits()
+        resets_at = getattr(usage, 'resets_at', None)
+        if resets_at is not None and hasattr(resets_at, 'isoformat'):
+            resets_at = resets_at.isoformat()
+        return Response({
+            'assessments_used': usage.assessments_created,
+            'assessments_limit': limits['assessments'] if limits['assessments'] != float('inf') else None,
+            'courses_used': usage.courses_created,
+            'courses_limit': limits['courses'] if limits['courses'] != float('inf') else None,
+            'ai_queries_used': usage.ai_queries_used,
+            'ai_queries_limit': limits['ai_queries'] if limits['ai_queries'] != float('inf') else None,
+            'resets_at': resets_at,
+        })

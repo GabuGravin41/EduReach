@@ -22,6 +22,12 @@ class User(AbstractUser):
     bio = models.TextField(blank=True, null=True)
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
     
+    # Gamification fields
+    xp_points = models.BigIntegerField(default=0)
+    total_time_spent_seconds = models.BigIntegerField(default=0)
+    show_xp_publicly = models.BooleanField(default=True)
+    level = models.PositiveIntegerField(default=1)
+    
     # Free trial fields
     trial_started_at = models.DateTimeField(null=True, blank=True)
     trial_ends_at = models.DateTimeField(null=True, blank=True)
@@ -75,8 +81,66 @@ class User(AbstractUser):
         self.check_trial_status()  # Auto-check and update if expired
         return self.tier
 
+    def award_xp(self, amount, transaction_type, category='bonus', description='', related_object_id=None):
+        """Award XP to the user and log the transaction."""
+        if amount <= 0:
+            return 0
+            
+        XPTransaction.objects.create(
+            user=self,
+            amount=amount,
+            transaction_type=transaction_type,
+            category=category,
+            description=description,
+            related_object_id=related_object_id
+        )
+        
+        # Atomic update of XP and level check
+        self.xp_points = models.F('xp_points') + amount
+        # Basic level calculation: level = floor(sqrt(xp / 100)) + 1
+        # We can implement a more sophisticated curve later
+        self.save(update_fields=['xp_points', 'updated_at'])
+        self.refresh_from_db()
+        
+        # Simple level logic: 1000XP per level for now
+        new_level = (self.xp_points // 1000) + 1
+        if new_level > self.level:
+            self.level = new_level
+            self.save(update_fields=['level'])
+            
+        return amount
+
     class Meta:
         ordering = ['-created_at']
+
+
+class XPTransaction(models.Model):
+    """Logs all XP earned by a user."""
+    
+    class Category(models.TextChoices):
+        ASSESSMENT = 'assessment', 'Assessment Completion'
+        COURSE = 'course', 'Course/Lesson Progress'
+        STREAK = 'streak', 'Daily Streak'
+        BONUS = 'bonus', 'Achievement Bonus'
+        CHALLENGE = 'challenge', 'Study Group Challenge'
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='xp_transactions')
+    amount = models.PositiveIntegerField()
+    transaction_type = models.CharField(max_length=50) # e.g., 'assessment_submit', 'lesson_complete'
+    category = models.CharField(
+        max_length=20,
+        choices=Category.choices,
+        default=Category.BONUS
+    )
+    description = models.CharField(max_length=255, blank=True)
+    related_object_id = models.PositiveIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} earned {self.amount} XP ({self.category})"
 
 
 class MonthlyUsage(models.Model):

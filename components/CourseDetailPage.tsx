@@ -9,6 +9,7 @@ import { Button } from './ui/Button';
 import { DiscussionsPage } from './DiscussionsPage';
 import apiClient from '../src/services/api';
 import type { Course as ApiCourse, Lesson as ApiLesson } from '../src/services/courseService';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 // Use API types as baseline
 type Lesson = ApiLesson & {
@@ -63,13 +64,13 @@ interface CourseDetailPageProps {
     onSelectExam?: (examId: number) => void;
 }
 
-export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ 
-    course, 
-    setView, 
-    onStartLesson, 
+export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
+    course,
+    setView,
+    onStartLesson,
     onAddLesson,
     onUpdateLesson,
-    userTier, 
+    userTier,
     currentUserId,
     onUpdateCourse,
     onDeleteCourse,
@@ -79,7 +80,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     const [activeTab, setActiveTab] = useState<'lessons' | 'discussions' | 'notes' | 'manage'>('lessons');
     const [isEditingCourse, setIsEditingCourse] = useState(false);
     const [lessonsWithNotes, setLessonsWithNotes] = useState<Lesson[]>([]);
-    
+
     // Manage Course State (simple title/description editing)
     const [editForm, setEditForm] = useState({ title: '', description: '' });
 
@@ -93,7 +94,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     });
     const [isSavingLesson, setIsSavingLesson] = useState(false);
     const [lessonFormError, setLessonFormError] = useState('');
-    
+
     // Lesson editing state
     const [editingLessonId, setEditingLessonId] = useState<number | null>(null);
     const [editingLessonTitle, setEditingLessonTitle] = useState('');
@@ -125,7 +126,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
 
     const loadLessonNotes = async () => {
         if (!course?.lessons) return;
-        
+
         try {
             const lessonsData = await Promise.all(
                 course.lessons.map(async (lesson) => {
@@ -160,7 +161,8 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
         );
     }
 
-    const dummyTranscript = `This is a placeholder transcript for the selected video. In a real application, this would be fetched from a server or provided by the user. It demonstrates the flow of starting a lesson from the course page.`;
+    const getLessonTranscript = (lesson: Lesson) =>
+        (lesson.transcript || lesson.manual_transcript || '').trim() || undefined;
 
     const handleQuickLessonSubmit = async () => {
         if (!canManageCourse) {
@@ -390,8 +392,8 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     };
 
     const getLinkedAssessment = (lessonId: number) => {
-        return assessments.find(a => 
-            a.context?.courseId === course.id && 
+        return assessments.find(a =>
+            a.context?.courseId === course.id &&
             a.context?.lessonId === lessonId
         );
     };
@@ -427,7 +429,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     }));
     const lessonLimit = userTier === 'free' ? 5 : Infinity;
     const visibleLessons = courseLessons.slice(0, lessonLimit);
-    
+
     const completedCount = courseLessons.filter(l => l.isCompleted).length;
     const computedProgress = courseLessons.length > 0
         ? Math.round((completedCount / courseLessons.length) * 100)
@@ -436,7 +438,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     const actualProgress = apiProgress ?? computedProgress;
     const nextLesson = courseLessons.find(l => !l.isCompleted) || courseLessons[0];
     const startLabel = actualProgress > 0 ? 'Resume' : 'Start';
-        
+
     // Aggregate notes from all lessons (use lessonsWithNotes if available)
     const aggregatedNotes = (lessonsWithNotes.length > 0 ? lessonsWithNotes : courseLessons).filter(l => l.notes && l.notes.trim().length > 0);
 
@@ -461,7 +463,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                                     if (!nextLesson) return;
                                     onStartLesson({
                                         videoId: nextLesson.videoId,
-                                        transcript: nextLesson.transcript || dummyTranscript,
+                                        transcript: getLessonTranscript(nextLesson) || '',
                                         title: nextLesson.title,
                                         courseId: course.id,
                                         lessonId: nextLesson.id,
@@ -475,7 +477,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                             </button>
                         </div>
                     </div>
-                    
+
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-4 text-sm">
                         <span className="text-gray-600 dark:text-gray-400 font-medium">
                             📚 {completedCount} of {courseLessons.length} lessons completed
@@ -485,9 +487,9 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                             🎯 {actualProgress}% Complete
                         </span>
                     </div>
-                    
+
                     <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden shadow-inner">
-                        <div 
+                        <div
                             className="bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 h-4 rounded-full transition-all duration-700 ease-out shadow-sm"
                             style={{ width: `${actualProgress}%` }}
                         ></div>
@@ -506,250 +508,250 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                 </div>
 
                 {activeTab === 'lessons' && (
-                <div className="bg-white dark:bg-slate-900 p-4 sm:p-6">
-                    {!canManageCourse && (
-                        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
-                            This course is read-only for your account. You can start lessons, but only the course creator can add or edit lessons.
-                        </div>
-                    )}
-                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                        <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                            📖 Lessons
-                        </h2>
-                        {canManageCourse && (
-                            <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => setIsLessonFormOpen((prev) => !prev)}
-                            >
-                                {isLessonFormOpen ? 'Close form' : 'Add lesson'}
-                            </Button>
+                    <div className="bg-white dark:bg-slate-900 p-4 sm:p-6">
+                        {!canManageCourse && (
+                            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
+                                This course is read-only for your account. You can start lessons, but only the course creator can add or edit lessons.
+                            </div>
                         )}
-                    </div>
-                    {isLessonFormOpen && (
-                        <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-                            <div className="grid gap-3 md:grid-cols-2">
-                                <input
-                                    type="text"
-                                    placeholder="Lesson title"
-                                    value={lessonForm.title}
-                                    onChange={(e) => setLessonForm({ ...lessonForm, title: e.target.value })}
-                                    className="w-full rounded-md border border-slate-300 bg-transparent p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600"
-                                />
-                                <input
-                                    type="text"
-                                    placeholder="YouTube URL or video ID"
-                                    value={lessonForm.videoUrl}
-                                    onChange={(e) => setLessonForm({ ...lessonForm, videoUrl: e.target.value })}
-                                    className="w-full rounded-md border border-slate-300 bg-transparent p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600"
-                                />
-                            </div>
-                            <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                <select
-                                    value={lessonForm.transcriptLanguage}
-                                    onChange={(e) => setLessonForm({ ...lessonForm, transcriptLanguage: e.target.value })}
-                                    className="w-full rounded-md border border-slate-300 bg-transparent p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600"
+                        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                            <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                                📖 Lessons
+                            </h2>
+                            {canManageCourse && (
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => setIsLessonFormOpen((prev) => !prev)}
                                 >
-                                    <option value="en">English transcript</option>
-                                    <option value="es">Spanish transcript</option>
-                                    <option value="fr">French transcript</option>
-                                    <option value="de">German transcript</option>
-                                    <option value="hi">Hindi transcript</option>
-                                    <option value="pt">Portuguese transcript</option>
-                                </select>
-                                <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                                    <input
-                                        type="checkbox"
-                                        checked={lessonForm.autoFetchTranscript}
-                                        onChange={(e) => setLessonForm({ ...lessonForm, autoFetchTranscript: e.target.checked })}
-                                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                    />
-                                    Auto-pull transcript from YouTube
-                                </label>
-                            </div>
-                            {lessonFormError && (
-                                <p className="mt-2 text-sm text-rose-500">
-                                    {lessonFormError}
-                                </p>
+                                    {isLessonFormOpen ? 'Close form' : 'Add lesson'}
+                                </Button>
                             )}
-                            <div className="mt-3 flex gap-2">
-                                <Button onClick={handleQuickLessonSubmit} isLoading={isSavingLesson}>
-                                    Save lesson
-                                </Button>
-                                <Button variant="ghost" onClick={() => setIsLessonFormOpen(false)}>
-                                    Cancel
-                                </Button>
+                        </div>
+                        {isLessonFormOpen && (
+                            <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+                                <div className="grid gap-3 md:grid-cols-2">
+                                    <input
+                                        type="text"
+                                        placeholder="Lesson title"
+                                        value={lessonForm.title}
+                                        onChange={(e) => setLessonForm({ ...lessonForm, title: e.target.value })}
+                                        className="w-full rounded-md border border-slate-300 bg-transparent p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="YouTube URL or video ID"
+                                        value={lessonForm.videoUrl}
+                                        onChange={(e) => setLessonForm({ ...lessonForm, videoUrl: e.target.value })}
+                                        className="w-full rounded-md border border-slate-300 bg-transparent p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600"
+                                    />
+                                </div>
+                                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                    <select
+                                        value={lessonForm.transcriptLanguage}
+                                        onChange={(e) => setLessonForm({ ...lessonForm, transcriptLanguage: e.target.value })}
+                                        className="w-full rounded-md border border-slate-300 bg-transparent p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600"
+                                    >
+                                        <option value="en">English transcript</option>
+                                        <option value="es">Spanish transcript</option>
+                                        <option value="fr">French transcript</option>
+                                        <option value="de">German transcript</option>
+                                        <option value="hi">Hindi transcript</option>
+                                        <option value="pt">Portuguese transcript</option>
+                                    </select>
+                                    <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                                        <input
+                                            type="checkbox"
+                                            checked={lessonForm.autoFetchTranscript}
+                                            onChange={(e) => setLessonForm({ ...lessonForm, autoFetchTranscript: e.target.checked })}
+                                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                        Auto-pull transcript from YouTube
+                                    </label>
+                                </div>
+                                {lessonFormError && (
+                                    <p className="mt-2 text-sm text-rose-500">
+                                        {lessonFormError}
+                                    </p>
+                                )}
+                                <div className="mt-3 flex gap-2">
+                                    <Button onClick={handleQuickLessonSubmit} isLoading={isSavingLesson}>
+                                        Save lesson
+                                    </Button>
+                                    <Button variant="ghost" onClick={() => setIsLessonFormOpen(false)}>
+                                        Cancel
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
-                    )}
-                    {courseLessons.length === 0 ? (
-                        <div className="text-center py-12">
-                            <p className="text-gray-600 dark:text-gray-400 mb-4 text-base">📚 No lessons have been added to this course yet.</p>
-                            <p className="text-sm text-gray-500 dark:text-gray-500">✨ Lessons will appear here once they are created.</p>
-                        </div>
-                    ) : (
-                    <ul className="space-y-3">
-                        {visibleLessons.map((lesson, index) => {
-                            const linkedAssessment = getLinkedAssessment(lesson.id);
-                            const isEditing = editingLessonId === lesson.id;
-                            const transcriptStatus = getTranscriptStatus(lesson);
-                            
-                            return (
-                            <li key={index} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 rounded-xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-blue-200 dark:hover:border-slate-500 transition-all duration-200">
-                                <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${lesson.isCompleted ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-600'}`}>
-                                        <PlayIcon className="w-4 h-4 text-white" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        {isEditing ? (
-                                            <div className="flex gap-2 items-center mb-2">
-                                                <input
-                                                    type="text"
-                                                    value={editingLessonTitle}
-                                                    onChange={(e) => setEditingLessonTitle(e.target.value)}
-                                                    className="flex-1 px-2 py-1 border border-slate-300 rounded text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                                                    placeholder="Lesson title"
-                                                    autoFocus
-                                                />
-                                                <button
-                                                    onClick={() => handleSaveLessonEdit(lesson.id)}
-                                                    disabled={isSavingEdit}
-                                                    className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50"
-                                                >
-                                                    {isSavingEdit ? 'Saving...' : 'Save'}
-                                                </button>
-                                                <button
-                                                    onClick={() => setEditingLessonId(null)}
-                                                    className="px-3 py-1 bg-gray-400 text-white text-sm rounded hover:bg-gray-500"
-                                                >
-                                                    Cancel
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                <p className="font-semibold text-sm sm:text-base truncate text-gray-800 dark:text-white">{lesson.title}</p>
-                                                <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-gray-500 dark:text-gray-400 mt-1.5">
-                                                    <span className="flex items-center gap-1 bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded-full">
-                                                        <ClockIcon className="w-3 h-3" /> {lesson.duration}
-                                                    </span>
-                                                    <span
-                                                        className={`px-2 py-1 rounded-full font-medium ${transcriptStatus.className} ${
-                                                            transcriptStatus.isMissing && canManageCourse
-                                                                ? 'cursor-pointer hover:opacity-80'
-                                                                : ''
-                                                        }`}
-                                                        onClick={() => {
-                                                            if (transcriptStatus.isMissing && canManageCourse) {
-                                                                openTranscriptModal(lesson);
-                                                            }
-                                                        }}
-                                                        title={
-                                                            transcriptStatus.isMissing && canManageCourse
-                                                                ? 'Add transcript manually or retry auto-fetch'
-                                                                : transcriptStatus.isMissing
-                                                                ? 'Transcript missing'
-                                                                : 'Transcript is available'
-                                                        }
-                                                    >
-                                                        {transcriptStatus.label}
-                                                    </span>
-                                                    {lesson.isCompleted && <span className="text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-100 dark:bg-emerald-900/30 px-2 py-1 rounded-full">✓ Completed</span>}
-                                                    {linkedAssessment && (
-                                                        <span 
-                                                            className="flex items-center gap-1 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 px-2 py-1 rounded-full font-medium cursor-pointer hover:bg-teal-200 dark:hover:bg-teal-900/50"
-                                                            onClick={(e) => { e.stopPropagation(); onSelectExam && onSelectExam(linkedAssessment.id); }}
-                                                        >
-                                                            <ClipboardCheckIcon className="w-3 h-3" /> Quiz Available
-                                                        </span>
+                        )}
+                        {courseLessons.length === 0 ? (
+                            <div className="text-center py-12">
+                                <p className="text-gray-600 dark:text-gray-400 mb-4 text-base">📚 No lessons have been added to this course yet.</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-500">✨ Lessons will appear here once they are created.</p>
+                            </div>
+                        ) : (
+                            <ul className="space-y-3">
+                                {visibleLessons.map((lesson, index) => {
+                                    const linkedAssessment = getLinkedAssessment(lesson.id);
+                                    const isEditing = editingLessonId === lesson.id;
+                                    const transcriptStatus = getTranscriptStatus(lesson);
+
+                                    return (
+                                        <li key={index} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 rounded-xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-blue-200 dark:hover:border-slate-500 transition-all duration-200">
+                                            <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${lesson.isCompleted ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-600'}`}>
+                                                    <PlayIcon className="w-4 h-4 text-white" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    {isEditing ? (
+                                                        <div className="flex gap-2 items-center mb-2">
+                                                            <input
+                                                                type="text"
+                                                                value={editingLessonTitle}
+                                                                onChange={(e) => setEditingLessonTitle(e.target.value)}
+                                                                className="flex-1 px-2 py-1 border border-slate-300 rounded text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                                                                placeholder="Lesson title"
+                                                                autoFocus
+                                                            />
+                                                            <button
+                                                                onClick={() => handleSaveLessonEdit(lesson.id)}
+                                                                disabled={isSavingEdit}
+                                                                className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50"
+                                                            >
+                                                                {isSavingEdit ? 'Saving...' : 'Save'}
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setEditingLessonId(null)}
+                                                                className="px-3 py-1 bg-gray-400 text-white text-sm rounded hover:bg-gray-500"
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            <p className="font-semibold text-sm sm:text-base truncate text-gray-800 dark:text-white">{lesson.title}</p>
+                                                            <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                                                                <span className="flex items-center gap-1 bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded-full">
+                                                                    <ClockIcon className="w-3 h-3" /> {lesson.duration}
+                                                                </span>
+                                                                <span
+                                                                    className={`px-2 py-1 rounded-full font-medium ${transcriptStatus.className} ${transcriptStatus.isMissing && canManageCourse
+                                                                        ? 'cursor-pointer hover:opacity-80'
+                                                                        : ''
+                                                                        }`}
+                                                                    onClick={() => {
+                                                                        if (transcriptStatus.isMissing && canManageCourse) {
+                                                                            openTranscriptModal(lesson);
+                                                                        }
+                                                                    }}
+                                                                    title={
+                                                                        transcriptStatus.isMissing && canManageCourse
+                                                                            ? 'Add transcript manually or retry auto-fetch'
+                                                                            : transcriptStatus.isMissing
+                                                                                ? 'Transcript missing'
+                                                                                : 'Transcript is available'
+                                                                    }
+                                                                >
+                                                                    {transcriptStatus.label}
+                                                                </span>
+                                                                {lesson.isCompleted && <span className="text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-100 dark:bg-emerald-900/30 px-2 py-1 rounded-full">✓ Completed</span>}
+                                                                {linkedAssessment && (
+                                                                    <span
+                                                                        className="flex items-center gap-1 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 px-2 py-1 rounded-full font-medium cursor-pointer hover:bg-teal-200 dark:hover:bg-teal-900/50"
+                                                                        onClick={(e) => { e.stopPropagation(); onSelectExam && onSelectExam(linkedAssessment.id); }}
+                                                                    >
+                                                                        <ClipboardCheckIcon className="w-3 h-3" /> Quiz Available
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </>
                                                     )}
                                                 </div>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                                {deleteConfirmId === lesson.id ? (
-                                    <div className="flex gap-2 w-full sm:w-auto bg-red-50 dark:bg-red-900/20 p-2 rounded">
-                                        <p className="text-sm text-red-700 dark:text-red-400 flex-1 flex items-center">Delete this lesson?</p>
-                                        <button
-                                            onClick={() => handleDeleteLesson(lesson.id)}
-                                            className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
-                                        >
-                                            Yes
-                                        </button>
-                                        <button
-                                            onClick={() => setDeleteConfirmId(null)}
-                                            className="px-3 py-1 bg-gray-400 text-white text-sm rounded hover:bg-gray-500"
-                                        >
-                                            No
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="flex gap-2 w-full sm:w-auto">
-                                        {linkedAssessment && (
-                                            <Button
-                                                variant="secondary"
-                                                size="sm"
-                                                className="flex-1 sm:flex-none border-teal-200 text-teal-700 hover:bg-teal-50"
-                                                onClick={() => onSelectExam && onSelectExam(linkedAssessment.id)}
-                                            >
-                                                Take Quiz
-                                            </Button>
-                                        )}
-                                        <Button
-                                            onClick={() =>
-                                                onStartLesson({
-                                                    videoId: lesson.videoId,
-                                                    transcript: lesson.transcript || dummyTranscript,
-                                                    title: lesson.title,
-                                                    courseId: course.id,
-                                                    lessonId: lesson.id,
-                                                    attachToCourse: false,
-                                                })
-                                            }
-                                            className="flex-1 sm:flex-none justify-center"
-                                        >
-                                            {lesson.isCompleted ? 'Review' : 'Start'}
-                                        </Button>
-                                        {!lesson.isCompleted && (
-                                            <Button
-                                                variant="secondary"
-                                                size="sm"
-                                                onClick={() => handleMarkLessonComplete(lesson.id)}
-                                                isLoading={completingLessonId === lesson.id}
-                                            >
-                                                Mark complete
-                                            </Button>
-                                        )}
-                                        {canManageCourse && (
-                                            <>
-                                                <button
-                                                    onClick={() => handleEditLesson(lesson)}
-                                                    className="px-3 py-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                                                    title="Edit lesson"
-                                                >
-                                                    ✏️
-                                                </button>
-                                                <button
-                                                    onClick={() => setDeleteConfirmId(lesson.id)}
-                                                    className="px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                                                    title="Delete lesson"
-                                                >
-                                                    🗑️
-                                                </button>
-                                            </>
-                                        )}
-                                    </div>
-                                )}
-                            </li>
-                        )})}
-                    </ul>
-                    )}
-                </div>
+                                            </div>
+                                            {deleteConfirmId === lesson.id ? (
+                                                <div className="flex gap-2 w-full sm:w-auto bg-red-50 dark:bg-red-900/20 p-2 rounded">
+                                                    <p className="text-sm text-red-700 dark:text-red-400 flex-1 flex items-center">Delete this lesson?</p>
+                                                    <button
+                                                        onClick={() => handleDeleteLesson(lesson.id)}
+                                                        className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+                                                    >
+                                                        Yes
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setDeleteConfirmId(null)}
+                                                        className="px-3 py-1 bg-gray-400 text-white text-sm rounded hover:bg-gray-500"
+                                                    >
+                                                        No
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex gap-2 w-full sm:w-auto">
+                                                    {linkedAssessment && (
+                                                        <Button
+                                                            variant="secondary"
+                                                            size="sm"
+                                                            className="flex-1 sm:flex-none border-teal-200 text-teal-700 hover:bg-teal-50"
+                                                            onClick={() => onSelectExam && onSelectExam(linkedAssessment.id)}
+                                                        >
+                                                            Take Quiz
+                                                        </Button>
+                                                    )}
+                                                    <Button
+                                                        onClick={() =>
+                                                            onStartLesson({
+                                                                videoId: lesson.videoId,
+                                                                transcript: getLessonTranscript(lesson) || '',
+                                                                title: lesson.title,
+                                                                courseId: course.id,
+                                                                lessonId: lesson.id,
+                                                                attachToCourse: false,
+                                                            })
+                                                        }
+                                                        className="flex-1 sm:flex-none justify-center"
+                                                    >
+                                                        {lesson.isCompleted ? 'Review' : 'Start'}
+                                                    </Button>
+                                                    {!lesson.isCompleted && (
+                                                        <Button
+                                                            variant="secondary"
+                                                            size="sm"
+                                                            onClick={() => handleMarkLessonComplete(lesson.id)}
+                                                            isLoading={completingLessonId === lesson.id}
+                                                        >
+                                                            Mark complete
+                                                        </Button>
+                                                    )}
+                                                    {canManageCourse && (
+                                                        <>
+                                                            <button
+                                                                onClick={() => handleEditLesson(lesson)}
+                                                                className="px-3 py-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                                                                title="Edit lesson"
+                                                            >
+                                                                ✏️
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setDeleteConfirmId(lesson.id)}
+                                                                className="px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                                                                title="Delete lesson"
+                                                            >
+                                                                🗑️
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </li>
+                                    )
+                                })}
+                            </ul>
+                        )}
+                    </div>
                 )}
-                
+
                 {activeTab === 'notes' && (
                     <div className="bg-white dark:bg-slate-900 p-6 min-h-[300px]">
-                         <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
+                        <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
                             <PencilIcon className="w-5 h-5 text-indigo-500" />
                             My Course Notes
                         </h2>
@@ -759,13 +761,13 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                                     <div key={lesson.id} className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-5 border border-slate-200 dark:border-slate-700">
                                         <div className="flex justify-between items-center mb-3">
                                             <h3 className="font-semibold text-slate-800 dark:text-slate-100">{lesson.title}</h3>
-                                            <Button 
-                                                size="sm" 
+                                            <Button
+                                                size="sm"
                                                 variant="outline"
                                                 onClick={() =>
                                                     onStartLesson({
                                                         videoId: lesson.videoId,
-                                                        transcript: lesson.transcript || dummyTranscript,
+                                                        transcript: getLessonTranscript(lesson) || '',
                                                         title: lesson.title,
                                                         courseId: course.id,
                                                         lessonId: lesson.id,
@@ -777,22 +779,22 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                                             </Button>
                                         </div>
                                         <div className="prose dark:prose-invert max-w-none text-sm bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
-                                            <pre className="whitespace-pre-wrap font-sans">{lesson.notes}</pre>
+                                            <MarkdownRenderer content={lesson.notes || ''} />
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         ) : (
-                             <div className="text-center py-12 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                            <div className="text-center py-12 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
                                 <p className="text-slate-500 dark:text-slate-400">
-                                    You haven't taken any notes for this course yet. 
-                                    <br/>Start a lesson to begin taking notes!
+                                    You haven't taken any notes for this course yet.
+                                    <br />Start a lesson to begin taking notes!
                                 </p>
                             </div>
                         )}
                     </div>
                 )}
-                
+
                 {activeTab === 'discussions' && (
                     <div className="bg-white dark:bg-slate-900 p-6">
                         <DiscussionsPage courseId={course.id} currentUserId={currentUserId} />
@@ -804,24 +806,24 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl font-bold text-gray-800 dark:text-white">Manage Course Details</h2>
                         </div>
-                        
+
                         <div className="max-w-2xl">
                             {isEditingCourse ? (
                                 <div className="space-y-4">
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Course Title</label>
-                                        <input 
-                                            type="text" 
-                                            value={editForm.title} 
-                                            onChange={(e) => setEditForm({...editForm, title: e.target.value})}
+                                        <input
+                                            type="text"
+                                            value={editForm.title}
+                                            onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
                                             className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:ring-2 focus:ring-indigo-500"
                                         />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
-                                        <textarea 
-                                            value={editForm.description} 
-                                            onChange={(e) => setEditForm({...editForm, description: e.target.value})}
+                                        <textarea
+                                            value={editForm.description}
+                                            onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                                             rows={4}
                                             className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:ring-2 focus:ring-indigo-500 resize-none"
                                         />

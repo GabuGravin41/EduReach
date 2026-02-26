@@ -3,7 +3,7 @@ import { SparklesIcon } from './icons/SparklesIcon';
 import type { Question, MultipleChoiceQuestion, ShortAnswerQuestion, EssayQuestion, PassageQuestion, ClozeQuestion, AssessmentMode, Course } from '../types';
 import { BookOpenIcon } from './icons/BookOpenIcon';
 import { SwordsIcon } from './icons/SwordsIcon';
-import apiClient from '../services/api';
+import { aiClient } from '../src/services/api';
 
 type QuestionType = 'multiple-choice' | 'essay' | 'short-answer' | 'passage' | 'cloze' | 'true-false';
 
@@ -117,9 +117,10 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
 
     try {
       const effectiveNumQuestions = questionType === 'passage' ? Math.ceil(numQuestions / 3) : numQuestions;
+      const trimmedSourceText = sourceText.length > 12000 ? sourceText.slice(0, 12000) : sourceText;
 
       const formData = new FormData();
-      formData.append('transcript', sourceText);
+      formData.append('transcript', trimmedSourceText);
       formData.append('num_questions', String(effectiveNumQuestions));
       formData.append('difficulty', assessmentMode === 'exam' ? 'hard' : 'medium');
       if (contextPdf) {
@@ -127,7 +128,7 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
       }
 
       // Call backend API instead of Gemini directly
-      const response = await apiClient.post('/ai/generate-quiz/', formData);
+      const response = await aiClient.post('/ai/generate-quiz/', formData);
       
       const result = response.data;
       if (result?.raw_response) {
@@ -136,6 +137,13 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
       }
       if (typeof result?.pdf_context_pages_used === 'number') {
         setPdfInfoMessage(`Used ${result.pdf_context_pages_used} PDF page(s) as context.`);
+      }
+      if (sourceText.length > 12000) {
+        setPdfInfoMessage((prev) =>
+          prev
+            ? `${prev} Source text was trimmed to 12,000 characters for faster generation.`
+            : 'Source text was trimmed to 12,000 characters for faster generation.'
+        );
       }
       const questions = Array.isArray(result?.questions) ? result.questions : Array.isArray(result) ? result : [];
       const mappedQuestions = mapToQuestionObjects(questions, questionType);
@@ -165,7 +173,9 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
       console.error(err);
       const status = err?.response?.status;
       const detail = err?.response?.data?.error || err?.response?.data?.detail;
-      if (detail) {
+      if (err?.code === 'ECONNABORTED') {
+        setError('AI request timed out. Please try with shorter source text or retry in a moment.');
+      } else if (detail) {
         setError(detail);
       } else if (status === 500 || status === 502 || status === 503) {
         setError('AI temporarily unavailable. Please try again later.');

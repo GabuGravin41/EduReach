@@ -39,6 +39,7 @@ export const API_ENDPOINTS = {
   
   // Users
   USER_ME: 'users/me/',
+  USER_USAGE: 'users/me/usage/',
   UPGRADE_TIER: 'users/upgrade_tier/',
   
   // Courses

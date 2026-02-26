@@ -2,6 +2,7 @@ import React from 'react';
 import { TrashIcon } from './icons/TrashIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import type { TrueFalseQuestion } from '../types';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface TrueFalseQuestionCreatorProps {
     question: TrueFalseQuestion;
@@ -39,14 +40,14 @@ export const TrueFalseQuestionCreator: React.FC<TrueFalseQuestionCreatorProps> =
 
             {/* Question Text */}
             <div className="mb-6">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Statement
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Statement <span className="text-xs text-slate-500">(Supports LaTeX: $...$)</span>
                 </label>
                 <textarea
                     value={question.question_text}
                     onChange={(e) => updateQuestion('question_text', e.target.value)}
-                    placeholder="Enter a clear statement that can be definitively true or false..."
-                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 resize-none"
+                    placeholder="Enter a clear statement. Use LaTeX for math."
+                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 resize-none font-medium"
                     rows={3}
                 />
             </div>
@@ -59,22 +60,20 @@ export const TrueFalseQuestionCreator: React.FC<TrueFalseQuestionCreatorProps> =
                 <div className="flex gap-4">
                     <button
                         onClick={() => updateQuestion('correct_answer', true)}
-                        className={`flex items-center gap-2 px-4 py-3 rounded-lg border-2 transition-colors ${
-                            question.correct_answer === true
-                                ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
-                                : 'border-slate-300 dark:border-slate-600 hover:border-green-300 dark:hover:border-green-500'
-                        }`}
+                        className={`flex items-center gap-2 px-4 py-3 rounded-lg border-2 transition-colors ${question.correct_answer === true
+                            ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
+                            : 'border-slate-300 dark:border-slate-600 hover:border-green-300 dark:hover:border-green-500'
+                            }`}
                     >
                         {question.correct_answer === true && <CheckCircleIcon className="w-5 h-5" />}
                         <span className="font-medium">TRUE</span>
                     </button>
                     <button
                         onClick={() => updateQuestion('correct_answer', false)}
-                        className={`flex items-center gap-2 px-4 py-3 rounded-lg border-2 transition-colors ${
-                            question.correct_answer === false
-                                ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'
-                                : 'border-slate-300 dark:border-slate-600 hover:border-red-300 dark:hover:border-red-500'
-                        }`}
+                        className={`flex items-center gap-2 px-4 py-3 rounded-lg border-2 transition-colors ${question.correct_answer === false
+                            ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'
+                            : 'border-slate-300 dark:border-slate-600 hover:border-red-300 dark:hover:border-red-500'
+                            }`}
                     >
                         {question.correct_answer === false && <CheckCircleIcon className="w-5 h-5" />}
                         <span className="font-medium">FALSE</span>

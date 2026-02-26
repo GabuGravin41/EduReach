@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { courseService, Course, CreateCourseData } from '../services/courseService';
+import { USAGE_QUERY_KEY } from './useUsage';
 
 // Query keys
 export const COURSE_KEYS = {
@@ -47,6 +48,7 @@ export const useCreateCourse = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() });
       queryClient.invalidateQueries({ queryKey: COURSE_KEYS.my() });
+      queryClient.invalidateQueries({ queryKey: USAGE_QUERY_KEY });
     },
   });
 };

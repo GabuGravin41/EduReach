@@ -71,20 +71,24 @@ export const handleApiError = (error: unknown): ApiError => {
   }
 
   if (status === 403) {
+    const msg = (data as any)?.detail ?? (data as any)?.error;
     return {
       status,
-      message: 'You do not have permission to perform this action.',
+      message: typeof msg === 'string' ? msg : 'You do not have permission to perform this action.',
       code: 'FORBIDDEN',
       isClientError: true,
+      details: data,
     };
   }
 
   if (status === 404) {
+    const msg = (data as any)?.detail;
     return {
       status,
-      message: 'Resource not found. It may have been deleted.',
+      message: typeof msg === 'string' ? msg : 'Resource not found. It may have been deleted.',
       code: 'NOT_FOUND',
       isClientError: true,
+      details: data,
     };
   }
 

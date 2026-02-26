@@ -6,9 +6,24 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     const buildId = new Date().toISOString();
     return {
+      optimizeDeps: { force: true },
       server: {
         port: 3000,
         host: '0.0.0.0',
+        strictPort: true,
+        hmr: {
+          host: 'localhost',
+          protocol: 'ws',
+          port: 3000,
+          clientPort: 3000,
+        },
+        watch: {
+          ignored: [
+            '**/.venv/**',
+            '**/backend/**',
+            '**/.git/**',
+          ],
+        },
       },
       plugins: [react()],
       define: {

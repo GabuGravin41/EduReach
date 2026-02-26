@@ -8,6 +8,7 @@ import { EssayQuestionCreator } from './EssayQuestionCreator';
 import { TrueFalseQuestionCreator } from './TrueFalseQuestionCreator';
 import { ShortAnswerQuestionCreator } from './ShortAnswerQuestionCreator';
 import { PassageQuestionCreator } from './PassageQuestionCreator';
+import { MultipleChoiceQuestionCreator } from './MultipleChoiceQuestionCreator';
 
 type QuestionType = 'multiple_choice' | 'true_false' | 'short_answer' | 'essay' | 'passage';
 
@@ -196,7 +197,10 @@ export const EnhancedCreateExamPage: React.FC<EnhancedCreateExamPageProps> = ({
         }
 
         // Validate all questions have content
-        const invalidQuestions = questions.filter(q => !q.question_text?.trim());
+        const invalidQuestions = questions.filter(q => {
+            if (q.type === 'passage') return !q.passage_text?.trim();
+            return !(q as any).question_text?.trim();
+        });
         if (invalidQuestions.length > 0) {
             alert('Please complete all questions before saving');
             return;
@@ -224,16 +228,14 @@ export const EnhancedCreateExamPage: React.FC<EnhancedCreateExamPageProps> = ({
     const renderQuestionCreator = (question: Question, index: number) => {
         switch (question.type) {
             case 'multiple_choice':
-                // For now, show a placeholder for multiple choice (existing component can be integrated)
                 return (
-                    <div key={question.id} className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6 mb-4">
-                        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">
-                            Multiple Choice Question {index + 1}
-                        </h3>
-                        <p className="text-slate-600 dark:text-slate-400">
-                            Multiple choice question creator - integrate existing CreateExamPage component
-                        </p>
-                    </div>
+                    <MultipleChoiceQuestionCreator
+                        key={question.id}
+                        question={question as MultipleChoiceQuestion}
+                        onQuestionChange={(updated) => updateQuestion(question.id, updated)}
+                        onRemove={() => removeQuestion(question.id)}
+                        questionIndex={index}
+                    />
                 );
 
             case 'true_false':
@@ -301,7 +303,7 @@ export const EnhancedCreateExamPage: React.FC<EnhancedCreateExamPageProps> = ({
                 <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-4">
                     Assessment Details
                 </h2>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
@@ -345,16 +347,50 @@ export const EnhancedCreateExamPage: React.FC<EnhancedCreateExamPageProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                            Time Limit (minutes)
+                            Time Limit
                         </label>
-                        <input
-                            type="number"
-                            value={timeLimit}
-                            onChange={(e) => setTimeLimit(parseInt(e.target.value) || 30)}
-                            className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
-                            min="5"
-                            max="300"
-                        />
+                        <div className="flex gap-3">
+                            <div className="flex-1">
+                                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                                    Hours
+                                </label>
+                                <input
+                                    type="number"
+                                    value={Math.floor(timeLimit / 60)}
+                                    onChange={(e) => {
+                                        const raw = e.target.value;
+                                        const hours = raw === '' ? 0 : Math.max(0, parseInt(raw, 10) || 0);
+                                        const minutes = timeLimit % 60;
+                                        setTimeLimit(hours * 60 + minutes);
+                                    }}
+                                    className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                                    min={0}
+                                    max={6}
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                                    Minutes
+                                </label>
+                                <input
+                                    type="number"
+                                    value={timeLimit % 60}
+                                    onChange={(e) => {
+                                        const raw = e.target.value;
+                                        let minutes = raw === '' ? 0 : Math.max(0, parseInt(raw, 10) || 0);
+                                        if (minutes > 59) minutes = 59;
+                                        const hours = Math.floor(timeLimit / 60);
+                                        setTimeLimit(hours * 60 + minutes);
+                                    }}
+                                    className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                                    min={0}
+                                    max={59}
+                                />
+                            </div>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            Total: {timeLimit} minute{timeLimit === 1 ? '' : 's'}
+                        </p>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
@@ -380,7 +416,7 @@ export const EnhancedCreateExamPage: React.FC<EnhancedCreateExamPageProps> = ({
                 <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-4">
                     Add Questions
                 </h2>
-                
+
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <button
                         onClick={() => addQuestion('multiple_choice')}
@@ -409,11 +445,10 @@ export const EnhancedCreateExamPage: React.FC<EnhancedCreateExamPageProps> = ({
                     <button
                         onClick={() => addQuestion('essay')}
                         disabled={!features.can_create_essay}
-                        className={`p-4 border border-slate-200 dark:border-slate-600 rounded-lg transition-colors group ${
-                            features.can_create_essay
-                                ? 'hover:border-purple-300 dark:hover:border-purple-500'
-                                : 'opacity-50 cursor-not-allowed'
-                        }`}
+                        className={`p-4 border border-slate-200 dark:border-slate-600 rounded-lg transition-colors group ${features.can_create_essay
+                            ? 'hover:border-purple-300 dark:hover:border-purple-500'
+                            : 'opacity-50 cursor-not-allowed'
+                            }`}
                     >
                         <DocumentTextIcon className="w-8 h-8 text-purple-600 dark:text-purple-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
                         <h3 className="font-medium text-slate-800 dark:text-slate-100 text-sm">
@@ -424,11 +459,10 @@ export const EnhancedCreateExamPage: React.FC<EnhancedCreateExamPageProps> = ({
                     <button
                         onClick={() => addQuestion('passage')}
                         disabled={!features.can_create_passage}
-                        className={`p-4 border border-slate-200 dark:border-slate-600 rounded-lg transition-colors group ${
-                            features.can_create_passage
-                                ? 'hover:border-orange-300 dark:hover:border-orange-500'
-                                : 'opacity-50 cursor-not-allowed'
-                        }`}
+                        className={`p-4 border border-slate-200 dark:border-slate-600 rounded-lg transition-colors group ${features.can_create_passage
+                            ? 'hover:border-orange-300 dark:hover:border-orange-500'
+                            : 'opacity-50 cursor-not-allowed'
+                            }`}
                     >
                         <DocumentTextIcon className="w-8 h-8 text-orange-600 dark:text-orange-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
                         <h3 className="font-medium text-slate-800 dark:text-slate-100 text-sm">
@@ -441,7 +475,7 @@ export const EnhancedCreateExamPage: React.FC<EnhancedCreateExamPageProps> = ({
             {/* Questions */}
             <div className="mb-8">
                 {questions.map((question, index) => renderQuestionCreator(question, index))}
-                
+
                 {questions.length === 0 && (
                     <div className="text-center py-12 bg-slate-50 dark:bg-slate-800 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600">
                         <ClipboardCheckIcon className="w-16 h-16 text-slate-400 mx-auto mb-4" />

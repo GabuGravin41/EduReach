@@ -33,6 +33,7 @@ interface EnhancedAssessmentsPageProps {
     assessments: Assessment[];
     onSelectExam: (examId: number) => void;
     setView: (view: View) => void;
+    onBulkCreate?: () => void;
     userTier: UserTier;
     tierUsage: TierUsage;
 }
@@ -149,12 +150,13 @@ const getQuestionTypeIcon = (types?: string[]) => {
     return <ClipboardCheckIcon className="w-4 h-4" />;
 };
 
-export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = ({ 
-    assessments, 
-    onSelectExam, 
-    setView, 
+export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = ({
+    assessments,
+    onSelectExam,
+    setView,
+    onBulkCreate,
     userTier,
-    tierUsage 
+    tierUsage
 }) => {
     const [isChallengeModalOpen, setIsChallengeModalOpen] = useState(false);
     const [selectedExamTitle, setSelectedExamTitle] = useState('');
@@ -229,7 +231,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                         Create and take assessments to test your knowledge
                     </p>
                 </div>
-                
+
                 {/* Usage Stats */}
                 <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
                     <div className="text-center">
@@ -254,7 +256,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                         </p>
                     </div>
                     {safeTier === 'free' && (
-                        <button 
+                        <button
                             onClick={() => setView('pricing')}
                             className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-colors font-medium"
                         >
@@ -264,7 +266,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* Multiple Choice */}
-                    <button 
+                    <button
                         onClick={() => handleCreateNew('multiple_choice')}
                         className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600 hover:border-indigo-300 dark:hover:border-indigo-500 transition-colors group"
                     >
@@ -274,13 +276,12 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                     </button>
 
                     {/* Essay Exams */}
-                    <button 
+                    <button
                         onClick={() => handleCreateNew('essay')}
-                        className={`p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600 transition-colors group ${
-                            features.can_create_essay 
-                                ? 'hover:border-green-300 dark:hover:border-green-500' 
-                                : 'opacity-50 cursor-not-allowed'
-                        }`}
+                        className={`p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600 transition-colors group ${features.can_create_essay
+                            ? 'hover:border-green-300 dark:hover:border-green-500'
+                            : 'opacity-50 cursor-not-allowed'
+                            }`}
                     >
                         <DocumentTextIcon className="w-8 h-8 text-green-600 dark:text-green-400 mb-3 group-hover:scale-110 transition-transform" />
                         <h3 className="font-semibold text-slate-800 dark:text-slate-100">Essay Exams</h3>
@@ -290,13 +291,12 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                     </button>
 
                     {/* Passage-Based */}
-                    <button 
+                    <button
                         onClick={() => handleCreateNew('passage')}
-                        className={`p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600 transition-colors group ${
-                            features.can_create_passage 
-                                ? 'hover:border-purple-300 dark:hover:border-purple-500' 
-                                : 'opacity-50 cursor-not-allowed'
-                        }`}
+                        className={`p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600 transition-colors group ${features.can_create_passage
+                            ? 'hover:border-purple-300 dark:hover:border-purple-500'
+                            : 'opacity-50 cursor-not-allowed'
+                            }`}
                     >
                         <BookOpenIcon className="w-8 h-8 text-purple-600 dark:text-purple-400 mb-3 group-hover:scale-110 transition-transform" />
                         <h3 className="font-semibold text-slate-800 dark:text-slate-100">Passage-Based</h3>
@@ -306,13 +306,12 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                     </button>
 
                     {/* AI Generated */}
-                    <button 
+                    <button
                         onClick={() => handleCreateNew('ai_generated')}
-                        className={`p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600 transition-colors group ${
-                            features.can_use_ai 
-                                ? 'hover:border-teal-300 dark:hover:border-teal-500' 
-                                : 'opacity-50 cursor-not-allowed'
-                        }`}
+                        className={`p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600 transition-colors group ${features.can_use_ai
+                            ? 'hover:border-teal-300 dark:hover:border-teal-500'
+                            : 'opacity-50 cursor-not-allowed'
+                            }`}
                     >
                         <SparklesIcon className="w-8 h-8 text-teal-600 dark:text-teal-400 mb-3 group-hover:scale-110 transition-transform" />
                         <h3 className="font-semibold text-slate-800 dark:text-slate-100">AI Generated</h3>
@@ -328,34 +327,41 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                 <div className="flex gap-2">
                     <button
                         onClick={() => setFilterType('all')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            filterType === 'all' 
-                                ? 'bg-indigo-600 text-white' 
-                                : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
-                        }`}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filterType === 'all'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+                            }`}
                     >
                         All ({assessments.length})
                     </button>
                     <button
                         onClick={() => setFilterType('pending')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            filterType === 'pending' 
-                                ? 'bg-indigo-600 text-white' 
-                                : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
-                        }`}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filterType === 'pending'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+                            }`}
                     >
                         Pending ({assessments.filter(a => a.status !== 'completed').length})
                     </button>
                     <button
                         onClick={() => setFilterType('completed')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            filterType === 'completed' 
-                                ? 'bg-indigo-600 text-white' 
-                                : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
-                        }`}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filterType === 'completed'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+                            }`}
                     >
                         Completed ({assessments.filter(a => a.status === 'completed').length})
                     </button>
+
+                    {onBulkCreate && (
+                        <button
+                            onClick={onBulkCreate}
+                            className="px-4 py-2 rounded-lg text-sm font-bold bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:opacity-90 transition-opacity flex items-center gap-2 shadow-lg shadow-indigo-500/20"
+                        >
+                            <SparklesIcon className="w-4 h-4 text-white" />
+                            Bulk Creator
+                        </button>
+                    )}
                 </div>
 
                 <select
@@ -369,11 +375,30 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                 </select>
             </div>
 
-            {/* Assessments Grid */}
+            {/* Assessments Grid or Empty State */}
+            {sortedAssessments.length === 0 ? (
+                <div className="text-center py-16 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <ClipboardCheckIcon className="w-16 h-16 text-slate-400 dark:text-slate-500 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                        {filterType === 'all' ? 'No assessments yet' : `No ${filterType} assessments`}
+                    </h3>
+                    <p className="text-slate-500 dark:text-slate-400 mb-6 max-w-sm mx-auto">
+                        {filterType === 'all'
+                            ? 'Create your first assessment to test your knowledge, or try an AI-generated quiz.'
+                            : `You don't have any ${filterType} assessments. Try a different filter or create one.`}
+                    </p>
+                    <button
+                        onClick={() => handleCreateNew('multiple_choice')}
+                        className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                    >
+                        Create your first assessment
+                    </button>
+                </div>
+            ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {sortedAssessments.map(exam => (
-                    <div 
-                        key={exam.id} 
+                    <div
+                        key={exam.id}
                         className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-xl transition-shadow"
                     >
                         <div className="p-6">
@@ -421,13 +446,13 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                             )}
 
                             <div className="flex items-center gap-3">
-                                <button 
+                                <button
                                     onClick={() => onSelectExam(exam.id)}
                                     className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
                                 >
                                     {exam.status === 'completed' ? 'Review' : 'Start Exam'}
                                 </button>
-                                <button 
+                                <button
                                     onClick={(e) => handleChallengeClick(e, exam.title)}
                                     className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
                                 >
@@ -438,29 +463,12 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                     </div>
                 ))}
             </div>
-
-            {sortedAssessments.length === 0 && (
-                <div className="text-center py-12">
-                    <ClipboardCheckIcon className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-slate-600 dark:text-slate-400 mb-2">
-                        {filterType === 'all' ? 'No assessments yet' : `No ${filterType} assessments`}
-                    </h3>
-                    <p className="text-slate-500 dark:text-slate-500 mb-6">
-                        Create your first assessment to get started with testing your knowledge.
-                    </p>
-                    <button 
-                        onClick={() => handleCreateNew('multiple_choice')}
-                        className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-                    >
-                        Create Assessment
-                    </button>
-                </div>
             )}
 
             {isChallengeModalOpen && (
-                <ChallengeModal 
-                    examTitle={selectedExamTitle} 
-                    onClose={() => setIsChallengeModalOpen(false)} 
+                <ChallengeModal
+                    examTitle={selectedExamTitle}
+                    onClose={() => setIsChallengeModalOpen(false)}
                 />
             )}
         </div>

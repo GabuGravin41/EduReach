@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { assessmentService, Assessment, CreateAssessmentData } from '../services/assessmentService';
+import { USAGE_QUERY_KEY } from './useUsage';
 
 // Query keys
 export const ASSESSMENT_KEYS = {
@@ -47,6 +48,7 @@ export const useCreateAssessment = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ASSESSMENT_KEYS.lists() });
       queryClient.invalidateQueries({ queryKey: ASSESSMENT_KEYS.my() });
+      queryClient.invalidateQueries({ queryKey: USAGE_QUERY_KEY });
     },
   });
 };

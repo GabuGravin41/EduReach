@@ -86,7 +86,10 @@ def call_openrouter(prompt: str, model_name: str = None, max_tokens: int = 400):
     if not api_key or api_key in {'dev-key-not-configured', 'dummy-key-for-build'}:
         raise RuntimeError('OPENROUTER_API_KEY not configured')
 
-    api_url = getattr(settings, 'OPENROUTER_API_URL', 'https://api.openrouter.ai/v1/chat/completions')
+    # Use only openrouter.ai (api.openrouter.ai has DNS resolution issues on some networks)
+    primary_api_url = getattr(settings, 'OPENROUTER_API_URL', 'https://openrouter.ai/api/v1/chat/completions')
+    canonical = primary_api_url.replace('api.openrouter.ai', 'openrouter.ai')
+    candidate_urls = list({canonical, 'https://openrouter.ai/api/v1/chat/completions'})
     model = model_name or getattr(settings, 'OPENROUTER_MODEL', 'deepseek/deepseek-r1-0528:free')
 
     payload = {
@@ -107,14 +110,33 @@ def call_openrouter(prompt: str, model_name: str = None, max_tokens: int = 400):
     if app_name:
         headers['X-Title'] = app_name
 
-    resp = requests.post(api_url, json=payload, headers=headers, timeout=60)
-    if resp.status_code >= 400:
-        logger.error(
-            "OpenRouter error: %s %s", resp.status_code, resp.text
-        )
-        raise RuntimeError(f'OpenRouter error: {resp.status_code} {resp.text}')
+    connect_timeout = float(getattr(settings, 'OPENROUTER_CONNECT_TIMEOUT_SECONDS', 8))
+    read_timeout = float(getattr(settings, 'OPENROUTER_READ_TIMEOUT_SECONDS', 45))
 
-    data = resp.json()
+    last_error = None
+    data = None
+    for api_url in candidate_urls:
+        try:
+            resp = requests.post(
+                api_url,
+                json=payload,
+                headers=headers,
+                timeout=(connect_timeout, read_timeout),
+            )
+            if resp.status_code >= 400:
+                logger.error("OpenRouter error at %s: %s %s", api_url, resp.status_code, resp.text)
+                last_error = RuntimeError(f'OpenRouter error at {api_url}: {resp.status_code} {resp.text}')
+                continue
+            data = resp.json()
+            break
+        except requests.exceptions.RequestException as e:
+            logger.warning("OpenRouter connectivity issue at %s: %s", api_url, e)
+            last_error = e
+            continue
+
+    if data is None:
+        raise RuntimeError(f'OpenRouter request failed on all endpoints: {last_error}')
+
     # Try common response shapes
     text = None
     try:
@@ -191,10 +213,9 @@ def call_ai(prompt: str, *, max_tokens: int = 400, prefer_openrouter: bool | Non
         response = _try_openrouter()
         if response:
             return response
-        # Fallback to Gemini when OpenRouter is unstable
-        response = _try_gemini()
-        if response:
-            return response
+        # In OpenRouter-first mode, fail fast instead of attempting slower fallback
+        # providers that may add long latency during user requests.
+        raise AIProviderUnavailableError(provider_failures)
     else:
         response = _try_gemini()
         if response:
@@ -397,6 +418,11 @@ def generate_quiz(request):
             combined_context_parts.append(f"[PDF Context]\n{pdf_context}")
         combined_context = "\n\n---\n\n".join(combined_context_parts).strip()
 
+        # Bound total context to keep generation latency predictable.
+        max_context_chars = 12000
+        if len(combined_context) > max_context_chars:
+            combined_context = combined_context[:max_context_chars]
+
         if not combined_context:
             return Response(
                 {'error': 'Provide transcript text or upload a PDF context file.'},
@@ -408,7 +434,7 @@ def generate_quiz(request):
 
 {combined_context}
 
-Return ONLY valid JSON (no extra text):
+Return ONLY valid JSON (no extra text). Use LaTeX ($...$ for inline, $$...$$ for block math) for any formulas:
 {{"questions": [{{"question": "?", "type": "mcq", "options": ["A", "B", "C", "D"], "correct_answer": "A", "explanation": "Why"}}]}}
 
 Be concise. Questions should test key concepts."""
@@ -506,17 +532,19 @@ def chat(request):
 - Conversational and warm
 - Based strictly on the provided video context
 - Clear and easy to understand
+- If technical or mathematical content is involved, use LaTeX ($...$ for inline, $$...$$ for block math).
 
 If the user asks about video content, answer based on the context provided.
 If they ask something off-topic, politely redirect them back to the learning material."""
         
         optimized_context = context
-        if context and len(context) > 3500:
+        # Keep chat prompts tight for consistent latency on free-tier models.
+        if context and len(context) > 2500:
             context_chunks = chunk_text_for_ai(context)
             relevant_chunks = find_relevant_context_chunks(
                 context_chunks,
                 message,
-                max_chunks=4 if wants_detailed else 2
+                max_chunks=2 if wants_detailed else 1
             )
             optimized_context = "\n\n---\n\n".join(relevant_chunks)
             logger.debug(
@@ -525,6 +553,8 @@ If they ask something off-topic, politely redirect them back to the learning mat
                 len(optimized_context),
                 len(relevant_chunks)
             )
+        if optimized_context and len(optimized_context) > 5000:
+            optimized_context = optimized_context[:5000]
         
         if optimized_context:
             full_prompt = f"{system_instruction}\n\nVideo/Learning Context:\n{optimized_context}\n\nUser Question: {message}"
@@ -532,7 +562,7 @@ If they ask something off-topic, politely redirect them back to the learning mat
             full_prompt = f"{system_instruction}\n\nUser Question: {message}"
 
         # Generate content with appropriate token limits using Gemini first, then OpenRouter
-        max_tokens = 300 if wants_detailed else 150
+        max_tokens = 220 if wants_detailed else 120
         response_text = call_ai(full_prompt, max_tokens=max_tokens)
         _increment_ai_usage(request.user)
 
@@ -762,8 +792,8 @@ def explain_concept(request):
         # Construct a concise prompt based on detail level
         level_prompts = {
             'simple': f'Explain "{concept}" in 2-3 sentences using simple language and a real-world example.',
-            'detailed': f'Explain "{concept}" with definition, 2-3 examples, and key points (under 200 words).',
-            'technical': f'Give a technical explanation of "{concept}" with precise definitions and advanced details (under 200 words).'
+            'detailed': f'Explain "{concept}" with definition, 2-3 examples, and key points (under 200 words). Use LaTeX ($...$ or $$...$$) for any math.',
+            'technical': f'Give a technical explanation of "{concept}" with precise definitions and advanced details (under 200 words). Use LaTeX ($...$ or $$...$$) for equations.'
         }
         
         prompt = level_prompts.get(detail_level, level_prompts['detailed'])
@@ -791,5 +821,174 @@ def explain_concept(request):
         logger.error(f"Error explaining concept: {str(e)}", exc_info=True)
         return Response(
             {'error': f'Failed to explain concept: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def parse_questions(request):
+    """
+    Parse raw problem/solution text into structured question objects for the exam builder.
+
+    The examiner pastes their problems and solutions in any format.  The AI
+    detects the question type (mcq, true_false, short_answer, essay) and
+    returns a ready-to-use JSON array of question objects.
+
+    Expected request body:
+    {
+        "raw_text":   "string  — the problems + solutions pasted by the examiner",
+        "topic":      "string  — optional subject hint so the AI can set better defaults",
+        "time_hint":  int      — optional total exam minutes hint
+    }
+    """
+    try:
+        raw_text = (request.data.get('raw_text', '') or '').strip()
+        topic = (request.data.get('topic', '') or '').strip()
+        time_hint = request.data.get('time_hint', None)
+
+        if not raw_text:
+            return Response(
+                {'error': 'raw_text is required — paste your problems and solutions.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        can_use_ai, usage = _check_ai_usage_quota(request.user)
+        if not can_use_ai:
+            limits = usage.get_tier_limits() if usage else {'ai_queries': 0}
+            return Response(
+                {'error': f'Monthly AI limit reached ({limits["ai_queries"]}). Upgrade your plan to continue.'},
+                status=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+
+        # Limit input to keep token costs predictable
+        if len(raw_text) > 12000:
+            raw_text = raw_text[:12000]
+
+        topic_hint = f" The subject/topic is: {topic}." if topic else ""
+        time_hint_str = f" The intended total exam duration is {time_hint} minutes." if time_hint else ""
+
+        prompt = f"""You are an expert exam formatter.{topic_hint}{time_hint_str}
+
+The examiner has provided raw problems and solutions below. Your job is to parse each problem into a structured JSON question object.
+
+Rules:
+1. Detect the question type automatically:
+   - "multiple_choice" — if the problem lists lettered/numbered options (A/B/C/D etc.)
+   - "true_false" — if the answer is clearly True or False
+   - "short_answer" — if the answer is a short fact, number, word, or phrase (≤ 20 words)
+   - "essay" — if the answer requires a detailed explanation or paragraph response
+2. For multiple_choice: extract exactly the options as an array; set correct_answer_index to the 0-based index of the correct option.
+3. For true_false: set correct_answer to true or false (boolean).
+4. For short_answer: set correct_answers as an array of acceptable answers (include any variants given).
+5. For essay: set max_words based on expected answer length (default 300 if not clear); set ai_grading_enabled to true.
+6. Always set points: 1 for short_answer/true_false, 2 for multiple_choice, 10 for essay (adjust if marks are explicitly stated).
+7. CRITICAL: When the examiner provides both a problem and a solution/answer, you MUST put the full solution text in the "explanation" field (worked steps, full answer, or model solution). Do not leave explanation empty when a solution was given.
+8. Keep question_text exactly as written (fix typos only if obvious).
+9. For suggested_time_minutes: base it on the content (e.g. IMO-style or long proofs → 150–270 minutes; short quiz → 15–30). Ignore arbitrary short defaults when problems clearly need more time.
+
+RAW TEXT:
+---
+{raw_text}
+---
+
+Return ONLY valid JSON — no extra text, no markdown fences:
+{{
+  "questions": [
+    {{
+      "type": "multiple_choice",
+      "question_text": "Question text here",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correct_answer_index": 0,
+      "points": 2,
+      "explanation": "Optional worked solution"
+    }},
+    {{
+      "type": "true_false",
+      "question_text": "Statement here",
+      "correct_answer": true,
+      "points": 1,
+      "explanation": ""
+    }},
+    {{
+      "type": "short_answer",
+      "question_text": "Question here",
+      "correct_answers": ["answer1", "answer2"],
+      "case_sensitive": false,
+      "max_length": 100,
+      "points": 1,
+      "explanation": ""
+    }},
+    {{
+      "type": "essay",
+      "question_text": "Essay prompt here",
+      "max_words": 300,
+      "ai_grading_enabled": true,
+      "points": 10,
+      "explanation": ""
+    }}
+  ],
+  "suggested_time_minutes": 30,
+  "detected_topic": "topic if identifiable"
+}}"""
+
+        response_text = call_ai(prompt, max_tokens=4000)
+        _increment_ai_usage(request.user)
+
+        # Strip markdown fences and parse JSON
+        cleaned = response_text.strip()
+        # Remove ```json ... ``` or ``` ... ``` wrappers
+        json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', cleaned)
+        if json_match:
+            cleaned = json_match.group(1).strip()
+        # Also try finding a { ... } block if the model added leading text
+        if not cleaned.startswith('{'):
+            brace_match = re.search(r'\{[\s\S]*\}', cleaned)
+            if brace_match:
+                cleaned = brace_match.group(0)
+
+        try:
+            result = json.loads(cleaned)
+        except json.JSONDecodeError as e:
+            logger.warning("parse_questions: JSON decode failed: %s\nRaw response:\n%s", e, response_text[:500])
+            return Response(
+                {
+                    'error': 'AI returned malformed JSON. Try rephrasing your input or splitting into fewer questions.',
+                    'raw_response': response_text[:1000],
+                },
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY
+            )
+
+        # Attach stable IDs and normalize solution → explanation so solutions pre-fill
+        import time as _time
+        questions = result.get('questions', [])
+        for i, q in enumerate(questions):
+            q['id'] = str(int(_time.time() * 1000) + i)
+            # Normalize solution fields so the frontend always gets "explanation" for pre-fill
+            explanation = q.get('explanation') or q.get('solution') or q.get('model_solution') or q.get('sample_answer')
+            if explanation is not None:
+                q['explanation'] = explanation if isinstance(explanation, str) else str(explanation)
+
+        return Response({
+            'questions': questions,
+            'suggested_time_minutes': result.get('suggested_time_minutes', 30),
+            'detected_topic': result.get('detected_topic', topic),
+            'question_count': len(questions),
+        }, status=status.HTTP_200_OK)
+
+    except AIProviderUnavailableError as e:
+        logger.warning("AI unavailable in parse_questions: %s", e)
+        return Response(
+            {
+                'error': 'AI service temporarily unavailable. Verify OPENROUTER_API_KEY and provider quota, then retry.',
+                'details': e.details,
+                'type': type(e).__name__
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+    except Exception as e:
+        logger.error("Error in parse_questions: %s", e, exc_info=True)
+        return Response(
+            {'error': f'Failed to parse questions: {str(e)}', 'type': type(e).__name__},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

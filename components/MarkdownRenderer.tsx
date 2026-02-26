@@ -1,9 +1,57 @@
 import React from 'react';
 // @ts-ignore - katex types may not be installed
 import katex from 'katex';
+import 'katex/dist/katex.min.css';
 
 interface MarkdownRendererProps {
   content: string;
+}
+
+type MathSegment = { type: 'math'; content: string; block: boolean };
+type TextSegment = { type: 'text'; content: string };
+
+/**
+ * Split a string into math and text segments. Handles $$...$$ (block) and $...$ (inline).
+ * Block math is matched first so $$ takes precedence over single $.
+ */
+function splitMathSegments(str: string): (MathSegment | TextSegment)[] {
+  const segments: (MathSegment | TextSegment)[] = [];
+  let lastPos = 0;
+  let pos = 0;
+  const len = str.length;
+
+  while (pos < len) {
+    // Block math $$...$$
+    if (str.substring(pos, pos + 2) === '$$') {
+      const end = str.indexOf('$$', pos + 2);
+      if (end !== -1) {
+        if (pos > lastPos) segments.push({ type: 'text', content: str.slice(lastPos, pos) });
+        segments.push({ type: 'math', content: str.slice(pos + 2, end).trim(), block: true });
+        lastPos = end + 2;
+        pos = end + 2;
+        continue;
+      }
+    }
+    // Inline math $...$ (single $, content, then closing $)
+    if (str[pos] === '$' && (pos === 0 || str[pos - 1] !== '$') && (pos + 1 < len && str[pos + 1] !== '$')) {
+      const rest = str.slice(pos + 1);
+      const closeIdx = rest.indexOf('$');
+      if (closeIdx > 0) {
+        const inner = rest.slice(0, closeIdx).trim();
+        if (inner && !inner.includes('\n\n')) {
+          if (pos > lastPos) segments.push({ type: 'text', content: str.slice(lastPos, pos) });
+          segments.push({ type: 'math', content: inner, block: false });
+          lastPos = pos + 1 + closeIdx + 1;
+          pos = lastPos;
+          continue;
+        }
+      }
+    }
+    pos++;
+  }
+
+  if (lastPos < len) segments.push({ type: 'text', content: str.slice(lastPos) });
+  return segments;
 }
 
 /**
@@ -20,15 +68,18 @@ interface MarkdownRendererProps {
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
   
   const renderMath = (text: string, isBlock: boolean) => {
+    const trimmed = (text || '').trim();
+    if (!trimmed) return null;
     try {
+      const html = katex.renderToString(trimmed, {
+        throwOnError: false,
+        displayMode: isBlock,
+        output: 'html',
+      });
       return (
-        <span 
-          dangerouslySetInnerHTML={{ 
-            __html: katex.renderToString(text, { 
-              throwOnError: false, 
-              displayMode: isBlock 
-            }) 
-          }} 
+        <span
+          className="katex-wrapper"
+          dangerouslySetInnerHTML={{ __html: html }}
         />
       );
     } catch (error) {
@@ -36,50 +87,57 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
     }
   };
 
-  const renderInlineContent = (text: string): React.ReactNode[] => {
+  /** Renders bold, italic, inline code (no math). */
+  const renderTextFormatting = (text: string): React.ReactNode[] => {
     const parts: React.ReactNode[] = [];
     let lastIndex = 0;
-
-    // Regex for Math ($...$), Bold, Italic, Code
-    const regex = /(\$\$)([\s\S]*?)\1|(\$)(.*?)\3|(\*\*|__)(.*?)\5|(\*|_)(.*?)\7|`([^`]+)`/g;
+    const regex = /(\*\*|__)(.*?)\1|(\*|_)(.*?)\3|`([^`]+)`/g;
     let match;
-
     while ((match = regex.exec(text)) !== null) {
       if (match.index > lastIndex) {
         parts.push(text.substring(lastIndex, match.index));
       }
-
-      if (match[1]) { // Block Math $$...$$
+      if (match[1]) {
+        parts.push(<strong key={`b-${parts.length}`} className="font-semibold">{match[2]}</strong>);
+      } else if (match[3]) {
+        parts.push(<em key={`i-${parts.length}`} className="italic">{match[4]}</em>);
+      } else if (match[5]) {
         parts.push(
-          <div key={`math-block-${parts.length}`} className="my-4 flex justify-center">
-            {renderMath(match[2], true)}
-          </div>
-        );
-      } else if (match[3]) { // Inline Math $...$
-        parts.push(
-          <span key={`math-inline-${parts.length}`} className="mx-1">
-            {renderMath(match[4], false)}
-          </span>
-        );
-      } else if (match[5]) { // Bold
-        parts.push(<strong key={`bold-${parts.length}`} className="font-semibold">{match[6]}</strong>);
-      } else if (match[7]) { // Italic
-        parts.push(<em key={`italic-${parts.length}`} className="italic">{match[8]}</em>);
-      } else if (match[9]) { // Inline code
-        parts.push(
-          <code key={`code-${parts.length}`} className="bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-xs font-mono text-pink-600 dark:text-pink-400">
-            {match[9]}
+          <code key={`c-${parts.length}`} className="bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-xs font-mono text-pink-600 dark:text-pink-400">
+            {match[5]}
           </code>
         );
       }
-
       lastIndex = regex.lastIndex;
     }
+    if (lastIndex < text.length) parts.push(text.substring(lastIndex));
+    return parts.length > 0 ? parts : [text];
+  };
 
-    if (lastIndex < text.length) {
-      parts.push(text.substring(lastIndex));
-    }
-
+  const renderInlineContent = (text: string): React.ReactNode[] => {
+    const segments = splitMathSegments(text);
+    const parts: React.ReactNode[] = [];
+    segments.forEach((seg, idx) => {
+      if (seg.type === 'math') {
+        const el = seg.block ? (
+          <div key={`math-b-${idx}`} className="my-4 flex justify-center">
+            {renderMath(seg.content, true)}
+          </div>
+        ) : (
+          <span key={`math-i-${idx}`} className="mx-1">
+            {renderMath(seg.content, false)}
+          </span>
+        );
+        parts.push(el);
+      } else {
+        const formatted = renderTextFormatting(seg.content);
+        if (Array.isArray(formatted)) {
+          formatted.forEach((node, i) => parts.push(<React.Fragment key={`t-${idx}-${i}`}>{node}</React.Fragment>));
+        } else {
+          parts.push(<React.Fragment key={`t-${idx}`}>{formatted}</React.Fragment>);
+        }
+      }
+    });
     return parts.length > 0 ? parts : [text];
   };
 

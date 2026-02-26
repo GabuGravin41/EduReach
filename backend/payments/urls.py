@@ -7,6 +7,7 @@ from .views import (
     SubscriptionDetailView,
     SubscriptionUpgradeView,
     SubscriptionCancelView,
+    EnterpriseInquiryView,
 )
 
 
@@ -20,5 +21,6 @@ urlpatterns = [
     path('subscription/', SubscriptionDetailView.as_view(), name='subscription-detail'),
     path('subscription/upgrade/', SubscriptionUpgradeView.as_view(), name='subscription-upgrade'),
     path('subscription/cancel/', SubscriptionCancelView.as_view(), name='subscription-cancel'),
+    path('enterprise-inquiry/', EnterpriseInquiryView.as_view(), name='enterprise-inquiry'),
 ]
 

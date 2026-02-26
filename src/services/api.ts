@@ -28,10 +28,29 @@ type CacheableConfig = InternalAxiosRequestConfig & {
   cacheMaxAgeMs?: number;
 };
 
-// Request interceptor - Add JWT token to every request
+// Request interceptor - Add JWT token; if missing but refresh exists, try to refresh first
 apiClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('access_token');
+  async (config: InternalAxiosRequestConfig) => {
+    let token = localStorage.getItem('access_token');
+    const refreshToken = localStorage.getItem('refresh_token');
+    const isRefreshRequest =
+      typeof config.url === 'string' && config.url.includes('/auth/token/refresh');
+
+    if (!token && refreshToken && !isRefreshRequest) {
+      try {
+        const response = await axios.post(
+          `${API_CONFIG.BASE_URL}/auth/token/refresh/`,
+          { refresh: refreshToken }
+        );
+        const access = response.data?.access;
+        if (access) {
+          localStorage.setItem('access_token', access);
+          token = access;
+        }
+      } catch {
+        // Let the request proceed; response interceptor will handle 401
+      }
+    }
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -104,11 +123,12 @@ apiClient.interceptors.response.use(
         }
         return apiClient(originalRequest);
       } catch (refreshError) {
-        // Refresh failed, logout user
+        // Refresh failed, clear all auth state so UI shows login after redirect
         console.error('Token refresh failed:', refreshError);
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
+        localStorage.removeItem('cached_user');
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('auth:expired'));
         }
@@ -141,13 +161,18 @@ apiClient.interceptors.response.use(
       }
     }
 
-    // Log all errors for debugging
-    console.error('API Error:', {
-      status: error.response?.status,
-      data: error.response?.data,
-      message: error.message,
-      url: error.config?.url,
-    });
+    const isExpectedMissingSubscription =
+      error.response?.status === 404 && error.config?.url?.includes('/payments/subscription/');
+
+    // Log all unexpected errors for debugging.
+    if (!isExpectedMissingSubscription) {
+      console.error('API Error:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+        url: error.config?.url,
+      });
+    }
 
     return Promise.reject(error);
   }

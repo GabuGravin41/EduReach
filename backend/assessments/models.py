@@ -138,6 +138,17 @@ class UserAttempt(models.Model):
     started_at = models.DateTimeField(auto_now_add=True)
     submitted_at = models.DateTimeField(null=True, blank=True)
     time_taken_minutes = models.PositiveIntegerField(null=True, blank=True)
+    time_taken_seconds = models.PositiveIntegerField(null=True, blank=True)
+    xp_earned = models.PositiveIntegerField(default=0)
+
+    XP_WEIGHTS = {
+        'mcq': 10,
+        'true_false': 5,
+        'short_answer': 15,
+        'essay': 25,
+        'passage': 20,
+        'cloze': 10
+    }
 
     def __str__(self):
         return f"{self.user.username} - {self.assessment.title}"
@@ -146,22 +157,31 @@ class UserAttempt(models.Model):
         ordering = ['-started_at']
 
     def calculate_score(self):
-        """Calculate the score for the attempt."""
+        """Calculate the score and XP for the attempt."""
         from django.utils import timezone
         
         total_points = 0
         earned_points = 0
+        total_xp = 0
         
         for question in self.assessment.questions.all():
             total_points += question.points
             user_answer = self.answers.get(str(question.id), '')
             
-            if question.question_type in ['mcq', 'true_false']:
-                if user_answer.lower() == question.correct_answer.lower():
-                    earned_points += question.points
-            elif question.question_type == 'short_answer':
-                if user_answer.lower().strip() == question.correct_answer.lower().strip():
-                    earned_points += question.points
+            q_type = getattr(question, 'question_type', 'short_answer')
+            xp_weight = self.XP_WEIGHTS.get(q_type, 10)
+            
+            is_correct = False
+            if q_type in ['mcq', 'true_false']:
+                if user_answer.lower() == str(question.correct_answer).lower():
+                    is_correct = True
+            elif q_type == 'short_answer':
+                if user_answer.lower().strip() == str(question.correct_answer).lower().strip():
+                    is_correct = True
+            
+            if is_correct:
+                earned_points += question.points
+                total_xp += xp_weight
         
         self.score = f"{earned_points}/{total_points}"
         self.percentage = (earned_points / total_points * 100) if total_points > 0 else 0
@@ -170,7 +190,24 @@ class UserAttempt(models.Model):
         
         if self.started_at:
             time_diff = self.submitted_at - self.started_at
-            self.time_taken_minutes = int(time_diff.total_seconds() / 60)
+            self.time_taken_seconds = int(time_diff.total_seconds())
+            self.time_taken_minutes = int(self.time_taken_seconds / 60)
+            
+            # Add time spent to user total
+            self.user.total_time_spent_seconds = models.F('total_time_spent_seconds') + self.time_taken_seconds
+            self.user.save(update_fields=['total_time_spent_seconds'])
+            self.user.refresh_from_db()
+        
+        # Award XP
+        if total_xp > 0 and self.xp_earned == 0:
+            self.xp_earned = total_xp
+            self.user.award_xp(
+                amount=total_xp,
+                transaction_type='assessment_submit',
+                category='assessment',
+                description=f"Completed assessment: {self.assessment.title}",
+                related_object_id=self.id
+            )
         
         self.save()
 

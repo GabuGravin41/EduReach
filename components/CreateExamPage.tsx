@@ -11,13 +11,14 @@ import { TrueFalseQuestionCreator } from './TrueFalseQuestionCreator';
 import { ShortAnswerQuestionCreator } from './ShortAnswerQuestionCreator';
 import { PassageQuestionCreator } from './PassageQuestionCreator';
 import { ClozeQuestionCreator } from './ClozeQuestionCreator';
-import type { 
-    Question, 
-    QuestionType, 
-    MultipleChoiceQuestion, 
-    TrueFalseQuestion, 
-    ShortAnswerQuestion, 
-    EssayQuestion, 
+import { AIImportModal } from './AIImportModal';
+import type {
+    Question,
+    QuestionType,
+    MultipleChoiceQuestion,
+    TrueFalseQuestion,
+    ShortAnswerQuestion,
+    EssayQuestion,
     PassageQuestion,
     ClozeQuestion,
     Course
@@ -49,10 +50,13 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
     const [description, setDescription] = useState('');
     const [timeLimit, setTimeLimit] = useState(30);
     const [questions, setQuestions] = useState<Question[]>([]);
-    
+    const [showAIImport, setShowAIImport] = useState(false);
+    const [isPublic, setIsPublic] = useState(true);
+    const [resultsVisibility, setResultsVisibility] = useState<'private' | 'opt_in_public' | 'public'>('opt_in_public');
+
     // Linking State
     const [selectedCourseId, setSelectedCourseId] = useState<number | ''>('');
-    const [selectedLessonId, setSelectedLessonId] = useState<number | ''>('');
+    const [selectedLessonId, setSelectedLessonId] = useState<number | ''>('')
 
     const features = TIER_FEATURES[userTier];
 
@@ -111,7 +115,7 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
                     difficulty: 'medium',
                     points: 5
                 } as PassageQuestion;
-            
+
             case 'cloze':
                 return {
                     ...baseQuestion,
@@ -133,6 +137,22 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
 
         const newQuestion = createNewQuestion(type);
         setQuestions([...questions, newQuestion]);
+    };
+
+    const handleAIImport = (imported: Question[], suggestedTime?: number, detectedTopic?: string) => {
+        // Check limits
+        const available = typeof features.max_questions === 'number'
+            ? Math.max(0, features.max_questions - questions.length)
+            : imported.length;
+        const toAdd = imported.slice(0, available);
+        if (toAdd.length < imported.length) {
+            alert(`Your plan allows ${features.max_questions} questions. Only ${toAdd.length} of ${imported.length} questions were added.`);
+        }
+        setQuestions(prev => [...prev, ...toAdd]);
+        // Pre-fill topic and time if not already set
+        if (detectedTopic && !topic) setTopic(detectedTopic);
+        if (suggestedTime && timeLimit === 30) setTimeLimit(suggestedTime);
+        setShowAIImport(false);
     };
 
     const updateQuestion = (questionId: string, updatedQuestion: Question) => {
@@ -166,12 +186,16 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
 
         const examData = {
             title: title.trim(),
-            topic: topic.trim(),
+            topic: topic.trim() || 'General',
             description: description.trim(),
             time: timeLimit,
+            time_limit_minutes: timeLimit,
             questions: questions.length,
             questions_data: questions,
             question_types: [...new Set(questions.map(q => q.type))],
+            is_public: isPublic,
+            results_visibility: resultsVisibility,
+            source_lesson: selectedLessonId ? Number(selectedLessonId) : undefined,
             context: selectedCourseId && selectedLessonId ? {
                 type: 'course_lesson',
                 courseId: Number(selectedCourseId),
@@ -188,7 +212,7 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
             return sum + q.points + rubricPoints;
         }
         if (q.type === 'passage') {
-             return sum + q.questions.reduce((pSum, pq) => pSum + pq.points, 0);
+            return sum + q.questions.reduce((pSum, pq) => pSum + pq.points, 0);
         }
         return sum + q.points;
     }, 0);
@@ -203,30 +227,30 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
                         </h3>
                         <div className="mb-4">
                             <label className="block text-sm font-medium mb-1 dark:text-slate-300">Question</label>
-                            <input 
-                                type="text" 
+                            <input
+                                type="text"
                                 className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
                                 value={question.question_text}
-                                onChange={(e) => updateQuestion(question.id, {...question, question_text: e.target.value})}
+                                onChange={(e) => updateQuestion(question.id, { ...question, question_text: e.target.value })}
                             />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             {question.options.map((opt, idx) => (
                                 <div key={idx} className="flex gap-2 items-center">
-                                    <input 
-                                        type="radio" 
-                                        name={`correct_${question.id}`} 
+                                    <input
+                                        type="radio"
+                                        name={`correct_${question.id}`}
                                         checked={question.correct_answer_index === idx}
-                                        onChange={() => updateQuestion(question.id, {...question, correct_answer_index: idx})}
+                                        onChange={() => updateQuestion(question.id, { ...question, correct_answer_index: idx })}
                                     />
-                                    <input 
-                                        type="text" 
+                                    <input
+                                        type="text"
                                         className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
                                         value={opt}
                                         onChange={(e) => {
                                             const newOptions = [...question.options];
                                             newOptions[idx] = e.target.value;
-                                            updateQuestion(question.id, {...question, options: newOptions});
+                                            updateQuestion(question.id, { ...question, options: newOptions });
                                         }}
                                         placeholder={`Option ${idx + 1}`}
                                     />
@@ -282,7 +306,7 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
                         questionIndex={index}
                     />
                 );
-            
+
             case 'cloze':
                 return (
                     <ClozeQuestionCreator
@@ -317,7 +341,7 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
                 <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-4">
                     Assessment Details
                 </h2>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
@@ -356,7 +380,7 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
                             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
                                 Select Course
                             </label>
-                            <select 
+                            <select
                                 value={selectedCourseId}
                                 onChange={(e) => {
                                     setSelectedCourseId(Number(e.target.value));
@@ -374,7 +398,7 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
                             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
                                 Select Lesson (Required if Course selected)
                             </label>
-                            <select 
+                            <select
                                 value={selectedLessonId}
                                 onChange={(e) => setSelectedLessonId(Number(e.target.value))}
                                 disabled={!selectedCourseId}
@@ -405,16 +429,50 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                            Time Limit (minutes)
+                            Time Limit
                         </label>
-                        <input
-                            type="number"
-                            value={timeLimit}
-                            onChange={(e) => setTimeLimit(parseInt(e.target.value) || 30)}
-                            className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
-                            min="5"
-                            max="300"
-                        />
+                        <div className="flex gap-3">
+                            <div className="flex-1">
+                                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                                    Hours
+                                </label>
+                                <input
+                                    type="number"
+                                    value={Math.floor(timeLimit / 60)}
+                                    onChange={(e) => {
+                                        const raw = e.target.value;
+                                        const hours = raw === '' ? 0 : Math.max(0, parseInt(raw, 10) || 0);
+                                        const minutes = timeLimit % 60;
+                                        setTimeLimit(hours * 60 + minutes);
+                                    }}
+                                    className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                                    min={0}
+                                    max={6}
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                                    Minutes
+                                </label>
+                                <input
+                                    type="number"
+                                    value={timeLimit % 60}
+                                    onChange={(e) => {
+                                        const raw = e.target.value;
+                                        let minutes = raw === '' ? 0 : Math.max(0, parseInt(raw, 10) || 0);
+                                        if (minutes > 59) minutes = 59;
+                                        const hours = Math.floor(timeLimit / 60);
+                                        setTimeLimit(hours * 60 + minutes);
+                                    }}
+                                    className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                                    min={0}
+                                    max={59}
+                                />
+                            </div>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            Total: {timeLimit} minute{timeLimit === 1 ? '' : 's'}
+                        </p>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
@@ -433,14 +491,80 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
                         </div>
                     </div>
                 </div>
+
+                {/* Visibility Settings */}
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Assessment Visibility
+                        </label>
+                        <div className="flex items-center gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setIsPublic(true)}
+                                className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border transition-colors ${isPublic
+                                        ? 'bg-indigo-600 text-white border-indigo-600'
+                                        : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-indigo-400'
+                                    }`}
+                            >
+                                🌍 Public
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsPublic(false)}
+                                className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border transition-colors ${!isPublic
+                                        ? 'bg-slate-700 text-white border-slate-700'
+                                        : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-slate-400'
+                                    }`}
+                            >
+                                🔒 Private
+                            </button>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-400">
+                            {isPublic ? 'Visible to all users' : 'Only you can see this assessment'}
+                        </p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Results Visibility
+                        </label>
+                        <select
+                            value={resultsVisibility}
+                            onChange={(e) => setResultsVisibility(e.target.value as any)}
+                            className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                        >
+                            <option value="private">🔒 Instructor only</option>
+                            <option value="opt_in_public">👤 Students choose (default)</option>
+                            <option value="public">🌍 Always public</option>
+                        </select>
+                        <p className="mt-1 text-xs text-slate-400">Controls who can see student scores</p>
+                    </div>
+                </div>
             </div>
+
+            {/* AI Import Modal */}
+            {showAIImport && (
+                <AIImportModal
+                    onImport={handleAIImport}
+                    onClose={() => setShowAIImport(false)}
+                />
+            )}
 
             {/* Add Question Section */}
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 mb-8">
-                <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-4">
-                    Add Questions
-                </h2>
-                
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">
+                        Add Questions
+                    </h2>
+                    <button
+                        onClick={() => setShowAIImport(true)}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-semibold rounded-xl hover:from-violet-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg"
+                    >
+                        <SparklesIcon className="w-4 h-4" />
+                        Import with AI
+                    </button>
+                </div>
+
                 <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
                     <button
                         onClick={() => addQuestion('multiple_choice')}
@@ -469,11 +593,10 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
                     <button
                         onClick={() => addQuestion('cloze')}
                         disabled={!features.can_create_advanced}
-                        className={`p-3 border border-slate-200 dark:border-slate-600 rounded-lg transition-colors group flex flex-col items-center ${
-                            features.can_create_advanced
-                                ? 'hover:border-teal-300 dark:hover:border-teal-500'
-                                : 'opacity-50 cursor-not-allowed'
-                        }`}
+                        className={`p-3 border border-slate-200 dark:border-slate-600 rounded-lg transition-colors group flex flex-col items-center ${features.can_create_advanced
+                            ? 'hover:border-teal-300 dark:hover:border-teal-500'
+                            : 'opacity-50 cursor-not-allowed'
+                            }`}
                     >
                         <SparklesIcon className="w-6 h-6 text-teal-600 dark:text-teal-400 mb-2" />
                         <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
@@ -484,11 +607,10 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
                     <button
                         onClick={() => addQuestion('essay')}
                         disabled={!features.can_create_essay}
-                        className={`p-3 border border-slate-200 dark:border-slate-600 rounded-lg transition-colors group flex flex-col items-center ${
-                            features.can_create_essay
-                                ? 'hover:border-purple-300 dark:hover:border-purple-500'
-                                : 'opacity-50 cursor-not-allowed'
-                        }`}
+                        className={`p-3 border border-slate-200 dark:border-slate-600 rounded-lg transition-colors group flex flex-col items-center ${features.can_create_essay
+                            ? 'hover:border-purple-300 dark:hover:border-purple-500'
+                            : 'opacity-50 cursor-not-allowed'
+                            }`}
                     >
                         <DocumentTextIcon className="w-6 h-6 text-purple-600 dark:text-purple-400 mb-2" />
                         <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
@@ -499,11 +621,10 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
                     <button
                         onClick={() => addQuestion('passage')}
                         disabled={!features.can_create_passage}
-                        className={`p-3 border border-slate-200 dark:border-slate-600 rounded-lg transition-colors group flex flex-col items-center ${
-                            features.can_create_passage
-                                ? 'hover:border-orange-300 dark:hover:border-orange-500'
-                                : 'opacity-50 cursor-not-allowed'
-                        }`}
+                        className={`p-3 border border-slate-200 dark:border-slate-600 rounded-lg transition-colors group flex flex-col items-center ${features.can_create_passage
+                            ? 'hover:border-orange-300 dark:hover:border-orange-500'
+                            : 'opacity-50 cursor-not-allowed'
+                            }`}
                     >
                         <BookOpenIcon className="w-6 h-6 text-orange-600 dark:text-orange-400 mb-2" />
                         <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
@@ -516,7 +637,7 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
             {/* Questions */}
             <div className="mb-8">
                 {questions.map((question, index) => renderQuestionCreator(question, index))}
-                
+
                 {questions.length === 0 && (
                     <div className="text-center py-12 bg-slate-50 dark:bg-slate-800 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600">
                         <ClipboardCheckIcon className="w-16 h-16 text-slate-400 mx-auto mb-4" />

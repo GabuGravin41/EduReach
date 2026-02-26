@@ -1,3 +1,4 @@
+import axios from 'axios';
 import apiClient from './api';
 
 export interface PaymentMethod {
@@ -49,6 +50,12 @@ export interface InitiatePaymentResponse {
   message?: string;
 }
 
+export interface EnterpriseInquiryPayload {
+  name: string;
+  email: string;
+  message: string;
+}
+
 export const paymentService = {
   getPaymentMethods: async (): Promise<PaymentMethod[]> => {
     const { data } = await apiClient.get('/payments/methods/');
@@ -65,9 +72,17 @@ export const paymentService = {
     return data;
   },
 
-  getSubscription: async (): Promise<Subscription> => {
-    const { data } = await apiClient.get('/payments/subscription/');
-    return data;
+  getSubscription: async (): Promise<Subscription | null> => {
+    try {
+      const { data } = await apiClient.get('/payments/subscription/');
+      return data;
+    } catch (error) {
+      // "No active subscription" is expected for new/free users.
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
   },
 
   upgradeSubscription: async (payload: {
@@ -81,6 +96,11 @@ export const paymentService = {
 
   cancelSubscription: async (): Promise<void> => {
     await apiClient.post('/payments/subscription/cancel/', {});
+  },
+
+  submitEnterpriseInquiry: async (payload: EnterpriseInquiryPayload): Promise<{ detail: string }> => {
+    const { data } = await apiClient.post('/payments/enterprise-inquiry/', payload);
+    return data;
   },
 };
 

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { youtubeService } from '../src/services/youtubeService';
-import apiClient from '../services/api';
+import { aiClient } from '../src/services/api';
 import transcriptUtils from '../src/utils/transcript';
 
 interface TranscriptListProps {
@@ -35,7 +35,7 @@ const TranscriptList: React.FC<TranscriptListProps> = ({ rawTranscript, onSeek }
     setLoading(true);
     try {
       const payload = { chunks: chunks.map((c: any) => c.text) };
-      const resp = await apiClient.post('/ai/summarize-chunks/', payload);
+      const resp = await aiClient.post('/ai/summarize-chunks/', payload);
       const data = resp.data;
       if (data?.success) {
         setChunkSummaries(data.chunk_summaries || []);

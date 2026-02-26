@@ -2,9 +2,11 @@ import React from 'react';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import { View } from '../App';
 import type { Assessment, Question } from '../types';
+import { TrophyIcon } from './icons/TrophyIcon';
+import { ClockIcon } from './icons/ClockIcon';
 import { QuizView } from './QuizView';
 import { assessmentService, AssessmentAttempt } from '../src/services/assessmentService';
-import { useAuth } from '../src/contexts/AuthContext';
+import { useAuth } from '../src/contexts/useAuth';
 
 interface ExamDetailPageProps {
     exam: Assessment;
@@ -160,10 +162,10 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
             q.question_type === 'mcq'
                 ? 'multiple_choice'
                 : q.question_type === 'true_false'
-                ? 'true_false'
-                : q.question_type === 'essay'
-                ? 'essay'
-                : 'short_answer',
+                    ? 'true_false'
+                    : q.question_type === 'essay'
+                        ? 'essay'
+                        : 'short_answer',
         question_text: q.question_text,
         options: q.options || [],
         correct_answer_index: Array.isArray(q.options) ? q.options.indexOf(q.correct_answer) : 0,
@@ -179,8 +181,8 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
     return (
         <div className="h-full flex flex-col">
             <div className="flex-shrink-0 mb-4 flex items-center justify-between">
-                <button 
-                    onClick={() => setView('assessments')} 
+                <button
+                    onClick={() => setView('assessments')}
                     className="flex items-center gap-2 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
                 >
                     <ChevronLeftIcon className="w-5 h-5" />
@@ -371,18 +373,48 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                                 </div>
                             )}
                             {publicAttempts.length > 0 && (
-                                <div className="mt-6">
-                                    <h4 className="text-sm font-bold mb-2">Public leaderboard</h4>
-                                    <div className="space-y-2">
+                                <div className="mt-8">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <div className="p-1.5 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                                            <TrophyIcon className="w-4 h-4 text-amber-600" />
+                                        </div>
+                                        <h4 className="text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Assessment Leaderboard</h4>
+                                    </div>
+                                    <div className="space-y-3">
                                         {publicAttempts
                                             .slice()
-                                            .sort((a, b) => (Number(b.percentage || 0) - Number(a.percentage || 0)))
-                                            .map((attempt) => (
-                                                <div key={`pub-${attempt.id}`} className="flex items-center justify-between text-xs border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2">
-                                                    <span>{attempt.user?.username || attempt.user_username || 'Student'}</span>
-                                                    <span>{attempt.score || '-'} ({attempt.percentage ?? 0}%)</span>
-                                                </div>
-                                            ))}
+                                            .sort((a, b) => {
+                                                const percA = Number(a.percentage || 0);
+                                                const percB = Number(b.percentage || 0);
+                                                if (percB !== percA) return percB - percA;
+                                                // Secondary sort: faster time is better
+                                                return (a.time_taken_seconds || 999999) - (b.time_taken_seconds || 999999);
+                                            })
+                                            .map((attempt, i) => {
+                                                const mins = attempt.time_taken_seconds ? Math.floor(attempt.time_taken_seconds / 60) : 0;
+                                                const secs = attempt.time_taken_seconds ? (attempt.time_taken_seconds % 60) : 0;
+                                                return (
+                                                    <div key={`pub-${attempt.id}`} className={`flex items-center gap-3 p-3 rounded-xl border ${attempt.user?.username === user?.username
+                                                        ? 'border-indigo-200 bg-indigo-50/50 dark:border-indigo-800/50 dark:bg-indigo-900/20'
+                                                        : 'border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30'
+                                                        }`}>
+                                                        <span className="w-5 text-sm font-black text-slate-400">{i + 1}</span>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-bold text-sm text-slate-800 dark:text-slate-200 truncate">
+                                                                {attempt.user?.username || attempt.user_username || 'Student'}
+                                                            </p>
+                                                            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase">
+                                                                <ClockIcon className="w-3 h-3 text-slate-400" />
+                                                                {attempt.time_taken_seconds ? `${mins}m ${secs}s` : '---'}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-sm font-black text-indigo-600 dark:text-indigo-400">{attempt.percentage ?? 0}%</p>
+                                                            <p className="text-[10px] font-bold text-slate-400">{attempt.score || '-'}</p>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
                                     </div>
                                 </div>
                             )}

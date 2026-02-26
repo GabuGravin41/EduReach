@@ -2,9 +2,12 @@ import uuid
 from decimal import Decimal, InvalidOperation
 from datetime import timedelta
 import re
+import logging
 
 from django.utils import timezone
 from django.db import transaction
+from django.conf import settings
+from django.core.mail import send_mail
 from rest_framework import generics, permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -16,6 +19,8 @@ from .serializers import (
     SubscriptionSerializer,
 )
 from .services import MPesaService, CardPaymentService, BankTransferService
+
+logger = logging.getLogger(__name__)
 
 
 class PaymentMethodListView(generics.ListAPIView):
@@ -209,7 +214,8 @@ class SubscriptionDetailView(APIView):
     def get(self, request):
         subscription = Subscription.objects.filter(user=request.user).first()
         if not subscription:
-            return Response({'detail': 'No active subscription'}, status=status.HTTP_404_NOT_FOUND)
+            # Return 200 for free users to avoid noisy 404s in client apps.
+            return Response({'detail': 'No active subscription', 'tier': 'free', 'status': 'inactive'})
         serializer = SubscriptionSerializer(subscription)
         return Response(serializer.data)
 
@@ -300,5 +306,59 @@ class SubscriptionCancelView(APIView):
             return Response({'detail': 'No active subscription'}, status=status.HTTP_404_NOT_FOUND)
         subscription.cancel()
         return Response({'detail': 'Subscription will remain active until the current period ends.'})
+
+
+class EnterpriseInquiryView(APIView):
+    """
+    Accepts enterprise/institution inquiries and forwards them to sales email.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        name = str(request.data.get('name', '') or '').strip()
+        email = str(request.data.get('email', '') or '').strip()
+        message = str(request.data.get('message', '') or '').strip()
+
+        if not name or not email or not message:
+            return Response(
+                {'detail': 'name, email, and message are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if len(message) < 10:
+            return Response(
+                {'detail': 'Please provide more details in your inquiry.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = request.user
+        recipient = getattr(settings, 'ENTERPRISE_INQUIRY_EMAIL', None) or 'hello@edureach.app'
+        subject = f'Enterprise inquiry from {name}'
+        body = (
+            f'Name: {name}\n'
+            f'Email: {email}\n'
+            f'User ID: {getattr(user, "id", "N/A")}\n'
+            f'Username: {getattr(user, "username", "")}\n'
+            f'Current tier: {getattr(user, "tier", "unknown")}\n\n'
+            f'Message:\n{message}\n'
+        )
+
+        try:
+            send_mail(
+                subject=subject,
+                message=body,
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@edureach.app'),
+                recipient_list=[recipient],
+                fail_silently=False,
+            )
+        except Exception as exc:
+            logger.error('Failed to send enterprise inquiry email: %s', exc, exc_info=True)
+            return Response(
+                {'detail': 'Could not send inquiry right now. Please try again shortly.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return Response({'detail': 'Inquiry sent successfully.'}, status=status.HTTP_200_OK)
 
 # Create your views here.

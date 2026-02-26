@@ -17,6 +17,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'development').strip().lower()
 IS_RUNSERVER = 'runserver' in sys.argv
 IS_COLLECTSTATIC = 'collectstatic' in sys.argv
+MANAGEMENT_COMMAND = sys.argv[1] if len(sys.argv) > 1 else ''
+LOCAL_SAFE_COMMANDS = {
+    'runserver',
+    'migrate',
+    'makemigrations',
+    'check',
+    'shell',
+    'test',
+    'createsuperuser',
+    'collectstatic',
+}
+IS_LOCAL_SAFE_COMMAND = MANAGEMENT_COMMAND in LOCAL_SAFE_COMMANDS
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -178,6 +190,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+os.makedirs(STATIC_ROOT, exist_ok=True)  # Avoid WhiteNoise "No directory" warning
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Media uploads (assessment answer images)
@@ -236,39 +249,32 @@ development_cors = [
     'http://127.0.0.1:5173',
 ]
 
-# Production origins from environment
-if DEBUG:
-    CORS_ALLOWED_ORIGINS = development_cors
+# Production origins from environment (simple + resilient)
+cors_origins_env = os.environ.get('CORS_ALLOWED_ORIGINS', '').strip()
+parsed_origins = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
+valid_origins = [o for o in parsed_origins if re.match(r'^https?://', o)]
+invalid_origins = [o for o in parsed_origins if o not in valid_origins]
+
+# Strict validation only for real production runtime (not local/dev commands)
+if IS_STRICT_PRODUCTION and not IS_LOCAL_SAFE_COMMAND:
+    if not valid_origins:
+        raise ValueError(
+            "CORS_ALLOWED_ORIGINS must contain full origins like "
+            "https://example.com,https://www.example.com"
+        )
+    if invalid_origins:
+        raise ValueError(
+            "Invalid CORS_ALLOWED_ORIGINS entries: "
+            + ", ".join(invalid_origins)
+            + ". Use full origins like https://example.com"
+        )
+
+# Always include localhost for dev/testing convenience.
+# Invalid values (e.g. *.onrender.com) are safely ignored outside strict runtime.
+if DEBUG or IS_LOCAL_SAFE_COMMAND:
+    CORS_ALLOWED_ORIGINS = list(dict.fromkeys(valid_origins + development_cors))
 else:
-    # Don't validate CORS during collectstatic
-    if not IS_COLLECTSTATIC:
-        cors_origins_env = os.environ.get('CORS_ALLOWED_ORIGINS', '').strip()
-        if not cors_origins_env:
-            raise ValueError(
-                "CORS_ALLOWED_ORIGINS environment variable must be set in production. "
-                "Format: https://yourdomain.com,https://www.yourdomain.com"
-            )
-        parsed_origins = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
-        valid_origins = [o for o in parsed_origins if re.match(r'^https?://', o)]
-        invalid_origins = [o for o in parsed_origins if o not in valid_origins]
-
-        if invalid_origins and IS_STRICT_PRODUCTION and not IS_RUNSERVER:
-            raise ValueError(
-                "Invalid CORS_ALLOWED_ORIGINS entries: "
-                + ", ".join(invalid_origins)
-                + ". Use full origins like https://example.com"
-            )
-
-        # Local escape hatch: when using production env values on local runserver,
-        # fall back to development origins so local startup doesn't fail.
-        if not valid_origins and IS_RUNSERVER:
-            CORS_ALLOWED_ORIGINS = development_cors
-        else:
-            # Keep production origins, but also allow localhost for active testing.
-            CORS_ALLOWED_ORIGINS = list(dict.fromkeys(valid_origins + development_cors))
-    else:
-        # During collectstatic, use a valid dummy value
-        CORS_ALLOWED_ORIGINS = ['http://localhost']
+    CORS_ALLOWED_ORIGINS = valid_origins
 
 # Allow Capacitor mobile app origins
 CORS_ALLOWED_ORIGIN_REGEXES = [
@@ -360,8 +366,16 @@ APPEND_SLASH = False
 
 # OpenRouter API Configuration (PRIMARY AI PROVIDER - FREE)
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
-OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'deepseek/deepseek-r1-0528:free')
-OPENROUTER_API_URL = os.environ.get('OPENROUTER_API_URL', 'https://api.openrouter.ai/v1/chat/completions')
+OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'meta-llama/llama-3.1-70b-instruct:free')
+_raw_openrouter_api_url = os.environ.get(
+    'OPENROUTER_API_URL',
+    'https://openrouter.ai/api/v1/chat/completions',
+).strip()
+# Canonicalize away api.openrouter.ai (DNS issues in some networks)
+OPENROUTER_API_URL = _raw_openrouter_api_url.replace(
+    'api.openrouter.ai',
+    'openrouter.ai',
+)
 PREFER_OPENROUTER = os.environ.get('PREFER_OPENROUTER', 'True') == 'True'
 
 # Validate OpenRouter configuration
@@ -376,6 +390,10 @@ if not OPENROUTER_API_KEY:
 # Gemini API Configuration (OPTIONAL - for future use with paid plan)
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', None)
 GEMINI_MODEL_NAME = os.environ.get('GEMINI_MODEL_NAME', 'gemini-2.5-flash')
+
+# Enterprise inquiry email routing
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@edureach.app')
+ENTERPRISE_INQUIRY_EMAIL = os.environ.get('ENTERPRISE_INQUIRY_EMAIL', 'hello@edureach.app')
 
 # Security settings for production
 if not DEBUG:

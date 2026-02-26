@@ -1,6 +1,7 @@
 import React from 'react';
 import { TrashIcon } from './icons/TrashIcon';
 import type { ClozeQuestion } from '../types';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface ClozeQuestionCreatorProps {
     question: ClozeQuestion;
@@ -37,7 +38,7 @@ export const ClozeQuestionCreator: React.FC<ClozeQuestionCreatorProps> = ({
 
         const parts = question.question_text.split(/(\[.*?\])/g);
         return (
-            <div className="leading-relaxed">
+            <div className="leading-relaxed flex flex-wrap items-center">
                 {parts.map((part, i) => {
                     if (part.startsWith('[') && part.endsWith(']')) {
                         return (
@@ -51,7 +52,7 @@ export const ClozeQuestionCreator: React.FC<ClozeQuestionCreatorProps> = ({
                             </span>
                         );
                     }
-                    return <span key={i}>{part}</span>;
+                    return <MarkdownRenderer key={i} content={part} />;
                 })}
             </div>
         );

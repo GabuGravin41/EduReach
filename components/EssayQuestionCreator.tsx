@@ -3,6 +3,7 @@ import { PlusCircleIcon } from './icons/PlusCircleIcon';
 import { TrashIcon } from './icons/TrashIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import type { EssayQuestion, RubricCriterion } from '../types';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface EssayQuestionCreatorProps {
     question: EssayQuestion;
@@ -82,13 +83,13 @@ This sample can help guide both students and instructors in understanding the ex
 
             {/* Question Text */}
             <div className="mb-6">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Essay Question
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Essay Question <span className="text-xs text-slate-500">(LaTeX: $x^2$, $$\\int_0^1 x^2 dx$$)</span>
                 </label>
                 <textarea
                     value={question.question_text}
                     onChange={(e) => updateQuestion('question_text', e.target.value)}
-                    placeholder="Enter your essay question here. Be specific about what you want students to analyze, discuss, or explain..."
+                    placeholder="Enter your essay question here. Use $...$ or $$...$$ for math."
                     className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 resize-none"
                     rows={4}
                 />

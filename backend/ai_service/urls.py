@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import generate_study_plan, explain_concept, summarize_chunks, chat, generate_quiz
+from .views import generate_study_plan, explain_concept, summarize_chunks, chat, generate_quiz, parse_questions
 from . import debug_views
 
 urlpatterns = [
@@ -9,6 +9,7 @@ urlpatterns = [
     path('ai/study-plan/', generate_study_plan, name='generate_study_plan'),
     path('ai/explain/', explain_concept, name='explain_concept'),
     path('ai/summarize-chunks/', summarize_chunks, name='summarize_chunks'),
+    path('ai/parse-questions/', parse_questions, name='parse_questions'),
 
     # Debug endpoints (direct Gemini calls, for troubleshooting only)
     path('ai/debug/generate-quiz/', debug_views.generate_quiz, name='debug_generate_quiz'),

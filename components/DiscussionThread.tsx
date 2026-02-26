@@ -156,13 +156,12 @@ export const DiscussionThread: React.FC<DiscussionThreadProps> = ({
           thread.replies.map((reply) => (
             <div
               key={reply.id}
-              className={`bg-white dark:bg-slate-800 rounded-xl shadow-lg shadow-slate-900/5 p-6 border-l-4 ${
-                reply.is_accepted
+              className={`bg-white dark:bg-slate-800 rounded-xl shadow-lg shadow-slate-900/5 p-6 border-l-4 ${reply.is_accepted
                   ? 'border-green-500 bg-green-50 dark:bg-slate-800 dark:border-green-500'
                   : reply.is_verified
                     ? 'border-blue-500'
                     : 'border-slate-200 dark:border-slate-700'
-              }`}
+                }`}
             >
               {/* Reply Header */}
               <div className="flex items-start justify-between gap-4 mb-4">
@@ -198,11 +197,10 @@ export const DiscussionThread: React.FC<DiscussionThreadProps> = ({
               <div className="flex items-center gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                 <button
                   onClick={() => onUpvote(reply.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${
-                    reply.user_upvoted
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${reply.user_upvoted
                       ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
                       : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                  }`}
+                    }`}
                 >
                   <span className="text-sm font-semibold">Helpful • {reply.upvotes}</span>
                 </button>
@@ -230,10 +228,16 @@ export const DiscussionThread: React.FC<DiscussionThreadProps> = ({
         <textarea
           value={replyContent}
           onChange={(e) => setReplyContent(e.target.value)}
-          placeholder="Write your reply here... You can use markdown formatting!"
+          placeholder="Write your reply here... (Supports LaTeX: $x^2$)"
           className="w-full p-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
           rows={4}
         />
+        {replyContent.trim() && (
+          <div className="mt-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Preview</p>
+            <MarkdownRenderer content={replyContent} />
+          </div>
+        )}
         <div className="mt-4 flex justify-end gap-3">
           <button
             onClick={() => setReplyContent('')}

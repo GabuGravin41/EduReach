@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { SparklesIcon } from './icons/SparklesIcon';
-import { useAuth } from '../src/contexts/AuthContext';
+import { useAuth } from '../src/contexts/useAuth';
 
 export const LoginScreen: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
@@ -16,11 +16,16 @@ export const LoginScreen: React.FC = () => {
     e.preventDefault();
     setError('');
 
-    if (!isLogin && !email) {
-      setError('Email is required for registration');
+    const trimmedUsername = username.trim();
+    const trimmedEmail = email.trim();
+    if (!trimmedUsername) {
+      setError(isLogin ? 'Please enter your username.' : 'Username is required.');
       return;
     }
-
+    if (!isLogin && !trimmedEmail) {
+      setError('Email is required for registration.');
+      return;
+    }
     if (password.length < 8) {
       setError('Password must be at least 8 characters long.');
       return;
@@ -30,9 +35,9 @@ export const LoginScreen: React.FC = () => {
 
     try {
       if (isLogin) {
-        await login(username, password);
+        await login(trimmedUsername, password);
       } else {
-        await register(username, email, password);
+        await register(trimmedUsername, trimmedEmail, password);
       }
 
       setShowModal(false);
@@ -119,7 +124,8 @@ export const LoginScreen: React.FC = () => {
           {/* Backdrop */}
           <div 
             className="absolute inset-0 bg-black/40 backdrop-blur-md"
-            onClick={() => setShowModal(false)}
+            onClick={() => !isLoading && setShowModal(false)}
+            aria-hidden
           />
           
           {/* Modal */}
@@ -205,9 +211,15 @@ export const LoginScreen: React.FC = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-gradient-to-r from-blue-600 to-emerald-600 text-white py-3 rounded-md font-bold hover:from-blue-700 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-[1.01]"
+                className="w-full bg-gradient-to-r from-blue-600 to-emerald-600 text-white py-3 rounded-md font-bold hover:from-blue-700 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-[1.01] flex items-center justify-center gap-2"
               >
-                {isLoading ? 'Loading...' : (isLogin ? 'Sign In' : 'Create Account')}
+                {isLoading && (
+                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden>
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                )}
+                {isLoading ? (isLogin ? 'Signing in…' : 'Creating account…') : (isLogin ? 'Sign In' : 'Create Account')}
               </button>
             </form>
 

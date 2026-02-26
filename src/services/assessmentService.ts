@@ -40,11 +40,17 @@ export interface CreateAssessmentData {
   title: string;
   description?: string;
   topic: string;
-  questions: Omit<AssessmentQuestion, 'id' | 'order'>[];
+  // Optional client-side question representation; not sent directly to the API.
+  questions?: Omit<AssessmentQuestion, 'id' | 'order'>[];
+  // Legacy client-side time field (minutes). Mapped to time_limit_minutes for the API.
   time_limit?: number;
+  // Preferred explicit API-compatible time field (minutes).
+  time_limit_minutes?: number;
   questions_data?: any[];
   results_visibility?: 'private' | 'opt_in_public' | 'public';
   is_public?: boolean;
+  /** ID of the Lesson this assessment is linked to (source_lesson FK). */
+  source_lesson?: number;
 }
 
 export interface AssessmentAttempt {
@@ -60,6 +66,8 @@ export interface AssessmentAttempt {
   answers: Record<number | string, string>; // question_id -> answer
   score?: number | string;
   max_score?: number;
+  time_taken_seconds?: number;
+  xp_earned?: number;
   answer_images?: Array<{ id: number; question_id: string; image: string; uploaded_at: string }>;
 }
 
@@ -183,7 +191,30 @@ export const assessmentService = {
 
   async createAssessment(data: CreateAssessmentData): Promise<Assessment> {
     try {
-      const response = await apiClient.post(API_ENDPOINTS.ASSESSMENTS, data);
+      // Normalize payload to match backend AssessmentSerializer expectations
+      const payload: any = {
+        title: data.title,
+        topic: data.topic,
+        description: data.description ?? '',
+        time_limit_minutes:
+          typeof data.time_limit_minutes === 'number'
+            ? data.time_limit_minutes
+            : typeof data.time_limit === 'number'
+              ? data.time_limit
+              : 30,
+        is_public: typeof data.is_public === 'boolean' ? data.is_public : true,
+        results_visibility: data.results_visibility ?? 'opt_in_public',
+      };
+
+      if (typeof data.source_lesson === 'number') {
+        payload.source_lesson = data.source_lesson;
+      }
+
+      if (Array.isArray(data.questions_data) && data.questions_data.length > 0) {
+        payload.questions_data = data.questions_data;
+      }
+
+      const response = await apiClient.post(API_ENDPOINTS.ASSESSMENTS, payload);
       return response.data;
     } catch (error) {
       console.error('Error creating assessment:', error);
@@ -257,4 +288,26 @@ export const assessmentService = {
       throw error;
     }
   },
+
+  async bulkCreateAssessments(assessments: CreateAssessmentData[]): Promise<Assessment[]> {
+    try {
+      const response = await apiClient.post(`${API_ENDPOINTS.ASSESSMENTS}bulk-create/`, {
+        assessments
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error bulk creating assessments:', error);
+      throw error;
+    }
+  },
+
+  async getAssessmentLeaderboard(assessmentId: number): Promise<AssessmentAttempt[]> {
+    try {
+      const response = await apiClient.get(`${API_ENDPOINTS.ASSESSMENTS}${assessmentId}/leaderboard/`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching assessment leaderboard:', error);
+      throw error;
+    }
+  }
 };

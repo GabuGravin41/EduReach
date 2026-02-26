@@ -113,14 +113,13 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
   const [paymentMessage, setPaymentMessage] = useState<string>('');
   const [mpesaPhone, setMpesaPhone] = useState('');
   const [cardToken, setCardToken] = useState('');
+  const [isEnterpriseModalOpen, setIsEnterpriseModalOpen] = useState(false);
+  const [enterpriseName, setEnterpriseName] = useState('');
+  const [enterpriseEmail, setEnterpriseEmail] = useState('');
+  const [enterpriseMessage, setEnterpriseMessage] = useState('');
+  const [enterpriseFormMessage, setEnterpriseFormMessage] = useState('');
 
   const selectedPrice = tiers[selectedTier].monthlyPrice[currency];
-
-  const subscriptionQuery = useQuery<Subscription>({
-    queryKey: ['subscription'],
-    queryFn: paymentService.getSubscription,
-    retry: false,
-  });
 
   const methodsQuery = useQuery<PaymentMethod[]>({
     queryKey: ['payment-methods'],
@@ -172,6 +171,20 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     },
   });
 
+  const enterpriseInquiryMutation = useMutation({
+    mutationFn: paymentService.submitEnterpriseInquiry,
+    onSuccess: (res) => {
+      setEnterpriseFormMessage(res.detail || 'Inquiry sent successfully.');
+      setEnterpriseName('');
+      setEnterpriseEmail('');
+      setEnterpriseMessage('');
+    },
+    onError: (error: any) => {
+      const detail = error?.response?.data?.detail || 'Could not send inquiry right now. Please try again.';
+      setEnterpriseFormMessage(detail);
+    },
+  });
+
   const normalizeTier = (tier: unknown): UserTier => {
     switch (tier) {
       case 'free':
@@ -185,6 +198,14 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     }
   };
   const safeCurrentTier = normalizeTier(currentTier);
+
+  const subscriptionQuery = useQuery<Subscription | null>({
+    queryKey: ['subscription'],
+    queryFn: paymentService.getSubscription,
+    retry: false,
+    // Avoid unnecessary 404 calls for free users who don't have subscriptions.
+    enabled: safeCurrentTier !== 'free',
+  });
 
   const currentPlanLabel = useMemo(() => {
     if (safeCurrentTier !== 'free') return safeCurrentTier.replace('_', ' ');
@@ -251,6 +272,16 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     cancelSubscriptionMutation.mutate();
   };
 
+  const handleSubmitEnterpriseInquiry = (e: React.FormEvent) => {
+    e.preventDefault();
+    setEnterpriseFormMessage('');
+    enterpriseInquiryMutation.mutate({
+      name: enterpriseName.trim(),
+      email: enterpriseEmail.trim(),
+      message: enterpriseMessage.trim(),
+    });
+  };
+
   useEffect(() => {
     const methods = Array.isArray(methodsQuery.data) ? methodsQuery.data : [];
     if (!selectedMethodId && methods.length > 0) {
@@ -303,6 +334,28 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                     Cancel Subscription
                 </Button>
             )}
+        </div>
+      </div>
+
+      {/* Enterprise quick access */}
+      <div className="rounded-xl border border-indigo-200 dark:border-indigo-900/40 bg-gradient-to-r from-indigo-50 to-cyan-50 dark:from-indigo-900/20 dark:to-cyan-900/10 p-5">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Enterprise / Institution</p>
+            <p className="text-sm text-slate-700 dark:text-slate-200 mt-1">
+              Need bulk onboarding for a full classroom, school, or academy? Talk to us for institution pricing and rollout support.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setEnterpriseFormMessage('');
+              setIsEnterpriseModalOpen(true);
+            }}
+            className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+          >
+            Contact Sales
+          </button>
         </div>
       </div>
 
@@ -400,12 +453,16 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                             Includes onboarding support, bulk seats, admin controls, and custom onboarding for Olympiad/coaching programs.
                         </p>
                     </div>
-                    <a
-                        href="mailto:hello@edureach.app?subject=Enterprise%20Plan%20Inquiry"
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setEnterpriseFormMessage('');
+                            setIsEnterpriseModalOpen(true);
+                        }}
                         className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
                     >
                         Contact Sales
-                    </a>
+                    </button>
                 </div>
             </div>
         </div>
@@ -476,14 +533,15 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
 
                 {selectedMethod?.name === 'card' && (
                     <div className="animate-in fade-in slide-in-from-top-2">
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Card Token (Demo)</label>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Card (test mode)</label>
                         <input
                             type="text"
                             value={cardToken}
                             onChange={(e) => setCardToken(e.target.value)}
-                            placeholder="tok_visa_demo"
+                            placeholder="Use tok_visa or test token from your provider"
                             className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
+                        <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">Test payments only. Live card processing will be enabled at launch.</p>
                     </div>
                 )}
 
@@ -558,6 +616,81 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
             </div>
         </div>
       </div>
+
+      {isEnterpriseModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Enterprise Inquiry</h3>
+              <button
+                type="button"
+                onClick={() => setIsEnterpriseModalOpen(false)}
+                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+                aria-label="Close dialog"
+              >
+                <XIcon className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitEnterpriseInquiry} className="px-5 py-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Your Name</label>
+                <input
+                  type="text"
+                  required
+                  value={enterpriseName}
+                  onChange={(e) => setEnterpriseName(e.target.value)}
+                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Jane Doe"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Email</label>
+                <input
+                  type="email"
+                  required
+                  value={enterpriseEmail}
+                  onChange={(e) => setEnterpriseEmail(e.target.value)}
+                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="you@school.ac.ke"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Inquiry Details</label>
+                <textarea
+                  required
+                  minLength={10}
+                  rows={5}
+                  value={enterpriseMessage}
+                  onChange={(e) => setEnterpriseMessage(e.target.value)}
+                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Tell us about your institution size, needs, and timeline."
+                />
+              </div>
+
+              {enterpriseFormMessage && (
+                <p className="text-sm text-indigo-700 dark:text-indigo-300">{enterpriseFormMessage}</p>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setIsEnterpriseModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  isLoading={enterpriseInquiryMutation.isPending}
+                >
+                  Send Inquiry
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

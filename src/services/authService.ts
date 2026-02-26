@@ -24,7 +24,17 @@ export interface User {
   tier: UserTier;
   bio?: string;
   avatar?: string;
+  xp_points: number;
+  level: number;
+  show_xp_publicly: boolean;
+  total_time_spent_seconds: number;
   created_at: string;
+}
+
+export interface LeaderboardData {
+  top_users: User[];
+  user_rank: number | null;
+  user_stats: User;
 }
 
 const CACHED_USER_KEY = 'cached_user';
@@ -87,6 +97,11 @@ export const authService = {
     const user = response.data as User;
     localStorage.setItem(CACHED_USER_KEY, JSON.stringify(user));
     return user;
+  },
+
+  async getLeaderboard(): Promise<LeaderboardData> {
+    const response = await apiClient.get('/users/leaderboard/');
+    return response.data;
   },
 
   isAuthenticated(): boolean {

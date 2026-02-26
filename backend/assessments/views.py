@@ -96,6 +96,44 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         
         return Response(serializer.data)
 
+    @action(detail=True, methods=['get'])
+    def leaderboard(self, request, pk=None):
+        """Leaderboard for a specific assessment."""
+        assessment = self.get_object()
+        # Top 10 graded attempts by percentage and time
+        top_attempts = assessment.attempts.filter(
+            status=UserAttempt.Status.GRADED
+        ).order_by('-percentage', 'time_taken_seconds')[:10]
+        
+        serializer = UserAttemptSerializer(top_attempts, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'])
+    def bulk_create(self, request):
+        """Bulk create multiple assessments (e.g., for Olympiad prep)."""
+        assessments_data = request.data.get('assessments', [])
+        if not assessments_data:
+            return Response({'error': 'No assessments data provided'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        created_assessments = []
+        user = request.user
+        usage = user.get_current_usage()
+        
+        for data in assessments_data:
+            if not usage.can_create_assessment():
+                break
+                
+            serializer = AssessmentSerializer(data=data)
+            if serializer.is_valid():
+                assessment = serializer.save(creator=user)
+                created_assessments.append(serializer.data)
+                usage.assessments_created += 1
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        usage.save()
+        return Response(created_assessments, status=status.HTTP_201_CREATED)
+
     @action(detail=True, methods=['post'])
     def start(self, request, pk=None):
         """Start an attempt at an assessment."""

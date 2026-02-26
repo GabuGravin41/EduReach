@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import communityAnalyticsService, { LeaderboardEntry, TrendingTopic } from '../services/communityAnalyticsService';
+import communityAnalyticsService, { LeaderboardData, TrendingTopic } from '../services/communityAnalyticsService';
 
 const COMMUNITY_ANALYTICS_KEYS = {
   leaderboard: ['community', 'leaderboard'] as const,
@@ -7,7 +7,7 @@ const COMMUNITY_ANALYTICS_KEYS = {
 };
 
 export const useCommunityLeaderboard = () => {
-  return useQuery<LeaderboardEntry[]>({
+  return useQuery<LeaderboardData>({
     queryKey: COMMUNITY_ANALYTICS_KEYS.leaderboard,
     queryFn: communityAnalyticsService.getLeaderboard,
     staleTime: 5 * 60 * 1000,

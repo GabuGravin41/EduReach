@@ -4,6 +4,7 @@ import { PlusCircleIcon } from './icons/PlusCircleIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
 
 import type { PassageQuestion, PassageSubQuestion } from '../types';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface PassageQuestionCreatorProps {
     question: PassageQuestion;
@@ -23,12 +24,12 @@ export const PassageQuestionCreator: React.FC<PassageQuestionCreatorProps> = ({
 
     const updateQuestion = (field: keyof PassageQuestion, value: any) => {
         const updatedQuestion = { ...question, [field]: value };
-        
+
         // Auto-calculate word count when passage text changes
         if (field === 'passage_text') {
             updatedQuestion.word_count = value.trim().split(/\s+/).length;
         }
-        
+
         onQuestionChange(updatedQuestion);
     };
 
@@ -41,7 +42,7 @@ export const PassageQuestionCreator: React.FC<PassageQuestionCreatorProps> = ({
             correct_answer: 0,
             points: 1
         };
-        
+
         updateQuestion('questions', [...question.questions, newSubQuestion]);
         setShowQuestionBuilder(true);
     };
@@ -113,10 +114,15 @@ export const PassageQuestionCreator: React.FC<PassageQuestionCreatorProps> = ({
                     <textarea
                         value={subQuestion.question_text}
                         onChange={(e) => updateSubQuestion(subQuestion.id, 'question_text', e.target.value)}
-                        placeholder="Enter your question about the passage..."
+                        placeholder="Enter your question. Use LaTeX for math."
                         className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 resize-none"
                         rows={2}
                     />
+                    {subQuestion.question_text.trim() && (
+                        <div className="mt-2 p-2 bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-600 text-xs">
+                            <MarkdownRenderer content={subQuestion.question_text} />
+                        </div>
+                    )}
                 </div>
 
                 {/* Options for Multiple Choice */}
@@ -134,17 +140,24 @@ export const PassageQuestionCreator: React.FC<PassageQuestionCreatorProps> = ({
                                     onChange={() => updateSubQuestion(subQuestion.id, 'correct_answer', optionIndex)}
                                     className="w-4 h-4 text-indigo-600"
                                 />
-                                <input
-                                    type="text"
-                                    value={option}
-                                    onChange={(e) => {
-                                        const newOptions = [...(subQuestion.options || [])];
-                                        newOptions[optionIndex] = e.target.value;
-                                        updateSubQuestion(subQuestion.id, 'options', newOptions);
-                                    }}
-                                    placeholder={`Option ${optionIndex + 1}`}
-                                    className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
-                                />
+                                <div className="flex-1 space-y-2">
+                                    <input
+                                        type="text"
+                                        value={option}
+                                        onChange={(e) => {
+                                            const newOptions = [...(subQuestion.options || [])];
+                                            newOptions[optionIndex] = e.target.value;
+                                            updateSubQuestion(subQuestion.id, 'options', newOptions);
+                                        }}
+                                        placeholder={`Option ${optionIndex + 1}`}
+                                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                                    />
+                                    {option.trim() && (
+                                        <div className="px-2 py-1 bg-white dark:bg-slate-800 rounded border border-slate-100 dark:border-slate-600 text-[10px]">
+                                            <MarkdownRenderer content={option} />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -285,10 +298,16 @@ export const PassageQuestionCreator: React.FC<PassageQuestionCreatorProps> = ({
                     value={question.passage_text}
                     onChange={(e) => updateQuestion('passage_text', e.target.value)}
                     onMouseUp={handleTextSelection}
-                    placeholder="Paste or type the reading passage here. Students will read this text and answer questions based on it..."
+                    placeholder="Paste or type the reading passage here. Use LaTeX for math."
                     className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 resize-none"
                     rows={8}
                 />
+                {question.passage_text.trim() && (
+                    <div className="mt-2 p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600 prose dark:prose-invert max-w-none">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Passage Preview</p>
+                        <MarkdownRenderer content={question.passage_text} />
+                    </div>
+                )}
                 <div className="flex justify-between items-center mt-2 text-xs text-slate-500 dark:text-slate-400">
                     <span>{question.word_count} words • ~{getEstimatedReadingTime()} min read</span>
                     {selectedText && (
@@ -314,7 +333,7 @@ export const PassageQuestionCreator: React.FC<PassageQuestionCreatorProps> = ({
                     </button>
                 </div>
 
-                {question.questions.map((subQuestion, index) => 
+                {question.questions.map((subQuestion, index) =>
                     renderSubQuestionEditor(subQuestion, index)
                 )}
 
@@ -365,8 +384,8 @@ export const PassageQuestionCreator: React.FC<PassageQuestionCreatorProps> = ({
                             {question.passage_text.substring(0, 150)}...
                         </p>
                         <div className="text-xs text-slate-500 dark:text-slate-400">
-                            {question.questions.length} question{question.questions.length !== 1 ? 's' : ''} • 
-                            {getTotalPoints()} points • 
+                            {question.questions.length} question{question.questions.length !== 1 ? 's' : ''} •
+                            {getTotalPoints()} points •
                             {question.difficulty} difficulty
                             {question.reading_time_limit && ` • ${question.reading_time_limit} min limit`}
                         </div>

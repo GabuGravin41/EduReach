@@ -1,10 +1,16 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { viewToPath, pathnameToView, ROUTES, type View } from './src/routes';
+
+export type { View };
 import { Assessment } from './types';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { AuthProvider } from './src/contexts/AuthContext';
+import { useAuth } from './src/contexts/useAuth';
 import { authService } from './src/services/authService';
 import { useCourses, useCreateCourse, useCourse, COURSE_KEYS, useMyCourses } from './src/hooks/useCourses';
-import { useAssessments, useCreateAssessment } from './src/hooks/useAssessments';
+import { useAssessments, useCreateAssessment, ASSESSMENT_KEYS } from './src/hooks/useAssessments';
+import { useUsage, USAGE_QUERY_KEY } from './src/hooks/useUsage';
 import { usePosts, useCreatePost, useToggleLike, useAddComment, useDeletePost } from './src/hooks/useCommunity';
 import { Sidebar } from './components/Sidebar';
 import { LoginScreen } from './components/LoginScreen';
@@ -33,6 +39,7 @@ const UserProfilePage = lazy(() => import('./components/UserProfilePage').then(m
 const EnhancedAssessmentsPage = lazy(() => import('./components/EnhancedAssessmentsPage').then(module => ({ default: module.EnhancedAssessmentsPage })));
 const EnhancedCreateExamPage = lazy(() => import('./components/EnhancedCreateExamPage').then(module => ({ default: module.EnhancedCreateExamPage })));
 const StudyGroupsPage = lazy(() => import('./components/StudyGroupsPage').then(module => ({ default: module.StudyGroupsPage })));
+const BulkCreateExamPage = lazy(() => import('./components/BulkCreateExamPage').then(module => ({ default: module.BulkCreateExamPage })));
 
   
 export type UserTier = 'free' | 'learner' | 'pro' | 'pro_plus' | 'admin';
@@ -42,24 +49,6 @@ const normalizeUserTier = (value: unknown): UserTier => {
     ? (value as UserTier)
     : 'free';
 };
-
-export type View =
-  | 'dashboard' 
-  | 'courses' 
-  | 'create_course' 
-  | 'course_detail' 
-  | 'assessments' 
-  | 'create_exam' 
-  | 'generate_ai_quiz' 
-  | 'exam_detail' 
-  | 'community' 
-  | 'study_groups' 
-  | 'pricing'
-  | 'billing' 
-  | 'profile' 
-  | 'admin_panel' 
-  | 'setup_session' 
-  | 'learning_session';
 
 interface SessionData {
     videoId: string;
@@ -170,18 +159,33 @@ const CommunityView: React.FC<CommunityViewProps> = ({ userTier, username }) => 
 
 const AppContent: React.FC = () => {
     const { user, logout, isLoading } = useAuth();
+    const location = useLocation();
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
-    const [currentView, setCurrentView] = useState<View>(() => {
-      if (typeof window === 'undefined') return 'dashboard';
-      const saved = localStorage.getItem(LAST_VIEW_KEY);
-      const allowed: View[] = [
-        'dashboard', 'courses', 'create_course', 'course_detail', 'assessments',
-        'create_exam', 'generate_ai_quiz', 'exam_detail', 'community',
-        'study_groups', 'pricing', 'billing', 'profile', 'admin_panel',
-        'setup_session', 'learning_session',
-      ];
-      return allowed.includes(saved as View) ? (saved as View) : 'dashboard';
-    });
+
+    const route = pathnameToView(location.pathname);
+    const currentView = route.view;
+    const selectedCourseId = route.courseId;
+    const selectedExamId = route.examId;
+
+    useEffect(() => {
+      const path = location.pathname || '/';
+      if (path === '/' || path === '') {
+        navigate(ROUTES.dashboard, { replace: true });
+        return;
+      }
+      // Fix literal :courseId or :examId in URL (invalid) -> redirect to list
+      if (path.includes('/:courseId') || path === '/courses/:courseId') {
+        navigate(ROUTES.courses, { replace: true });
+      } else if (path.includes('/:examId') || path === '/assessments/:examId') {
+        navigate(ROUTES.assessments, { replace: true });
+      }
+    }, [location.pathname, navigate]);
+
+    const setView = (view: View, opts?: { courseId?: number; examId?: number; state?: object }) => {
+      const path = viewToPath(view, { courseId: opts?.courseId ?? (view === 'course_detail' ? selectedCourseId ?? undefined : undefined), examId: opts?.examId ?? (view === 'exam_detail' ? selectedExamId ?? undefined : undefined) });
+      navigate(path, opts?.state ? { state: opts.state } : undefined);
+    };
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [userTier, setUserTier] = useState<UserTier>('free');
@@ -190,7 +194,9 @@ const AppContent: React.FC = () => {
     const [isOffline, setIsOffline] = useState<boolean>(typeof navigator !== 'undefined' ? !navigator.onLine : false);
     const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
     const [showInstallPrompt, setShowInstallPrompt] = useState(false);
-    const [showUpdateToast, setShowUpdateToast] = useState(false);
+    const [updateToastVisible, setUpdateToastVisible] = useState(false);
+    const [updateCountdown, setUpdateCountdown] = useState(30);
+    const updateCountdownRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
     const [courseCreationToast, setCourseCreationToast] = useState<CourseCreationToast>(null);
     const [recentlyCreatedCourseId, setRecentlyCreatedCourseId] = useState<number | null>(null);
     const [cachedCourses, setCachedCourses] = useState<Course[]>(() => {
@@ -203,9 +209,10 @@ const AppContent: React.FC = () => {
       }
     });
     
-    // Fetch courses from backend using React Query
+    // Fetch courses and usage from backend
     const { data: coursesData = [] } = useCourses();
     const { data: assessmentsData = [] } = useAssessments();
+    const { data: usageData } = useUsage(!!user);
     const createAssessmentMutation = useCreateAssessment();
     const createCourseMutation = useCreateCourse();
     const apiCourses = Array.isArray(coursesData) ? coursesData : [];
@@ -235,18 +242,6 @@ const AppContent: React.FC = () => {
         { id: 1, author: "Alice", avatar: UserCircleIcon, time: "2h ago", content: "Just finished the React course! Highly recommend it.", likes: 5, comments: [{author: "Bob", content: "Nice job!"}], liked: false }
     ]);
     
-    const [selectedCourseId, setSelectedCourseId] = useState<number | null>(() => {
-      if (typeof window === 'undefined') return null;
-      const raw = localStorage.getItem(LAST_SELECTED_COURSE_KEY);
-      const parsed = raw ? Number(raw) : NaN;
-      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-    });
-    const [selectedExamId, setSelectedExamId] = useState<number | null>(() => {
-      if (typeof window === 'undefined') return null;
-      const raw = localStorage.getItem(LAST_SELECTED_EXAM_KEY);
-      const parsed = raw ? Number(raw) : NaN;
-      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-    });
     const [sessionData, setSessionData] = useState<SessionData | null>(null);
     const selectedCourseQuery = useCourse(selectedCourseId ?? 0);
   
@@ -329,41 +324,41 @@ const AppContent: React.FC = () => {
     }, []);
 
     useEffect(() => {
-      const onSwUpdateAvailable = () => setShowUpdateToast(true);
+      const onSwUpdateAvailable = () => {
+        setUpdateToastVisible(true);
+        setUpdateCountdown(30);
+      };
       window.addEventListener('sw:update-available', onSwUpdateAvailable as EventListener);
       return () => {
         window.removeEventListener('sw:update-available', onSwUpdateAvailable as EventListener);
       };
     }, []);
 
+    // Auto-refresh countdown
+    useEffect(() => {
+      if (!updateToastVisible) {
+        if (updateCountdownRef.current) clearInterval(updateCountdownRef.current);
+        return;
+      }
+      updateCountdownRef.current = setInterval(() => {
+        setUpdateCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(updateCountdownRef.current!);
+            handleRefreshToUpdate();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => { if (updateCountdownRef.current) clearInterval(updateCountdownRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [updateToastVisible]);
+
     useEffect(() => {
       if (!courseCreationToast) return;
       const timeout = window.setTimeout(() => setCourseCreationToast(null), 4000);
       return () => window.clearTimeout(timeout);
     }, [courseCreationToast]);
-
-    useEffect(() => {
-      if (typeof window === 'undefined') return;
-      localStorage.setItem(LAST_VIEW_KEY, currentView);
-    }, [currentView]);
-
-    useEffect(() => {
-      if (typeof window === 'undefined') return;
-      if (selectedCourseId) {
-        localStorage.setItem(LAST_SELECTED_COURSE_KEY, String(selectedCourseId));
-      } else {
-        localStorage.removeItem(LAST_SELECTED_COURSE_KEY);
-      }
-    }, [selectedCourseId]);
-
-    useEffect(() => {
-      if (typeof window === 'undefined') return;
-      if (selectedExamId) {
-        localStorage.setItem(LAST_SELECTED_EXAM_KEY, String(selectedExamId));
-      } else {
-        localStorage.removeItem(LAST_SELECTED_EXAM_KEY);
-      }
-    }, [selectedExamId]);
 
     useEffect(() => {
       if (!recentlyCreatedCourseId) return;
@@ -432,13 +427,12 @@ const AppContent: React.FC = () => {
           await queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() });
           await queryClient.invalidateQueries({ queryKey: COURSE_KEYS.my() });
           await queryClient.invalidateQueries({ queryKey: COURSE_KEYS.detail(createdCourse.id) });
-          setSelectedCourseId(createdCourse.id);
           setRecentlyCreatedCourseId(createdCourse.id);
           setCourseCreationToast({
             type: 'success',
             message: `Course "${createdCourse.title}" created with ${lessons.length} lesson${lessons.length === 1 ? '' : 's'}.`,
           });
-          setCurrentView('courses');
+          setView('courses');
         } catch (error) {
           console.error('Failed to create course:', error);
           const message =
@@ -457,8 +451,7 @@ const AppContent: React.FC = () => {
         await courseService.deleteCourse(courseId);
         await queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() });
         await queryClient.invalidateQueries({ queryKey: COURSE_KEYS.my() });
-        setCurrentView('courses');
-        setSelectedCourseId(null);
+        setView('courses');
         setCourseCreationToast({
           type: 'success',
           message: 'Course deleted successfully.',
@@ -504,27 +497,50 @@ const AppContent: React.FC = () => {
     };
   
     const handleExamCreated = async (newExam: any) => {
-        try {
-          await createAssessmentMutation.mutateAsync({
-            title: newExam.title,
-            topic: newExam.topic || 'General',
-            description: newExam.description || '',
-            time_limit: newExam.time || newExam.time_limit_minutes || 30,
-            questions: [],
-            questions_data: newExam.questions_data || [],
-          });
-          setCurrentView('assessments');
-        } catch (error) {
-          const exam: Assessment = {
-            ...newExam,
-            id: Date.now(),
-            status: 'pending',
-            score: '-',
-            questions: newExam.questions || (newExam.questions_data ? newExam.questions_data.length : 0),
-          };
-          setLocalAssessments((prev) => [...prev, exam]);
-          setCurrentView('assessments');
+      try {
+        await createAssessmentMutation.mutateAsync({
+          title: newExam.title,
+          topic: newExam.topic || 'General',
+          description: newExam.description || '',
+          time_limit_minutes: newExam.time_limit_minutes ?? newExam.time ?? 30,
+          questions_data: newExam.questions_data || [],
+          is_public: typeof newExam.is_public === 'boolean' ? newExam.is_public : true,
+          results_visibility: newExam.results_visibility ?? 'opt_in_public',
+          ...(newExam.source_lesson ? { source_lesson: newExam.source_lesson } : {}),
+        });
+        // Ensure fresh data appears on the assessments page
+        await queryClient.invalidateQueries({ queryKey: ASSESSMENT_KEYS.lists() });
+        await queryClient.invalidateQueries({ queryKey: ASSESSMENT_KEYS.my() });
+        await queryClient.refetchQueries({ queryKey: ASSESSMENT_KEYS.lists() });
+        setView('assessments');
+        setCourseCreationToast({
+          type: 'success',
+          message: 'Assessment saved successfully! It now appears in your list.',
+        });
+      } catch (error: any) {
+        const status = error?.response?.status;
+        if (status === 401) {
+          setSessionExpiredNotice('Your session expired. Please log in again before creating assessments.');
+          await queryClient.invalidateQueries({ queryKey: ASSESSMENT_KEYS.lists() });
+          setView('assessments');
+          return;
         }
+
+        const backendMessage =
+          error?.response?.data?.detail ||
+          error?.response?.data?.error ||
+          error?.response?.data?.non_field_errors?.[0];
+
+        setCourseCreationToast({
+          type: 'error',
+          message:
+            backendMessage ||
+            'Failed to save assessment. Please check your connection and try again.',
+        });
+
+        // Do not create a fake local assessment here; user expects real persistence.
+        setView('assessments');
+      }
     };
 
     const handleInstallApp = async () => {
@@ -573,27 +589,27 @@ const AppContent: React.FC = () => {
     const renderContent = () => {
       switch (currentView) {
         case 'dashboard':
-          return <Dashboard onStartSession={() => setCurrentView('setup_session')} onSelectCourse={(id) => { setSelectedCourseId(id); setCurrentView('course_detail'); }} userTier={userTier} />;
+          return <Dashboard onStartSession={() => setView('setup_session')} onSelectCourse={(id) => setView('course_detail', { courseId: id })} userTier={userTier} />;
         case 'courses':
-          return <MyCoursesPage courses={courses} onSelectCourse={(id) => { setSelectedCourseId(id); setCurrentView('course_detail'); }} onNewCourse={() => setCurrentView('create_course')} userTier={userTier} currentUserId={user?.id} highlightedCourseId={recentlyCreatedCourseId ?? undefined} />;
+          return <MyCoursesPage courses={courses} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onNewCourse={() => setView('create_course')} userTier={userTier} currentUserId={user?.id} highlightedCourseId={recentlyCreatedCourseId ?? undefined} />;
         case 'create_course':
-          return <CreateCoursePage onCourseCreated={handleCourseCreated} onCancel={() => setCurrentView('courses')} lessonLimit={limits.lessonsPerCourse} setView={setCurrentView} />;
+          return <CreateCoursePage onCourseCreated={handleCourseCreated} onCancel={() => setView('courses')} lessonLimit={limits.lessonsPerCourse} setView={setView} />;
         case 'course_detail':
            if (!selectedCourseId) {
-             return <MyCoursesPage courses={courses} onSelectCourse={(id) => { setSelectedCourseId(id); setCurrentView('course_detail'); }} onNewCourse={() => setCurrentView('create_course')} userTier={userTier} currentUserId={user?.id} highlightedCourseId={recentlyCreatedCourseId ?? undefined} />;
+             return <MyCoursesPage courses={courses} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onNewCourse={() => setView('create_course')} userTier={userTier} currentUserId={user?.id} highlightedCourseId={recentlyCreatedCourseId ?? undefined} />;
            }
            const courseFromList = courses.find(c => c.id === selectedCourseId);
            const course = selectedCourseQuery.data ?? courseFromList;
            return course ? (
               <CourseDetailPage 
                   course={course} 
-                  setView={setCurrentView} 
-                  onStartLesson={(data) => { setSessionData(data); setCurrentView('learning_session'); }} 
+                  setView={setView} 
+                  onStartLesson={(data) => { setSessionData(data); setView('learning_session', { state: { sessionData: data } }); }} 
                   onAddLesson={handleAddLessonToCourse}
                   userTier={userTier} 
                   currentUserId={user?.id}
                   assessments={assessments} 
-                  onSelectExam={(id) => { setSelectedExamId(id); setCurrentView('exam_detail'); }} 
+                  onSelectExam={(id) => setView('exam_detail', { examId: id })} 
                   onUpdateCourse={handleUpdateCourseDetails}
                   onUpdateLesson={(cId, lId, updates) => {
                     queryClient.invalidateQueries({ queryKey: COURSE_KEYS.detail(cId) });
@@ -602,18 +618,32 @@ const AppContent: React.FC = () => {
                   }}
                   onDeleteCourse={handleDeleteCourse}
               />
-           ) : <div>Course not found</div>;
+           ) : (
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-10 text-center">
+                <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-2">Course not found</h2>
+                <p className="text-slate-500 dark:text-slate-400 mb-4">This course may have been removed or you don&apos;t have access.</p>
+                <button onClick={() => setView('courses')} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Back to Courses</button>
+              </div>
+           );
         case 'assessments':
-           return <EnhancedAssessmentsPage assessments={assessments} onSelectExam={(id) => { setSelectedExamId(id); setCurrentView('exam_detail'); }} setView={setCurrentView} userTier={userTier} tierUsage={{assessments_used: assessments.length, assessments_limit: userTier === 'free' ? 2 : Infinity, resets_at: '2099-12-31T23:59:59.000Z'}} />;
+           return <EnhancedAssessmentsPage assessments={assessments} onSelectExam={(id) => setView('exam_detail', { examId: id })} setView={setView} onBulkCreate={() => setView('bulk_create_exam')} userTier={userTier} tierUsage={usageData ?? { assessments_used: 0, assessments_limit: userTier === 'free' ? 2 : Infinity, resets_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }} />;
         case 'create_exam':
-           return <CreateExamPage onExamCreated={handleExamCreated} onCancel={() => setCurrentView('assessments')} userTier={userTier} courses={courses} />;
+           return <CreateExamPage onExamCreated={handleExamCreated} onCancel={() => setView('assessments')} userTier={userTier} courses={courses} />;
         case 'generate_ai_quiz':
-           return <GenerateAIQuizPage onQuizCreated={handleExamCreated} onCancel={() => setCurrentView('assessments')} courses={courses} />;
+           return <GenerateAIQuizPage onQuizCreated={handleExamCreated} onCancel={() => setView('assessments')} courses={courses} />;
         case 'pricing':
-           return <PricingPage currentTier={userTier} onSelectTier={() => setCurrentView('billing')} />;
+           return <PricingPage currentTier={userTier} onSelectTier={() => setView('billing')} />;
         case 'exam_detail':
            const exam = assessments.find(a => a.id === selectedExamId);
-           return exam ? <ExamDetailPage exam={exam} setView={setCurrentView} /> : <div>Exam not found</div>;
+           return exam ? (
+             <ExamDetailPage exam={exam} setView={setView} />
+           ) : (
+             <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-10 text-center">
+               <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-2">Assessment not found</h2>
+               <p className="text-slate-500 dark:text-slate-400 mb-4">It may have been removed or you don&apos;t have access.</p>
+               <button onClick={() => setView('assessments')} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Back to Assessments</button>
+             </div>
+           );
         case 'community':
            return <CommunityView userTier={userTier} username={user.username} />;
         case 'study_groups':
@@ -624,6 +654,8 @@ const AppContent: React.FC = () => {
            return <UserProfilePage />;
         case 'admin_panel':
            return <AdminDashboard stats={{totalUsers: 100, coursesCreated: courses.length, activeAssessments: assessments.length}} />;
+        case 'bulk_create_exam':
+           return <BulkCreateExamPage onCancel={() => setView('assessments')} onBatchCreated={() => setView('assessments')} />;
         case 'setup_session':
            return <SetupSession onSessionCreated={async (data) => { 
              // Refresh courses after session is created (since a new personal course might have been created)
@@ -633,14 +665,15 @@ const AppContent: React.FC = () => {
              await queryClient.refetchQueries({ queryKey: COURSE_KEYS.lists() });
              console.log('Query refetched, new courses:', courses);
              setSessionData(data); 
-             setCurrentView('learning_session'); 
+             setView('learning_session', { state: { sessionData: data } }); 
            }} courses={courses} />;
-        case 'learning_session':
-           if (sessionData) {
+        case 'learning_session': {
+           const learningSessionData = (location.state as { sessionData?: SessionData } | null)?.sessionData ?? sessionData;
+           if (learningSessionData) {
                return <LearningSession 
-                  videoId={sessionData.videoId} 
-                  transcript={sessionData.transcript} 
-                  courseId={sessionData.courseId || 0}
+                  videoId={learningSessionData.videoId} 
+                  transcript={learningSessionData.transcript} 
+                  courseId={learningSessionData.courseId || 0}
                   currentLesson={null}
                   onUpdateLesson={(cId, lId, updates) => {
                       queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() });
@@ -650,9 +683,20 @@ const AppContent: React.FC = () => {
                   }}
                />;
            }
-           return <div>No session data</div>;
+           return (
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-10 text-center">
+                <p className="text-slate-600 dark:text-slate-400 mb-4">No session data. Start a lesson from a course or the dashboard.</p>
+                <button onClick={() => setView('dashboard')} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Go to Dashboard</button>
+              </div>
+           );
+        }
         default:
-          return <div>View not found</div>;
+          return (
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-10 text-center">
+              <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-2">Page not found</h2>
+              <button onClick={() => setView('dashboard')} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Go to Dashboard</button>
+            </div>
+          );
       }
     };
   
@@ -660,9 +704,9 @@ const AppContent: React.FC = () => {
       <div className="flex h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-hidden">
         <Sidebar 
           currentView={currentView} 
-          setView={setCurrentView} 
+          setView={setView} 
           onLogout={async () => { await logout(); }} 
-          onNewSession={() => setCurrentView('setup_session')}
+          onNewSession={() => setView('setup_session')}
           isCollapsed={isSidebarCollapsed}
           setIsCollapsed={setIsSidebarCollapsed}
           userTier={userTier}
@@ -702,19 +746,27 @@ const AppContent: React.FC = () => {
                   Offline mode: using cached data. Some actions need backend connection.
                 </div>
               )}
-              {showUpdateToast && (
-                <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900 flex items-center justify-between gap-3">
-                  <span>New version available.</span>
+              {updateToastVisible && (
+                <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900 flex items-center justify-between gap-3 shadow-md">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-600 text-white text-xs font-bold flex-shrink-0">
+                      {updateCountdown}
+                    </span>
+                    <span>New version available — refreshing in <strong>{updateCountdown}s</strong></span>
+                  </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={handleRefreshToUpdate}
-                      className="rounded bg-emerald-600 text-white px-2.5 py-1 hover:bg-emerald-700"
+                      onClick={() => { setUpdateToastVisible(false); handleRefreshToUpdate(); }}
+                      className="rounded bg-emerald-600 text-white px-3 py-1.5 text-xs hover:bg-emerald-700 font-semibold"
                     >
-                      Refresh
+                      Refresh Now
                     </button>
                     <button
-                      onClick={() => setShowUpdateToast(false)}
-                      className="rounded border border-emerald-300 px-2.5 py-1 hover:bg-emerald-100"
+                      onClick={() => {
+                        if (updateCountdownRef.current) clearInterval(updateCountdownRef.current);
+                        setUpdateToastVisible(false);
+                      }}
+                      className="rounded border border-emerald-300 px-3 py-1.5 text-xs hover:bg-emerald-100"
                     >
                       Later
                     </button>
@@ -751,7 +803,18 @@ const AppContent: React.FC = () => {
                   </span>
                 </div>
               )}
-              {renderContent()}
+              <ErrorBoundary>
+                <Suspense fallback={
+                  <div className="flex items-center justify-center py-20">
+                    <div className="text-center">
+                      <div className="inline-block w-10 h-10 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3" />
+                      <p className="text-slate-500 dark:text-slate-400">Loading…</p>
+                    </div>
+                  </div>
+                }>
+                  {renderContent()}
+                </Suspense>
+              </ErrorBoundary>
            </main>
         </div>
       </div>
@@ -920,10 +983,10 @@ export default AppContent;
 //                     order: 0
 //                 }))
 //             });
-//             setCurrentView('courses');
+//             setView('courses');
 //         } catch (error) {
 //             console.error('Failed to create course:', error);
-//             setCurrentView('courses');
+//             setView('courses');
 //         }
 //     };
     
@@ -936,12 +999,12 @@ export default AppContent;
 //                 questions: [], // Will be populated from the quiz generation
 //                 time_limit: newExam.time
 //             });
-//             setCurrentView('assessments');
+//             setView('assessments');
 //         } catch (error) {
 //             console.error('Failed to create assessment:', error);
 //             // Fallback to mock data
 //             setLocalAssessments(prev => [...prev, { ...newExam, id: Date.now(), status: 'pending', score: '' }]);
-//             setCurrentView('assessments');
+//             setView('assessments');
 //         }
 //     };
 
@@ -1078,7 +1141,7 @@ export default AppContent;
 //                 // All users see all courses (public and their own)
 //                 return <MyCoursesPage courses={courses} onSelectCourse={handleSelectCourse} onNewCourse={navigateToCreateCourse} userTier={effectiveUserTier} />;
 //             case 'assessments':
-//                 return <EnhancedAssessmentsPage assessments={assessments} onSelectExam={handleSelectExam} setView={setCurrentView} userTier={effectiveUserTier} tierUsage={mockTierUsage} />;
+//                 return <EnhancedAssessmentsPage assessments={assessments} onSelectExam={handleSelectExam} setView={setView} userTier={effectiveUserTier} tierUsage={mockTierUsage} />;
 //             case 'community':
 //                 return <CommunityPage posts={communityPosts} onPostCreated={handlePostCreated} onToggleLike={handleToggleLike} onAddComment={handleAddComment} userTier={effectiveUserTier} onDeletePost={handleDeletePost} />;
 //             case 'study_groups':
@@ -1086,11 +1149,11 @@ export default AppContent;
 //             case 'new_session':
 //                 return <SetupSession onSessionCreated={handleSessionCreated} courses={courses} />;
 //             case 'create_course':
-//                 return <CreateCoursePage onCourseCreated={handleCourseCreated} onCancel={() => setCurrentView('courses')} lessonLimit={999} setView={setCurrentView}/>;
+//                 return <CreateCoursePage onCourseCreated={handleCourseCreated} onCancel={() => setView('courses')} lessonLimit={999} setView={setView}/>;
 //             case 'create_exam':
-//                 return <EnhancedCreateExamPage onExamCreated={handleExamCreated} onCancel={() => setCurrentView('assessments')} userTier={effectiveUserTier} />;
+//                 return <EnhancedCreateExamPage onExamCreated={handleExamCreated} onCancel={() => setView('assessments')} userTier={effectiveUserTier} />;
 //             case 'generate_ai_quiz':
-//                 return <GenerateAIQuizPage onQuizCreated={handleExamCreated} onCancel={() => setCurrentView('assessments')} userTier={effectiveUserTier} />;
+//                 return <GenerateAIQuizPage onQuizCreated={handleExamCreated} onCancel={() => setView('assessments')} userTier={effectiveUserTier} />;
 //             case 'pricing':
 //                 return <PricingPage currentTier={effectiveUserTier} onSelectTier={handlePlanSelected} />;
 //             case 'billing':
@@ -1144,7 +1207,7 @@ export default AppContent;
 //                 return null;
 //             case 'course_detail':
 //                 if (!selectedCourseId) {
-//                     setCurrentView('courses');
+//                     setView('courses');
 //                     return null;
 //                 }
 
@@ -1187,7 +1250,7 @@ export default AppContent;
 //                 return (
 //                     <CourseDetailPage
 //                         course={mergedCourse}
-//                         setView={setCurrentView}
+//                         setView={setView}
 //                         onStartLesson={handleSessionCreated}
 //                         onAddLesson={handleAddLessonToCourse}
 //                         onUpdateCourse={handleUpdateCourse}
@@ -1199,9 +1262,9 @@ export default AppContent;
 //             case 'exam_detail':
 //                 if (selectedExamId) {
 //                     const exam = assessments.find(e => e.id === selectedExamId);
-//                     return <ExamDetailPage exam={exam!} setView={setCurrentView} />;
+//                     return <ExamDetailPage exam={exam!} setView={setView} />;
 //                 }
-//                 setCurrentView('assessments');
+//                 setView('assessments');
 //                 return null;
 //             default:
 //                 return <Dashboard onStartSession={() => setCurrentView('new_session')} onSelectCourse={handleSelectCourse} userTier={effectiveUserTier} />;
@@ -1212,7 +1275,7 @@ export default AppContent;
 //         <div className="flex h-screen bg-gradient-to-br from-orange-50 to-amber-50 dark:bg-gradient-to-br dark:from-gray-900 dark:to-gray-800 text-gray-800 dark:text-gray-200">
 //             <Sidebar 
 //                 currentView={currentView}
-//                 setView={setCurrentView}
+//                 setView={setView}
 //                 onLogout={handleLogout}
 //                 onNewSession={() => {
 //                     setCurrentView('new_session');

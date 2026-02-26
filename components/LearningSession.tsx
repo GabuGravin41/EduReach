@@ -3,7 +3,7 @@ import { YouTubePlayer, type YouTubePlayerHandle } from './YouTubePlayer';
 import { AIAssistant } from './AIAssistant';
 import { StudyPanel } from './StudyPanel';
 import { ChatMessage, QuizQuestion, Assessment, Lesson } from '../types';
-import apiClient from '../services/api';
+import apiClient, { aiClient } from '../src/services/api';
 import { Button } from './ui/Button';
 import { PanelLeftIcon } from './icons/PanelLeftIcon';
 import { PanelRightIcon } from './icons/PanelRightIcon';
@@ -217,7 +217,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
          quizTranscript = [chunks[0], chunks[mid], chunks[chunks.length-1]].filter(Boolean).join('\n...\n');
       }
 
-      const response = await apiClient.post('/ai/generate-quiz/', {
+      const response = await aiClient.post('/ai/generate-quiz/', {
         transcript: quizTranscript,
         num_questions: 5,
         difficulty: 'medium'
@@ -291,7 +291,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
         optimizedMessage = `${message}\n\n[System: Keep response concise (2-3 sentences) unless asked for details.]`;
       }
 
-      const response = await apiClient.post('/ai/chat/', {
+      const response = await aiClient.post('/ai/chat/', {
         message: optimizedMessage,
         context: context
       });
@@ -303,8 +303,16 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
       ));
     } catch (err) {
       console.error('Chat error:', err);
+      const isTimeout = (err as any)?.code === 'ECONNABORTED';
       setMessages(prev => prev.map((msg, mapIdx) => 
-        mapIdx === placeholderIndex ? { ...msg, content: "I'm having trouble connecting right now. Please try again." } : msg
+        mapIdx === placeholderIndex
+          ? {
+              ...msg,
+              content: isTimeout
+                ? "Response took too long. Try a shorter question, or ask for a concise answer."
+                : "I'm having trouble connecting right now. Please try again.",
+            }
+          : msg
       ));
     } finally {
       setIsLoading(false);

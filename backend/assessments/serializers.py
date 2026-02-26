@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Assessment, Question, UserAttempt, AssessmentAnswerImage
 from users.serializers import UserSerializer
+from courses.models import Lesson
 
 
 class QuestionSerializer(serializers.ModelSerializer):
@@ -32,6 +33,11 @@ class AssessmentSerializer(serializers.ModelSerializer):
     questions = QuestionSerializer(many=True, read_only=True)
     question_count = serializers.SerializerMethodField()
     questions_data = serializers.ListField(write_only=True, required=False)
+    source_lesson = serializers.PrimaryKeyRelatedField(
+        queryset=Lesson.objects.all(),
+        required=False,
+        allow_null=True,
+    )
     
     class Meta:
         model = Assessment
@@ -39,9 +45,9 @@ class AssessmentSerializer(serializers.ModelSerializer):
             'id', 'title', 'topic', 'description', 'creator',
             'time_limit_minutes', 'is_public', 'results_visibility',
             'questions', 'questions_data', 'share_token',
-            'question_count', 'created_at', 'updated_at'
+            'question_count', 'source_lesson', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'creator', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'creator', 'share_token', 'created_at', 'updated_at']
 
     def get_question_count(self, obj):
         return obj.questions.count()
@@ -180,7 +186,7 @@ class AssessmentListSerializer(serializers.ModelSerializer):
             'id', 'title', 'topic', 'description',
             'creator_username', 'time_limit_minutes', 'share_token',
             'is_public', 'results_visibility',
-            'question_count', 'related_lessons', 'created_at'
+            'source_lesson', 'question_count', 'related_lessons', 'created_at'
         ]
 
     def get_question_count(self, obj):

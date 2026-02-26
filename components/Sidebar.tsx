@@ -80,7 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
   };
 
   const NavItem: React.FC<{ id: string; label: string; icon: React.ElementType }> = ({ id, label, icon: Icon }) => {
-    const isActive = currentView === id;
+    const isActive = currentView === id || (id === 'courses' && currentView === 'course_detail') || (id === 'assessments' && currentView === 'exam_detail');
     return (
       <button
         title={label}

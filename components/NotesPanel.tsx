@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNotesDownload } from '../src/hooks/useNotesDownload';
 import { DownloadIcon } from './icons/DownloadIcon';
 import apiClient from '../src/services/api';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface NotesPanelProps {
   notes: string;
@@ -13,8 +14,8 @@ interface NotesPanelProps {
   onAutoSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void;
 }
 
-export const NotesPanel: React.FC<NotesPanelProps> = ({ 
-  notes, 
+export const NotesPanel: React.FC<NotesPanelProps> = ({
+  notes,
   onNotesChange,
   courseName = 'Course',
   lessonName = 'Lesson',
@@ -23,6 +24,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
   onAutoSaveStatusChange,
 }) => {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [isPreview, setIsPreview] = useState(false);
   const { downloadAsText, downloadAsMarkdown, downloadAsPDF, isDownloading } = useNotesDownload();
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -97,9 +99,22 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header with Download Options */}
-      <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-        <h3 className="font-semibold text-slate-900 dark:text-slate-100">Notes</h3>
+      {/* Header with Download Options and Tabs */}
+      <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between bg-white dark:bg-slate-800">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setIsPreview(false)}
+            className={`text-sm font-semibold transition-colors ${!isPreview ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => setIsPreview(true)}
+            className={`text-sm font-semibold transition-colors ${isPreview ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            Preview
+          </button>
+        </div>
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => handleDownload('txt')}
@@ -129,13 +144,21 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
         </div>
       </div>
 
-      {/* Notes Textarea */}
-      <textarea
-        value={notes}
-        onChange={(e) => handleNotesChange(e.target.value)}
-        placeholder="Start typing your notes here... You can download them later in multiple formats."
-        className="flex-1 p-4 bg-slate-50 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-      />
+      {/* Content Area */}
+      <div className="flex-1 overflow-hidden relative">
+        {isPreview ? (
+          <div className="absolute inset-0 overflow-y-auto p-4 bg-white dark:bg-slate-900 prose dark:prose-invert max-w-none">
+            <MarkdownRenderer content={notes || '*No notes yet...*'} />
+          </div>
+        ) : (
+          <textarea
+            value={notes}
+            onChange={(e) => handleNotesChange(e.target.value)}
+            placeholder="Start typing your notes here... (Supports LaTeX: $x^2$)"
+            className="w-full h-full p-4 bg-slate-50 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+          />
+        )}
+      </div>
 
       {/* Character Count */}
       <div className="px-4 py-2 border-t border-slate-200 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
