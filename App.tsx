@@ -9,7 +9,7 @@ import { AuthProvider } from './src/contexts/AuthContext';
 import { useAuth } from './src/contexts/useAuth';
 import { authService } from './src/services/authService';
 import { useCourses, useCreateCourse, useCourse, COURSE_KEYS, useMyCourses } from './src/hooks/useCourses';
-import { useAssessments, useCreateAssessment, ASSESSMENT_KEYS } from './src/hooks/useAssessments';
+import { useAssessments, useCreateAssessment, useAssessment, ASSESSMENT_KEYS } from './src/hooks/useAssessments';
 import { useUsage, USAGE_QUERY_KEY } from './src/hooks/useUsage';
 import { usePosts, useCreatePost, useToggleLike, useAddComment, useDeletePost } from './src/hooks/useCommunity';
 import { Sidebar } from './components/Sidebar';
@@ -32,7 +32,6 @@ import { courseService, Course } from './src/services/courseService';
 // Lazy load heavy components for better performance
 const CreateCoursePage = lazy(() => import('./components/CreateCoursePage').then(module => ({ default: module.CreateCoursePage })));
 const CreateExamPage = lazy(() => import('./components/CreateExamPage').then(module => ({ default: module.CreateExamPage })));
-const PricingPage = lazy(() => import('./components/PricingPage').then(module => ({ default: module.PricingPage })));
 const GenerateAIQuizPage = lazy(() => import('./components/GenerateAIQuizPage').then(module => ({ default: module.GenerateAIQuizPage })));
 const AdminDashboard = lazy(() => import('./components/AdminDashboard').then(module => ({ default: module.AdminDashboard })));
 const UserProfilePage = lazy(() => import('./components/UserProfilePage').then(module => ({ default: module.UserProfilePage })));
@@ -174,6 +173,10 @@ const AppContent: React.FC = () => {
         navigate(ROUTES.dashboard, { replace: true });
         return;
       }
+      if (path === '/pricing') {
+        navigate(ROUTES.billing, { replace: true });
+        return;
+      }
       // Fix literal :courseId or :examId in URL (invalid) -> redirect to list
       if (path.includes('/:courseId') || path === '/courses/:courseId') {
         navigate(ROUTES.courses, { replace: true });
@@ -219,25 +222,18 @@ const AppContent: React.FC = () => {
     const apiAssessments = Array.isArray(assessmentsData) ? assessmentsData : [];
     const courses = apiCourses.length > 0 ? apiCourses : cachedCourses;
     const [localAssessments, setLocalAssessments] = useState<Assessment[]>(() => {
-      if (typeof window === 'undefined') {
-        return [
-          { id: 1, title: "React Basics Quiz", topic: "React", questions: 10, time: 15, status: "completed", score: "9/10", assessment_type: "quiz", description: "Test your knowledge on components." }
-        ];
-      }
+      if (typeof window === 'undefined') return [];
       try {
         const raw = localStorage.getItem(LOCAL_ASSESSMENTS_KEY);
         if (raw) return JSON.parse(raw) as Assessment[];
       } catch {
-        // ignore parse failures and fall through to default
+        // ignore parse failures
       }
-      return [
-        { id: 1, title: "React Basics Quiz", topic: "React", questions: 10, time: 15, status: "completed", score: "9/10", assessment_type: "quiz", description: "Test your knowledge on components." }
-      ];
+      return [];
     });
-    const assessments = [
-      ...apiAssessments.map(mapApiAssessmentToUi),
-      ...localAssessments,
-    ];
+    // Use only API assessments so the list reflects real data (no dummy/local merge)
+    const assessments = apiAssessments.map(mapApiAssessmentToUi);
+    const assessmentDetailQuery = useAssessment(selectedExamId ?? 0);
     const [posts, setPosts] = useState<any[]>([
         { id: 1, author: "Alice", avatar: UserCircleIcon, time: "2h ago", content: "Just finished the React course! Highly recommend it.", likes: 5, comments: [{author: "Bob", content: "Nice job!"}], liked: false }
     ]);
@@ -254,13 +250,26 @@ const AppContent: React.FC = () => {
     useEffect(() => {
       if (apiCourses.length > 0 && typeof window !== 'undefined') {
         setCachedCourses(apiCourses);
-        localStorage.setItem(COURSES_CACHE_KEY, JSON.stringify(apiCourses));
+        try {
+          const json = JSON.stringify(apiCourses);
+          if (json.length < 4 * 1024 * 1024) localStorage.setItem(COURSES_CACHE_KEY, json);
+        } catch (e) {
+          if (e instanceof DOMException && e.name === 'QuotaExceededError') {
+            try { localStorage.removeItem(COURSES_CACHE_KEY); } catch {}
+          }
+        }
       }
     }, [apiCourses]);
 
     useEffect(() => {
       if (typeof window !== 'undefined') {
-        localStorage.setItem(LOCAL_ASSESSMENTS_KEY, JSON.stringify(localAssessments));
+        try {
+          localStorage.setItem(LOCAL_ASSESSMENTS_KEY, JSON.stringify(localAssessments));
+        } catch (e) {
+          if (e instanceof DOMException && e.name === 'QuotaExceededError') {
+            try { localStorage.removeItem(LOCAL_ASSESSMENTS_KEY); } catch {}
+          }
+        }
       }
     }, [localAssessments]);
 
@@ -628,13 +637,43 @@ const AppContent: React.FC = () => {
         case 'assessments':
            return <EnhancedAssessmentsPage assessments={assessments} onSelectExam={(id) => setView('exam_detail', { examId: id })} setView={setView} onBulkCreate={() => setView('bulk_create_exam')} userTier={userTier} tierUsage={usageData ?? { assessments_used: 0, assessments_limit: userTier === 'free' ? 2 : Infinity, resets_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }} />;
         case 'create_exam':
-           return <CreateExamPage onExamCreated={handleExamCreated} onCancel={() => setView('assessments')} userTier={userTier} courses={courses} />;
+           return (
+             <CreateExamPage
+               onExamCreated={handleExamCreated}
+               onExamUpdated={(updated) => {
+                 queryClient.invalidateQueries({ queryKey: ASSESSMENT_KEYS.lists() });
+                 queryClient.invalidateQueries({ queryKey: ASSESSMENT_KEYS.detail(updated.id) });
+                 setView('exam_detail', { examId: updated.id });
+               }}
+               onCancel={() => setView('assessments')}
+               userTier={userTier}
+               courses={courses}
+             />
+           );
         case 'generate_ai_quiz':
            return <GenerateAIQuizPage onQuizCreated={handleExamCreated} onCancel={() => setView('assessments')} courses={courses} />;
-        case 'pricing':
-           return <PricingPage currentTier={userTier} onSelectTier={() => setView('billing')} />;
-        case 'exam_detail':
-           const exam = assessments.find(a => a.id === selectedExamId);
+        case 'exam_detail': {
+           if (!selectedExamId) {
+             return (
+               <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-10 text-center">
+                 <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-2">Assessment not found</h2>
+                 <button onClick={() => setView('assessments')} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Back to Assessments</button>
+               </div>
+             );
+           }
+           const examFromList = assessments.find(a => a.id === selectedExamId);
+           const detailData = assessmentDetailQuery.data;
+           const exam = examFromList ?? (detailData ? mapApiAssessmentToUi(detailData) : null);
+           if (!exam && (assessmentDetailQuery.isLoading || assessmentDetailQuery.isFetching)) {
+             return (
+               <div className="flex justify-center items-center py-20">
+                 <div className="text-center">
+                   <div className="inline-block w-10 h-10 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3" />
+                   <p className="text-slate-500 dark:text-slate-400">Loading assessment…</p>
+                 </div>
+               </div>
+             );
+           }
            return exam ? (
              <ExamDetailPage exam={exam} setView={setView} />
            ) : (
@@ -644,8 +683,9 @@ const AppContent: React.FC = () => {
                <button onClick={() => setView('assessments')} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Back to Assessments</button>
              </div>
            );
+         }
         case 'community':
-           return <CommunityView userTier={userTier} username={user.username} />;
+           return <CommunityView userTier={userTier} username={user?.username ?? (user as any)?.email ?? 'User'} />;
         case 'study_groups':
            return <StudyGroupsPage />;
         case 'billing':
@@ -653,7 +693,16 @@ const AppContent: React.FC = () => {
         case 'profile':
            return <UserProfilePage />;
         case 'admin_panel':
-           return <AdminDashboard stats={{totalUsers: 100, coursesCreated: courses.length, activeAssessments: assessments.length}} />;
+           if (user?.tier !== 'admin') {
+             return (
+               <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-10 text-center">
+                 <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-2">Access denied</h2>
+                 <p className="text-slate-500 dark:text-slate-400 mb-4">This area is for platform administrators only.</p>
+                 <button onClick={() => setView('dashboard')} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Go to Dashboard</button>
+               </div>
+             );
+           }
+           return <AdminDashboard />;
         case 'bulk_create_exam':
            return <BulkCreateExamPage onCancel={() => setView('assessments')} onBatchCreated={() => setView('assessments')} />;
         case 'setup_session':

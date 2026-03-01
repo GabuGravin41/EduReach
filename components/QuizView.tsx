@@ -504,12 +504,12 @@ Format: {"score": number, "feedback": "string"}`;
                     </div>
                   )}
                   {assessmentId && (
-                    <div className="mt-3 flex items-center gap-3 text-xs text-slate-500">
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <span className="font-medium text-slate-600 dark:text-slate-400">Answer with a photo:</span>
                       <label className="inline-flex items-center gap-2 cursor-pointer">
                         <input
                           type="file"
                           accept="image/*"
-                          // On mobile, this typically offers camera or gallery
                           capture="environment"
                           className="hidden"
                           onChange={(e) => {
@@ -518,8 +518,23 @@ Format: {"score": number, "feedback": "string"}`;
                             e.currentTarget.value = '';
                           }}
                         />
-                        <span className="px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
-                          Take photo / upload image
+                        <span className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700">
+                          Take photo
+                        </span>
+                      </label>
+                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleUploadImage(q.id, file);
+                            e.currentTarget.value = '';
+                          }}
+                        />
+                        <span className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700">
+                          Upload image
                         </span>
                       </label>
                       {uploadingImages[q.id] && <span>Uploading...</span>}
@@ -604,7 +619,8 @@ Format: {"score": number, "feedback": "string"}`;
                     </div>
                   )}
                   {assessmentId && (
-                    <div className="mt-3 flex items-center gap-3 text-xs text-slate-500">
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <span className="font-medium text-slate-600 dark:text-slate-400">Or submit a photo of your answer:</span>
                       <label className="inline-flex items-center gap-2 cursor-pointer">
                         <input
                           type="file"
@@ -617,8 +633,23 @@ Format: {"score": number, "feedback": "string"}`;
                             e.currentTarget.value = '';
                           }}
                         />
-                        <span className="px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
-                          Take photo / upload image
+                        <span className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700">
+                          Take photo
+                        </span>
+                      </label>
+                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleUploadImage(q.id, file);
+                            e.currentTarget.value = '';
+                          }}
+                        />
+                        <span className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700">
+                          Upload image
                         </span>
                       </label>
                       {uploadingImages[q.id] && <span>Uploading...</span>}

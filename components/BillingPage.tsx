@@ -113,6 +113,14 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
   const [paymentMessage, setPaymentMessage] = useState<string>('');
   const [mpesaPhone, setMpesaPhone] = useState('');
   const [cardToken, setCardToken] = useState('');
+  const [paybillPending, setPaybillPending] = useState<{
+    paymentId: number;
+    paybillNumber: string;
+    account: string;
+    amount: string;
+    currency: string;
+  } | null>(null);
+  const [paybillTransactionCode, setPaybillTransactionCode] = useState('');
   const [isEnterpriseModalOpen, setIsEnterpriseModalOpen] = useState(false);
   const [enterpriseName, setEnterpriseName] = useState('');
   const [enterpriseEmail, setEnterpriseEmail] = useState('');
@@ -124,9 +132,8 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
   const methodsQuery = useQuery<PaymentMethod[]>({
     queryKey: ['payment-methods'],
     queryFn: paymentService.getPaymentMethods,
-    retry: false,
-    // Ensure we always get an array, even on error
-    select: (data) => Array.isArray(data) ? data : [],
+    retry: 2,
+    select: (data) => (Array.isArray(data) ? data : []),
   });
 
   const historyQuery = useQuery<Payment[]>({
@@ -141,13 +148,40 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     mutationFn: paymentService.initiatePayment,
     onSuccess: (response: InitiatePaymentResponse) => {
       setLatestPayment(response.payment);
-      setPaymentMessage(
-        response.message ||
-          (response.payment.status === 'pending'
-            ? 'Payment initiated. Complete the payment on your device, then click Activate Subscription.'
-            : 'Payment completed! Activate your subscription below.')
-      );
+      if (response.paybill_number && response.account) {
+        setPaybillPending({
+          paymentId: response.payment.id,
+          paybillNumber: response.paybill_number,
+          account: response.account,
+          amount: response.amount ?? String(response.payment.amount),
+          currency: response.currency ?? response.payment.currency,
+        });
+        setPaymentMessage('Pay using the details below, then enter your M-Pesa transaction code.');
+      } else {
+        setPaybillPending(null);
+        setPaymentMessage(
+          response.message ||
+            (response.payment.status === 'pending'
+              ? 'Payment initiated. Complete the payment on your device, then click Activate Subscription.'
+              : 'Payment completed! Activate your subscription below.')
+        );
+      }
       historyQuery.refetch();
+    },
+  });
+
+  const confirmPaybillMutation = useMutation({
+    mutationFn: ({ paymentId, code }: { paymentId: number; code: string }) =>
+      paymentService.confirmPaybill(paymentId, code),
+    onSuccess: (data) => {
+      setPaymentMessage(data.detail || 'Transaction code recorded. We will activate your plan once we confirm the payment.');
+      setPaybillPending(null);
+      setPaybillTransactionCode('');
+      setLatestPayment(data.payment);
+      historyQuery.refetch();
+    },
+    onError: (error: any) => {
+      setPaymentMessage(error?.response?.data?.detail || 'Could not submit code. Please try again.');
     },
   });
 
@@ -226,7 +260,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     }
 
     const effectiveCurrency: CurrencyCode =
-      selectedMethod?.name === 'mpesa' ? 'KES' : currency;
+      selectedMethod?.name === 'mpesa' || selectedMethod?.name === 'mpesa_paybill' ? 'KES' : currency;
     const amount = tiers[selectedTier].monthlyPrice[effectiveCurrency];
     
     const payload: any = {
@@ -444,27 +478,6 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                     );
                 })}
             </div>
-            <div className="rounded-xl border border-indigo-200 dark:border-indigo-900/40 bg-gradient-to-r from-indigo-50 to-cyan-50 dark:from-indigo-900/20 dark:to-cyan-900/10 p-5">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Enterprise / Institution</p>
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mt-1">Bring EduReach to your entire school or classroom network</h3>
-                        <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-                            Includes onboarding support, bulk seats, admin controls, and custom onboarding for Olympiad/coaching programs.
-                        </p>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setEnterpriseFormMessage('');
-                            setIsEnterpriseModalOpen(true);
-                        }}
-                        className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
-                    >
-                        Contact Sales
-                    </button>
-                </div>
-            </div>
         </div>
 
         {/* Payment Processing */}
@@ -528,6 +541,56 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                                 M-Pesa charges in KES. Amount will be billed in KES for this payment.
                             </p>
                         )}
+                    </div>
+                )}
+
+                {selectedMethod?.name === 'mpesa_paybill' && (
+                    <div className="animate-in fade-in slide-in-from-top-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
+                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                            Amount is in Kenyan Shillings (KES). After you click Pay, you will see Paybill number, Account and Amount. Go to M-Pesa → Pay Bill → enter those details → pay. Then enter the transaction code you receive below.
+                        </p>
+                    </div>
+                )}
+
+                {selectedMethod?.name === 'paypal' && (
+                    <div className="animate-in fade-in slide-in-from-top-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
+                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                            Pay in USD or your currency. After you click Pay we will show your reference number and instructions; you can pay via PayPal or international bank transfer. Your plan will be activated once we confirm receipt.
+                        </p>
+                    </div>
+                )}
+
+                {paybillPending && (
+                    <div className="animate-in fade-in slide-in-from-top-2 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 space-y-3">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Pay with M-Pesa</p>
+                        <div className="grid gap-2 text-sm">
+                            <p><span className="font-medium text-slate-600 dark:text-slate-400">Paybill:</span> <span className="font-mono font-bold">{paybillPending.paybillNumber}</span></p>
+                            <p><span className="font-medium text-slate-600 dark:text-slate-400">Account:</span> <span className="font-mono font-bold">{paybillPending.account}</span></p>
+                            <p><span className="font-medium text-slate-600 dark:text-slate-400">Amount:</span> <span className="font-mono font-bold">{paybillPending.amount} {paybillPending.currency}</span></p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">M-Pesa transaction code (after you pay)</label>
+                            <input
+                                type="text"
+                                value={paybillTransactionCode}
+                                onChange={(e) => setPaybillTransactionCode(e.target.value)}
+                                placeholder="e.g. ABC12XY"
+                                className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500"
+                            />
+                        </div>
+                        <Button
+                            onClick={() => {
+                                if (!paybillTransactionCode.trim()) {
+                                    setPaymentMessage('Enter the M-Pesa transaction code you received.');
+                                    return;
+                                }
+                                confirmPaybillMutation.mutate({ paymentId: paybillPending.paymentId, code: paybillTransactionCode });
+                            }}
+                            isLoading={confirmPaybillMutation.isPending}
+                            className="w-full justify-center"
+                        >
+                            I've paid, submit code
+                        </Button>
                     </div>
                 )}
 

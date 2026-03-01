@@ -825,6 +825,57 @@ def explain_concept(request):
         )
 
 
+def _fix_json_backslash_escapes(s: str) -> str:
+    """
+    Fix invalid JSON escape sequences (e.g. LaTeX \\mathbb, \\to) so json.loads succeeds.
+    In JSON only \\ \" \\/ \\b \\f \\n \\r \\t \\uXXXX are valid. Double any other \\ + char.
+    """
+    if not s:
+        return s
+    result = []
+    i = 0
+    in_string = False
+    escape = False
+    while i < len(s):
+        c = s[i]
+        if escape:
+            # We're right after a backslash inside a string
+            if c in '"\\/bfnrt':
+                result.append(c)
+                i += 1
+            elif c == 'u' and i + 4 < len(s) and re.match(r'[0-9a-fA-F]{4}', s[i + 1:i + 5]):
+                result.append(s[i:i + 5])
+                i += 5
+            else:
+                # Invalid escape: double the backslash (we already wrote one, write one more)
+                result.append('\\')
+                result.append(c)
+                i += 1
+            escape = False
+            continue
+        if in_string:
+            if c == '\\':
+                result.append(c)
+                escape = True
+                i += 1
+            elif c == '"':
+                result.append(c)
+                in_string = False
+                i += 1
+            else:
+                result.append(c)
+                i += 1
+        else:
+            if c == '"':
+                result.append(c)
+                in_string = True
+                i += 1
+            else:
+                result.append(c)
+                i += 1
+    return ''.join(result)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def parse_questions(request):
@@ -886,6 +937,7 @@ Rules:
 7. CRITICAL: When the examiner provides both a problem and a solution/answer, you MUST put the full solution text in the "explanation" field (worked steps, full answer, or model solution). Do not leave explanation empty when a solution was given.
 8. Keep question_text exactly as written (fix typos only if obvious).
 9. For suggested_time_minutes: base it on the content (e.g. IMO-style or long proofs → 150–270 minutes; short quiz → 15–30). Ignore arbitrary short defaults when problems clearly need more time.
+10. CRITICAL for valid JSON: Inside every JSON string value, escape backslashes by doubling them. For example write \\mathbb instead of \mathbb, and \\[ instead of \\. LaTeX and math use backslashes; in JSON a single backslash is an escape, so you must output \\ for each literal backslash so the parser does not fail.
 
 RAW TEXT:
 ---
@@ -946,6 +998,9 @@ Return ONLY valid JSON — no extra text, no markdown fences:
             brace_match = re.search(r'\{[\s\S]*\}', cleaned)
             if brace_match:
                 cleaned = brace_match.group(0)
+
+        # Fix invalid JSON escapes (e.g. LaTeX \mathbb, \to in string values break JSON)
+        cleaned = _fix_json_backslash_escapes(cleaned)
 
         try:
             result = json.loads(cleaned)

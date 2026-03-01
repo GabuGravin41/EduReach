@@ -90,6 +90,10 @@ class StudyGroupChallenge(models.Model):
     )
     start_date = models.DateTimeField(default=timezone.now)
     end_date = models.DateTimeField(null=True, blank=True)
+    is_public_listing = models.BooleanField(
+        default=False,
+        help_text='If True, this challenge appears in the platform Public challenges list for all users to discover.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

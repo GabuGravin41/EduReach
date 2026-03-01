@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ClockIcon } from './icons/ClockIcon';
 import { ClipboardCheckIcon } from './icons/ClipboardCheckIcon';
 import { SwordsIcon } from './icons/SwordsIcon';
 import { ChallengeModal } from './ChallengeModal';
 import { View, UserTier } from '../App';
+import { assessmentService, type PublicChallengeItem } from '../src/services/assessmentService';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { PencilIcon } from './icons/PencilIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
@@ -21,6 +23,7 @@ interface Assessment {
     question_types?: string[];
     difficulty?: 'easy' | 'medium' | 'hard';
     created_at?: string;
+    share_token?: string;
 }
 
 interface TierUsage {
@@ -158,9 +161,23 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
     userTier,
     tierUsage
 }) => {
+    const navigate = useNavigate();
     const [isChallengeModalOpen, setIsChallengeModalOpen] = useState(false);
-    const [selectedExamTitle, setSelectedExamTitle] = useState('');
+    const [selectedExam, setSelectedExam] = useState<{ id: number; title: string; share_token?: string } | null>(null);
+    const [challengeLinkInput, setChallengeLinkInput] = useState('');
+    const [challengeLinkError, setChallengeLinkError] = useState('');
+    const [publicChallenges, setPublicChallenges] = useState<PublicChallengeItem[]>([]);
+    const [publicChallengesLoading, setPublicChallengesLoading] = useState(false);
     const [filterType, setFilterType] = useState<'all' | 'completed' | 'pending'>('all');
+
+    useEffect(() => {
+        let mounted = true;
+        setPublicChallengesLoading(true);
+        assessmentService.getPublicChallenges()
+            .then((list) => { if (mounted) setPublicChallenges(list); })
+            .finally(() => { if (mounted) setPublicChallengesLoading(false); });
+        return () => { mounted = false; };
+    }, []);
     const [sortBy, setSortBy] = useState<'recent' | 'difficulty' | 'score'>('recent');
 
     const safeTier: UserTier = userTier in TIER_FEATURES ? userTier : 'free';
@@ -169,16 +186,45 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
     const canCreateMore = usage.assessments_used < usage.assessments_limit;
     const daysUntilReset = Math.ceil((new Date(usage.resets_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 
-    const handleChallengeClick = (e: React.MouseEvent, title: string) => {
+    const handleChallengeClick = (e: React.MouseEvent, exam: Assessment) => {
         e.stopPropagation();
-        setSelectedExamTitle(title);
+        setSelectedExam({ id: exam.id, title: exam.title, share_token: exam.share_token });
         setIsChallengeModalOpen(true);
+    };
+
+    const handleJoinChallengeByLink = () => {
+        setChallengeLinkError('');
+        const raw = challengeLinkInput.trim();
+        if (!raw) {
+            setChallengeLinkError('Paste a challenge link first.');
+            return;
+        }
+        try {
+            let pathname = '';
+            let search = '';
+            if (raw.startsWith('http://') || raw.startsWith('https://')) {
+                const url = new URL(raw);
+                pathname = url.pathname || '';
+                search = url.search || '';
+            } else {
+                const [p, q] = raw.split('?');
+                pathname = (p || raw).trim();
+                search = q ? `?${q}` : '';
+            }
+            if (!pathname.match(/\/assessments\/\d+/)) {
+                setChallengeLinkError('Link should point to an assessment (e.g. …/assessments/5 or …/assessments/5?share_token=…)');
+                return;
+            }
+            navigate(pathname + search);
+        } catch {
+            setChallengeLinkError('Invalid link. Paste the full challenge URL.');
+        }
     };
 
     const handleCreateNew = (examType: 'multiple_choice' | 'essay' | 'passage' | 'ai_generated') => {
         if (!canCreateMore) {
             alert(`You've reached your monthly limit of ${tierUsage.assessments_limit} assessments. Resets in ${daysUntilReset} days.`);
-            setView('pricing');
+            setView('billing');
             return;
         }
 
@@ -186,7 +232,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
         if (examType === 'ai_generated') {
             if (!features.can_use_ai) {
                 alert('AI-generated quizzes are available for Learner, Pro, and Pro Plus users. Please upgrade to access this feature.');
-                setView('pricing');
+                setView('billing');
                 return;
             }
             setView('generate_ai_quiz');
@@ -246,6 +292,79 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                 </div>
             </div>
 
+            {/* Join a challenge — paste a link to open an assessment and join its challenge */}
+            <div className="mb-8 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-gradient-to-r from-indigo-50 to-slate-50 dark:from-indigo-950/30 dark:to-slate-800/50 p-4 sm:p-5">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Join a challenge</label>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Have a challenge link? Paste it below to open the assessment and join. You can then take the assessment and compare results with others.</p>
+                        <input
+                            type="text"
+                            value={challengeLinkInput}
+                            onChange={(e) => { setChallengeLinkInput(e.target.value); setChallengeLinkError(''); }}
+                            placeholder="https://.../assessments/123?share_token=..."
+                            className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                        {challengeLinkError && <p className="mt-1.5 text-sm text-rose-600 dark:text-rose-400">{challengeLinkError}</p>}
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleJoinChallengeByLink}
+                        className="flex-shrink-0 px-5 py-2.5 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                    >
+                        <SwordsIcon className="w-5 h-5" />
+                        Open & join
+                    </button>
+                </div>
+            </div>
+
+            {/* Public challenges — discoverable by everyone on the platform */}
+            <div className="mb-8">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-3 flex items-center gap-2">
+                    <SwordsIcon className="w-6 h-6 text-amber-500" />
+                    Public challenges
+                </h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Challenges from others on the platform. Join any to take the assessment and compare results.</p>
+                {publicChallengesLoading ? (
+                    <div className="flex items-center gap-2 text-slate-500 py-4">
+                        <span className="inline-block w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                        Loading…
+                    </div>
+                ) : publicChallenges.length === 0 ? (
+                    <p className="text-sm text-slate-500 dark:text-slate-400 py-4">No public challenges right now. Create one by opening an assessment and choosing Challenge → Public challenge.</p>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {publicChallenges.map((ch) => (
+                            <div
+                                key={ch.id}
+                                className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex flex-col"
+                            >
+                                <h3 className="font-semibold text-slate-800 dark:text-slate-100 line-clamp-2">{ch.title}</h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                    {ch.creator_username && <span>by {ch.creator_username}</span>}
+                                    {ch.creator_username && ch.topic && ' · '}
+                                    {ch.topic}
+                                </p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                    {ch.question_count} questions · {ch.time_limit_minutes} min
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const qs = ch.share_token ? `?share_token=${ch.share_token}` : '';
+                                        navigate(`/assessments/${ch.id}${qs}`);
+                                    }}
+                                    className="mt-3 w-full py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm flex items-center justify-center gap-2"
+                                >
+                                    <SwordsIcon className="w-4 h-4" />
+                                    Join challenge
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
             {/* Create New Section */}
             <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-slate-800 dark:to-slate-700 rounded-xl p-6 mb-8">
                 <div className="flex justify-between items-center mb-4">
@@ -257,7 +376,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                     </div>
                     {safeTier === 'free' && (
                         <button
-                            onClick={() => setView('pricing')}
+                            onClick={() => setView('billing')}
                             className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-colors font-medium"
                         >
                             Upgrade for AI & Community Access
@@ -396,9 +515,9 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                 </div>
             ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {sortedAssessments.map(exam => (
+                {sortedAssessments.map((exam, idx) => (
                     <div
-                        key={exam.id}
+                        key={`assessment-${idx}-${exam.id ?? 'local'}`}
                         className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-xl transition-shadow"
                     >
                         <div className="p-6">
@@ -453,10 +572,12 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                                     {exam.status === 'completed' ? 'Review' : 'Start Exam'}
                                 </button>
                                 <button
-                                    onClick={(e) => handleChallengeClick(e, exam.title)}
-                                    className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+                                    onClick={(e) => handleChallengeClick(e, exam)}
+                                    className="px-4 py-2 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-800/50 transition-colors font-medium flex items-center gap-1.5"
+                                    title="Challenge someone or create a public challenge"
                                 >
                                     <SwordsIcon className="w-4 h-4" />
+                                    Challenge
                                 </button>
                             </div>
                         </div>
@@ -465,10 +586,12 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
             </div>
             )}
 
-            {isChallengeModalOpen && (
+            {isChallengeModalOpen && selectedExam && (
                 <ChallengeModal
-                    examTitle={selectedExamTitle}
-                    onClose={() => setIsChallengeModalOpen(false)}
+                    examTitle={selectedExam.title}
+                    assessmentId={selectedExam.id}
+                    shareToken={selectedExam.share_token}
+                    onClose={() => { setIsChallengeModalOpen(false); setSelectedExam(null); }}
                 />
             )}
         </div>

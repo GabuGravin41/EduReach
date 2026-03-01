@@ -52,7 +52,7 @@ export const BulkCreateExamPage: React.FC<BulkCreateExamPageProps> = ({ onCancel
                             type: 'mcq',
                             question_text: `Sample question for ${topic} Practice #${i}`,
                             options: ['Option A', 'Option B', 'Option C', 'Option D'],
-                            correct_answer: 'Option A',
+                            correct_answer_index: 0,
                             points: 1
                         }
                     ]
@@ -63,7 +63,15 @@ export const BulkCreateExamPage: React.FC<BulkCreateExamPageProps> = ({ onCancel
             invalidateAssessments();
             onBatchCreated();
         } catch (err: any) {
-            setError(err?.response?.data?.error || 'Failed to create batch assessments');
+            const data = err?.response?.data;
+            const msg =
+                (typeof data?.detail === 'string' && data.detail) ||
+                data?.error ||
+                (data?.assessments && typeof data.assessments === 'object' && JSON.stringify(data.assessments)) ||
+                (typeof data === 'object' && Object.keys(data).length && JSON.stringify(data)) ||
+                err?.message ||
+                'Failed to create batch assessments. Check your plan limit and try again.';
+            setError(msg);
         } finally {
             setIsCreating(false);
         }

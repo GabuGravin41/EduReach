@@ -74,6 +74,8 @@ export const DiscussionsPage: React.FC<DiscussionsPageProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'popular' | 'unanswered'>('recent');
   const [error, setError] = useState<string | null>(null);
+  // Store full data for threads we create so opening them shows correct title/content
+  const [createdThreadsDetail, setCreatedThreadsDetail] = useState<Record<number, { title: string; content: string }>>({});
 
   // Mock data for demo
   useEffect(() => {
@@ -112,8 +114,9 @@ export const DiscussionsPage: React.FC<DiscussionsPageProps> = ({
     setIsCreating(true);
     // Mock API call
     setTimeout(() => {
+        const newId = Date.now();
         const newThread = {
-            id: Date.now(),
+            id: newId,
             title,
             author: { id: currentUserId || 999, username: "You" },
             is_pinned: false,
@@ -122,6 +125,7 @@ export const DiscussionsPage: React.FC<DiscussionsPageProps> = ({
             views: 0,
             created_at: new Date().toISOString()
         };
+        setCreatedThreadsDetail(prev => ({ ...prev, [newId]: { title, content } }));
         setThreads([newThread, ...threads]);
         setIsCreating(false);
         setShowCreateModal(false);
@@ -129,17 +133,19 @@ export const DiscussionsPage: React.FC<DiscussionsPageProps> = ({
   };
 
   const fetchThreadDetail = (threadId: number) => {
+      const created = createdThreadsDetail[threadId];
+      const preview = threads.find(t => t.id === threadId);
       setIsLoading(true);
       setTimeout(() => {
           setSelectedThread({
               id: threadId,
-              title: "Help with useEffect dependency array",
-              content: "I'm having trouble understanding when to add functions to the dependency array. Can someone explain?",
-              author: { id: 1, username: "Alice" },
+              title: created?.title ?? preview?.title ?? 'Discussion',
+              content: created?.content ?? "I'm having trouble understanding when to add functions to the dependency array. Can someone explain?",
+              author: preview?.author ?? { id: currentUserId ?? 1, username: "You" },
               is_pinned: false,
-              views: 125,
-              created_at: new Date().toISOString(),
-              replies: [
+              views: created ? 1 : 125,
+              created_at: preview?.created_at ?? new Date().toISOString(),
+              replies: created ? [] : [
                   {
                       id: 101,
                       author: { id: 3, username: "Charlie" },
@@ -154,7 +160,7 @@ export const DiscussionsPage: React.FC<DiscussionsPageProps> = ({
           });
           setView('thread');
           setIsLoading(false);
-      }, 800);
+      }, 300);
   }
 
   // Reply to thread

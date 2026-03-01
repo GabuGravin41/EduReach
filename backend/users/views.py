@@ -3,6 +3,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import User
 from .serializers import UserSerializer, UserProfileSerializer
+from courses.models import Course
+from assessments.models import Assessment
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -72,6 +74,17 @@ class UserViewSet(viewsets.ModelViewSet):
             'top_users': serializer.data,
             'user_rank': user_rank if request.user.show_xp_publicly else None,
             'user_stats': UserSerializer(request.user).data
+        })
+
+    @action(detail=False, methods=['get'], url_path='admin/stats')
+    def admin_stats(self, request):
+        """Platform-wide stats for admin dashboard. Staff/admin only."""
+        if not request.user.is_authenticated or (getattr(request.user, 'tier', None) != User.Tier.ADMIN and not request.user.is_staff):
+            return Response({'error': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
+        return Response({
+            'total_users': User.objects.count(),
+            'courses_created': Course.objects.count(),
+            'active_assessments': Assessment.objects.count(),
         })
 
     @action(detail=False, methods=['get'], url_path='me/usage')

@@ -48,6 +48,11 @@ export interface InitiatePaymentPayload {
 export interface InitiatePaymentResponse {
   payment: Payment;
   message?: string;
+  /** M-Pesa Paybill flow: show these so user can pay then enter transaction code */
+  paybill_number?: string;
+  account?: string;
+  amount?: string;
+  currency?: string;
 }
 
 export interface EnterpriseInquiryPayload {
@@ -59,7 +64,9 @@ export interface EnterpriseInquiryPayload {
 export const paymentService = {
   getPaymentMethods: async (): Promise<PaymentMethod[]> => {
     const { data } = await apiClient.get('/payments/methods/');
-    return data;
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray((data as any).results)) return (data as any).results;
+    return [];
   },
 
   initiatePayment: async (payload: InitiatePaymentPayload): Promise<InitiatePaymentResponse> => {
@@ -67,9 +74,18 @@ export const paymentService = {
     return data;
   },
 
+  confirmPaybill: async (paymentId: number, transactionCode: string): Promise<{ detail: string; payment: Payment }> => {
+    const { data } = await apiClient.post(`/payments/${paymentId}/confirm-paybill/`, {
+      transaction_code: transactionCode.trim(),
+    });
+    return data;
+  },
+
   getPaymentHistory: async (): Promise<Payment[]> => {
     const { data } = await apiClient.get('/payments/history/');
-    return data;
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray((data as any).results)) return (data as any).results;
+    return [];
   },
 
   getSubscription: async (): Promise<Subscription | null> => {

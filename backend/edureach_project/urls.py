@@ -25,3 +25,8 @@ urlpatterns = [
 
 if settings.DEBUG or getattr(settings, 'SERVE_MEDIA_FILES', False):
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+# Serve static files (admin CSS/JS) when running runserver, even if DEBUG is False.
+# Run: python manage.py collectstatic --noinput  (once) so staticfiles/ is populated.
+if settings.DEBUG or getattr(settings, 'SERVE_STATIC_WHEN_RUNSERVER', False):
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

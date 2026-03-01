@@ -156,37 +156,75 @@ class UserAttempt(models.Model):
     class Meta:
         ordering = ['-started_at']
 
+    def _assessment_needs_ai_grading(self):
+        """True if this attempt's assessment has any question that requires AI (essay or short_answer with model solution)."""
+        for q in self.assessment.questions.all():
+            q_type = getattr(q, 'question_type', 'short_answer')
+            if q_type == 'essay':
+                return True
+            if q_type == 'short_answer' and (getattr(q, 'explanation', None) or '').strip():
+                return True
+        return False
+
     def calculate_score(self):
-        """Calculate the score and XP for the attempt."""
+        """Calculate the score and XP for the attempt.
+        Auto-grades MCQ, true_false, short_answer (exact match). For essay and for
+        short_answer with model solution (explanation), uses token-efficient AI grading;
+        AI grading counts against the user's monthly quota.
+        """
         from django.utils import timezone
-        
+
         total_points = 0
         earned_points = 0
         total_xp = 0
-        
+
         for question in self.assessment.questions.all():
             total_points += question.points
-            user_answer = self.answers.get(str(question.id), '')
-            
+            user_answer = (self.answers.get(str(question.id), '') or '').strip()
+            user_answer_raw = self.answers.get(str(question.id), '') or ''
+
             q_type = getattr(question, 'question_type', 'short_answer')
             xp_weight = self.XP_WEIGHTS.get(q_type, 10)
-            
+
             is_correct = False
             if q_type in ['mcq', 'true_false']:
-                if user_answer.lower() == str(question.correct_answer).lower():
+                if user_answer_raw.lower() == str(question.correct_answer).lower():
                     is_correct = True
             elif q_type == 'short_answer':
-                if user_answer.lower().strip() == str(question.correct_answer).lower().strip():
+                ref = (getattr(question, 'explanation', None) or '').strip()
+                # Passage-style / long text with model solution: AI-grade (counts toward quota)
+                if ref and len(user_answer) > 80:
+                    try:
+                        from ai_service.essay_grading import grade_essay_answer
+                        pts = grade_essay_answer(ref, user_answer_raw, question.points, user=self.user)
+                        earned_points += pts
+                        total_xp += int((pts / question.points) * xp_weight) if question.points else 0
+                    except Exception:
+                        pass
+                    continue
+                if user_answer.lower() == str(question.correct_answer).lower().strip():
                     is_correct = True
-            
+            elif q_type == 'essay':
+                ref = getattr(question, 'explanation', None) or ''
+                if ref.strip():
+                    try:
+                        from ai_service.essay_grading import grade_essay_answer
+                        pts = grade_essay_answer(ref, user_answer_raw, question.points, user=self.user)
+                        earned_points += pts
+                        total_xp += int((pts / question.points) * xp_weight) if question.points else 0
+                    except Exception:
+                        pass
+                continue
+
             if is_correct:
                 earned_points += question.points
                 total_xp += xp_weight
-        
+
         self.score = f"{earned_points}/{total_points}"
         self.percentage = (earned_points / total_points * 100) if total_points > 0 else 0
         self.status = self.Status.GRADED
-        self.submitted_at = timezone.now()
+        if not self.submitted_at:
+            self.submitted_at = timezone.now()
         
         if self.started_at:
             time_diff = self.submitted_at - self.started_at

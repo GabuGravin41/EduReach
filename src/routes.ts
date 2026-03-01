@@ -9,7 +9,6 @@ export type View =
   | 'exam_detail'
   | 'community'
   | 'study_groups'
-  | 'pricing'
   | 'billing'
   | 'profile'
   | 'admin_panel'
@@ -28,7 +27,6 @@ export const ROUTES = {
   examDetail: (id: number) => `/assessments/${id}`,
   community: '/community',
   studyGroups: '/study-groups',
-  pricing: '/pricing',
   billing: '/billing',
   profile: '/profile',
   adminPanel: '/admin',
@@ -48,7 +46,6 @@ const VIEW_TO_PATH: Record<View, string | ((opts?: { courseId?: number; examId?:
   exam_detail: (opts) => (opts?.examId != null ? ROUTES.examDetail(opts.examId) : ROUTES.assessments),
   community: ROUTES.community,
   study_groups: ROUTES.studyGroups,
-  pricing: ROUTES.pricing,
   billing: ROUTES.billing,
   profile: ROUTES.profile,
   admin_panel: ROUTES.adminPanel,
@@ -80,19 +77,18 @@ export function pathnameToView(pathname: string): { view: View; courseId: number
   if (p === '/assessments') return { view: 'assessments', courseId: null, examId: null };
   if (p === '/assessments/new') return { view: 'create_exam', courseId: null, examId: null };
   if (p === '/assessments/ai') return { view: 'generate_ai_quiz', courseId: null, examId: null };
+  if (p === '/assessments/bulk') return { view: 'bulk_create_exam', courseId: null, examId: null };
   if (segments[0] === 'assessments' && segments[1] && /^\d+$/.test(segments[1]))
     return { view: 'exam_detail', courseId: null, examId: parseInt(segments[1], 10) };
   if (segments[0] === 'courses') return { view: 'courses', courseId: null, examId: null };
   if (segments[0] === 'assessments') return { view: 'assessments', courseId: null, examId: null };
   if (p === '/community') return { view: 'community', courseId: null, examId: null };
   if (p === '/study-groups') return { view: 'study_groups', courseId: null, examId: null };
-  if (p === '/pricing') return { view: 'pricing', courseId: null, examId: null };
-  if (p === '/billing') return { view: 'billing', courseId: null, examId: null };
+  if (p === '/pricing' || p === '/billing') return { view: 'billing', courseId: null, examId: null };
   if (p === '/profile') return { view: 'profile', courseId: null, examId: null };
   if (p === '/admin') return { view: 'admin_panel', courseId: null, examId: null };
   if (p === '/session') return { view: 'setup_session', courseId: null, examId: null };
   if (p === '/learn') return { view: 'learning_session', courseId: null, examId: null };
-  if (p === '/assessments/bulk') return { view: 'bulk_create_exam', courseId: null, examId: null };
 
   return { view: 'dashboard', courseId: null, examId: null };
 }

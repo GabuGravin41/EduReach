@@ -191,7 +191,16 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 os.makedirs(STATIC_ROOT, exist_ok=True)  # Avoid WhiteNoise "No directory" warning
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# Use plain StaticFilesStorage when DEBUG is on or when running runserver locally, so Django admin
+# works without running collectstatic. Manifest storage is only for deployed production.
+if DEBUG or IS_RUNSERVER:
+    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+else:
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# When running runserver, we need to serve static files (admin CSS/JS) even if DEBUG is False.
+# urls.py will add the static route when this is True; then run: python manage.py collectstatic --noinput
+SERVE_STATIC_WHEN_RUNSERVER = IS_RUNSERVER
 
 # Media uploads (assessment answer images)
 MEDIA_URL = '/media/'
@@ -255,19 +264,20 @@ parsed_origins = [origin.strip() for origin in cors_origins_env.split(',') if or
 valid_origins = [o for o in parsed_origins if re.match(r'^https?://', o)]
 invalid_origins = [o for o in parsed_origins if o not in valid_origins]
 
-# Strict validation only for real production runtime (not local/dev commands)
-if IS_STRICT_PRODUCTION and not IS_LOCAL_SAFE_COMMAND:
-    if not valid_origins:
-        raise ValueError(
-            "CORS_ALLOWED_ORIGINS must contain full origins like "
-            "https://example.com,https://www.example.com"
-        )
-    if invalid_origins:
-        raise ValueError(
-            "Invalid CORS_ALLOWED_ORIGINS entries: "
-            + ", ".join(invalid_origins)
-            + ". Use full origins like https://example.com"
-        )
+# Invalid entries (e.g. *.onrender.com) are ignored; only full origins like https://example.com are used.
+if invalid_origins:
+    import warnings
+    warnings.warn(
+        "CORS_ALLOWED_ORIGINS: ignoring invalid entries (use full origins like https://example.com): " + ", ".join(invalid_origins),
+        UserWarning,
+        stacklevel=0,
+    )
+# Strict: in production require at least one valid origin when not in a safe command
+if IS_STRICT_PRODUCTION and not IS_LOCAL_SAFE_COMMAND and not valid_origins:
+    raise ValueError(
+        "CORS_ALLOWED_ORIGINS must contain full origins like "
+        "https://example.com,https://www.example.com (wildcards like *.onrender.com are not allowed)"
+    )
 
 # Always include localhost for dev/testing convenience.
 # Invalid values (e.g. *.onrender.com) are safely ignored outside strict runtime.

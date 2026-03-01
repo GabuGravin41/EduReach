@@ -52,10 +52,8 @@ class AssessmentSerializer(serializers.ModelSerializer):
     def get_question_count(self, obj):
         return obj.questions.count()
 
-    def create(self, validated_data):
-        questions_data = validated_data.pop('questions_data', [])
-        assessment = Assessment.objects.create(**validated_data)
-
+    def _create_questions_from_data(self, assessment, questions_data):
+        """Create Question rows from questions_data (used by create and update)."""
         for idx, q in enumerate(questions_data):
             q_type = q.get('type') or q.get('question_type') or 'short_answer'
 
@@ -171,7 +169,21 @@ class AssessmentSerializer(serializers.ModelSerializer):
                 explanation=q.get('explanation', '')
             )
 
+    def create(self, validated_data):
+        questions_data = validated_data.pop('questions_data', [])
+        assessment = Assessment.objects.create(**validated_data)
+        self._create_questions_from_data(assessment, questions_data)
         return assessment
+
+    def update(self, instance, validated_data):
+        questions_data = validated_data.pop('questions_data', None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if questions_data is not None:
+            instance.questions.all().delete()
+            self._create_questions_from_data(instance, questions_data)
+        return instance
 
 
 class AssessmentListSerializer(serializers.ModelSerializer):

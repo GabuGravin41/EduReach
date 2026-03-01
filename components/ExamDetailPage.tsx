@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import { View } from '../App';
 import type { Assessment, Question } from '../types';
@@ -10,15 +11,17 @@ import { useAuth } from '../src/contexts/useAuth';
 
 interface ExamDetailPageProps {
     exam: Assessment;
-    setView: (view: View) => void;
+    setView: (view: View, opts?: { examId?: number; state?: { editExamId?: number } }) => void;
 }
 
 export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView }) => {
     const { user } = useAuth();
+    const location = useLocation();
     const [liveExam, setLiveExam] = React.useState<any>(exam);
-    const shareToken = liveExam?.share_token;
+    const tokenFromUrl = React.useMemo(() => new URLSearchParams(location.search || '').get('share_token'), [location.search]);
+    const shareToken = liveExam?.share_token ?? tokenFromUrl ?? undefined;
     const isCreator = !!(user && liveExam?.creator && user.id === liveExam.creator.id);
-    const inviteLink = shareToken ? `${window.location.origin}/?assessment=${liveExam.id}&share_token=${shareToken}` : '';
+    const inviteLink = shareToken && liveExam?.id ? `${typeof window !== 'undefined' ? window.location.origin : ''}/assessments/${liveExam.id}?share_token=${shareToken}` : '';
 
     const [attempts, setAttempts] = React.useState<AssessmentAttempt[]>([]);
     const [isLoadingAttempts, setIsLoadingAttempts] = React.useState(false);
@@ -155,39 +158,71 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
         );
     }
 
-    // Convert legacy question formats if needed or use questions_data
-    const quizData = liveExam?.questions_data || (liveExam?.questions || []).map((q: any) => ({
-        id: String(q.id),
-        type:
-            q.question_type === 'mcq'
-                ? 'multiple_choice'
-                : q.question_type === 'true_false'
-                    ? 'true_false'
-                    : q.question_type === 'essay'
-                        ? 'essay'
-                        : 'short_answer',
-        question_text: q.question_text,
-        options: q.options || [],
-        correct_answer_index: Array.isArray(q.options) ? q.options.indexOf(q.correct_answer) : 0,
-        correct_answers: q.correct_answer ? [q.correct_answer] : [],
-        correct_answer: q.correct_answer,
-        points: q.points || 1,
-        explanation: q.explanation || '',
-        case_sensitive: false,
-        exact_match: false,
-        max_length: 400,
-    }));
+    // Convert legacy question formats if needed or use questions_data (ensure we always have an array)
+    const rawQuestions = liveExam?.questions;
+    const questionsArray = Array.isArray(rawQuestions) ? rawQuestions : [];
+    const questionsData = liveExam?.questions_data;
+    const quizData = Array.isArray(questionsData)
+        ? questionsData
+        : questionsArray.map((q: any) => ({
+            id: String(q.id),
+            type:
+                q.question_type === 'mcq'
+                    ? 'multiple_choice'
+                    : q.question_type === 'true_false'
+                        ? 'true_false'
+                        : q.question_type === 'essay'
+                            ? 'essay'
+                            : 'short_answer',
+            question_text: q.question_text,
+            options: q.options || [],
+            correct_answer_index: Array.isArray(q.options) ? q.options.indexOf(q.correct_answer) : 0,
+            correct_answers: q.correct_answer ? [q.correct_answer] : [],
+            correct_answer: q.correct_answer,
+            points: q.points || 1,
+            explanation: q.explanation || '',
+            case_sensitive: false,
+            exact_match: false,
+            max_length: 400,
+        }));
 
     return (
         <div className="h-full flex flex-col">
-            <div className="flex-shrink-0 mb-4 flex items-center justify-between">
-                <button
-                    onClick={() => setView('assessments')}
-                    className="flex items-center gap-2 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-                >
-                    <ChevronLeftIcon className="w-5 h-5" />
-                    Back to Assessments
-                </button>
+            <div className="flex-shrink-0 mb-4 flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setView('assessments')}
+                        className="flex items-center gap-2 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                    >
+                        <ChevronLeftIcon className="w-5 h-5" />
+                        Back to Assessments
+                    </button>
+                    {isCreator && (
+                        <>
+                            <button
+                                onClick={() => setView('create_exam', { state: { editExamId: liveExam.id } })}
+                                className="px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                            >
+                                Edit assessment
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (!window.confirm(`Delete "${liveExam.title}"? This cannot be undone.`)) return;
+                                    try {
+                                        await assessmentService.deleteAssessment(liveExam.id);
+                                        setView('assessments');
+                                    } catch (e) {
+                                        console.error(e);
+                                        alert('Failed to delete. You may not have permission.');
+                                    }
+                                }}
+                                className="px-3 py-1.5 text-sm font-medium rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/50"
+                            >
+                                Delete
+                            </button>
+                        </>
+                    )}
+                </div>
                 <div className="text-sm font-medium text-slate-500">
                     {liveExam.time || liveExam.time_limit_minutes || 30} Minutes Limit
                 </div>

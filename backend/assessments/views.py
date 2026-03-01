@@ -183,8 +183,23 @@ class AssessmentViewSet(viewsets.ModelViewSet):
             status=UserAttempt.Status.IN_PROGRESS
         )
         
-        # Update answers and calculate score
         attempt.answers = serializer.validated_data['answers']
+
+        # If assessment has essay or AI-gradable short answers, mark submitted and grade in background
+        if attempt._assessment_needs_ai_grading():
+            attempt.status = UserAttempt.Status.SUBMITTED
+            if not attempt.submitted_at:
+                attempt.submitted_at = timezone.now()
+            attempt.save(update_fields=['answers', 'status', 'submitted_at'])
+            # Enforce visibility policy
+            if assessment.results_visibility == Assessment.ResultsVisibility.PUBLIC:
+                attempt.is_public_result = True
+            elif assessment.results_visibility == Assessment.ResultsVisibility.PRIVATE:
+                attempt.is_public_result = False
+            attempt.save(update_fields=['is_public_result'])
+            return Response(UserAttemptSerializer(attempt).data)
+
+        # All questions auto-grade: score immediately
         attempt.calculate_score()
 
         # Enforce creator-level visibility policy.
@@ -194,6 +209,23 @@ class AssessmentViewSet(viewsets.ModelViewSet):
             attempt.is_public_result = False
         attempt.save(update_fields=['is_public_result'])
         
+        return Response(UserAttemptSerializer(attempt).data)
+
+    @action(detail=True, methods=['post'], url_path='run-grading')
+    def run_grading(self, request, pk=None):
+        """Run background grading for the current user's submitted attempt. Call after submit when status is 'submitted'."""
+        assessment = self.get_object()
+        attempt = UserAttempt.objects.filter(
+            assessment=assessment,
+            user=request.user,
+            status=UserAttempt.Status.SUBMITTED
+        ).first()
+        if not attempt:
+            return Response(
+                {'detail': 'No submitted attempt found to grade.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        attempt.calculate_score()
         return Response(UserAttemptSerializer(attempt).data)
 
     @action(detail=True, methods=['get'], url_path='public-results')
@@ -404,6 +436,75 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         if not created:
             return Response({'detail': 'Already joined challenge.'}, status=status.HTTP_200_OK)
         return Response({'detail': 'Joined challenge successfully.'})
+
+    @action(detail=True, methods=['post'], url_path='publish-public-challenge')
+    def publish_public_challenge(self, request, pk=None):
+        """Creator only: list this assessment as a public challenge so all platform users can discover it."""
+        assessment = self.get_object()
+        if assessment.creator != request.user:
+            return Response({'detail': 'Only the assessment creator can publish a public challenge.'}, status=status.HTTP_403_FORBIDDEN)
+        from study_groups.models import StudyGroup, StudyGroupChallenge, ChallengeParticipation
+
+        group, _ = StudyGroup.objects.get_or_create(
+            name=f"Challenge: {assessment.title}",
+            defaults={
+                'description': f"Challenge group for {assessment.title}",
+                'creator': request.user,
+            }
+        )
+        group.members.add(request.user)
+
+        challenge, created = StudyGroupChallenge.objects.get_or_create(
+            group=group,
+            assessment=assessment,
+            defaults={
+                'title': f"Challenge: {assessment.title}",
+                'description': f"Complete {assessment.title}",
+                'start_date': timezone.now(),
+                'end_date': timezone.now() + timedelta(days=7),
+                'is_public_listing': True,
+            }
+        )
+        if not created:
+            challenge.is_public_listing = True
+            challenge.save(update_fields=['is_public_listing'])
+
+        ChallengeParticipation.objects.get_or_create(
+            challenge=challenge,
+            user=request.user,
+            defaults={'completed': False, 'score': 0}
+        )
+        return Response({
+            'detail': 'Challenge is now public. It will appear in Public challenges for everyone on the platform.',
+            'assessment_id': assessment.id,
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='public-challenges')
+    def public_challenges(self, request):
+        """List assessments that are currently listed as public challenges (discoverable by all users)."""
+        from study_groups.models import StudyGroupChallenge
+        now = timezone.now()
+        qs = StudyGroupChallenge.objects.filter(
+            is_public_listing=True,
+            assessment__isnull=False,
+            assessment__is_public=True,
+        ).filter(
+            models.Q(end_date__isnull=True) | models.Q(end_date__gte=now)
+        ).select_related('assessment').order_by('-created_at')[:50]
+        out = []
+        for ch in qs:
+            a = ch.assessment
+            out.append({
+                'id': a.id,
+                'title': a.title,
+                'topic': getattr(a, 'topic', '') or 'General',
+                'question_count': a.questions.count(),
+                'time_limit_minutes': getattr(a, 'time_limit_minutes', None) or 30,
+                'share_token': str(a.share_token) if a.share_token else None,
+                'creator_username': a.creator.username if a.creator_id else None,
+                'challenge_end_date': ch.end_date.isoformat() if ch.end_date else None,
+            })
+        return Response(out)
 
     @action(detail=True, methods=['post'], url_path='upload-answer-image')
     def upload_answer_image(self, request, pk=None):

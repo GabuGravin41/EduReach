@@ -71,11 +71,26 @@ export interface AssessmentAttempt {
   answer_images?: Array<{ id: number; question_id: string; image: string; uploaded_at: string }>;
 }
 
+export interface PublicChallengeItem {
+  id: number;
+  title: string;
+  topic: string;
+  question_count: number;
+  time_limit_minutes: number;
+  share_token: string | null;
+  creator_username: string | null;
+  challenge_end_date: string | null;
+}
+
 export const assessmentService = {
   async getAssessments(): Promise<Assessment[]> {
     try {
       const response = await apiClient.get(API_ENDPOINTS.ASSESSMENTS);
-      return response.data;
+      const data = response.data;
+      // Backend uses PageNumberPagination: { count, next, previous, results }
+      if (data && Array.isArray((data as any).results)) return (data as any).results;
+      if (Array.isArray(data)) return data;
+      return [];
     } catch (error) {
       console.error('Error fetching assessments:', error);
       throw error;
@@ -148,6 +163,28 @@ export const assessmentService = {
     } catch (error) {
       console.error('Error joining challenge:', error);
       throw error;
+    }
+  },
+
+  async publishPublicChallenge(assessmentId: number): Promise<{ detail: string }> {
+    try {
+      const response = await apiClient.post(
+        `${API_ENDPOINTS.ASSESSMENT_DETAIL(assessmentId)}publish-public-challenge/`
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error publishing public challenge:', error);
+      throw error;
+    }
+  },
+
+  async getPublicChallenges(): Promise<PublicChallengeItem[]> {
+    try {
+      const response = await apiClient.get(`${API_ENDPOINTS.ASSESSMENTS}public-challenges/`);
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (error) {
+      console.error('Error fetching public challenges:', error);
+      return [];
     }
   },
 
@@ -254,7 +291,19 @@ export const assessmentService = {
   async submitAssessment(assessmentId: number, answers: Record<number, string>): Promise<AssessmentAttempt> {
     try {
       const response = await apiClient.post(API_ENDPOINTS.SUBMIT_ASSESSMENT(assessmentId), { answers });
-      return response.data;
+      const data = response.data as AssessmentAttempt;
+      // If backend deferred to background (essay/AI-graded), trigger grading so user gets result quickly
+      if (data?.status === 'submitted') {
+        try {
+          const graded = await apiClient.post(
+            `${API_ENDPOINTS.ASSESSMENT_DETAIL(assessmentId)}run-grading/`
+          );
+          return graded.data as AssessmentAttempt;
+        } catch {
+          return data;
+        }
+      }
+      return data;
     } catch (error) {
       console.error('Error submitting assessment:', error);
       throw error;
@@ -291,7 +340,7 @@ export const assessmentService = {
 
   async bulkCreateAssessments(assessments: CreateAssessmentData[]): Promise<Assessment[]> {
     try {
-      const response = await apiClient.post(`${API_ENDPOINTS.ASSESSMENTS}bulk-create/`, {
+      const response = await apiClient.post(`${API_ENDPOINTS.ASSESSMENTS}bulk_create/`, {
         assessments
       });
       return response.data;

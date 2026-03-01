@@ -32,9 +32,11 @@ class PaymentMethod(TimeStampedModel):
     """
 
     class Method(models.TextChoices):
-        MPESA = 'mpesa', 'M-Pesa'
+        MPESA = 'mpesa', 'M-Pesa (STK Push)'
+        MPESA_PAYBILL = 'mpesa_paybill', 'M-Pesa (Paybill)'
         BANK_TRANSFER = 'bank_transfer', 'Bank Transfer'
         CARD = 'card', 'Card Payment'
+        PAYPAL = 'paypal', 'PayPal / International'
 
     name = models.CharField(max_length=50, choices=Method.choices, unique=True)
     display_name = models.CharField(max_length=100)

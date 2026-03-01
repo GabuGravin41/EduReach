@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { PlusCircleIcon } from './icons/PlusCircleIcon';
 import { ClipboardCheckIcon } from './icons/ClipboardCheckIcon';
 import { PencilIcon as DocumentTextIcon } from './icons/PencilIcon';
@@ -12,6 +13,7 @@ import { ShortAnswerQuestionCreator } from './ShortAnswerQuestionCreator';
 import { PassageQuestionCreator } from './PassageQuestionCreator';
 import { ClozeQuestionCreator } from './ClozeQuestionCreator';
 import { AIImportModal } from './AIImportModal';
+import { assessmentService } from '../src/services/assessmentService';
 import type {
     Question,
     QuestionType,
@@ -26,6 +28,7 @@ import type {
 
 interface CreateExamPageProps {
     onExamCreated: (exam: any) => void;
+    onExamUpdated?: (assessment: any) => void;
     onCancel: () => void;
     userTier: UserTier;
     courses: Course[];
@@ -39,12 +42,42 @@ const TIER_FEATURES = {
     admin: { can_create_essay: true, can_create_passage: true, can_create_advanced: true, max_questions: Infinity }
 };
 
+function apiQuestionToUi(q: any, index: number): Question {
+    const id = String(q.id ?? `edit-${index}-${Date.now()}`);
+    const t = q.question_type || q.type || 'short_answer';
+    const pts = q.points ?? 1;
+    const text = q.question_text ?? '';
+    const explanation = q.explanation ?? '';
+    if (t === 'mcq' || t === 'multiple_choice') {
+        const options = Array.isArray(q.options) ? q.options : [];
+        const correct = q.correct_answer ?? options[0];
+        const idx = options.indexOf(correct);
+        return { id, type: 'multiple_choice', question_text: text, options, correct_answer_index: idx >= 0 ? idx : 0, points: pts } as MultipleChoiceQuestion;
+    }
+    if (t === 'true_false' || t === 'truefalse') {
+        const correct = String(q.correct_answer ?? 'true').toLowerCase() === 'true';
+        return { id, type: 'true_false', question_text: text, correct_answer: correct, points: pts } as TrueFalseQuestion;
+    }
+    if (t === 'essay') {
+        return { id, type: 'essay', question_text: text, points: pts, max_words: 500, rubric_criteria: [], ai_grading_enabled: true, explanation } as EssayQuestion;
+    }
+    if (t === 'short_answer') {
+        const correct = q.correct_answer ?? '';
+        return { id, type: 'short_answer', question_text: text, correct_answers: [correct], case_sensitive: false, exact_match: false, max_length: 100, points: pts, explanation } as ShortAnswerQuestion;
+    }
+    return { id, type: 'short_answer', question_text: text, correct_answers: [String(q.correct_answer ?? '')], case_sensitive: false, exact_match: false, max_length: 100, points: pts, explanation } as ShortAnswerQuestion;
+}
+
 export const CreateExamPage: React.FC<CreateExamPageProps> = ({
     onExamCreated,
+    onExamUpdated,
     onCancel,
     userTier,
     courses
 }) => {
+    const location = useLocation();
+    const editExamId = (location.state as { editExamId?: number } | null)?.editExamId;
+
     const [title, setTitle] = useState('');
     const [topic, setTopic] = useState('');
     const [description, setDescription] = useState('');
@@ -53,6 +86,30 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
     const [showAIImport, setShowAIImport] = useState(false);
     const [isPublic, setIsPublic] = useState(true);
     const [resultsVisibility, setResultsVisibility] = useState<'private' | 'opt_in_public' | 'public'>('opt_in_public');
+    const [editLoading, setEditLoading] = useState(!!editExamId);
+    const [editError, setEditError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!editExamId) return;
+        let cancelled = false;
+        setEditLoading(true);
+        setEditError(null);
+        assessmentService.getAssessment(editExamId)
+            .then((data: any) => {
+                if (cancelled) return;
+                setTitle(data.title ?? '');
+                setTopic(data.topic ?? '');
+                setDescription(data.description ?? '');
+                setTimeLimit(Number(data.time_limit_minutes ?? data.time_limit ?? 30));
+                setIsPublic(data.is_public !== false);
+                setResultsVisibility((data.results_visibility as any) ?? 'opt_in_public');
+                const qs = Array.isArray(data.questions) ? data.questions : [];
+                setQuestions(qs.map((q: any, i: number) => apiQuestionToUi(q, i)));
+            })
+            .catch((err) => { if (!cancelled) { setEditError('Failed to load assessment'); console.error(err); } })
+            .finally(() => { if (!cancelled) setEditLoading(false); });
+        return () => { cancelled = true; };
+    }, [editExamId]);
 
     // Linking State
     const [selectedCourseId, setSelectedCourseId] = useState<number | ''>('');
@@ -163,7 +220,7 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
         setQuestions(questions.filter(q => q.id !== questionId));
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!title.trim()) {
             alert('Please enter an exam title');
             return;
@@ -184,25 +241,39 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
             return;
         }
 
-        const examData = {
+        const payload = {
             title: title.trim(),
             topic: topic.trim() || 'General',
             description: description.trim(),
-            time: timeLimit,
             time_limit_minutes: timeLimit,
-            questions: questions.length,
             questions_data: questions,
-            question_types: [...new Set(questions.map(q => q.type))],
             is_public: isPublic,
             results_visibility: resultsVisibility,
             source_lesson: selectedLessonId ? Number(selectedLessonId) : undefined,
+        };
+
+        if (editExamId && onExamUpdated) {
+            try {
+                const updated = await assessmentService.updateAssessment(editExamId, payload as any);
+                onExamUpdated(updated);
+            } catch (err) {
+                console.error(err);
+                alert('Failed to save changes. You may not have permission to edit this assessment.');
+            }
+            return;
+        }
+
+        const examData = {
+            ...payload,
+            time: timeLimit,
+            questions: questions.length,
+            question_types: [...new Set(questions.map(q => q.type))],
             context: selectedCourseId && selectedLessonId ? {
                 type: 'course_lesson',
                 courseId: Number(selectedCourseId),
                 lessonId: Number(selectedLessonId)
             } : undefined
         };
-
         onExamCreated(examData);
     };
 
@@ -325,14 +396,31 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
 
     const selectedCourse = courses.find(c => c.id === Number(selectedCourseId));
 
+    if (editLoading) {
+        return (
+            <div className="max-w-4xl mx-auto py-12 text-center">
+                <div className="inline-block w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3" />
+                <p className="text-slate-600 dark:text-slate-400">Loading assessment…</p>
+            </div>
+        );
+    }
+    if (editError) {
+        return (
+            <div className="max-w-4xl mx-auto py-12 text-center">
+                <p className="text-rose-600 dark:text-rose-400 mb-4">{editError}</p>
+                <button onClick={onCancel} className="px-4 py-2 bg-slate-200 dark:bg-slate-700 rounded-lg">Back to Assessments</button>
+            </div>
+        );
+    }
+
     return (
         <div className="max-w-4xl mx-auto">
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-2">
-                    Create New Assessment
+                    {editExamId ? 'Edit Assessment' : 'Create New Assessment'}
                 </h1>
                 <p className="text-slate-600 dark:text-slate-400">
-                    Build a comprehensive assessment with multiple question types
+                    {editExamId ? 'Change title, questions, and settings. You can add, remove, or change question types.' : 'Build a comprehensive assessment with multiple question types'}
                 </p>
             </div>
 
@@ -665,7 +753,7 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
                         disabled={!title.trim() || questions.length === 0}
                         className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                     >
-                        Create Assessment
+                        {editExamId ? 'Save changes' : 'Create Assessment'}
                     </button>
                 </div>
             </div>

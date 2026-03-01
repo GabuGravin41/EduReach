@@ -27,11 +27,13 @@ class PaymentMethodListView(generics.ListAPIView):
     """
     Returns a list of active payment methods.
     Public endpoint so pricing page can fetch available options.
+    Unpaginated so the response is always a plain list for the billing UI.
     """
 
-    queryset = PaymentMethod.objects.filter(is_active=True)
+    queryset = PaymentMethod.objects.filter(is_active=True).order_by('id')
     serializer_class = PaymentMethodSerializer
     permission_classes = [permissions.AllowAny]
+    pagination_class = None
 
 
 class PaymentHistoryListView(generics.ListAPIView):
@@ -110,6 +112,27 @@ class PaymentInitiateView(APIView):
 
         message = 'Payment created.'
 
+        if method.name == PaymentMethod.Method.MPESA_PAYBILL:
+            # Account number for user to enter in M-Pesa Paybill flow (Paybill → Account → Amount).
+            account = f"EDU{user.id}_{payment.id}"
+            payment.reference_code = account
+            payment.save(update_fields=['reference_code'])
+            config = method.config or {}
+            paybill_number = config.get('paybill_number', '123456')
+            message = (
+                f'Paybill: {paybill_number}, Account: {account}, Amount: {amount_value} {currency}. '
+                'After paying, enter your M-Pesa transaction code in the app.'
+            )
+            serializer = PaymentSerializer(payment)
+            return Response({
+                'payment': serializer.data,
+                'message': message,
+                'paybill_number': paybill_number,
+                'account': account,
+                'amount': str(amount_value),
+                'currency': currency,
+            }, status=status.HTTP_201_CREATED)
+
         if method.name == PaymentMethod.Method.MPESA:
             phone_number = request.data.get('phone_number')
             if not phone_number:
@@ -168,8 +191,52 @@ class PaymentInitiateView(APIView):
             payment.save(update_fields=['metadata', 'reference_code', 'updated_at'])
             message = response_payload.get('message', 'Use the reference code when sending your bank transfer.')
 
+        elif method.name == PaymentMethod.Method.PAYPAL:
+            payment.reference_code = f'PAYPAL-{user.id}-{payment.id}'
+            payment.save(update_fields=['reference_code'])
+            config = method.config or {}
+            instructions = config.get(
+                'instructions',
+                'We will email you a PayPal payment link, or pay to the address in your confirmation email. '
+                'Quote your reference when paying. Your subscription will be activated once we confirm receipt.'
+            )
+            payment.metadata['paypal_instructions'] = instructions
+            payment.save(update_fields=['metadata', 'updated_at'])
+            message = f'Reference: {payment.reference_code}. {instructions}'
+
         serializer = PaymentSerializer(payment)
         return Response({'payment': serializer.data, 'message': message}, status=status.HTTP_201_CREATED)
+
+
+class ConfirmPaybillView(APIView):
+    """
+    User submits M-Pesa transaction code after paying via Paybill.
+    Payment stays pending until admin verifies and marks completed in Django Admin.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, payment_id):
+        transaction_code = (request.data.get('transaction_code') or '').strip()
+        if not transaction_code:
+            return Response(
+                {'detail': 'transaction_code is required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            payment = Payment.objects.get(id=payment_id, user=request.user)
+        except Payment.DoesNotExist:
+            return Response({'detail': 'Payment not found'}, status=status.HTTP_404_NOT_FOUND)
+        if payment.method.name != PaymentMethod.Method.MPESA_PAYBILL:
+            return Response({'detail': 'This payment is not M-Pesa Paybill'}, status=status.HTTP_400_BAD_REQUEST)
+        if payment.status != Payment.Status.PENDING:
+            return Response({'detail': 'Payment is not pending'}, status=status.HTTP_400_BAD_REQUEST)
+        payment.metadata['mpesa_transaction_code'] = transaction_code
+        payment.save(update_fields=['metadata', 'updated_at'])
+        return Response({
+            'detail': 'Transaction code recorded. Your subscription will be activated once we confirm the payment.',
+            'payment': PaymentSerializer(payment).data,
+        }, status=status.HTTP_200_OK)
 
 
 class MPesaCallbackView(APIView):
