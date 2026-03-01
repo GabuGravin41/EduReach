@@ -401,6 +401,16 @@ if not OPENROUTER_API_KEY:
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', None)
 GEMINI_MODEL_NAME = os.environ.get('GEMINI_MODEL_NAME', 'gemini-2.5-flash')
 
+# AI pipeline timeouts (keep under Gunicorn --timeout 120)
+# Per-provider timeouts so we fail fast and can try fallback
+GEMINI_REQUEST_TIMEOUT_SECONDS = int(os.environ.get('GEMINI_REQUEST_TIMEOUT_SECONDS', '35'))
+OPENROUTER_CONNECT_TIMEOUT_SECONDS = float(os.environ.get('OPENROUTER_CONNECT_TIMEOUT_SECONDS', '8'))
+OPENROUTER_READ_TIMEOUT_SECONDS = float(os.environ.get('OPENROUTER_READ_TIMEOUT_SECONDS', '45'))
+# Long-running requests (e.g. quiz) can use longer read timeout
+OPENROUTER_READ_TIMEOUT_LONG_SECONDS = float(os.environ.get('OPENROUTER_READ_TIMEOUT_LONG_SECONDS', '90'))
+# Total deadline for entire call_ai() (Gemini + fallback); stay under worker timeout
+AI_REQUEST_DEADLINE_SECONDS = int(os.environ.get('AI_REQUEST_DEADLINE_SECONDS', '100'))
+
 # Enterprise inquiry email routing
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@edureach.app')
 ENTERPRISE_INQUIRY_EMAIL = os.environ.get('ENTERPRISE_INQUIRY_EMAIL', 'hello@edureach.app')
