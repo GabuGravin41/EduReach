@@ -1,5 +1,5 @@
 import apiClient from './api';
-import { API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS, API_CONFIG } from '../config/api';
 
 export type UserTier = 'free' | 'learner' | 'pro' | 'pro_plus' | 'admin';
 
@@ -17,6 +17,7 @@ export interface RegisterData {
   last_name: string;
   learning_goal?: string;
   learner_type?: string;
+  interests?: string;
 }
 
 export interface User {
@@ -32,6 +33,10 @@ export interface User {
   level: number;
   show_xp_publicly: boolean;
   total_time_spent_seconds: number;
+  learning_goal?: string;
+  learner_type?: string;
+  interests?: string;
+  profile_cover?: string;
   created_at: string;
 }
 
@@ -39,6 +44,16 @@ export interface LeaderboardData {
   top_users: User[];
   user_rank: number | null;
   user_stats: User;
+}
+
+/** Minimal user info for challenge-a-friend list. */
+export interface ChallengeableUser {
+  id: number;
+  username: string;
+  first_name: string;
+  last_name: string;
+  display_name: string;
+  avatar: string | null;
 }
 
 const CACHED_USER_KEY = 'cached_user';
@@ -89,8 +104,20 @@ export const authService = {
     return user;
   },
 
-  async updateProfile(data: Partial<User>): Promise<User> {
-    const response = await apiClient.patch(API_ENDPOINTS.USER_ME, data);
+  /** Build full URL for backend media (avatar, profile_cover). */
+  getMediaUrl(path: string | null | undefined): string | null {
+    if (!path) return null;
+    if (path.startsWith('http')) return path;
+    const base = API_CONFIG.BASE_URL.replace(/\/api\/?$/, '');
+    return `${base}${path.startsWith('/') ? path : '/' + path}`;
+  },
+
+  async updateProfile(data: Partial<User> | FormData): Promise<User> {
+    const config =
+      data instanceof FormData
+        ? { headers: { 'Content-Type': undefined } as unknown as Record<string, string> }
+        : {};
+    const response = await apiClient.patch(API_ENDPOINTS.USER_ME, data, config);
     const user = response.data as User;
     localStorage.setItem(CACHED_USER_KEY, JSON.stringify(user));
     return user;
@@ -105,6 +132,11 @@ export const authService = {
 
   async getLeaderboard(): Promise<LeaderboardData> {
     const response = await apiClient.get('/users/leaderboard/');
+    return response.data;
+  },
+
+  async getChallengeableUsers(): Promise<ChallengeableUser[]> {
+    const response = await apiClient.get(API_ENDPOINTS.USERS_CHALLENGEABLE);
     return response.data;
   },
 

@@ -5,12 +5,14 @@ import { useAuth } from '../src/contexts/useAuth';
 export const LoginScreen: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
+  const [signupStep, setSignupStep] = useState<1 | 2>(1);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [learningGoal, setLearningGoal] = useState<'olympiad' | 'school' | 'exams' | 'curious' | ''>('');
+  const [learningGoal, setLearningGoal] = useState<'school' | 'career' | 'exams' | 'curious' | ''>('');
   const [learnerType, setLearnerType] = useState<'high_school' | 'university' | 'teacher' | 'professional' | ''>('');
+  const [interests, setInterests] = useState<string[]>([]);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -40,10 +42,12 @@ export const LoginScreen: React.FC = () => {
       }
       if (!learningGoal) {
         setError('Tell us what brings you to EduReach so we can tailor your journey.');
+        setSignupStep(2);
         return;
       }
       if (!learnerType) {
         setError('Please choose the option that best describes you.');
+        setSignupStep(2);
         return;
       }
     }
@@ -66,6 +70,7 @@ export const LoginScreen: React.FC = () => {
           lastName: trimmedLastName,
           learningGoal,
           learnerType,
+          interests,
         });
       }
 
@@ -76,6 +81,8 @@ export const LoginScreen: React.FC = () => {
       setLastName('');
       setLearningGoal('');
       setLearnerType('');
+      setInterests([]);
+      setSignupStep(1);
       setPassword('');
     } catch (err: any) {
       console.error('Authentication failed:', err);
@@ -212,173 +219,76 @@ export const LoginScreen: React.FC = () => {
                 />
               </div>
 
-              {!isLogin && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-colors"
-                    disabled={isLoading}
-                    placeholder="First name"
-                    aria-label="First name"
-                  />
-                  <input
-                    type="text"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-colors"
-                    disabled={isLoading}
-                    placeholder="Last name"
-                    aria-label="Last name"
-                  />
+              {!isLogin ? (
+                <div className="relative overflow-hidden">
+                  <div className="flex transition-transform duration-300 ease-out" style={{ transform: signupStep === 1 ? 'translateX(0%)' : 'translateX(-100%)' }}>
+                    <div className="w-full flex-shrink-0 space-y-3 pr-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-slate-100 placeholder-slate-400" disabled={isLoading} placeholder="First name" aria-label="First name" />
+                        <input type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-slate-100 placeholder-slate-400" disabled={isLoading} placeholder="Last name" aria-label="Last name" />
+                      </div>
+                      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-slate-100 placeholder-slate-400" required disabled={isLoading} placeholder="Email" aria-label="Email" />
+                      <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-slate-100 placeholder-slate-400" required disabled={isLoading} placeholder="Password" minLength={8} aria-label="Password" />
+                    </div>
+                    <div className="w-full flex-shrink-0 space-y-3 pl-2">
+                      <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">What brings you to EduReach?</p>
+                      <div className="grid grid-cols-1 gap-2 text-xs">
+                        {(['school', 'career', 'exams', 'curious'] as const).map((g) => (
+                          <button key={g} type="button" onClick={() => setLearningGoal(g)} disabled={isLoading}
+                            className={`w-full text-left px-3 py-2 rounded-md border ${learningGoal === g ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'}`}>
+                            {g === 'school' && 'Stay on top of school / university courses'}
+                            {g === 'career' && 'Grow my skills for career / projects'}
+                            {g === 'exams' && 'Prepare for important exams or certifications'}
+                            {g === 'curious' && 'Learn new topics and challenge myself for fun'}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2 mt-3">Which describes you best?</p>
+                      <div className="grid grid-cols-1 gap-2 text-xs">
+                        {(['high_school', 'university', 'teacher', 'professional'] as const).map((t) => (
+                          <button key={t} type="button" onClick={() => setLearnerType(t)} disabled={isLoading}
+                            className={`w-full text-left px-3 py-2 rounded-md border ${learnerType === t ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-200' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'}`}>
+                            {t === 'high_school' && 'High school student'}
+                            {t === 'university' && 'University student'}
+                            {t === 'teacher' && 'Teacher / coach'}
+                            {t === 'professional' && 'Professional / other'}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2 mt-3">What are you interested in? (optional)</p>
+                      <div className="grid grid-cols-1 gap-2 text-xs">
+                        {[
+                          { key: 'math', label: 'Mathematics & problem solving' },
+                          { key: 'programming', label: 'Programming & computer science' },
+                          { key: 'data_ai', label: 'Data, AI & analytics' },
+                          { key: 'science', label: 'Science & engineering' },
+                          { key: 'languages', label: 'Languages & communication' },
+                          { key: 'exams_prep', label: 'Exam preparation' },
+                          { key: 'career_skills', label: 'Career & professional skills' },
+                          { key: 'creative', label: 'Creative skills (writing, art, music)' },
+                        ].map(({ key, label }) => {
+                          const active = interests.includes(key);
+                          return (
+                            <button key={key} type="button" onClick={() => setInterests((prev) => prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key])} disabled={isLoading}
+                              className={`w-full text-left px-3 py-2 rounded-md border ${active ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-200' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'}`}>
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                    <button type="button" disabled={signupStep === 1 || isLoading} onClick={() => setSignupStep(1)} className="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-600 disabled:opacity-40">← Back</button>
+                    <span>Step {signupStep} of 2</span>
+                    <button type="button" disabled={signupStep === 2 || isLoading || !firstName.trim() || !lastName.trim() || !email.trim()} onClick={() => setSignupStep(2)} className="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-600 disabled:opacity-40">Next →</button>
+                  </div>
                 </div>
-              )}
-
-              {!isLogin && (
+              ) : (
                 <div>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-colors"
-                    required={!isLogin}
-                    disabled={isLoading}
-                    placeholder="Email"
-                    aria-label="Email"
-                  />
+                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-slate-100 placeholder-slate-400" required disabled={isLoading} placeholder="Password" minLength={8} aria-label="Password" />
                 </div>
               )}
-
-              {!isLogin && (
-                <>
-                  <div className="mt-2">
-                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">
-                      What brings you to EduReach?
-                    </p>
-                    <div className="grid grid-cols-1 gap-2 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => setLearningGoal('olympiad')}
-                        className={`w-full text-left px-3 py-2 rounded-md border ${
-                          learningGoal === 'olympiad'
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
-                            : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'
-                        }`}
-                        disabled={isLoading}
-                      >
-                        Train for math / CS olympiads and contests
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setLearningGoal('school')}
-                        className={`w-full text-left px-3 py-2 rounded-md border ${
-                          learningGoal === 'school'
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
-                            : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'
-                        }`}
-                        disabled={isLoading}
-                      >
-                        Do better in school / university courses
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setLearningGoal('exams')}
-                        className={`w-full text-left px-3 py-2 rounded-md border ${
-                          learningGoal === 'exams'
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
-                            : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'
-                        }`}
-                        disabled={isLoading}
-                      >
-                        Prepare for important exams
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setLearningGoal('curious')}
-                        className={`w-full text-left px-3 py-2 rounded-md border ${
-                          learningGoal === 'curious'
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
-                            : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'
-                        }`}
-                        disabled={isLoading}
-                      >
-                        Explore math & problem solving for fun
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="mt-2">
-                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">
-                      Which describes you best?
-                    </p>
-                    <div className="grid grid-cols-1 gap-2 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => setLearnerType('high_school')}
-                        className={`w-full text-left px-3 py-2 rounded-md border ${
-                          learnerType === 'high_school'
-                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-200'
-                            : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'
-                        }`}
-                        disabled={isLoading}
-                      >
-                        High school student
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setLearnerType('university')}
-                        className={`w-full text-left px-3 py-2 rounded-md border ${
-                          learnerType === 'university'
-                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-200'
-                            : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'
-                        }`}
-                        disabled={isLoading}
-                      >
-                        University student
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setLearnerType('teacher')}
-                        className={`w-full text-left px-3 py-2 rounded-md border ${
-                          learnerType === 'teacher'
-                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-200'
-                            : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'
-                        }`}
-                        disabled={isLoading}
-                      >
-                        Teacher / coach
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setLearnerType('professional')}
-                        className={`w-full text-left px-3 py-2 rounded-md border ${
-                          learnerType === 'professional'
-                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-200'
-                            : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'
-                        }`}
-                        disabled={isLoading}
-                      >
-                        Professional / other
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              <div>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-colors"
-                  required
-                  disabled={isLoading}
-                  placeholder="Password"
-                  minLength={8}
-                  aria-label="Password"
-                />
-              </div>
 
               <button
                 type="submit"
@@ -402,6 +312,7 @@ export const LoginScreen: React.FC = () => {
                 onClick={() => {
                   setIsLogin(!isLogin);
                   setError('');
+                  setSignupStep(1);
                 }}
                 className="text-blue-600 dark:text-blue-400 font-semibold hover:underline"
                 disabled={isLoading}

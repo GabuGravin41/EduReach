@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
+from django.db import models
 
 from .models import StudyGroup, StudyGroupPost, StudyGroupChallenge, ChallengeParticipation
 from .serializers import (
@@ -27,7 +28,26 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
     serializer_class = StudyGroupSerializer
 
     def get_queryset(self):
+        """
+        Visibility rules:
+          - Anonymous users: only see public groups.
+          - Authenticated users: see
+              * public groups
+              * groups they created
+              * groups they are a member of
+        """
         qs = StudyGroup.objects.all()
+
+        user = getattr(self.request, 'user', None)
+        if not user or not user.is_authenticated:
+            qs = qs.filter(is_public=True)
+        else:
+            qs = qs.filter(
+                models.Q(is_public=True)
+                | models.Q(creator=user)
+                | models.Q(members=user)
+            ).distinct()
+
         course_id = self.request.query_params.get('course')
         if course_id:
             qs = qs.filter(course_id=course_id)

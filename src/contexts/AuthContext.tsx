@@ -14,6 +14,7 @@ interface AuthContextType {
     lastName: string;
     learningGoal?: string;
     learnerType?: string;
+    interests?: string[];
   }) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -73,7 +74,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const register: AuthContextType['register'] = async (payload) => {
-    const { username, email, password, firstName, lastName, learningGoal, learnerType } = payload;
+    const { username, email, password, firstName, lastName, learningGoal, learnerType, interests } = payload;
+    const interestsValue = Array.isArray(interests) ? interests.join(',') : '';
     await authService.register({
       username,
       email,
@@ -83,6 +85,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       last_name: lastName,
       learning_goal: learningGoal,
       learner_type: learnerType,
+      interests: interestsValue,
     });
     const userData = await authService.getCurrentUser();
     setUser(userData);

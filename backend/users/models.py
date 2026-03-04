@@ -21,6 +21,12 @@ class User(AbstractUser):
     )
     bio = models.TextField(blank=True, null=True)
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    profile_cover = models.ImageField(
+        upload_to='profile_covers/',
+        blank=True,
+        null=True,
+        help_text='Optional cover image for profile header. If not set, gradient is shown.',
+    )
     
     # Gamification fields
     xp_points = models.BigIntegerField(default=0)
@@ -48,6 +54,10 @@ class User(AbstractUser):
         max_length=32,
         blank=True,
         help_text="Self-described role (e.g. high_school_student, university_student, teacher, professional).",
+    )
+    interests = models.TextField(
+        blank=True,
+        help_text='Comma-separated list of interest tags (e.g. math, programming, languages, exams).',
     )
     
     created_at = models.DateTimeField(auto_now_add=True)

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   useStudyGroups,
   useCreateStudyGroup,
@@ -21,15 +21,17 @@ import { UsersIcon } from './icons/UsersIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
 import { PlusCircleIcon } from './icons/PlusCircleIcon';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
+import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { CalendarIcon } from './icons/CalendarIcon';
 import { UserCircleIcon } from './icons/UserCircleIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { TrophyIcon } from './icons/TrophyIcon';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 export const StudyGroupsPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const { data: groupsData, isLoading } = useStudyGroups();
   const createGroupMutation = useCreateStudyGroup();
@@ -50,6 +52,7 @@ export const StudyGroupsPage: React.FC = () => {
   const [selectedAssessmentId, setSelectedAssessmentId] = useState<string>('');
   const [challengeStart, setChallengeStart] = useState('');
   const [challengeEnd, setChallengeEnd] = useState('');
+  const [createChallengeExpanded, setCreateChallengeExpanded] = useState(false);
 
   const createPostMutation = useCreateStudyGroupPost();
   const inviteMemberMutation = useInviteStudyGroupMember();
@@ -69,6 +72,7 @@ export const StudyGroupsPage: React.FC = () => {
   const { data: performanceData = [], isLoading: performanceLoading } = useStudyGroupPerformance(
     activeGroupId ? Number(activeGroupId) : 0
   );
+  const [pendingJoinGroupId, setPendingJoinGroupId] = useState<number | null>(null);
 
   const normalizedPosts = Array.isArray(groupPosts)
     ? groupPosts
@@ -178,6 +182,46 @@ export const StudyGroupsPage: React.FC = () => {
     setChallengeStart('');
     setChallengeEnd('');
   };
+
+  // Handle invite-by-URL: /study-groups?join_group=<id>
+  useEffect(() => {
+    const search = location.search || '';
+    const params = new URLSearchParams(search);
+    const joinParam = params.get('join_group');
+    if (!joinParam) return;
+    const idNum = Number(joinParam);
+    if (!idNum || Number.isNaN(idNum)) return;
+    if (pendingJoinGroupId === idNum) return;
+    if (!user) return; // wait until user is logged in
+
+    setPendingJoinGroupId(idNum);
+    joinGroupMutation
+      .mutateAsync(idNum)
+      .then(() => {
+        alert('You have been added to this study group.');
+      })
+      .catch((err: any) => {
+        console.error('Failed to join group from invite link', err);
+        const detail = err?.response?.data?.detail;
+        if (detail) {
+          alert(detail);
+        } else {
+          alert('Could not join this group. Please try again from the Study Groups page.');
+        }
+        setPendingJoinGroupId(null);
+      });
+  }, [location.search, user, joinGroupMutation, pendingJoinGroupId]);
+
+  // After joining via URL, if the group appears in the list, open it automatically.
+  useEffect(() => {
+    if (!pendingJoinGroupId) return;
+    const found = groups.find((g) => Number(g.id) === Number(pendingJoinGroupId));
+    if (found) {
+      setActiveGroup(found);
+      setGroupTab('overview');
+      setPendingJoinGroupId(null);
+    }
+  }, [groups, pendingJoinGroupId]);
 
   // If a group is active, render the detailed dashboard
   if (activeGroup) {
@@ -421,72 +465,87 @@ export const StudyGroupsPage: React.FC = () => {
             )}
             {groupTab === 'events' && (
               <div className="space-y-6">
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                    <ClockIcon className="w-5 h-5 text-indigo-500" />
-                    Create Group Challenge
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <input
-                      value={challengeTitle}
-                      onChange={(e) => setChallengeTitle(e.target.value)}
-                      placeholder="Challenge title"
-                      className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-                    />
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                          Link an assessment (optional)
-                        </label>
-                        <select
-                          value={assessmentTypeFilter}
-                          onChange={(e) => setAssessmentTypeFilter(e.target.value as any)}
-                          className="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
-                        >
-                          <option value="all">All</option>
-                          <option value="quiz">Quizzes</option>
-                          <option value="exam">Exams</option>
-                        </select>
-                      </div>
-                      <select
-                        value={selectedAssessmentId}
-                        onChange={(e) => setSelectedAssessmentId(e.target.value)}
-                        className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-                      >
-                        <option value="">Choose assessment</option>
-                        {filteredAssessmentsForChallenges.map((assessment: any) => (
-                          <option key={assessment.id} value={assessment.id}>
-                            {assessment.title} {assessment.assessment_type === 'exam' ? '• Exam' : '• Quiz'}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <input
-                      value={challengeStart}
-                      onChange={(e) => setChallengeStart(e.target.value)}
-                      type="datetime-local"
-                      className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-                    />
-                    <input
-                      value={challengeEnd}
-                      onChange={(e) => setChallengeEnd(e.target.value)}
-                      type="datetime-local"
-                      className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-                    />
-                  </div>
-                  <textarea
-                    value={challengeDescription}
-                    onChange={(e) => setChallengeDescription(e.target.value)}
-                    placeholder="Description (optional)"
-                    className="mt-4 w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-                  />
-                  <Button
-                    className="mt-4"
-                    onClick={handleCreateChallenge}
-                    disabled={createChallengeMutation.isPending}
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setCreateChallengeExpanded((prev) => !prev)}
+                    className="w-full flex items-center justify-between gap-2 p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors"
                   >
-                    Create Challenge
-                  </Button>
+                    <h3 className="text-lg font-bold flex items-center gap-2">
+                      <ClockIcon className="w-5 h-5 text-indigo-500 flex-shrink-0" />
+                      Create Group Challenge
+                    </h3>
+                    <ChevronDownIcon
+                      className={`w-5 h-5 text-slate-500 flex-shrink-0 transition-transform duration-200 ${
+                        createChallengeExpanded ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                  {createChallengeExpanded && (
+                    <div className="px-6 pb-6 pt-0 border-t border-slate-200 dark:border-slate-700">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                        <input
+                          value={challengeTitle}
+                          onChange={(e) => setChallengeTitle(e.target.value)}
+                          placeholder="Challenge title"
+                          className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                        />
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                              Link an assessment (optional)
+                            </label>
+                            <select
+                              value={assessmentTypeFilter}
+                              onChange={(e) => setAssessmentTypeFilter(e.target.value as any)}
+                              className="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
+                            >
+                              <option value="all">All</option>
+                              <option value="quiz">Quizzes</option>
+                              <option value="exam">Exams</option>
+                            </select>
+                          </div>
+                          <select
+                            value={selectedAssessmentId}
+                            onChange={(e) => setSelectedAssessmentId(e.target.value)}
+                            className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                          >
+                            <option value="">Choose assessment</option>
+                            {filteredAssessmentsForChallenges.map((assessment: any) => (
+                              <option key={assessment.id} value={assessment.id}>
+                                {assessment.title} {assessment.assessment_type === 'exam' ? '• Exam' : '• Quiz'}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <input
+                          value={challengeStart}
+                          onChange={(e) => setChallengeStart(e.target.value)}
+                          type="datetime-local"
+                          className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                        />
+                        <input
+                          value={challengeEnd}
+                          onChange={(e) => setChallengeEnd(e.target.value)}
+                          type="datetime-local"
+                          className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                        />
+                      </div>
+                      <textarea
+                        value={challengeDescription}
+                        onChange={(e) => setChallengeDescription(e.target.value)}
+                        placeholder="Description (optional)"
+                        className="mt-4 w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                      />
+                      <Button
+                        className="mt-4"
+                        onClick={handleCreateChallenge}
+                        disabled={createChallengeMutation.isPending}
+                      >
+                        Create Challenge
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700">
@@ -536,23 +595,23 @@ export const StudyGroupsPage: React.FC = () => {
                 <p className="text-slate-500 mb-6">Grow your study group by inviting peers to join.</p>
 
                 <div className="mb-8">
-                  <label className="block text-sm font-medium mb-2">Share Link</label>
+                  <label className="block text-sm font-medium mb-2">Share invite link</label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       readOnly
-                      value={`${window.location.origin}/study-groups`}
+                      value={`${window.location.origin}/study-groups?join_group=${activeGroup.id}`}
                       className="flex-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500"
                       onFocus={(e) => e.currentTarget.select()}
                     />
                     <Button
                       type="button"
                       onClick={async () => {
-                        const url = `${window.location.origin}/study-groups`;
+                        const url = `${window.location.origin}/study-groups?join_group=${activeGroup.id}`;
                         try {
                           if (navigator.clipboard && window.isSecureContext) {
                             await navigator.clipboard.writeText(url);
-                            alert('Link copied!');
+                            alert('Invite link copied!');
                           } else {
                             const textarea = document.createElement('textarea');
                             textarea.value = url;
@@ -563,7 +622,7 @@ export const StudyGroupsPage: React.FC = () => {
                             textarea.select();
                             const ok = document.execCommand('copy');
                             document.body.removeChild(textarea);
-                            alert(ok ? 'Link copied!' : 'Copy failed, please copy manually.');
+                            alert(ok ? 'Invite link copied!' : 'Copy failed, please copy manually.');
                           }
                         } catch {
                           alert('Copy failed, please copy manually.');
@@ -574,13 +633,13 @@ export const StudyGroupsPage: React.FC = () => {
                     </Button>
                   </div>
                   <p className="mt-2 text-xs text-slate-500">
-                    This link opens the Study Groups page on your deployed site (e.g. https://your-domain/study-groups).
-                    Share the specific group name or ID in your message so students know which group to join.
+                    Anyone who opens this link while signed in will be added to <span className="font-semibold">{activeGroup.name}</span>{' '}
+                    and taken straight into this study group.
                   </p>
                 </div>
 
                 <div className="border-t border-slate-100 dark:border-slate-700 pt-6">
-                  <label className="block text-sm font-medium mb-2">Invite by Email</label>
+                  <label className="block text-sm font-medium mb-2">Invite by email (existing EduReach account)</label>
                   <div className="flex gap-2 mb-2">
                     <input
                       type="email"
@@ -593,13 +652,28 @@ export const StudyGroupsPage: React.FC = () => {
                       disabled={!inviteEmail || inviteMemberMutation.isPending}
                       onClick={async () => {
                         if (!inviteEmail) return;
-                        await inviteMemberMutation.mutateAsync({ groupId: activeGroup.id, email: inviteEmail });
-                        setInviteEmail('');
+                        try {
+                          await inviteMemberMutation.mutateAsync({ groupId: activeGroup.id, email: inviteEmail });
+                          alert(
+                            'If this email belongs to an existing EduReach account, they have been added to the group and will see it in their Study Groups list.'
+                          );
+                          setInviteEmail('');
+                        } catch (err: any) {
+                          const detail = err?.response?.data?.detail;
+                          if (detail) {
+                            alert(detail);
+                          } else {
+                            alert('Could not add this email to the group. They may not have an EduReach account yet.');
+                          }
+                        }
                       }}
                     >
-                      {inviteMemberMutation.isPending ? 'Sending...' : 'Send Invite'}
+                      {inviteMemberMutation.isPending ? 'Adding…' : 'Add to group'}
                     </Button>
                   </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    This does not send an external email yet. It simply adds an existing EduReach user (matched by email) into this group.
+                  </p>
                 </div>
               </div>
             )}

@@ -3,6 +3,7 @@ import { UserCircleIcon } from './icons/UserCircleIcon';
 import { SwordsIcon } from './icons/SwordsIcon';
 import { XIcon } from './icons/XIcon';
 import { assessmentService } from '../src/services/assessmentService';
+import { authService, type ChallengeableUser } from '../src/services/authService';
 
 interface ChallengeModalProps {
   examTitle: string;
@@ -11,19 +12,13 @@ interface ChallengeModalProps {
   onClose: () => void;
 }
 
-const friends = [
-  { id: 1, name: 'Alice' },
-  { id: 2, name: 'Bob' },
-  { id: 3, name: 'Charlie' },
-  { id: 4, name: 'David' },
-  { id: 5, name: 'Eve' },
-];
-
 export const ChallengeModal: React.FC<ChallengeModalProps> = ({ examTitle, assessmentId, shareToken, onClose }) => {
   const [mode, setMode] = useState<'choose' | 'friend' | 'public'>('choose');
   const [selectedFriend, setSelectedFriend] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const [publicListed, setPublicListed] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [challengeableUsers, setChallengeableUsers] = useState<ChallengeableUser[]>([]);
+  const [friendsLoadState, setFriendsLoadState] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
 
   useEffect(() => {
     if (mode !== 'public') return;
@@ -33,6 +28,24 @@ export const ChallengeModal: React.FC<ChallengeModalProps> = ({ examTitle, asses
       .then(() => setPublicListed('ok'))
       .catch(() => setPublicListed('error'));
   }, [mode, assessmentId, publicListed]);
+
+  useEffect(() => {
+    if (mode !== 'friend') return;
+    if (friendsLoadState !== 'idle') return;
+    setFriendsLoadState('loading');
+    authService.getChallengeableUsers()
+      .then((users) => {
+        setChallengeableUsers(users);
+        setFriendsLoadState('ok');
+      })
+      .catch(() => setFriendsLoadState('error'));
+  }, [mode, friendsLoadState]);
+
+  const handleBackFromFriend = () => {
+    setSelectedFriend(null);
+    setFriendsLoadState('idle');
+    setMode('choose');
+  };
 
   const baseOrigin = typeof window !== 'undefined' ? window.location.origin : '';
   const challengeLink = shareToken
@@ -113,32 +126,53 @@ export const ChallengeModal: React.FC<ChallengeModalProps> = ({ examTitle, asses
           {mode === 'friend' && (
             <>
               <div className="w-full text-left mb-4">
-                <h3 className="font-semibold mb-2 text-slate-700 dark:text-slate-300">Select a friend</h3>
+                <h3 className="font-semibold mb-2 text-slate-700 dark:text-slate-300">Select a user to challenge</h3>
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-                  {friends.map(friend => (
-                    <button
-                      key={friend.id}
-                      type="button"
-                      onClick={() => setSelectedFriend(friend.id)}
-                      className={`w-full flex items-center gap-3 p-2.5 rounded-lg border-2 transition-colors ${
-                        selectedFriend === friend.id
-                          ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/50'
-                          : 'border-transparent hover:bg-slate-100 dark:hover:bg-slate-700/50'
-                      }`}
-                    >
-                      <UserCircleIcon className="w-8 h-8 text-slate-400" />
-                      <span className="font-medium text-slate-700 dark:text-slate-200">{friend.name}</span>
-                    </button>
-                  ))}
+                  {friendsLoadState === 'loading' && (
+                    <p className="text-sm text-slate-500 dark:text-slate-400 py-4 text-center">Loading users…</p>
+                  )}
+                  {friendsLoadState === 'error' && (
+                    <p className="text-sm text-amber-600 dark:text-amber-400 py-4 text-center">Could not load users. Try again later.</p>
+                  )}
+                  {friendsLoadState === 'ok' && challengeableUsers.length === 0 && (
+                    <p className="text-sm text-slate-500 dark:text-slate-400 py-4 text-center">No other users on the platform yet. Use “Public challenge” to share a link.</p>
+                  )}
+                  {friendsLoadState === 'ok' && challengeableUsers.map((user) => {
+                    const avatarUrl = user.avatar ? authService.getMediaUrl(user.avatar) : null;
+                    return (
+                      <button
+                        key={user.id}
+                        type="button"
+                        onClick={() => setSelectedFriend(user.id)}
+                        className={`w-full flex items-center gap-3 p-2.5 rounded-lg border-2 transition-colors ${
+                          selectedFriend === user.id
+                            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/50'
+                            : 'border-transparent hover:bg-slate-100 dark:hover:bg-slate-700/50'
+                        }`}
+                      >
+                        {avatarUrl ? (
+                          <img src={avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                        ) : (
+                          <UserCircleIcon className="w-8 h-8 text-slate-400 flex-shrink-0" />
+                        )}
+                        <span className="font-medium text-slate-700 dark:text-slate-200 truncate">{user.display_name}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               <div className="flex gap-2">
-                <button type="button" onClick={() => setMode('choose')} className="flex-1 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-medium">
+                <button type="button" onClick={handleBackFromFriend} className="flex-1 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-medium">
                   Back
                 </button>
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={async () => {
+                    if (selectedFriend) {
+                      await handleCopyLink();
+                    }
+                    onClose();
+                  }}
                   disabled={!selectedFriend}
                   className="flex-1 bg-indigo-600 text-white font-bold py-2.5 px-4 rounded-lg hover:bg-indigo-700 disabled:bg-slate-400 dark:disabled:bg-slate-600 disabled:cursor-not-allowed"
                 >

@@ -35,6 +35,9 @@ export const UserProfilePage: React.FC = () => {
         last_name: user?.last_name || '',
         email: user?.email || '',
         bio: user?.bio || '',
+        learning_goal: user?.learning_goal || '',
+        learner_type: user?.learner_type || '',
+        interests: user?.interests || '',
         show_xp_publicly: user?.show_xp_publicly ?? true
     });
 
@@ -45,6 +48,9 @@ export const UserProfilePage: React.FC = () => {
                 last_name: user.last_name || '',
                 email: user.email || '',
                 bio: user.bio || '',
+                learning_goal: user.learning_goal || '',
+                learner_type: user.learner_type || '',
+                interests: user.interests || '',
                 show_xp_publicly: user.show_xp_publicly
             });
         }
@@ -54,7 +60,12 @@ export const UserProfilePage: React.FC = () => {
         setSaveState('saving');
         setSaveMessage('');
         try {
-            await authService.updateProfile(formData);
+            await authService.updateProfile({
+                ...formData,
+                learning_goal: formData.learning_goal || undefined,
+                learner_type: formData.learner_type || undefined,
+                interests: formData.interests || undefined
+            });
             await refreshUser();
             setSaveState('saved');
             setSaveMessage('Profile updated successfully.');
@@ -62,6 +73,46 @@ export const UserProfilePage: React.FC = () => {
         } catch (error: any) {
             setSaveState('error');
             setSaveMessage(error?.response?.data?.detail || 'Failed to update profile.');
+        }
+    };
+
+    const avatarUrl = user?.avatar ? authService.getMediaUrl(user.avatar) : null;
+    const coverUrl = user?.profile_cover ? authService.getMediaUrl(user.profile_cover) : null;
+
+    const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const fd = new FormData();
+        fd.append('avatar', file);
+        try {
+            await authService.updateProfile(fd);
+            await refreshUser();
+        } catch (err: any) {
+            setSaveMessage(err?.response?.data?.detail || 'Failed to update photo.');
+        }
+        e.target.value = '';
+    };
+
+    const handleCoverChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const fd = new FormData();
+        fd.append('profile_cover', file);
+        try {
+            await authService.updateProfile(fd);
+            await refreshUser();
+        } catch (err: any) {
+            setSaveMessage(err?.response?.data?.detail || 'Failed to update cover.');
+        }
+        e.target.value = '';
+    };
+
+    const handleRemoveCover = async () => {
+        try {
+            await authService.updateProfile({ profile_cover: null } as any);
+            await refreshUser();
+        } catch (err: any) {
+            setSaveMessage(err?.response?.data?.detail || 'Failed to remove cover.');
         }
     };
 
@@ -77,18 +128,39 @@ export const UserProfilePage: React.FC = () => {
         <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* Hero Profile Section */}
             <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-sm overflow-hidden border border-slate-200 dark:border-slate-700">
-                <div className={`h-32 bg-gradient-to-r ${tierGradients[safeTier]} opacity-90`} />
+                <div className="relative h-32">
+                    {coverUrl ? (
+                        <img src={coverUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                        <div className={`w-full h-full bg-gradient-to-r ${tierGradients[safeTier]} opacity-90`} />
+                    )}
+                    <div className="absolute inset-0 flex items-center justify-end gap-2 p-3 opacity-0 hover:opacity-100 transition-opacity bg-black/20">
+                        <label className="px-3 py-1.5 rounded-lg bg-white/90 dark:bg-slate-800 text-slate-800 dark:text-white text-sm font-medium cursor-pointer shadow">
+                            {coverUrl ? 'Change cover' : 'Add cover image'}
+                            <input type="file" accept="image/*" className="hidden" onChange={handleCoverChange} />
+                        </label>
+                        {coverUrl && (
+                            <button type="button" onClick={handleRemoveCover} className="px-3 py-1.5 rounded-lg bg-white/90 dark:bg-slate-800 text-slate-800 dark:text-white text-sm font-medium shadow">
+                                Remove cover
+                            </button>
+                        )}
+                    </div>
+                </div>
 
                 <div className="px-6 pb-6">
                     <div className="relative flex flex-col md:flex-row md:items-end -mt-14 gap-5">
                         <div className="relative group">
-                            <div className={`w-28 h-28 rounded-xl bg-slate-100 dark:bg-slate-900 border-4 border-white dark:border-slate-800 shadow-sm flex items-center justify-center overflow-hidden transition-transform group-hover:scale-105`}>
-                                {user.avatar ? (
-                                    <img src={user.avatar} alt={user.username} className="w-full h-full object-cover" />
-                                ) : (
-                                    <UserCircleIcon className="w-20 h-20 text-slate-300 dark:text-slate-700" />
-                                )}
-                            </div>
+                            <label className="block cursor-pointer">
+                                <div className={`w-28 h-28 rounded-xl bg-slate-100 dark:bg-slate-900 border-4 border-white dark:border-slate-800 shadow-sm flex items-center justify-center overflow-hidden transition-transform group-hover:scale-105`}>
+                                    {avatarUrl ? (
+                                        <img src={avatarUrl} alt={user.username} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <UserCircleIcon className="w-20 h-20 text-slate-300 dark:text-slate-700" />
+                                    )}
+                                </div>
+                                <span className="absolute bottom-0 right-0 text-xs font-medium text-slate-600 dark:text-slate-400 bg-white/90 dark:bg-slate-800 px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">Change photo</span>
+                                <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+                            </label>
                             <div className="absolute -bottom-1.5 -right-1.5 bg-indigo-600 text-white w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm shadow ring-2 ring-white dark:ring-slate-800">
                                 {user.level}
                             </div>
@@ -104,7 +176,7 @@ export const UserProfilePage: React.FC = () => {
                                 </span>
                             </div>
                             <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">
-                                {user.first_name || user.last_name ? `${user.first_name} ${user.last_name}` : 'Mystery Educator'}
+                                {user.first_name || user.last_name ? `${user.first_name} ${user.last_name}`.trim() : 'Add your name in Profile Details'}
                             </p>
                         </div>
 
@@ -254,6 +326,57 @@ export const UserProfilePage: React.FC = () => {
                                 ) : (
                                     <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 rounded-lg text-slate-800 dark:text-white font-medium border border-transparent text-sm">
                                         {user.email || '—'}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-0.5">What brings you here</label>
+                                {isEditing ? (
+                                    <input
+                                        type="text"
+                                        value={formData.learning_goal}
+                                        onChange={(e) => setFormData({ ...formData, learning_goal: e.target.value })}
+                                        placeholder="e.g. school, career, exams, curious"
+                                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:text-white text-sm"
+                                    />
+                                ) : (
+                                    <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 rounded-lg text-slate-800 dark:text-white font-medium border border-transparent text-sm">
+                                        {user.learning_goal ? String(user.learning_goal) : '—'}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-0.5">I am a</label>
+                                {isEditing ? (
+                                    <input
+                                        type="text"
+                                        value={formData.learner_type}
+                                        onChange={(e) => setFormData({ ...formData, learner_type: e.target.value })}
+                                        placeholder="e.g. high_school, university, teacher, professional"
+                                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:text-white text-sm"
+                                    />
+                                ) : (
+                                    <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 rounded-lg text-slate-800 dark:text-white font-medium border border-transparent text-sm">
+                                        {user.learner_type ? String(user.learner_type).replace(/_/g, ' ') : '—'}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-0.5">Interests</label>
+                                {isEditing ? (
+                                    <input
+                                        type="text"
+                                        value={formData.interests}
+                                        onChange={(e) => setFormData({ ...formData, interests: e.target.value })}
+                                        placeholder="e.g. math, programming, languages (comma-separated)"
+                                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:text-white text-sm"
+                                    />
+                                ) : (
+                                    <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 rounded-lg text-slate-800 dark:text-white font-medium border border-transparent text-sm">
+                                        {user.interests ? String(user.interests) : '—'}
                                     </div>
                                 )}
                             </div>

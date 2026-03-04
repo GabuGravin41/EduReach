@@ -2,7 +2,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import User
-from .serializers import UserSerializer, UserProfileSerializer
+from .serializers import UserSerializer, UserProfileSerializer, ChallengeableUserSerializer
 from courses.models import Course
 from assessments.models import Assessment
 
@@ -59,6 +59,13 @@ class UserViewSet(viewsets.ModelViewSet):
         user.tier = new_tier
         user.save()
         return Response(UserSerializer(user).data)
+
+    @action(detail=False, methods=['get'], url_path='challengeable')
+    def challengeable(self, request):
+        """List other site users that can be challenged (for challenge-a-friend)."""
+        qs = User.objects.exclude(id=request.user.id).order_by('username')
+        serializer = ChallengeableUserSerializer(qs, many=True)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
     def leaderboard(self, request):
