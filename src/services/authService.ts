@@ -13,6 +13,10 @@ export interface RegisterData {
   email: string;
   password1: string;
   password2: string;
+  first_name: string;
+  last_name: string;
+  learning_goal?: string;
+  learner_type?: string;
 }
 
 export interface User {

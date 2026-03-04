@@ -1,12 +1,22 @@
 import apiClient from './api';
 import { API_ENDPOINTS } from '../config/api';
 
+export interface StudyGroupCreator {
+  id: number;
+  username: string;
+  first_name?: string;
+  last_name?: string;
+  xp_points?: number;
+  level?: number;
+}
+
 export interface StudyGroup {
   id: number;
   name: string;
   description?: string;
   course?: number | null;
   course_title?: string;
+  creator?: StudyGroupCreator;
   is_public: boolean;
   max_members: number;
   member_count: number;
@@ -55,6 +65,11 @@ export const studyGroupService = {
 
   async createGroup(payload: CreateStudyGroupPayload): Promise<StudyGroup> {
     const { data } = await apiClient.post('/study-groups/groups/', payload);
+    return data;
+  },
+
+  async updateGroup(id: number, payload: Partial<CreateStudyGroupPayload>): Promise<StudyGroup> {
+    const { data } = await apiClient.patch(`/study-groups/groups/${id}/`, payload);
     return data;
   },
 

@@ -31,6 +31,20 @@ export const useCreateStudyGroup = () => {
   });
 };
 
+export const useUpdateStudyGroup = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: Partial<Pick<StudyGroup, 'name' | 'description' | 'course' | 'is_public' | 'max_members'>> }) =>
+      studyGroupService.updateGroup(id, payload),
+    onSuccess: (_data, variables) => {
+      // Refresh group lists so visibility labels stay in sync
+      queryClient.invalidateQueries({ queryKey: STUDY_GROUP_KEYS.lists() });
+      // Also refresh any detail views that might be using this id
+      queryClient.invalidateQueries({ queryKey: STUDY_GROUP_KEYS.detail(variables.id) });
+    },
+  });
+};
+
 export const useJoinStudyGroup = () => {
   const queryClient = useQueryClient();
   return useMutation({

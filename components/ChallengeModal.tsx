@@ -34,17 +34,32 @@ export const ChallengeModal: React.FC<ChallengeModalProps> = ({ examTitle, asses
       .catch(() => setPublicListed('error'));
   }, [mode, assessmentId, publicListed]);
 
+  const baseOrigin = typeof window !== 'undefined' ? window.location.origin : '';
   const challengeLink = shareToken
-    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/assessments/${assessmentId}?share_token=${shareToken}`
-    : `${typeof window !== 'undefined' ? window.location.origin : ''}/assessments/${assessmentId}`;
+    ? `${baseOrigin}/assessments/${assessmentId}?share_token=${shareToken}`
+    : `${baseOrigin}/assessments/${assessmentId}`;
 
   const handleCopyLink = async () => {
     try {
-      await navigator.clipboard.writeText(challengeLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(challengeLink);
+        setCopied(true);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = challengeLink;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        setCopied(ok);
+      }
     } catch {
       setCopied(false);
+    } finally {
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 

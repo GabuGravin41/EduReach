@@ -21,7 +21,10 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
     const tokenFromUrl = React.useMemo(() => new URLSearchParams(location.search || '').get('share_token'), [location.search]);
     const shareToken = liveExam?.share_token ?? tokenFromUrl ?? undefined;
     const isCreator = !!(user && liveExam?.creator && user.id === liveExam.creator.id);
-    const inviteLink = shareToken && liveExam?.id ? `${typeof window !== 'undefined' ? window.location.origin : ''}/assessments/${liveExam.id}?share_token=${shareToken}` : '';
+    const inviteLink =
+        shareToken && liveExam?.id
+            ? `${typeof window !== 'undefined' ? window.location.origin : ''}/assessments/${liveExam.id}?share_token=${shareToken}`
+            : '';
 
     const [attempts, setAttempts] = React.useState<AssessmentAttempt[]>([]);
     const [isLoadingAttempts, setIsLoadingAttempts] = React.useState(false);
@@ -137,12 +140,25 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
     const handleCopyInvite = async () => {
         if (!inviteLink) return;
         try {
-            await navigator.clipboard.writeText(inviteLink);
-            setCopyState('copied');
-            setTimeout(() => setCopyState('idle'), 2000);
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(inviteLink);
+                setCopyState('copied');
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = inviteLink;
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-9999px';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                const ok = document.execCommand('copy');
+                document.body.removeChild(textarea);
+                setCopyState(ok ? 'copied' : 'error');
+            }
         } catch (error) {
             console.error('Failed to copy invite link', error);
             setCopyState('error');
+        } finally {
             setTimeout(() => setCopyState('idle'), 2000);
         }
     };

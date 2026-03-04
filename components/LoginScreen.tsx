@@ -7,6 +7,10 @@ export const LoginScreen: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [learningGoal, setLearningGoal] = useState<'olympiad' | 'school' | 'exams' | 'curious' | ''>('');
+  const [learnerType, setLearnerType] = useState<'high_school' | 'university' | 'teacher' | 'professional' | ''>('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -18,13 +22,30 @@ export const LoginScreen: React.FC = () => {
 
     const trimmedUsername = username.trim();
     const trimmedEmail = email.trim();
+    const trimmedFirstName = firstName.trim();
+    const trimmedLastName = lastName.trim();
+
     if (!trimmedUsername) {
       setError(isLogin ? 'Please enter your username.' : 'Username is required.');
       return;
     }
-    if (!isLogin && !trimmedEmail) {
-      setError('Email is required for registration.');
-      return;
+    if (!isLogin) {
+      if (!trimmedEmail) {
+        setError('Email is required for registration.');
+        return;
+      }
+      if (!trimmedFirstName || !trimmedLastName) {
+        setError('Please provide your first and last name so we can personalise your experience.');
+        return;
+      }
+      if (!learningGoal) {
+        setError('Tell us what brings you to EduReach so we can tailor your journey.');
+        return;
+      }
+      if (!learnerType) {
+        setError('Please choose the option that best describes you.');
+        return;
+      }
     }
     if (password.length < 8) {
       setError('Password must be at least 8 characters long.');
@@ -37,12 +58,24 @@ export const LoginScreen: React.FC = () => {
       if (isLogin) {
         await login(trimmedUsername, password);
       } else {
-        await register(trimmedUsername, trimmedEmail, password);
+        await register({
+          username: trimmedUsername,
+          email: trimmedEmail,
+          password,
+          firstName: trimmedFirstName,
+          lastName: trimmedLastName,
+          learningGoal,
+          learnerType,
+        });
       }
 
       setShowModal(false);
       setUsername('');
       setEmail('');
+      setFirstName('');
+      setLastName('');
+      setLearningGoal('');
+      setLearnerType('');
       setPassword('');
     } catch (err: any) {
       console.error('Authentication failed:', err);
@@ -164,7 +197,7 @@ export const LoginScreen: React.FC = () => {
               </div>
             )}
 
-            {/* Login Form */}
+            {/* Login / Signup Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <input
@@ -180,6 +213,29 @@ export const LoginScreen: React.FC = () => {
               </div>
 
               {!isLogin && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <input
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-colors"
+                    disabled={isLoading}
+                    placeholder="First name"
+                    aria-label="First name"
+                  />
+                  <input
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-colors"
+                    disabled={isLoading}
+                    placeholder="Last name"
+                    aria-label="Last name"
+                  />
+                </div>
+              )}
+
+              {!isLogin && (
                 <div>
                   <input
                     type="email"
@@ -192,6 +248,122 @@ export const LoginScreen: React.FC = () => {
                     aria-label="Email"
                   />
                 </div>
+              )}
+
+              {!isLogin && (
+                <>
+                  <div className="mt-2">
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">
+                      What brings you to EduReach?
+                    </p>
+                    <div className="grid grid-cols-1 gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setLearningGoal('olympiad')}
+                        className={`w-full text-left px-3 py-2 rounded-md border ${
+                          learningGoal === 'olympiad'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
+                            : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'
+                        }`}
+                        disabled={isLoading}
+                      >
+                        Train for math / CS olympiads and contests
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLearningGoal('school')}
+                        className={`w-full text-left px-3 py-2 rounded-md border ${
+                          learningGoal === 'school'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
+                            : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'
+                        }`}
+                        disabled={isLoading}
+                      >
+                        Do better in school / university courses
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLearningGoal('exams')}
+                        className={`w-full text-left px-3 py-2 rounded-md border ${
+                          learningGoal === 'exams'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
+                            : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'
+                        }`}
+                        disabled={isLoading}
+                      >
+                        Prepare for important exams
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLearningGoal('curious')}
+                        className={`w-full text-left px-3 py-2 rounded-md border ${
+                          learningGoal === 'curious'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
+                            : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'
+                        }`}
+                        disabled={isLoading}
+                      >
+                        Explore math & problem solving for fun
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-2">
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">
+                      Which describes you best?
+                    </p>
+                    <div className="grid grid-cols-1 gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setLearnerType('high_school')}
+                        className={`w-full text-left px-3 py-2 rounded-md border ${
+                          learnerType === 'high_school'
+                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-200'
+                            : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'
+                        }`}
+                        disabled={isLoading}
+                      >
+                        High school student
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLearnerType('university')}
+                        className={`w-full text-left px-3 py-2 rounded-md border ${
+                          learnerType === 'university'
+                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-200'
+                            : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'
+                        }`}
+                        disabled={isLoading}
+                      >
+                        University student
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLearnerType('teacher')}
+                        className={`w-full text-left px-3 py-2 rounded-md border ${
+                          learnerType === 'teacher'
+                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-200'
+                            : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'
+                        }`}
+                        disabled={isLoading}
+                      >
+                        Teacher / coach
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLearnerType('professional')}
+                        className={`w-full text-left px-3 py-2 rounded-md border ${
+                          learnerType === 'professional'
+                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-200'
+                            : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'
+                        }`}
+                        disabled={isLoading}
+                      >
+                        Professional / other
+                      </button>
+                    </div>
+                  </div>
+                </>
               )}
 
               <div>

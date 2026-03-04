@@ -11,8 +11,10 @@ import {
   useStudyGroupChallenges,
   useCreateStudyGroupChallenge,
   useStudyGroupPerformance,
+  useUpdateStudyGroup,
 } from '../src/hooks/useStudyGroups';
-import { StudyGroup } from '../services/studyGroupService';
+import { useAuth } from '../src/contexts/useAuth';
+import { StudyGroup } from '../src/services/studyGroupService';
 import { useAssessments } from '../src/hooks/useAssessments';
 import { Button } from './ui/Button';
 import { UsersIcon } from './icons/UsersIcon';
@@ -28,10 +30,12 @@ import { useNavigate } from 'react-router-dom';
 
 export const StudyGroupsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { data: groupsData, isLoading } = useStudyGroups();
   const createGroupMutation = useCreateStudyGroup();
   const joinGroupMutation = useJoinStudyGroup();
   const leaveGroupMutation = useLeaveStudyGroup();
+  const updateGroupMutation = useUpdateStudyGroup();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [name, setName] = useState('');
@@ -124,6 +128,32 @@ export const StudyGroupsPage: React.FC = () => {
       leaveGroupMutation.mutate(Number(group.id));
     } else {
       joinGroupMutation.mutate(Number(group.id));
+    }
+  };
+
+  const handleVisibilityToggle = async (group: StudyGroup, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const isOwner = user && group.creator && user.id === group.creator.id;
+    if (!isOwner) {
+      return;
+    }
+
+    const nextIsPublic = !group.is_public;
+    const message = nextIsPublic
+      ? 'Make this group public? It will be easier for others to discover and join.'
+      : 'Make this group private? New members will only be able to join if you invite them directly or share a link.';
+
+    const confirmed = window.confirm(message);
+    if (!confirmed) return;
+
+    try {
+      await updateGroupMutation.mutateAsync({
+        id: group.id,
+        payload: { is_public: nextIsPublic },
+      });
+    } catch (err) {
+      console.error('Failed to update group visibility', err);
+      alert('Could not update group visibility. Please try again.');
     }
   };
 
@@ -511,11 +541,42 @@ export const StudyGroupsPage: React.FC = () => {
                     <input
                       type="text"
                       readOnly
-                      value={`https://edureach.app/groups/join/${activeGroup.id}`}
+                      value={`${window.location.origin}/study-groups`}
                       className="flex-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500"
+                      onFocus={(e) => e.currentTarget.select()}
                     />
-                    <Button onClick={() => alert("Link copied!")}>Copy</Button>
+                    <Button
+                      type="button"
+                      onClick={async () => {
+                        const url = `${window.location.origin}/study-groups`;
+                        try {
+                          if (navigator.clipboard && window.isSecureContext) {
+                            await navigator.clipboard.writeText(url);
+                            alert('Link copied!');
+                          } else {
+                            const textarea = document.createElement('textarea');
+                            textarea.value = url;
+                            textarea.style.position = 'fixed';
+                            textarea.style.left = '-9999px';
+                            document.body.appendChild(textarea);
+                            textarea.focus();
+                            textarea.select();
+                            const ok = document.execCommand('copy');
+                            document.body.removeChild(textarea);
+                            alert(ok ? 'Link copied!' : 'Copy failed, please copy manually.');
+                          }
+                        } catch {
+                          alert('Copy failed, please copy manually.');
+                        }
+                      }}
+                    >
+                      Copy
+                    </Button>
                   </div>
+                  <p className="mt-2 text-xs text-slate-500">
+                    This link opens the Study Groups page on your deployed site (e.g. https://your-domain/study-groups).
+                    Share the specific group name or ID in your message so students know which group to join.
+                  </p>
                 </div>
 
                 <div className="border-t border-slate-100 dark:border-slate-700 pt-6">
@@ -655,7 +716,22 @@ export const StudyGroupsPage: React.FC = () => {
                     <UsersIcon className="w-4 h-4" />
                     {group.member_count}/{group.max_members} members
                   </span>
-                  <span className="font-medium">{group.is_public ? 'Public Group' : 'Private Group'}</span>
+                  {user && group.creator && user.id === group.creator.id ? (
+                    <button
+                      type="button"
+                      onClick={(e) => handleVisibilityToggle(group, e)}
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs font-semibold ${
+                        group.is_public
+                          ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-200'
+                          : 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-700 dark:text-amber-200'
+                      }`}
+                      title="Click to toggle between public and private"
+                    >
+                      {group.is_public ? 'Public • click to make private' : 'Private • click to make public'}
+                    </button>
+                  ) : (
+                    <span className="font-medium">{group.is_public ? 'Public Group' : 'Private Group'}</span>
+                  )}
                 </div>
 
                 <div className="flex gap-2">
