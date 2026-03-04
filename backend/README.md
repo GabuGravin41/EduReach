@@ -1,6 +1,6 @@
 # EduReach Backend API
 
-A robust Django REST API backend for the EduReach educational platform with AI-powered features using OpenRouter (DeepSeek R1 by default).
+A robust Django REST API backend for the EduReach educational platform with AI-powered features using OpenRouter (Gemini 2.0 Flash by default).
 
 ## Features
 
@@ -73,7 +73,7 @@ Edit `.env` and add your configurations:
 SECRET_KEY=your-django-secret-key-generate-a-strong-one
 DEBUG=True
 OPENROUTER_API_KEY=your-openrouter-api-key
-OPENROUTER_MODEL=deepseek/deepseek-r1-0528:free
+OPENROUTER_MODEL=google/gemini-2.0-flash-001
 PREFER_OPENROUTER=True
 ```
 

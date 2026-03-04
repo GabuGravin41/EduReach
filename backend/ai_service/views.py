@@ -1,10 +1,8 @@
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.conf import settings
-import google.generativeai as genai
 import json
 import logging
 import re
@@ -30,57 +28,6 @@ class AIProviderUnavailableError(RuntimeError):
         super().__init__(message)
 
 
-def _is_rate_limit_error(exc: Exception) -> bool:
-    try:
-        text = str(exc)
-        if 'RESOURCE_EXHAUSTED' in text or 'quota' in text.lower() or '429' in text:
-            return True
-    except Exception:
-        pass
-    return False
-
-
-def call_generate_content_with_handling(model, *args, **kwargs):
-    try:
-        return model.generate_content(*args, **kwargs)
-    except Exception as e:
-        if _is_rate_limit_error(e):
-            # Raise a specific error that callers can translate to 429
-            raise RuntimeError('GEMINI_QUOTA_EXCEEDED: ' + str(e))
-        raise
-
-
-def _call_gemini_impl(prompt: str, max_output_tokens: int):
-    """Inner Gemini call (no timeout). Used from thread with timeout."""
-    configure_gemini()
-    model_name = getattr(settings, 'GEMINI_MODEL_NAME', 'gemini-2.5-flash')
-    if 'flash' not in model_name.lower():
-        model_name = 'gemini-2.5-flash'
-    model = genai.GenerativeModel(model_name)
-    return call_generate_content_with_handling(
-        model,
-        prompt,
-        generation_config={'max_output_tokens': max_output_tokens},
-    )
-
-
-def call_gemini(prompt: str, max_output_tokens: int = 400, timeout_seconds: float | None = None):
-    """Call Gemini model with optional timeout so we don't block the pipeline.
-
-    Raises RuntimeError('GEMINI_QUOTA_EXCEEDED: ...') when quota/rate limit issues
-    are detected so callers can trigger OpenRouter fallback.
-    If timeout_seconds is set and the call exceeds it, raises TimeoutError.
-    """
-    timeout = timeout_seconds or getattr(settings, 'GEMINI_REQUEST_TIMEOUT_SECONDS', 35)
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(_call_gemini_impl, prompt, max_output_tokens)
-        try:
-            return future.result(timeout=timeout)
-        except FuturesTimeoutError:
-            logger.warning("Gemini request timed out after %s seconds", timeout)
-            raise TimeoutError(f"Gemini request timed out after {timeout}s")
-
-
 def call_openrouter(
     prompt: str,
     model_name: str = None,
@@ -100,7 +47,7 @@ def call_openrouter(
     primary_api_url = getattr(settings, 'OPENROUTER_API_URL', 'https://openrouter.ai/api/v1/chat/completions')
     canonical = primary_api_url.replace('api.openrouter.ai', 'openrouter.ai')
     candidate_urls = list({canonical, 'https://openrouter.ai/api/v1/chat/completions'})
-    model = model_name or getattr(settings, 'OPENROUTER_MODEL', 'deepseek/deepseek-r1-0528:free')
+    model = model_name or getattr(settings, 'OPENROUTER_MODEL', 'google/gemini-2.0-flash-001')
 
     payload = {
         'model': model,
@@ -180,80 +127,29 @@ def call_ai(
     prefer_openrouter: bool | None = None,
     openrouter_read_timeout: float | None = None,
 ):
-    """Unified AI entry point with organised pipeline and timeouts.
+    """Unified AI entry point using OpenRouter only (Gemini 2.0 Flash by default).
 
-    Pipeline: Gemini (with timeout) -> on failure/timeout -> OpenRouter.
-    For long-running calls (e.g. generate_quiz), use prefer_openrouter=True
-    and openrouter_read_timeout so the request completes within Gunicorn --timeout.
-
-    - Uses Gemini as primary when GEMINI_API_KEY is configured and
-      PREFER_OPENROUTER is False. Gemini is called with a timeout so we don't
-      block the worker; on timeout we fall back to OpenRouter.
-    - When Gemini quota is exceeded or a clear rate/429 error is detected,
-      falls back to OpenRouter.
-    - If prefer_openrouter is True (e.g. for quiz), goes straight to OpenRouter
-      with optional longer read_timeout so long responses don't time out.
+    All calls go through OpenRouter with the model defined in OPENROUTER_MODEL
+    (default: google/gemini-2.0-flash-001). prefer_openrouter is accepted for
+    backwards compatibility but no longer changes behaviour.
     """
-    if prefer_openrouter is None:
-        prefer_openrouter = getattr(settings, 'PREFER_OPENROUTER', False)
-
-    gemini_configured = bool(getattr(settings, 'GEMINI_API_KEY', None))
-    gemini_timeout = getattr(settings, 'GEMINI_REQUEST_TIMEOUT_SECONDS', 35)
     provider_failures = []
 
     def _short_error_text(error: Exception, max_chars: int = 240) -> str:
         text = str(error).replace('\n', ' ').strip()
         return text[:max_chars] + ('...' if len(text) > max_chars else '')
 
-    def _try_gemini() -> str | None:
-        if not gemini_configured:
-            provider_failures.append('Gemini not configured')
-            return None
-        try:
-            resp = call_gemini(prompt, max_output_tokens=max_tokens, timeout_seconds=gemini_timeout)
-            return resp.text
-        except TimeoutError:
-            logger.warning("Gemini timed out after %s seconds", gemini_timeout)
-            provider_failures.append(f'Gemini timed out ({gemini_timeout}s)')
-        except RuntimeError as e:
-            if 'GEMINI_QUOTA_EXCEEDED' in str(e):
-                logger.warning("Gemini quota exceeded: %s", e)
-                provider_failures.append('Gemini quota exceeded')
-            else:
-                logger.error("Gemini runtime error: %s", e, exc_info=True)
-                provider_failures.append(f'Gemini runtime error: {_short_error_text(e)}')
-        except Exception as e:
-            logger.error("Gemini call failed: %s", e, exc_info=True)
-            provider_failures.append(f'Gemini error: {_short_error_text(e)}')
-        return None
-
-    def _try_openrouter() -> str | None:
-        try:
-            resp = call_openrouter(
-                prompt,
-                max_tokens=max_tokens,
-                read_timeout_override=openrouter_read_timeout,
-            )
-            return resp.text
-        except Exception as e:
-            logger.error("OpenRouter call failed: %s", e, exc_info=True)
-            provider_failures.append(f'OpenRouter error: {_short_error_text(e)}')
-            return None
-
-    if prefer_openrouter:
-        response = _try_openrouter()
-        if response:
-            return response
+    try:
+        resp = call_openrouter(
+            prompt,
+            max_tokens=max_tokens,
+            read_timeout_override=openrouter_read_timeout,
+        )
+        return resp.text
+    except Exception as e:
+        logger.error("OpenRouter call failed: %s", e, exc_info=True)
+        provider_failures.append(f'OpenRouter error: {_short_error_text(e)}')
         raise AIProviderUnavailableError(provider_failures)
-    else:
-        response = _try_gemini()
-        if response:
-            return response
-        response = _try_openrouter()
-        if response:
-            return response
-
-    raise AIProviderUnavailableError(provider_failures)
 
 
 def _check_ai_usage_quota(user):
