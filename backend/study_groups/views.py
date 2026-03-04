@@ -68,7 +68,12 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
         data = [{'id': m.id, 'username': m.username, 'first_name': getattr(m, 'first_name', ''), 'last_name': getattr(m, 'last_name', '')} for m in members]
         return Response(data)
 
-    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    @action(
+        detail=True,
+        methods=['get'],
+        permission_classes=[permissions.IsAuthenticated],
+        url_path='assessment-performance',
+    )
     def assessment_performance(self, request, pk=None):
         """
         Aggregate assessment performance for members of this group.
