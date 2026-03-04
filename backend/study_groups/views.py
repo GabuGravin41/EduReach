@@ -68,6 +68,70 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
         data = [{'id': m.id, 'username': m.username, 'first_name': getattr(m, 'first_name', ''), 'last_name': getattr(m, 'last_name', '')} for m in members]
         return Response(data)
 
+    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def assessment_performance(self, request, pk=None):
+        """
+        Aggregate assessment performance for members of this group.
+
+        Looks at all assessments linked via StudyGroupChallenge for this group,
+        then aggregates graded UserAttempt scores for group members.
+        """
+        group = self.get_object()
+
+        from assessments.models import Assessment, UserAttempt  # lazy import to avoid circulars
+
+        member_ids = list(group.members.values_list('id', flat=True))
+        if not member_ids:
+            return Response([])
+
+        assessments = Assessment.objects.filter(
+            group_challenges__group=group,
+        ).distinct()
+        if not assessments.exists():
+            return Response([])
+
+        attempts_qs = UserAttempt.objects.filter(
+            assessment__in=assessments,
+            user_id__in=member_ids,
+            status=UserAttempt.Status.GRADED,
+        ).select_related('user', 'assessment')
+
+        by_user = {}
+        for attempt in attempts_qs:
+            u = attempt.user
+            key = u.id
+            if key not in by_user:
+                full_name = f"{getattr(u, 'first_name', '')} {getattr(u, 'last_name', '')}".strip()
+                by_user[key] = {
+                    'user_id': u.id,
+                    'username': u.username,
+                    'full_name': full_name or u.username,
+                    'attempts': [],
+                }
+            by_user[key]['attempts'].append(
+                {
+                    'assessment_id': attempt.assessment_id,
+                    'assessment_title': attempt.assessment.title,
+                    'percentage': attempt.percentage,
+                    'submitted_at': attempt.submitted_at.isoformat() if attempt.submitted_at else None,
+                }
+            )
+
+        results = []
+        for entry in by_user.values():
+            attempts = entry['attempts']
+            if attempts:
+                valid_percentages = [a['percentage'] for a in attempts if a['percentage'] is not None]
+                avg = sum(valid_percentages) / len(valid_percentages) if valid_percentages else 0.0
+                entry['attempt_count'] = len(attempts)
+                entry['average_percentage'] = round(avg, 2)
+            else:
+                entry['attempt_count'] = 0
+                entry['average_percentage'] = 0.0
+            results.append(entry)
+
+        return Response(results)
+
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def invite(self, request, pk=None):
         """Invite a user to the study group by email (adds existing user)."""

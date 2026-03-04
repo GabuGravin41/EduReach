@@ -43,7 +43,9 @@ class AssessmentSerializer(serializers.ModelSerializer):
         model = Assessment
         fields = [
             'id', 'title', 'topic', 'description', 'creator',
-            'time_limit_minutes', 'is_public', 'results_visibility',
+            'time_limit_minutes', 'image_upload_grace_minutes',
+            'assessment_type',
+            'is_public', 'results_visibility',
             'questions', 'questions_data', 'share_token',
             'question_count', 'source_lesson', 'created_at', 'updated_at'
         ]
@@ -197,7 +199,8 @@ class AssessmentListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'topic', 'description',
             'creator_username', 'time_limit_minutes', 'share_token',
-            'is_public', 'results_visibility',
+            'is_public', 'results_visibility', 'image_upload_grace_minutes',
+            'assessment_type',
             'source_lesson', 'question_count', 'related_lessons', 'created_at'
         ]
 

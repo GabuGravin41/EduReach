@@ -152,4 +152,5 @@ export interface Assessment {
     share_token?: string;
     creator?: { id: number; username?: string };
     results_visibility?: 'private' | 'opt_in_public' | 'public';
+    image_upload_grace_minutes?: number;
 }

@@ -10,6 +10,8 @@ export interface Assessment {
   question_count?: number;
   time_limit?: number; // in minutes (legacy)
   time_limit_minutes?: number;
+  image_upload_grace_minutes?: number;
+  assessment_type?: 'quiz' | 'exam';
   is_public?: boolean;
   results_visibility?: 'private' | 'opt_in_public' | 'public';
   status?: 'pending' | 'in_progress' | 'completed';
@@ -46,6 +48,9 @@ export interface CreateAssessmentData {
   time_limit?: number;
   // Preferred explicit API-compatible time field (minutes).
   time_limit_minutes?: number;
+  // Extra minutes after submission / time limit where image uploads are allowed.
+  image_upload_grace_minutes?: number;
+  assessment_type?: 'quiz' | 'exam';
   questions_data?: any[];
   results_visibility?: 'private' | 'opt_in_public' | 'public';
   is_public?: boolean;
@@ -239,9 +244,14 @@ export const assessmentService = {
             : typeof data.time_limit === 'number'
               ? data.time_limit
               : 30,
+        assessment_type: data.assessment_type ?? 'exam',
         is_public: typeof data.is_public === 'boolean' ? data.is_public : true,
         results_visibility: data.results_visibility ?? 'opt_in_public',
       };
+
+      if (typeof data.image_upload_grace_minutes === 'number') {
+        payload.image_upload_grace_minutes = data.image_upload_grace_minutes;
+      }
 
       if (typeof data.source_lesson === 'number') {
         payload.source_lesson = data.source_lesson;

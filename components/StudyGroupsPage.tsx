@@ -10,6 +10,7 @@ import {
   useInviteStudyGroupMember,
   useStudyGroupChallenges,
   useCreateStudyGroupChallenge,
+  useStudyGroupPerformance,
 } from '../src/hooks/useStudyGroups';
 import { StudyGroup } from '../services/studyGroupService';
 import { useAssessments } from '../src/hooks/useAssessments';
@@ -23,8 +24,10 @@ import { CalendarIcon } from './icons/CalendarIcon';
 import { UserCircleIcon } from './icons/UserCircleIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { TrophyIcon } from './icons/TrophyIcon';
+import { useNavigate } from 'react-router-dom';
 
 export const StudyGroupsPage: React.FC = () => {
+  const navigate = useNavigate();
   const { data: groupsData, isLoading } = useStudyGroups();
   const createGroupMutation = useCreateStudyGroup();
   const joinGroupMutation = useJoinStudyGroup();
@@ -59,6 +62,9 @@ export const StudyGroupsPage: React.FC = () => {
   const { data: challengesData = [] } = useStudyGroupChallenges(
     activeGroupId ? Number(activeGroupId) : 0
   );
+  const { data: performanceData = [], isLoading: performanceLoading } = useStudyGroupPerformance(
+    activeGroupId ? Number(activeGroupId) : 0
+  );
 
   const normalizedPosts = Array.isArray(groupPosts)
     ? groupPosts
@@ -78,11 +84,23 @@ export const StudyGroupsPage: React.FC = () => {
       ? (challengesData as any).results
       : []);
 
+  const normalizedPerformance = Array.isArray(performanceData)
+    ? performanceData
+    : (performanceData && (performanceData as any).results && Array.isArray((performanceData as any).results)
+      ? (performanceData as any).results
+      : []);
+
   const normalizedAssessments = Array.isArray(assessmentsData)
     ? assessmentsData
     : (assessmentsData && (assessmentsData as any).results && Array.isArray((assessmentsData as any).results)
       ? (assessmentsData as any).results
       : []);
+  const [assessmentTypeFilter, setAssessmentTypeFilter] = useState<'all' | 'quiz' | 'exam'>('all');
+  const filteredAssessmentsForChallenges = normalizedAssessments.filter((a: any) => {
+    if (assessmentTypeFilter === 'all') return true;
+    const kind = (a.assessment_type as 'quiz' | 'exam' | undefined) || 'exam';
+    return kind === assessmentTypeFilter;
+  });
 
   // Normalize groups data: backend may return either an array or a paginated object
   const groups: StudyGroup[] = Array.isArray(groupsData)
@@ -308,6 +326,67 @@ export const StudyGroupsPage: React.FC = () => {
                       ))}
                   </div>
                 )}
+
+                <div className="border-t border-slate-200 dark:border-slate-700 mt-4">
+                  <div className="p-4 flex items-center justify-between">
+                    <h3 className="font-bold text-sm text-slate-700 dark:text-slate-200">
+                      Assessment Performance in this Group
+                    </h3>
+                    <span className="text-xs text-slate-500">
+                      Based on graded attempts for linked challenges
+                    </span>
+                  </div>
+                  {performanceLoading ? (
+                    <div className="p-6 text-sm text-slate-500">Loading assessment performance...</div>
+                  ) : normalizedPerformance.length === 0 ? (
+                    <div className="p-6 text-sm text-slate-500">
+                      No graded attempts yet for assessments linked to this group.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-left text-sm">
+                        <thead className="bg-slate-50 dark:bg-slate-700 text-slate-500 text-xs uppercase font-semibold">
+                          <tr>
+                            <th className="px-6 py-3">Student</th>
+                            <th className="px-6 py-3">Attempts</th>
+                            <th className="px-6 py-3">% Average</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                          {normalizedPerformance.map((row: any) => (
+                            <tr key={row.user_id}>
+                              <td className="px-6 py-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 flex items-center justify-center font-bold text-xs">
+                                    {String(row.username || '')
+                                      .substring(0, 2)
+                                      .toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <div className="font-semibold text-slate-800 dark:text-slate-100">
+                                      {row.full_name || row.username}
+                                    </div>
+                                    <div className="text-xs text-slate-500">
+                                      {row.username}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-3 text-slate-700 dark:text-slate-200">
+                                {row.attempt_count}
+                              </td>
+                              <td className="px-6 py-3 text-slate-700 dark:text-slate-200">
+                                {typeof row.average_percentage === 'number'
+                                  ? `${row.average_percentage.toFixed(1)}%`
+                                  : '-'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
             {groupTab === 'events' && (
@@ -324,18 +403,34 @@ export const StudyGroupsPage: React.FC = () => {
                       placeholder="Challenge title"
                       className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
                     />
-                    <select
-                      value={selectedAssessmentId}
-                      onChange={(e) => setSelectedAssessmentId(e.target.value)}
-                      className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-                    >
-                      <option value="">Link an assessment (optional)</option>
-                      {normalizedAssessments.map((assessment: any) => (
-                        <option key={assessment.id} value={assessment.id}>
-                          {assessment.title}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                          Link an assessment (optional)
+                        </label>
+                        <select
+                          value={assessmentTypeFilter}
+                          onChange={(e) => setAssessmentTypeFilter(e.target.value as any)}
+                          className="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
+                        >
+                          <option value="all">All</option>
+                          <option value="quiz">Quizzes</option>
+                          <option value="exam">Exams</option>
+                        </select>
+                      </div>
+                      <select
+                        value={selectedAssessmentId}
+                        onChange={(e) => setSelectedAssessmentId(e.target.value)}
+                        className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                      >
+                        <option value="">Choose assessment</option>
+                        {filteredAssessmentsForChallenges.map((assessment: any) => (
+                          <option key={assessment.id} value={assessment.id}>
+                            {assessment.title} {assessment.assessment_type === 'exam' ? '• Exam' : '• Quiz'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     <input
                       value={challengeStart}
                       onChange={(e) => setChallengeStart(e.target.value)}
@@ -372,20 +467,31 @@ export const StudyGroupsPage: React.FC = () => {
                     <div className="space-y-3">
                       {normalizedChallenges.map((challenge: any) => (
                         <div key={challenge.id} className="p-3 rounded-lg border border-slate-200 dark:border-slate-700">
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between gap-4">
                             <div>
                               <p className="font-semibold">{challenge.title}</p>
                               {challenge.assessment_title && (
                                 <p className="text-xs text-slate-500">Assessment: {challenge.assessment_title}</p>
                               )}
+                              {challenge.description && (
+                                <p className="text-sm text-slate-600 mt-2">{challenge.description}</p>
+                              )}
                             </div>
-                            <span className="text-xs text-slate-500">
-                              {challenge.start_date ? new Date(challenge.start_date).toLocaleString() : 'Anytime'}
-                            </span>
+                            <div className="flex flex-col items-end gap-2">
+                              <span className="text-xs text-slate-500">
+                                {challenge.start_date ? new Date(challenge.start_date).toLocaleString() : 'Anytime'}
+                              </span>
+                              {challenge.assessment && (
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => navigate(`/assessments/${challenge.assessment}`)}
+                                >
+                                  Open assessment
+                                </Button>
+                              )}
+                            </div>
                           </div>
-                          {challenge.description && (
-                            <p className="text-sm text-slate-600 mt-2">{challenge.description}</p>
-                          )}
                         </div>
                       ))}
                     </div>

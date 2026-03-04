@@ -88,6 +88,7 @@ const mapApiAssessmentToUi = (assessment: any): Assessment => ({
   created_at: assessment.created_at,
   share_token: assessment.share_token,
   creator: assessment.creator,
+   assessment_type: (assessment.assessment_type as any) || 'exam',
   questions_data: assessment.questions?.map((q: any) => ({
     id: String(q.id),
     type:

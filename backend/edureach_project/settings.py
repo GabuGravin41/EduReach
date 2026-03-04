@@ -374,9 +374,11 @@ LOGGING = {
 # Fix for 405 error - disable automatic slash appending
 APPEND_SLASH = False
 
-# OpenRouter API Configuration (PRIMARY AI PROVIDER - FREE)
+# OpenRouter API Configuration (PRIMARY AI PROVIDER)
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
-OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'meta-llama/llama-3.1-70b-instruct:free')
+# Default to Gemini 2.0 Flash on OpenRouter for fast, long-context text + (future) multimodal.
+# Can be overridden per-deployment by setting OPENROUTER_MODEL env var.
+OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'google/gemini-2.0-flash-001')
 _raw_openrouter_api_url = os.environ.get(
     'OPENROUTER_API_URL',
     'https://openrouter.ai/api/v1/chat/completions',

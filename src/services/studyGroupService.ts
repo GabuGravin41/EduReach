@@ -120,6 +120,11 @@ export const studyGroupService = {
     const { data } = await apiClient.get(`/study-groups/challenges/${challengeId}/leaderboard/`);
     return data;
   },
+
+  async getGroupAssessmentPerformance(groupId: number) {
+    const { data } = await apiClient.get(`/study-groups/groups/${groupId}/assessment-performance/`);
+    return data;
+  },
 };
 
 export default studyGroupService;

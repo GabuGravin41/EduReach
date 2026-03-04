@@ -9,6 +9,7 @@ export const STUDY_GROUP_KEYS = {
   posts: (groupId: number) => [...STUDY_GROUP_KEYS.all, 'posts', groupId] as const,
   members: (groupId: number) => [...STUDY_GROUP_KEYS.all, 'members', groupId] as const,
   challenges: (groupId: number) => [...STUDY_GROUP_KEYS.all, 'challenges', groupId] as const,
+  performance: (groupId: number) => [...STUDY_GROUP_KEYS.all, 'performance', groupId] as const,
 };
 
 export const useStudyGroups = (opts?: { courseId?: number }) => {
@@ -104,6 +105,15 @@ export const useCreateStudyGroupChallenge = () => {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: STUDY_GROUP_KEYS.challenges(variables.group) });
     },
+  });
+};
+
+export const useStudyGroupPerformance = (groupId: number) => {
+  return useQuery({
+    queryKey: STUDY_GROUP_KEYS.performance(groupId),
+    queryFn: () => studyGroupService.getGroupAssessmentPerformance(groupId),
+    enabled: !!groupId,
+    staleTime: 60 * 1000,
   });
 };
 

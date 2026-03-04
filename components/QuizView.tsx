@@ -21,9 +21,15 @@ interface QuizViewProps {
   quiz: QuizQuestion[] | Question[] | null;
   timeLimitMinutes?: number;
   assessmentId?: number;
+  imageUploadGraceMinutes?: number;
 }
 
-export const QuizView: React.FC<QuizViewProps> = ({ quiz, timeLimitMinutes, assessmentId }) => {
+export const QuizView: React.FC<QuizViewProps> = ({
+  quiz,
+  timeLimitMinutes,
+  assessmentId,
+  imageUploadGraceMinutes,
+}) => {
   // Normalize input to standard Question[] format
   const questions: Question[] = useMemo(() => {
     if (!quiz || !Array.isArray(quiz)) return [];
@@ -91,6 +97,7 @@ export const QuizView: React.FC<QuizViewProps> = ({ quiz, timeLimitMinutes, asse
   const [attemptReady, setAttemptReady] = useState(false);
   const [isSubmittingAttempt, setIsSubmittingAttempt] = useState(false);
   const [submitError, setSubmitError] = useState<string>('');
+  const [imageUploadSecondsLeft, setImageUploadSecondsLeft] = useState<number | null>(null);
 
   const ensureAttemptStarted = async () => {
     if (!assessmentId || attemptReady) return;
@@ -129,6 +136,9 @@ export const QuizView: React.FC<QuizViewProps> = ({ quiz, timeLimitMinutes, asse
       await ensureAttemptStarted();
       await assessmentService.submitAssessment(assessmentId, answers as Record<number, string>);
       setIsSubmitted(true);
+      if (imageUploadGraceMinutes && imageUploadGraceMinutes > 0) {
+        setImageUploadSecondsLeft(Math.max(0, Math.round(imageUploadGraceMinutes * 60)));
+      }
     } catch (error: any) {
       const detail = error?.response?.data?.detail || 'Failed to submit to server. Please retry.';
       setSubmitError(detail);
@@ -161,6 +171,28 @@ export const QuizView: React.FC<QuizViewProps> = ({ quiz, timeLimitMinutes, asse
     }, 1000);
     return () => clearInterval(interval);
   }, [timeLimitMinutes, isSubmitted]);
+
+  useEffect(() => {
+    if (!isSubmitted || !imageUploadGraceMinutes || imageUploadGraceMinutes <= 0) return;
+    if (imageUploadSecondsLeft === null) {
+      setImageUploadSecondsLeft(Math.max(0, Math.round(imageUploadGraceMinutes * 60)));
+      return;
+    }
+    if (imageUploadSecondsLeft <= 0) return;
+
+    const interval = setInterval(() => {
+      setImageUploadSecondsLeft((prev) => {
+        if (prev === null) return prev;
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isSubmitted, imageUploadGraceMinutes, imageUploadSecondsLeft]);
 
   const formatTime = (totalSeconds: number) => {
     const minutes = Math.floor(totalSeconds / 60);
@@ -399,6 +431,19 @@ Format: {"score": number, "feedback": "string"}`;
           You can type answers directly (LaTeX supported). If you’re not comfortable typing math, you can upload an image instead.
           Typed answers can be graded instantly; image uploads are stored for manual review.
         </div>
+        {imageUploadGraceMinutes && imageUploadGraceMinutes > 0 && (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700 flex items-center justify-between gap-3">
+            <span>
+              After you submit, you have{' '}
+              <span className="font-semibold">{imageUploadGraceMinutes} minutes</span> to upload answer photos.
+            </span>
+            {isSubmitted && imageUploadSecondsLeft !== null && (
+              <span className="font-semibold text-amber-700">
+                Image upload time left: {formatTime(imageUploadSecondsLeft)}
+              </span>
+            )}
+          </div>
+        )}
         {submitError && (
           <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
             {submitError}
@@ -503,7 +548,7 @@ Format: {"score": number, "feedback": "string"}`;
                       Correct answers: {(q as ShortAnswerQuestion).correct_answers?.join(', ')}
                     </div>
                   )}
-                  {assessmentId && (
+                  {assessmentId && (!imageUploadGraceMinutes || imageUploadSecondsLeft === null || imageUploadSecondsLeft > 0) && (
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                       <span className="font-medium text-slate-600 dark:text-slate-400">Answer with a photo:</span>
                       <label className="inline-flex items-center gap-2 cursor-pointer">
@@ -618,7 +663,7 @@ Format: {"score": number, "feedback": "string"}`;
                       )}
                     </div>
                   )}
-                  {assessmentId && (
+                  {assessmentId && (!imageUploadGraceMinutes || imageUploadSecondsLeft === null || imageUploadSecondsLeft > 0) && (
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                       <span className="font-medium text-slate-600 dark:text-slate-400">Or submit a photo of your answer:</span>
                       <label className="inline-flex items-center gap-2 cursor-pointer">

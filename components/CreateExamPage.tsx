@@ -23,7 +23,8 @@ import type {
     EssayQuestion,
     PassageQuestion,
     ClozeQuestion,
-    Course
+    Course,
+    AssessmentMode,
 } from '../types';
 
 interface CreateExamPageProps {
@@ -82,6 +83,8 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
     const [topic, setTopic] = useState('');
     const [description, setDescription] = useState('');
     const [timeLimit, setTimeLimit] = useState(30);
+    const [imageGraceMinutes, setImageGraceMinutes] = useState(0);
+    const [assessmentType, setAssessmentType] = useState<AssessmentMode>('exam');
     const [questions, setQuestions] = useState<Question[]>([]);
     const [showAIImport, setShowAIImport] = useState(false);
     const [isPublic, setIsPublic] = useState(true);
@@ -101,6 +104,8 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
                 setTopic(data.topic ?? '');
                 setDescription(data.description ?? '');
                 setTimeLimit(Number(data.time_limit_minutes ?? data.time_limit ?? 30));
+                setImageGraceMinutes(Number(data.image_upload_grace_minutes ?? 0));
+                setAssessmentType((data.assessment_type as AssessmentMode) || 'exam');
                 setIsPublic(data.is_public !== false);
                 setResultsVisibility((data.results_visibility as any) ?? 'opt_in_public');
                 const qs = Array.isArray(data.questions) ? data.questions : [];
@@ -246,6 +251,8 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
             topic: topic.trim() || 'General',
             description: description.trim(),
             time_limit_minutes: timeLimit,
+            image_upload_grace_minutes: imageGraceMinutes || 0,
+            assessment_type: assessmentType,
             questions_data: questions,
             is_public: isPublic,
             results_visibility: resultsVisibility,
@@ -514,7 +521,7 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
                     />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                             Time Limit
@@ -576,6 +583,35 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
                         </label>
                         <div className="px-4 py-2 bg-slate-50 dark:bg-slate-700 rounded-lg text-slate-800 dark:text-slate-100 font-medium">
                             {totalPoints} points
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Assessment Type
+                        </label>
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setAssessmentType('quiz')}
+                                className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold border ${
+                                    assessmentType === 'quiz'
+                                        ? 'bg-teal-600 text-white border-teal-600'
+                                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600'
+                                }`}
+                            >
+                                Quiz
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setAssessmentType('exam')}
+                                className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold border ${
+                                    assessmentType === 'exam'
+                                        ? 'bg-rose-600 text-white border-rose-600'
+                                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600'
+                                }`}
+                            >
+                                Exam
+                            </button>
                         </div>
                     </div>
                 </div>

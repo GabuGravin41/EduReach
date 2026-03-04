@@ -186,6 +186,11 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
             max_length: 400,
         }));
 
+    const imageUploadGraceMinutes: number =
+        typeof (liveExam as any).image_upload_grace_minutes === 'number'
+            ? (liveExam as any).image_upload_grace_minutes
+            : 0;
+
     return (
         <div className="h-full flex flex-col">
             <div className="flex-shrink-0 mb-4 flex items-center justify-between flex-wrap gap-2">
@@ -248,6 +253,7 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                                 quiz={quizData as Question[]}
                                 timeLimitMinutes={liveExam.time || liveExam.time_limit_minutes || 30}
                                 assessmentId={liveExam.id}
+                                imageUploadGraceMinutes={imageUploadGraceMinutes}
                             />
                         ) : (
                             <div className="h-full flex items-center justify-center text-slate-500">

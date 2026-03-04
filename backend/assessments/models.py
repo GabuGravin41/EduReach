@@ -10,6 +10,9 @@ User = get_user_model()
 
 class Assessment(models.Model):
     """Model for assessments/quizzes."""
+    class AssessmentType(models.TextChoices):
+        QUIZ = 'quiz', 'Quiz'
+        EXAM = 'exam', 'Exam'
     class ResultsVisibility(models.TextChoices):
         PRIVATE = 'private', 'Private (Instructor only)'
         OPT_IN_PUBLIC = 'opt_in_public', 'Students choose public/private'
@@ -25,6 +28,16 @@ class Assessment(models.Model):
         related_name='created_assessments'
     )
     time_limit_minutes = models.PositiveIntegerField(default=30)
+    image_upload_grace_minutes = models.PositiveIntegerField(
+        default=0,
+        help_text='Minutes after the test where image uploads are still allowed.',
+    )
+    assessment_type = models.CharField(
+        max_length=10,
+        choices=AssessmentType.choices,
+        default=AssessmentType.EXAM,
+        help_text='Whether this is a quiz (lighter) or exam (more rigorous).',
+    )
     is_public = models.BooleanField(default=True)
     results_visibility = models.CharField(
         max_length=20,

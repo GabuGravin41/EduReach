@@ -510,12 +510,43 @@ class AssessmentViewSet(viewsets.ModelViewSet):
     def upload_answer_image(self, request, pk=None):
         """Upload an image answer for a specific question in this assessment."""
         assessment = self.get_object()
-        attempt = get_object_or_404(
-            UserAttempt,
+        # Allow uploads while attempt is in progress, or for a short grace period
+        # after submission when image_upload_grace_minutes > 0.
+        attempt = UserAttempt.objects.filter(
             user=request.user,
             assessment=assessment,
-            status=UserAttempt.Status.IN_PROGRESS
-        )
+            status__in=[UserAttempt.Status.IN_PROGRESS, UserAttempt.Status.SUBMITTED],
+        ).first()
+        if not attempt:
+            return Response(
+                {'detail': 'No active attempt found for image upload.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        grace_minutes = getattr(assessment, 'image_upload_grace_minutes', 0) or 0
+        if grace_minutes <= 0 and attempt.status != UserAttempt.Status.IN_PROGRESS:
+            return Response(
+                {'detail': 'Image uploads are only allowed while the assessment is in progress.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Enforce grace window when configured.
+        from django.utils import timezone
+        now = timezone.now()
+
+        if grace_minutes > 0:
+            # Base end time: submitted_at when available, else started_at + time_limit.
+            if attempt.submitted_at:
+                base_end = attempt.submitted_at
+            else:
+                minutes = getattr(assessment, 'time_limit_minutes', 30) or 30
+                base_end = attempt.started_at + timezone.timedelta(minutes=minutes)
+            cutoff = base_end + timezone.timedelta(minutes=grace_minutes)
+            if now > cutoff:
+                return Response(
+                    {'detail': 'The image upload window for this assessment has closed.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         serializer = AssessmentAnswerImageSerializer(data=request.data)
         if not serializer.is_valid():
