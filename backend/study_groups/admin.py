@@ -18,8 +18,8 @@ class StudyGroupPostAdmin(admin.ModelAdmin):
 
 @admin.register(StudyGroupChallenge)
 class StudyGroupChallengeAdmin(admin.ModelAdmin):
-    list_display = ('title', 'group', 'assessment', 'start_date', 'end_date')
-    list_filter = ('group', 'start_date')
+    list_display = ('title', 'group', 'assessment', 'is_public_listing', 'start_date', 'end_date')
+    list_filter = ('group', 'is_public_listing', 'start_date')
     search_fields = ('title', 'description', 'group__name')
 
 

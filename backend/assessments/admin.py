@@ -9,8 +9,18 @@ class QuestionInline(admin.TabularInline):
 
 @admin.register(Assessment)
 class AssessmentAdmin(admin.ModelAdmin):
-    list_display = ['title', 'topic', 'creator', 'time_limit_minutes', 'is_public', 'created_at']
-    list_filter = ['is_public', 'created_at', 'topic']
+    list_display = [
+        'title',
+        'topic',
+        'creator',
+        'assessment_type',
+        'time_limit_minutes',
+        'image_upload_grace_minutes',
+        'is_public',
+        'results_visibility',
+        'created_at',
+    ]
+    list_filter = ['assessment_type', 'is_public', 'results_visibility', 'created_at', 'topic']
     search_fields = ['title', 'topic', 'description', 'creator__username']
     inlines = [QuestionInline]
 
@@ -25,7 +35,16 @@ class QuestionAdmin(admin.ModelAdmin):
 
 @admin.register(UserAttempt)
 class UserAttemptAdmin(admin.ModelAdmin):
-    list_display = ['user', 'assessment', 'status', 'score', 'percentage', 'started_at']
-    list_filter = ['status', 'started_at', 'submitted_at']
+    list_display = [
+        'user',
+        'assessment',
+        'status',
+        'score',
+        'percentage',
+        'time_taken_seconds',
+        'xp_earned',
+        'started_at',
+    ]
+    list_filter = ['status', 'assessment__topic', 'started_at', 'submitted_at']
     search_fields = ['user__username', 'assessment__title']
     readonly_fields = ['score', 'percentage', 'started_at', 'submitted_at']
