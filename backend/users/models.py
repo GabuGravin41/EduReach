@@ -38,6 +38,17 @@ class User(AbstractUser):
         default=Tier.FREE,
         help_text="Tier to revert to after trial ends"
     )
+    # High-level onboarding preferences captured at signup/onboarding
+    learning_goal = models.CharField(
+        max_length=32,
+        blank=True,
+        help_text="Primary reason for using EduReach (e.g. olympiad, school, exams, curiosity).",
+    )
+    learner_type = models.CharField(
+        max_length=32,
+        blank=True,
+        help_text="Self-described role (e.g. high_school_student, university_student, teacher, professional).",
+    )
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

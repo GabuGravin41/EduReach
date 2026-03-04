@@ -249,6 +249,11 @@ SIMPLE_JWT = {
     'UPDATE_LAST_LOGIN': True,
 }
 
+# dj-rest-auth / allauth configuration
+REST_AUTH_REGISTER_SERIALIZERS = {
+    'REGISTER_SERIALIZER': 'users.serializers_registration.CustomRegisterSerializer',
+}
+
 # CORS Settings
 # Development origins (always allowed in dev)
 development_cors = [
@@ -371,8 +376,9 @@ LOGGING = {
     },
 }
 
-# Fix for 405 error - disable automatic slash appending
-APPEND_SLASH = False
+# Let CommonMiddleware normalize URLs (e.g. `/api/foo` → `/api/foo/`)
+# This avoids unexpected 404s when a trailing slash is missing.
+APPEND_SLASH = True
 
 # OpenRouter API Configuration (PRIMARY AI PROVIDER)
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')

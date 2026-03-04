@@ -9,8 +9,9 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
-            'tier', 'bio', 'avatar', 'xp_points', 'level', 
+            'tier', 'bio', 'avatar', 'xp_points', 'level',
             'total_time_spent_seconds', 'show_xp_publicly',
+            'learning_goal', 'learner_type',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'xp_points', 'level', 'created_at', 'updated_at']
@@ -25,6 +26,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'first_name', 'last_name',
             'tier', 'bio', 'avatar', 'xp_points', 'level',
             'total_time_spent_seconds', 'show_xp_publicly',
+            'learning_goal', 'learner_type',
             'date_joined', 'created_at', 'updated_at'
         ]
         read_only_fields = [
