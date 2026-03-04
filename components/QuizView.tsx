@@ -89,6 +89,12 @@ export const QuizView: React.FC<QuizViewProps> = ({
     timeLimitMinutes ? Math.max(0, Math.round(timeLimitMinutes * 60)) : null
   );
 
+  // After submit: when backend returns status 'submitted', user can click "Mark with AI"
+  const [attemptStatusFromServer, setAttemptStatusFromServer] = useState<string | null>(null);
+  const [serverAttempt, setServerAttempt] = useState<{ status?: string; score?: string | number; percentage?: number } | null>(null);
+  const [isMarking, setIsMarking] = useState(false);
+  const [markError, setMarkError] = useState('');
+
   // State for individual AI grading of essays
   const [gradingResults, setGradingResults] = useState<Record<string, { score: number, feedback: string }>>({});
   const [isGrading, setIsGrading] = useState<Record<string, boolean>>({});
@@ -132,9 +138,12 @@ export const QuizView: React.FC<QuizViewProps> = ({
 
     setSubmitError('');
     setIsSubmittingAttempt(true);
+    setMarkError('');
     try {
       await ensureAttemptStarted();
-      await assessmentService.submitAssessment(assessmentId, answers as Record<number, string>);
+      const data = await assessmentService.submitAssessment(assessmentId, answers as Record<number, string>);
+      setAttemptStatusFromServer(data?.status ?? null);
+      setServerAttempt(data?.status === 'graded' ? { status: data.status, score: data.score, percentage: data.percentage } : null);
       setIsSubmitted(true);
       if (imageUploadGraceMinutes && imageUploadGraceMinutes > 0) {
         setImageUploadSecondsLeft(Math.max(0, Math.round(imageUploadGraceMinutes * 60)));
@@ -147,12 +156,75 @@ export const QuizView: React.FC<QuizViewProps> = ({
     }
   };
 
+  const handleMarkWithAI = async () => {
+    if (!assessmentId) return;
+    setIsMarking(true);
+    setMarkError('');
+    try {
+      await assessmentService.runGrading(assessmentId);
+      const pollInterval = 2000;
+      const maxPolls = 90;
+      let polls = 0;
+      const poll = async (): Promise<void> => {
+        const attempt = await assessmentService.getMyAttempt(assessmentId);
+        if (attempt?.status === 'graded') {
+          setServerAttempt({ status: attempt.status, score: attempt.score, percentage: attempt.percentage });
+          setIsMarking(false);
+          return;
+        }
+        polls++;
+        if (polls >= maxPolls) {
+          setMarkError('Marking is taking longer than expected. Refresh the page to check your result.');
+          setIsMarking(false);
+          return;
+        }
+        setTimeout(poll, pollInterval);
+      };
+      setTimeout(poll, pollInterval);
+    } catch (err: any) {
+      setMarkError(err?.response?.data?.detail || err?.message || 'Failed to start marking.');
+      setIsMarking(false);
+    }
+  };
+
   useEffect(() => {
     if (!assessmentId) return;
     ensureAttemptStarted().catch((error) => {
       console.error('Could not start assessment attempt', error);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assessmentId]);
+
+  // When returning to this page, load latest attempt so we show graded result or "Mark with AI" state
+  useEffect(() => {
+    if (!assessmentId) return;
+    assessmentService.getMyAttempt(assessmentId).then((attempt) => {
+      if (!attempt) return;
+      if (attempt.status === 'graded') {
+        setServerAttempt({ status: attempt.status, score: attempt.score, percentage: attempt.percentage });
+        setIsSubmitted(true);
+        return;
+      }
+      if (attempt.status === 'submitted') {
+        setAttemptStatusFromServer('submitted');
+        setIsSubmitted(true);
+        // They may have clicked "Mark with AI" and left; poll a few times to pick up graded result
+        let polls = 0;
+        const maxPolls = 5;
+        const poll = () => {
+          if (polls >= maxPolls) return;
+          polls++;
+          assessmentService.getMyAttempt(assessmentId!).then((a) => {
+            if (a?.status === 'graded') {
+              setServerAttempt({ status: a.status, score: a.score, percentage: a.percentage });
+              return;
+            }
+            setTimeout(poll, 2000);
+          }).catch(() => {});
+        };
+        setTimeout(poll, 2000);
+      }
+    }).catch(() => {});
   }, [assessmentId]);
 
   useEffect(() => {
@@ -422,7 +494,9 @@ Format: {"score": number, "feedback": "string"}`;
             )}
             {isSubmitted && (
               <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
-                Score: {results.earned} / {results.total}
+                {serverAttempt?.status === 'graded' && (serverAttempt?.score != null || serverAttempt?.percentage != null)
+                  ? `Score: ${serverAttempt.score ?? '—'}${serverAttempt.percentage != null ? ` (${Math.round(serverAttempt.percentage)}%)` : ''}`
+                  : `Score: ${results.earned} / ${results.total}`}
               </div>
             )}
           </div>
@@ -449,6 +523,27 @@ Format: {"score": number, "feedback": "string"}`;
             {submitError}
           </div>
         )}
+        {isSubmitted && attemptStatusFromServer === 'submitted' && !serverAttempt && assessmentId && (
+          <div className="rounded-lg border border-indigo-200 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-700 px-4 py-3 text-sm text-indigo-900 dark:text-indigo-200 space-y-2">
+            <p className="font-medium">Solutions saved successfully.</p>
+            <p className="text-indigo-700 dark:text-indigo-300">
+              Multiple choice and true/false were marked instantly. Essay and long-answer questions need AI marking. Click below to start. Marking runs in the background and can take a few minutes for many or difficult questions—you can leave this page and return later to see your results.
+            </p>
+            <Button
+              onClick={handleMarkWithAI}
+              disabled={isMarking}
+              className="mt-2"
+            >
+              {isMarking ? 'Marking…' : 'Mark with AI'}
+            </Button>
+            {isMarking && (
+              <p className="text-indigo-600 dark:text-indigo-400 text-xs font-medium mt-2">
+                Marking in progress. You can leave this page and come back to this assessment anytime to see your score when it’s ready.
+              </p>
+            )}
+            {markError && <p className="text-rose-600 dark:text-rose-400 text-sm">{markError}</p>}
+          </div>
+        )}
       </div>
 
       <div className="space-y-8 max-w-4xl mx-auto">
@@ -461,9 +556,9 @@ Format: {"score": number, "feedback": "string"}`;
                 <span className="flex-none flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-sm">
                   {index + 1}
                 </span>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0 overflow-visible">
                   {q.type !== 'cloze' && (
-                    <div className="text-lg font-medium text-slate-800 dark:text-slate-100">
+                    <div className="text-lg font-medium text-slate-800 dark:text-slate-100 overflow-visible break-words">
                       <MarkdownRenderer content={q.type === 'essay' ? (q as EssayQuestion).question_text : (q as any).question_text} />
                     </div>
                   )}
@@ -475,9 +570,9 @@ Format: {"score": number, "feedback": "string"}`;
             )}
 
             {/* Body */}
-            <div>
+            <div className="overflow-visible">
               {q.type === 'multiple_choice' && (
-                <div className="space-y-2 pl-11">
+                <div className="space-y-2 pl-11 mt-1 min-h-[2rem]" role="listbox" aria-label="Answer options">
                   {(q as MultipleChoiceQuestion).options?.map((opt, i) => {
                     const isSelected = answers[q.id] === opt;
                     const isCorrect = (q as MultipleChoiceQuestion).correct_answer_index === i;

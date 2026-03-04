@@ -301,23 +301,29 @@ export const assessmentService = {
   async submitAssessment(assessmentId: number, answers: Record<number, string>): Promise<AssessmentAttempt> {
     try {
       const response = await apiClient.post(API_ENDPOINTS.SUBMIT_ASSESSMENT(assessmentId), { answers });
-      const data = response.data as AssessmentAttempt;
-      // If backend deferred to background (essay/AI-graded), trigger grading so user gets result quickly
-      if (data?.status === 'submitted') {
-        try {
-          const graded = await apiClient.post(
-            `${API_ENDPOINTS.ASSESSMENT_DETAIL(assessmentId)}run-grading/`
-          );
-          return graded.data as AssessmentAttempt;
-        } catch {
-          return data;
-        }
-      }
-      return data;
+      return response.data as AssessmentAttempt;
     } catch (error) {
       console.error('Error submitting assessment:', error);
       throw error;
     }
+  },
+
+  /** Start background grading for a submitted attempt. Returns 202; poll getMyAttempt until status is 'graded'. */
+  async runGrading(assessmentId: number): Promise<void> {
+    const response = await apiClient.post(
+      `${API_ENDPOINTS.ASSESSMENT_DETAIL(assessmentId)}run-grading/`
+    );
+    if (response.status !== 202) {
+      throw new Error((response.data as any)?.detail || 'Failed to start grading');
+    }
+  },
+
+  /** Get current user's latest attempt for this assessment (for polling after run-grading). */
+  async getMyAttempt(assessmentId: number): Promise<AssessmentAttempt> {
+    const response = await apiClient.get(
+      `${API_ENDPOINTS.ASSESSMENT_DETAIL(assessmentId)}my-attempt/`
+    );
+    return response.data as AssessmentAttempt;
   },
 
   async uploadAnswerImage(assessmentId: number, questionId: string, file: File) {

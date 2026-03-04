@@ -211,9 +211,22 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         
         return Response(UserAttemptSerializer(attempt).data)
 
+    @action(detail=True, methods=['get'], url_path='my-attempt')
+    def my_attempt(self, request, pk=None):
+        """Return the current user's most recent attempt for this assessment (for polling after submit)."""
+        assessment = self.get_object()
+        attempt = UserAttempt.objects.filter(
+            assessment=assessment,
+            user=request.user
+        ).order_by('-started_at').first()
+        if not attempt:
+            return Response({'detail': 'No attempt found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(UserAttemptSerializer(attempt).data)
+
     @action(detail=True, methods=['post'], url_path='run-grading')
     def run_grading(self, request, pk=None):
-        """Run background grading for the current user's submitted attempt. Call after submit when status is 'submitted'."""
+        """Start background grading for the current user's submitted attempt. Returns 202 immediately; poll my-attempt for status."""
+        import threading
         assessment = self.get_object()
         attempt = UserAttempt.objects.filter(
             assessment=assessment,
@@ -225,8 +238,22 @@ class AssessmentViewSet(viewsets.ModelViewSet):
                 {'detail': 'No submitted attempt found to grade.'},
                 status=status.HTTP_404_NOT_FOUND
             )
-        attempt.calculate_score()
-        return Response(UserAttemptSerializer(attempt).data)
+
+        def grade_in_background():
+            try:
+                attempt.refresh_from_db()
+                if attempt.status == UserAttempt.Status.SUBMITTED:
+                    attempt.calculate_score()
+            except Exception:
+                pass
+
+        thread = threading.Thread(target=grade_in_background)
+        thread.daemon = True
+        thread.start()
+        return Response(
+            UserAttemptSerializer(attempt).data,
+            status=status.HTTP_202_ACCEPTED
+        )
 
     @action(detail=True, methods=['get'], url_path='public-results')
     def public_results(self, request, pk=None):

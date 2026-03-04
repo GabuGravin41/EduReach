@@ -147,9 +147,6 @@ apiClient.interceptors.response.use(
     if (canServeCached && (networkDown || serverError)) {
       const cached = readCachedResponse(originalRequest._cacheKey!, originalRequest.cacheMaxAgeMs);
       if (cached) {
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('network:offline'));
-        }
         return Promise.resolve({
           data: cached.data,
           status: cached.status,

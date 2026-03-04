@@ -584,11 +584,19 @@ const AppContent: React.FC = () => {
     }
   
     if (!user) {
+      const isStudyGroupInvite =
+        (location.pathname?.startsWith('/study-groups') && location.search?.includes('join_group=')) ||
+        /^\/study-groups\/\d+$/.test(location.pathname || '');
       return (
         <>
           {sessionExpiredNotice && (
             <div className="fixed top-4 right-4 bg-amber-100 border border-amber-200 text-amber-900 px-4 py-3 rounded-lg shadow-lg z-50">
               {sessionExpiredNotice}
+            </div>
+          )}
+          {isStudyGroupInvite && (
+            <div className="mx-4 mt-4 mb-2 rounded-lg border border-indigo-200 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-3 text-sm text-indigo-800 dark:text-indigo-200 text-center">
+              Log in to join this study group. You will be added automatically after signing in.
             </div>
           )}
           <LoginScreen />

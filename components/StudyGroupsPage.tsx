@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   useStudyGroups,
   useCreateStudyGroup,
@@ -12,6 +13,7 @@ import {
   useCreateStudyGroupChallenge,
   useStudyGroupPerformance,
   useUpdateStudyGroup,
+  STUDY_GROUP_KEYS,
 } from '../src/hooks/useStudyGroups';
 import { useAuth } from '../src/contexts/useAuth';
 import { StudyGroup } from '../src/services/studyGroupService';
@@ -28,6 +30,7 @@ import { UserCircleIcon } from './icons/UserCircleIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { TrophyIcon } from './icons/TrophyIcon';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { ROUTES } from '../src/routes';
 
 export const StudyGroupsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -73,6 +76,8 @@ export const StudyGroupsPage: React.FC = () => {
     activeGroupId ? Number(activeGroupId) : 0
   );
   const [pendingJoinGroupId, setPendingJoinGroupId] = useState<number | null>(null);
+  const [joinMessage, setJoinMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const queryClient = useQueryClient();
 
   const normalizedPosts = Array.isArray(groupPosts)
     ? groupPosts
@@ -164,6 +169,7 @@ export const StudyGroupsPage: React.FC = () => {
   const enterGroup = (group: StudyGroup) => {
     setActiveGroup(group);
     setGroupTab('overview');
+    navigate(ROUTES.studyGroupDetail(Number(group.id)), { replace: true });
   };
 
   const handleCreateChallenge = async () => {
@@ -183,34 +189,59 @@ export const StudyGroupsPage: React.FC = () => {
     setChallengeEnd('');
   };
 
-  // Handle invite-by-URL: /study-groups?join_group=<id>
+  // Resolve group id from URL: either ?join_group=1 or /study-groups/1 (unified invite link)
+  const urlGroupId = (() => {
+    const params = new URLSearchParams(location.search || '');
+    const fromQuery = params.get('join_group');
+    if (fromQuery) {
+      const n = Number(fromQuery);
+      if (!Number.isNaN(n) && n > 0) return n;
+    }
+    const pathMatch = location.pathname.match(/^\/study-groups\/(\d+)$/);
+    if (pathMatch) {
+      const n = parseInt(pathMatch[1], 10);
+      if (n > 0) return n;
+    }
+    return null;
+  })();
+
+  // Handle invite-by-URL: join_group query param or /study-groups/:id path
   useEffect(() => {
-    const search = location.search || '';
-    const params = new URLSearchParams(search);
-    const joinParam = params.get('join_group');
-    if (!joinParam) return;
-    const idNum = Number(joinParam);
-    if (!idNum || Number.isNaN(idNum)) return;
-    if (pendingJoinGroupId === idNum) return;
+    const idNum = urlGroupId;
+    if (!idNum) return;
     if (!user) return; // wait until user is logged in
 
+    const group = groups.find((g) => Number(g.id) === idNum);
+    if (group?.is_member) {
+      setActiveGroup(group);
+      setGroupTab('overview');
+      setPendingJoinGroupId(null);
+      setJoinMessage(null);
+      navigate(ROUTES.studyGroupDetail(idNum), { replace: true });
+      return;
+    }
+    if (pendingJoinGroupId === idNum) return;
+
+    setJoinMessage(null);
     setPendingJoinGroupId(idNum);
     joinGroupMutation
       .mutateAsync(idNum)
-      .then(() => {
-        alert('You have been added to this study group.');
+      .then(async () => {
+        await queryClient.refetchQueries({ queryKey: STUDY_GROUP_KEYS.lists() });
+        setJoinMessage({ type: 'success', text: "You've joined this study group. The group will open below." });
+        navigate(ROUTES.studyGroupDetail(idNum), { replace: true });
       })
       .catch((err: any) => {
         console.error('Failed to join group from invite link', err);
         const detail = err?.response?.data?.detail;
-        if (detail) {
-          alert(detail);
-        } else {
-          alert('Could not join this group. Please try again from the Study Groups page.');
-        }
+        setJoinMessage({
+          type: 'error',
+          text: typeof detail === 'string' ? detail : 'Could not join this group. Please try again or open the link when you have a stable connection.',
+        });
         setPendingJoinGroupId(null);
+        navigate(ROUTES.studyGroups, { replace: true });
       });
-  }, [location.search, user, joinGroupMutation, pendingJoinGroupId]);
+  }, [urlGroupId, user, groups, joinGroupMutation, pendingJoinGroupId, queryClient, navigate]);
 
   // After joining via URL, if the group appears in the list, open it automatically.
   useEffect(() => {
@@ -220,15 +251,34 @@ export const StudyGroupsPage: React.FC = () => {
       setActiveGroup(found);
       setGroupTab('overview');
       setPendingJoinGroupId(null);
+      setJoinMessage(null);
+      navigate(ROUTES.studyGroupDetail(Number(found.id)), { replace: true });
     }
-  }, [groups, pendingJoinGroupId]);
+  }, [groups, pendingJoinGroupId, navigate]);
 
   // If a group is active, render the detailed dashboard
   if (activeGroup) {
     return (
       <div className="h-full flex flex-col">
+        {joinMessage && (
+          <div
+            className={`mb-4 rounded-lg border px-4 py-3 flex items-center justify-between gap-3 ${
+              joinMessage.type === 'success'
+                ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                : 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+            }`}
+          >
+            <p className="text-sm font-medium">{joinMessage.text}</p>
+            <button type="button" onClick={() => setJoinMessage(null)} className="shrink-0 px-3 py-1.5 rounded-md border border-current opacity-80 hover:opacity-100 text-sm font-medium">
+              Dismiss
+            </button>
+          </div>
+        )}
         <button
-          onClick={() => setActiveGroup(null)}
+          onClick={() => {
+            setActiveGroup(null);
+            navigate(ROUTES.studyGroups);
+          }}
           className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-indigo-600 mb-4 w-fit"
         >
           <ChevronLeftIcon className="w-5 h-5" />
@@ -596,18 +646,21 @@ export const StudyGroupsPage: React.FC = () => {
 
                 <div className="mb-8">
                   <label className="block text-sm font-medium mb-2">Share invite link</label>
+                  <p className="text-xs text-slate-500 mb-2">
+                    This link opens <span className="font-semibold">{activeGroup.name}</span> (ID: {activeGroup.id}). Share this exact link so invitees join this group.
+                  </p>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       readOnly
-                      value={`${window.location.origin}/study-groups?join_group=${activeGroup.id}`}
+                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}${ROUTES.studyGroupDetail(Number(activeGroup.id))}`}
                       className="flex-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500"
                       onFocus={(e) => e.currentTarget.select()}
                     />
                     <Button
                       type="button"
                       onClick={async () => {
-                        const url = `${window.location.origin}/study-groups?join_group=${activeGroup.id}`;
+                        const url = `${typeof window !== 'undefined' ? window.location.origin : ''}${ROUTES.studyGroupDetail(Number(activeGroup.id))}`;
                         try {
                           if (navigator.clipboard && window.isSecureContext) {
                             await navigator.clipboard.writeText(url);
@@ -633,8 +686,7 @@ export const StudyGroupsPage: React.FC = () => {
                     </Button>
                   </div>
                   <p className="mt-2 text-xs text-slate-500">
-                    Anyone who opens this link while signed in will be added to <span className="font-semibold">{activeGroup.name}</span>{' '}
-                    and taken straight into this study group.
+                    Anyone who opens this link while signed in will be added to this group and taken straight here. If they are not signed in, they will be asked to log in first.
                   </p>
                 </div>
 
@@ -686,6 +738,20 @@ export const StudyGroupsPage: React.FC = () => {
   // DEFAULT VIEW (List of groups)
   return (
     <div className="space-y-6">
+      {joinMessage && (
+        <div
+          className={`rounded-lg border px-4 py-3 flex items-center justify-between gap-3 ${
+            joinMessage.type === 'success'
+              ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+              : 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+          }`}
+        >
+          <p className="text-sm font-medium">{joinMessage.text}</p>
+          <button type="button" onClick={() => setJoinMessage(null)} className="shrink-0 px-3 py-1.5 rounded-md border border-current opacity-80 hover:opacity-100 text-sm font-medium">
+            Dismiss
+          </button>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-50">Study Groups</h1>

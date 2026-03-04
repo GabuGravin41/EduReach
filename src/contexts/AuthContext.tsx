@@ -44,7 +44,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (!cachedUser) {
             authService.clearCachedUser();
           }
-          if (typeof window !== 'undefined') {
+          if (typeof window !== 'undefined' && !navigator.onLine) {
             window.dispatchEvent(new CustomEvent('network:offline'));
           }
         }

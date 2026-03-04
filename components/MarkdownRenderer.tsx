@@ -120,7 +120,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
     segments.forEach((seg, idx) => {
       if (seg.type === 'math') {
         const el = seg.block ? (
-          <div key={`math-b-${idx}`} className="my-4 flex justify-center">
+          <div key={`math-b-${idx}`} className="my-2 flex justify-center max-h-[12rem] overflow-auto overflow-x-auto">
             {renderMath(seg.content, true)}
           </div>
         ) : (
