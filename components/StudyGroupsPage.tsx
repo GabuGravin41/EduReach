@@ -218,13 +218,22 @@ export const StudyGroupsPage: React.FC = () => {
     if (!idNum) return;
     if (!user) return; // wait until user is logged in
 
+    const targetPath = ROUTES.studyGroupDetail(idNum);
+
+    // If we're already on this group's page and it is active, avoid re-running
+    if (location.pathname === targetPath && activeGroup && Number(activeGroup.id) === idNum) {
+      return;
+    }
+
     const group = groups.find((g) => Number(g.id) === idNum);
     if (group?.is_member) {
       setActiveGroup(group);
       setGroupTab('overview');
       setPendingJoinGroupId(null);
       setJoinMessage(null);
-      navigate(ROUTES.studyGroupDetail(idNum), { replace: true });
+      if (location.pathname !== targetPath) {
+        navigate(targetPath, { replace: true });
+      }
       return;
     }
     if (pendingJoinGroupId === idNum) return;
@@ -236,7 +245,9 @@ export const StudyGroupsPage: React.FC = () => {
       .then(async () => {
         await queryClient.refetchQueries({ queryKey: STUDY_GROUP_KEYS.lists() });
         setJoinMessage({ type: 'success', text: "You've joined this study group. The group will open below." });
-        navigate(ROUTES.studyGroupDetail(idNum), { replace: true });
+        if (location.pathname !== targetPath) {
+          navigate(targetPath, { replace: true });
+        }
       })
       .catch((err: any) => {
         console.error('Failed to join group from invite link', err);
@@ -248,20 +259,23 @@ export const StudyGroupsPage: React.FC = () => {
         setPendingJoinGroupId(null);
         navigate(ROUTES.studyGroups, { replace: true });
       });
-  }, [urlGroupId, user, groups, joinGroupMutation, pendingJoinGroupId, queryClient, navigate]);
+  }, [urlGroupId, user, groups, joinGroupMutation, pendingJoinGroupId, queryClient, navigate, location.pathname, activeGroup]);
 
   // After joining via URL, if the group appears in the list, open it automatically.
   useEffect(() => {
     if (!pendingJoinGroupId) return;
     const found = groups.find((g) => Number(g.id) === Number(pendingJoinGroupId));
     if (found) {
+      const targetPath = ROUTES.studyGroupDetail(Number(found.id));
       setActiveGroup(found);
       setGroupTab('overview');
       setPendingJoinGroupId(null);
       setJoinMessage(null);
-      navigate(ROUTES.studyGroupDetail(Number(found.id)), { replace: true });
+      if (location.pathname !== targetPath) {
+        navigate(targetPath, { replace: true });
+      }
     }
-  }, [groups, pendingJoinGroupId, navigate]);
+  }, [groups, pendingJoinGroupId, navigate, location.pathname]);
 
   // If a group is active, render the detailed dashboard
   if (activeGroup) {
