@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { TrophyIcon } from './icons/TrophyIcon';
+import { LightbulbIcon } from './icons/LightbulbIcon';
 import { HeartIcon } from './icons/HeartIcon';
 import { MessageSquareIcon } from './icons/MessageSquareIcon';
 import { UserCircleIcon } from './icons/UserCircleIcon';
@@ -335,9 +336,15 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
             {/* Right Sidebar - Trending */}
             <div className="w-full md:w-80 flex-shrink-0 space-y-6">
                 <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl shadow-lg p-6 text-white">
-                    <div className="flex items-center gap-3 mb-4">
+                    <div className="flex items-center gap-3 mb-2">
                         <TrophyIcon className="w-6 h-6 text-yellow-300" />
-                        <h3 className="font-bold text-lg">Leaderboard</h3>
+                        <h3 className="font-bold text-lg">Global Leaderboard</h3>
+                    </div>
+                    <div className="flex items-start gap-2 mb-4 p-2.5 bg-white/10 rounded-lg border border-white/20">
+                        <LightbulbIcon className="w-4 h-4 text-yellow-300 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-indigo-100 leading-relaxed">
+                            <strong>Global XP:</strong> Points earned from all your study groups, quizzes, and activities combined!
+                        </p>
                     </div>
                     <div className="space-y-4">
                         {leaderboard.map((u: any, i) => (

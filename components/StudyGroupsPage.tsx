@@ -32,6 +32,7 @@ import { CalendarIcon } from './icons/CalendarIcon';
 import { UserCircleIcon } from './icons/UserCircleIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { TrophyIcon } from './icons/TrophyIcon';
+import { LightbulbIcon } from './icons/LightbulbIcon';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ROUTES } from '../src/routes';
 
@@ -689,12 +690,20 @@ export const StudyGroupsPage: React.FC = () => {
 
             {groupTab === 'leaderboard' && (
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <div className="p-4 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                  <h3 className="font-bold flex items-center gap-2">
-                    <TrophyIcon className="w-5 h-5 text-amber-500" />
-                    Group Rankings
-                  </h3>
-                  <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Ranked by Total XP</span>
+                <div className="p-4 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold flex items-center gap-2">
+                      <TrophyIcon className="w-5 h-5 text-amber-500" />
+                      Group Rankings
+                    </h3>
+                    <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Ranked by Total XP</span>
+                  </div>
+                  <div className="flex items-start gap-2 p-3 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-lg border border-indigo-100 dark:border-indigo-800/30">
+                    <LightbulbIcon className="w-4 h-4 text-indigo-500 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-indigo-800/80 dark:text-indigo-200/80 leading-relaxed">
+                      <strong>How this works:</strong> XP shown here is exclusively earned by interacting with material inside this study group. Any XP you earn here will also be added to your overall global leaderboard progress!
+                    </p>
+                  </div>
                 </div>
                 {membersLoading ? (
                   <div className="p-6 text-sm text-slate-500">Loading rankings...</div>
