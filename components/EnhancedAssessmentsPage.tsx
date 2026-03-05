@@ -22,6 +22,7 @@ interface Assessment {
     description?: string;
     question_types?: string[];
     difficulty?: 'easy' | 'medium' | 'hard';
+    assessment_type?: 'quiz' | 'exam';
     created_at?: string;
     share_token?: string;
 }
@@ -494,6 +495,13 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                 </select>
             </div>
 
+            {/* Quiz vs Exam — short hint for users */}
+            <div className="flex flex-wrap items-center gap-4 mb-4 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400">
+                <span className="font-medium text-slate-700 dark:text-slate-300">Quick guide:</span>
+                <span><strong className="text-teal-600 dark:text-teal-400">Quiz</strong> — short, brisk check of knowledge and memory.</span>
+                <span><strong className="text-rose-600 dark:text-rose-400">Exam</strong> — more serious; for deeper thinking and mastery.</span>
+            </div>
+
             {/* Assessments Grid or Empty State */}
             {sortedAssessments.length === 0 ? (
                 <div className="text-center py-16 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
@@ -569,7 +577,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                                     onClick={() => onSelectExam(exam.id)}
                                     className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
                                 >
-                                    {exam.status === 'completed' ? 'Review' : 'Start Exam'}
+                                    {exam.status === 'completed' ? 'Review' : (exam.assessment_type === 'quiz' ? 'Start Quiz' : 'Start Exam')}
                                 </button>
                                 <button
                                     onClick={(e) => handleChallengeClick(e, exam)}

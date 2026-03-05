@@ -7,6 +7,8 @@ import {
   useLeaveStudyGroup,
   useStudyGroupPosts,
   useCreateStudyGroupPost,
+  useUpdateStudyGroupPost,
+  useDeleteStudyGroupPost,
   useStudyGroupMembers,
   useInviteStudyGroupMember,
   useStudyGroupChallenges,
@@ -48,7 +50,7 @@ export const StudyGroupsPage: React.FC = () => {
 
   // State for detailed group view
   const [activeGroup, setActiveGroup] = useState<StudyGroup | null>(null);
-  const [groupTab, setGroupTab] = useState<'overview' | 'members' | 'leaderboard' | 'events' | 'invites'>('overview');
+  const [groupTab, setGroupTab] = useState<'overview' | 'discussions' | 'members' | 'leaderboard' | 'events' | 'invites'>('overview');
   const [inviteEmail, setInviteEmail] = useState('');
   const [challengeTitle, setChallengeTitle] = useState('');
   const [challengeDescription, setChallengeDescription] = useState('');
@@ -56,8 +58,13 @@ export const StudyGroupsPage: React.FC = () => {
   const [challengeStart, setChallengeStart] = useState('');
   const [challengeEnd, setChallengeEnd] = useState('');
   const [createChallengeExpanded, setCreateChallengeExpanded] = useState(false);
+  const [newPostContent, setNewPostContent] = useState('');
+  const [editingPostId, setEditingPostId] = useState<number | null>(null);
+  const [editingContent, setEditingContent] = useState('');
 
   const createPostMutation = useCreateStudyGroupPost();
+  const updatePostMutation = useUpdateStudyGroupPost();
+  const deletePostMutation = useDeleteStudyGroupPost();
   const inviteMemberMutation = useInviteStudyGroupMember();
   const createChallengeMutation = useCreateStudyGroupChallenge();
   const { data: assessmentsData = [] } = useAssessments();
@@ -312,7 +319,7 @@ export const StudyGroupsPage: React.FC = () => {
           {/* Navigation */}
           <div className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-6">
             <div className="flex gap-6">
-              {['overview', 'members', 'leaderboard', 'events', 'invites'].map((tab) => (
+              {['overview', 'discussions', 'members', 'leaderboard', 'events', 'invites'].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setGroupTab(tab as any)}
@@ -336,33 +343,101 @@ export const StudyGroupsPage: React.FC = () => {
                     <SparklesIcon className="w-5 h-5 text-yellow-500" />
                     Discussion Board
                   </h3>
-                  <div className="space-y-4">
+                  {/* Inline composer */}
+                  <div className="mb-4">
+                    <textarea
+                      value={newPostContent}
+                      onChange={(e) => setNewPostContent(e.target.value)}
+                      placeholder="Start a new discussion..."
+                      rows={3}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                    />
+                    <Button
+                      onClick={async () => {
+                        const content = newPostContent.trim();
+                        if (!content) return;
+                        await createPostMutation.mutateAsync({ groupId: activeGroup.id, content });
+                        setNewPostContent('');
+                      }}
+                      disabled={!newPostContent.trim() || createPostMutation.isPending}
+                      variant="primary"
+                      size="sm"
+                      className="mt-2"
+                    >
+                      {createPostMutation.isPending ? 'Posting...' : 'Post'}
+                    </Button>
+                  </div>
+                  <div className="space-y-3 max-h-[320px] overflow-y-auto">
                     {postsLoading ? (
                       <p className="text-sm text-slate-500">Loading discussions...</p>
                     ) : normalizedPosts.length === 0 ? (
                       <p className="text-sm text-slate-500">No posts yet. Start the first discussion for this group.</p>
                     ) : (
-                      normalizedPosts.slice(0, 3).map(post => (
+                      normalizedPosts.map((post: { id: number; content: string; author?: { id?: number; username?: string }; created_at: string }) => (
                         <div key={post.id} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                          <p className="font-semibold text-sm">{post.content}</p>
-                          <p className="text-xs text-slate-500 mt-1">
-                            {post.author.username} • {new Date(post.created_at).toLocaleString()}
-                          </p>
+                          {editingPostId === post.id ? (
+                            <>
+                              <textarea
+                                value={editingContent}
+                                onChange={(e) => setEditingContent(e.target.value)}
+                                rows={2}
+                                className="w-full px-2 py-1 text-sm rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700"
+                              />
+                              <div className="flex gap-2 mt-2">
+                                <Button
+                                  size="sm"
+                                  variant="primary"
+                                  onClick={async () => {
+                                    if (!editingContent.trim()) return;
+                                    await updatePostMutation.mutateAsync({ postId: post.id, content: editingContent.trim() });
+                                    setEditingPostId(null);
+                                    setEditingContent('');
+                                  }}
+                                  disabled={updatePostMutation.isPending}
+                                >
+                                  Save
+                                </Button>
+                                <Button size="sm" variant="secondary" onClick={() => { setEditingPostId(null); setEditingContent(''); }}>
+                                  Cancel
+                                </Button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <p className="font-semibold text-sm text-slate-800 dark:text-slate-200">{post.content}</p>
+                              <div className="flex items-center justify-between mt-1">
+                                <p className="text-xs text-slate-500">
+                                  {(post.author && (post.author as any).username) ?? 'Someone'} • {new Date(post.created_at).toLocaleString()}
+                                </p>
+                                {user && post.author && (post.author as any).id === user.id && (
+                                  <div className="flex gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => { setEditingPostId(post.id); setEditingContent(post.content); }}
+                                      className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        if (window.confirm('Delete this post?')) {
+                                          await deletePostMutation.mutateAsync({ postId: post.id, groupId: activeGroup.id });
+                                        }
+                                      }}
+                                      className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                                      disabled={deletePostMutation.isPending}
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </>
+                          )}
                         </div>
                       ))
                     )}
-                    {/* Simple composer for new post */}
-                    <button
-                      onClick={async () => {
-                        const content = prompt('Start a new discussion');
-                        if (content && content.trim()) {
-                          await createPostMutation.mutateAsync({ groupId: activeGroup.id, content: content.trim() });
-                        }
-                      }}
-                      className="w-full px-3 py-2 text-sm font-medium rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
-                    >
-                      New Discussion
-                    </button>
                   </div>
                 </div>
 
@@ -372,6 +447,110 @@ export const StudyGroupsPage: React.FC = () => {
                     Next Session
                   </h3>
                   <p className="text-sm text-slate-500">No upcoming sessions yet. Once events are scheduled for this group, they will show up here.</p>
+                </div>
+              </div>
+            )}
+
+            {groupTab === 'discussions' && (
+              <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 max-w-2xl">
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <SparklesIcon className="w-5 h-5 text-yellow-500" />
+                  Discussion Board
+                </h3>
+                <div className="mb-4">
+                  <textarea
+                    value={newPostContent}
+                    onChange={(e) => setNewPostContent(e.target.value)}
+                    placeholder="Start a new discussion..."
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                  />
+                  <Button
+                    onClick={async () => {
+                      const content = newPostContent.trim();
+                      if (!content) return;
+                      await createPostMutation.mutateAsync({ groupId: activeGroup.id, content });
+                      setNewPostContent('');
+                    }}
+                    disabled={!newPostContent.trim() || createPostMutation.isPending}
+                    variant="primary"
+                    size="sm"
+                    className="mt-2"
+                  >
+                    {createPostMutation.isPending ? 'Posting...' : 'Post'}
+                  </Button>
+                </div>
+                <div className="space-y-3 max-h-[420px] overflow-y-auto">
+                  {postsLoading ? (
+                    <p className="text-sm text-slate-500">Loading discussions...</p>
+                  ) : normalizedPosts.length === 0 ? (
+                    <p className="text-sm text-slate-500">No posts yet. Start the first discussion for this group.</p>
+                  ) : (
+                    normalizedPosts.map((post: { id: number; content: string; author?: { id?: number; username?: string }; created_at: string }) => (
+                      <div key={post.id} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                        {editingPostId === post.id ? (
+                          <>
+                            <textarea
+                              value={editingContent}
+                              onChange={(e) => setEditingContent(e.target.value)}
+                              rows={2}
+                              className="w-full px-2 py-1 text-sm rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700"
+                            />
+                            <div className="flex gap-2 mt-2">
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                onClick={async () => {
+                                  if (!editingContent.trim()) return;
+                                  await updatePostMutation.mutateAsync({ postId: post.id, content: editingContent.trim() });
+                                  setEditingPostId(null);
+                                  setEditingContent('');
+                                }}
+                                disabled={updatePostMutation.isPending}
+                              >
+                                Save
+                              </Button>
+                              <Button size="sm" variant="secondary" onClick={() => { setEditingPostId(null); setEditingContent(''); }}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <p className="font-semibold text-sm text-slate-800 dark:text-slate-200">{post.content}</p>
+                            <div className="flex items-center justify-between mt-1">
+                              <p className="text-xs text-slate-500">
+                                {(post.author && (post.author as any).username) ?? 'Someone'} • {new Date(post.created_at).toLocaleString()}
+                              </p>
+                              {user && post.author && (post.author as any).id === user.id && (
+                                <div className="flex gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => { setEditingPostId(post.id); setEditingContent(post.content); }}
+                                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      if (window.confirm('Delete this post?')) {
+                                        await deletePostMutation.mutateAsync({ postId: post.id, groupId: activeGroup.id });
+                                      }
+                                    }}
+                                    className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                                    disabled={deletePostMutation.isPending}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             )}

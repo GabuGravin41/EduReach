@@ -96,6 +96,11 @@ export const studyGroupService = {
     return data;
   },
 
+  async updateGroupPost(postId: number, content: string): Promise<StudyGroupPost> {
+    const { data } = await apiClient.patch(`/study-groups/group-posts/${postId}/`, { content });
+    return data;
+  },
+
   async deleteGroupPost(postId: number): Promise<void> {
     await apiClient.delete(`/study-groups/group-posts/${postId}/`);
   },

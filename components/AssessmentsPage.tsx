@@ -111,6 +111,12 @@ export const AssessmentsPage: React.FC<AssessmentsPageProps> = ({
                 </div>
             </div>
 
+            <div className="flex flex-wrap items-center gap-4 mb-4 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400">
+                <span className="font-medium text-slate-700 dark:text-slate-300">Quick guide:</span>
+                <span><strong className="text-teal-600 dark:text-teal-400">Quiz</strong> — short knowledge check.</span>
+                <span><strong className="text-rose-600 dark:text-rose-400">Exam</strong> — deeper thinking & mastery.</span>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {filteredAssessments.map(exam => (
                     <div 
@@ -168,7 +174,7 @@ export const AssessmentsPage: React.FC<AssessmentsPageProps> = ({
                                     <SwordsIcon className="w-5 h-5" />
                                 </button>
                                 <button className="px-4 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
-                                    {exam.status === 'completed' ? 'Review' : 'Start'}
+                                    {exam.status === 'completed' ? 'Review' : (exam.assessment_type === 'exam' ? 'Start Exam' : 'Start Quiz')}
                                 </button>
                             </div>
                         </div>

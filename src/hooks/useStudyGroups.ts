@@ -84,6 +84,28 @@ export const useCreateStudyGroupPost = () => {
   });
 };
 
+export const useUpdateStudyGroupPost = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ postId, content }: { postId: number; content: string }) =>
+      studyGroupService.updateGroupPost(postId, content),
+    onSuccess: (post: StudyGroupPost) => {
+      queryClient.invalidateQueries({ queryKey: STUDY_GROUP_KEYS.posts(post.group) });
+    },
+  });
+};
+
+export const useDeleteStudyGroupPost = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ postId, groupId }: { postId: number; groupId: number }) =>
+      studyGroupService.deleteGroupPost(postId),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: STUDY_GROUP_KEYS.posts(variables.groupId) });
+    },
+  });
+};
+
 export const useStudyGroupMembers = (groupId: number) => {
   return useQuery({
     queryKey: STUDY_GROUP_KEYS.members(groupId),
