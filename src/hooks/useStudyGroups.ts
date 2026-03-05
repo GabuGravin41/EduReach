@@ -55,6 +55,16 @@ export const useJoinStudyGroup = () => {
   });
 };
 
+export const useJoinStudyGroupByToken = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (token: string) => studyGroupService.joinGroupByToken(token),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: STUDY_GROUP_KEYS.lists() });
+    },
+  });
+};
+
 export const useLeaveStudyGroup = () => {
   const queryClient = useQueryClient();
   return useMutation({

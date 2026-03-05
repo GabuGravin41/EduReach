@@ -157,6 +157,67 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
 
         return Response(results)
 
+    @action(
+        detail=False,
+        methods=['post'],
+        permission_classes=[permissions.IsAuthenticated],
+        url_path='join-by-token',
+    )
+    def join_by_token(self, request):
+        """
+        Join a study group by invite token (bypasses visibility rules).
+        
+        Request body:
+          - token: str (the invite_token from the group)
+        
+        Returns:
+          - group_id: int (the group the user joined)
+          - detail: str (success message)
+        """
+        token = request.data.get('token')
+        if not token:
+            return Response(
+                {'detail': 'token is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        try:
+            group = StudyGroup.objects.get(invite_token=token)
+        except StudyGroup.DoesNotExist:
+            return Response(
+                {'detail': 'Invite link is invalid or expired.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        
+        # Check if invites are enabled for this group
+        if not group.invite_enabled:
+            return Response(
+                {'detail': 'This invite link is disabled.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        
+        # Check capacity
+        if group.member_count >= group.max_members:
+            return Response(
+                {'detail': 'Group is full.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        # Check if already a member
+        if group.members.filter(id=request.user.id).exists():
+            return Response(
+                {'detail': 'Already a member.', 'group_id': group.id},
+                status=status.HTTP_200_OK,
+            )
+        
+        # Add user to group
+        group.members.add(request.user)
+        
+        return Response(
+            {'detail': 'Joined group.', 'group_id': group.id},
+            status=status.HTTP_200_OK,
+        )
+
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def invite(self, request, pk=None):
         """Invite a user to the study group by email (adds existing user)."""

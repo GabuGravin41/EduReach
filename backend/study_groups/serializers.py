@@ -30,13 +30,23 @@ class StudyGroupSerializer(serializers.ModelSerializer):
             'course',
             'course_title',
             'is_public',
+            'invite_token',
+            'invite_enabled',
             'max_members',
             'member_count',
             'is_member',
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'creator', 'member_count', 'is_member', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id',
+            'creator',
+            'member_count',
+            'is_member',
+            'created_at',
+            'updated_at',
+            'invite_token',
+        ]
 
     def get_is_member(self, obj):
         request = self.context.get('request')

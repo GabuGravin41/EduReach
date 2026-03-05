@@ -21,6 +21,8 @@ export interface StudyGroup {
   max_members: number;
   member_count: number;
   is_member: boolean;
+  invite_token?: string;
+  invite_enabled?: boolean;
   created_at: string;
 }
 
@@ -75,6 +77,11 @@ export const studyGroupService = {
 
   async joinGroup(id: number): Promise<void> {
     await apiClient.post(`/study-groups/groups/${id}/join/`);
+  },
+
+  async joinGroupByToken(token: string): Promise<{ detail: string; group_id: number }> {
+    const { data } = await apiClient.post('/study-groups/groups/join-by-token/', { token });
+    return data;
   },
 
   async leaveGroup(id: number): Promise<void> {

@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
+from django.utils.crypto import get_random_string
 
 
 class StudyGroup(models.Model):
@@ -29,6 +30,13 @@ class StudyGroup(models.Model):
         related_name='study_groups',
         blank=True,
     )
+    # Token-based invite link (used for joining by URL, even for private groups).
+    # Nullable so existing rows are not broken; tokens are generated lazily.
+    invite_token = models.CharField(max_length=64, unique=True, blank=True, null=True)
+    invite_enabled = models.BooleanField(
+        default=True,
+        help_text='If False, invite links for this group are disabled.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -37,6 +45,13 @@ class StudyGroup(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        # Generate a stable random token the first time the group is saved,
+        # without modifying existing groups that already have one.
+        if not self.invite_token:
+            self.invite_token = get_random_string(32)
+        super().save(*args, **kwargs)
 
     @property
     def member_count(self) -> int:

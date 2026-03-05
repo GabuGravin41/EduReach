@@ -4,6 +4,7 @@ import {
   useStudyGroups,
   useCreateStudyGroup,
   useJoinStudyGroup,
+  useJoinStudyGroupByToken,
   useLeaveStudyGroup,
   useStudyGroupPosts,
   useCreateStudyGroupPost,
@@ -41,6 +42,7 @@ export const StudyGroupsPage: React.FC = () => {
   const { data: groupsData, isLoading } = useStudyGroups();
   const createGroupMutation = useCreateStudyGroup();
   const joinGroupMutation = useJoinStudyGroup();
+  const joinGroupByTokenMutation = useJoinStudyGroupByToken();
   const leaveGroupMutation = useLeaveStudyGroup();
   const updateGroupMutation = useUpdateStudyGroup();
 
@@ -83,6 +85,7 @@ export const StudyGroupsPage: React.FC = () => {
     activeGroupId ? Number(activeGroupId) : 0
   );
   const [pendingJoinGroupId, setPendingJoinGroupId] = useState<number | null>(null);
+  const [pendingJoinToken, setPendingJoinToken] = useState<string | null>(null);
   const [joinMessage, setJoinMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const queryClient = useQueryClient();
 
@@ -196,7 +199,8 @@ export const StudyGroupsPage: React.FC = () => {
     setChallengeEnd('');
   };
 
-  // Resolve group id from URL: either ?join_group=1 or /study-groups/1 (unified invite link)
+  // Resolve group id from URL: either ?join_group=1 or /study-groups/1 (legacy)
+  // OR: ?join_token=abcd1234 (new token-based invite)
   const urlGroupId = (() => {
     const params = new URLSearchParams(location.search || '');
     const fromQuery = params.get('join_group');
@@ -211,6 +215,65 @@ export const StudyGroupsPage: React.FC = () => {
     }
     return null;
   })();
+
+  const urlInviteToken = (() => {
+    const params = new URLSearchParams(location.search || '');
+    const token = params.get('join_token');
+    return token || null;
+  })();
+
+  // Handle token-based invite: join_token query param
+  useEffect(() => {
+    const token = urlInviteToken;
+    if (!token) return;
+    if (!user) return; // wait until user is logged in
+
+    if (pendingJoinToken === token) return; // avoid duplicate calls
+
+    setJoinMessage(null);
+    setPendingJoinToken(token);
+
+    joinGroupByTokenMutation
+      .mutateAsync(token)
+      .then(async (result) => {
+        await queryClient.refetchQueries({ queryKey: STUDY_GROUP_KEYS.lists() });
+        const groupId = result.group_id;
+        setJoinMessage({
+          type: 'success',
+          text: "You've joined this study group. The group will open below.",
+        });
+        const targetPath = ROUTES.studyGroupDetail(groupId);
+        if (location.pathname !== targetPath) {
+          navigate(targetPath, { replace: true });
+        }
+      })
+      .catch((err: any) => {
+        console.error('Failed to join group via token', err);
+        const detail = err?.response?.data?.detail;
+        setJoinMessage({
+          type: 'error',
+          text:
+            typeof detail === 'string'
+              ? detail
+              : 'Could not join this group. Please try again or open the link when you have a stable connection.',
+        });
+        setPendingJoinToken(null);
+        navigate(ROUTES.studyGroups, { replace: true });
+      });
+  }, [urlInviteToken, user, joinGroupByTokenMutation, pendingJoinToken, queryClient, navigate, location.pathname]);
+
+  // After joining via token, if the group appears in the list, open it automatically.
+  useEffect(() => {
+    if (!pendingJoinToken) return;
+    // Try to find the group in the current list
+    // Since we just refetched, it should appear
+    const found = groups.find((g) => {
+      // We don't know the group ID from the token, so we rely on the join response
+      // This is handled by the previous effect that navigates to the group detail page
+      return true; // placeholder
+    });
+    setPendingJoinToken(null);
+  }, [groups, pendingJoinToken]);
 
   // Handle invite-by-URL: join_group query param or /study-groups/:id path
   useEffect(() => {
@@ -840,20 +903,29 @@ export const StudyGroupsPage: React.FC = () => {
                 <div className="mb-8">
                   <label className="block text-sm font-medium mb-2">Share invite link</label>
                   <p className="text-xs text-slate-500 mb-2">
-                    This link opens <span className="font-semibold">{activeGroup.name}</span> (ID: {activeGroup.id}). Share this exact link so invitees join this group.
+                    Share this link with anyone to let them join <span className="font-semibold">{activeGroup.name}</span> instantly.
                   </p>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       readOnly
-                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}${ROUTES.studyGroupDetail(Number(activeGroup.id))}`}
+                      value={(() => {
+                        const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                        const token = activeGroup.invite_token || '';
+                        return token ? `${origin}/study-groups?join_token=${token}` : '';
+                      })()}
                       className="flex-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500"
                       onFocus={(e) => e.currentTarget.select()}
                     />
                     <Button
                       type="button"
                       onClick={async () => {
-                        const url = `${typeof window !== 'undefined' ? window.location.origin : ''}${ROUTES.studyGroupDetail(Number(activeGroup.id))}`;
+                        if (!activeGroup.invite_token) {
+                          alert('Invite token not available. Please refresh the page.');
+                          return;
+                        }
+                        const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                        const url = `${origin}/study-groups?join_token=${activeGroup.invite_token}`;
                         try {
                           if (navigator.clipboard && window.isSecureContext) {
                             await navigator.clipboard.writeText(url);
