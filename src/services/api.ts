@@ -28,6 +28,38 @@ type CacheableConfig = InternalAxiosRequestConfig & {
   cacheMaxAgeMs?: number;
 };
 
+// Track the active refresh promise to prevent simultaneous refresh requests
+let refreshPromise: Promise<string | null> | null = null;
+
+async function getRefreshedToken(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise;
+
+  const refreshToken = localStorage.getItem('refresh_token');
+  if (!refreshToken) return null;
+
+  refreshPromise = (async () => {
+    try {
+      const response = await axios.post(
+        `${API_CONFIG.BASE_URL}/auth/token/refresh/`,
+        { refresh: refreshToken }
+      );
+      const access = response.data?.access;
+      if (access) {
+        localStorage.setItem('access_token', access);
+        return access;
+      }
+      return null;
+    } catch (err) {
+      console.error('Shared token refresh failed:', err);
+      return null;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
 // Request interceptor - Add JWT token; if missing but refresh exists, try to refresh first
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
@@ -37,20 +69,9 @@ apiClient.interceptors.request.use(
       typeof config.url === 'string' && config.url.includes('/auth/token/refresh');
 
     if (!token && refreshToken && !isRefreshRequest) {
-      try {
-        const response = await axios.post(
-          `${API_CONFIG.BASE_URL}/auth/token/refresh/`,
-          { refresh: refreshToken }
-        );
-        const access = response.data?.access;
-        if (access) {
-          localStorage.setItem('access_token', access);
-          token = access;
-        }
-      } catch {
-        // Let the request proceed; response interceptor will handle 401
-      }
+      token = await getRefreshedToken();
     }
+
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -67,8 +88,16 @@ apiClient.interceptors.request.use(
 
 // Add same interceptor to aiClient
 aiClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('access_token');
+  async (config: InternalAxiosRequestConfig) => {
+    let token = localStorage.getItem('access_token');
+    const refreshToken = localStorage.getItem('refresh_token');
+    const isRefreshRequest =
+      typeof config.url === 'string' && config.url.includes('/auth/token/refresh');
+
+    if (!token && refreshToken && !isRefreshRequest) {
+      token = await getRefreshedToken();
+    }
+
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -103,19 +132,10 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (!refreshToken) {
-          throw new Error('No refresh token available');
+        const access = await getRefreshedToken();
+        if (!access) {
+          throw new Error('Refresh failed');
         }
-
-        // Try to refresh the token
-        const response = await axios.post(
-          `${API_CONFIG.BASE_URL}/auth/token/refresh/`,
-          { refresh: refreshToken }
-        );
-
-        const { access } = response.data;
-        localStorage.setItem('access_token', access);
 
         // Retry the original request with new token
         if (originalRequest.headers) {

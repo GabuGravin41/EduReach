@@ -14,6 +14,11 @@ try:
 except Exception:  # pragma: no cover - optional dependency safety
     PdfReader = None
 
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -362,7 +367,8 @@ def generate_quiz(request):
 Return ONLY valid JSON (no extra text). Use LaTeX ($...$ for inline, $$...$$ for block math) for any formulas:
 {{"questions": [{{"question": "?", "type": "mcq", "options": ["A", "B", "C", "D"], "correct_answer": "A", "explanation": "Why"}}]}}
 
-Be concise. Questions should test key concepts."""
+Be concise. Questions should test key concepts.
+IMPORTANT for valid JSON: Inside every JSON string value, escape backslashes by doubling them (e.g. write \\\\mathbb instead of \\mathbb)."""
 
         # Quiz is long-running: use OpenRouter first with longer read timeout to avoid pipeline timeout
         long_read = getattr(settings, 'OPENROUTER_READ_TIMEOUT_LONG_SECONDS', 90)
@@ -375,30 +381,25 @@ Be concise. Questions should test key concepts."""
 
         # Try to parse the response as JSON
         try:
-            # Extract JSON from response
-            response_text = response_text.strip()
+            quiz_data = safe_json_loads(response_text)
+            if quiz_data is None:
+                raise ValueError("No JSON object found in response")
             
-            # Remove markdown code blocks if present
-            if response_text.startswith('```json'):
-                response_text = response_text[7:]
-            if response_text.startswith('```'):
-                response_text = response_text[3:]
-            if response_text.endswith('```'):
-                response_text = response_text[:-3]
-            
-            response_text = response_text.strip()
-            quiz_data = json.loads(response_text)
             _increment_ai_usage(request.user)
 
             payload = quiz_data
             if isinstance(payload, dict) and pdf_pages:
                 payload['pdf_context_pages_used'] = pdf_pages
             return Response(payload, status=status.HTTP_200_OK)
-        except json.JSONDecodeError:
-            # If JSON parsing fails, return the raw response
+        except (json.JSONDecodeError, ValueError) as e:
+            # If JSON parsing fails, return the raw response for debugging/fallback
+            logger.warning("generate_quiz: JSON decoding failed: %s", e)
             _increment_ai_usage(request.user)
             return Response(
-                {'raw_response': response_text},
+                {
+                    'error': 'Failed to parse AI output as JSON.',
+                    'raw_response': response_text
+                },
                 status=status.HTTP_200_OK
             )
     
@@ -804,7 +805,35 @@ def _fix_json_backslash_escapes(s: str) -> str:
             else:
                 result.append(c)
                 i += 1
-    return ''.join(result)
+    return "".join(result)
+
+
+def safe_json_loads(text: str):
+    """
+    Robustly extract and parse JSON from an AI response string.
+    Handles markdown fences (```json), leading/trailing text, and LaTeX escape issues.
+    """
+    if not text:
+        return None
+    
+    cleaned = text.strip()
+    
+    # 1. Strip markdown fences if present
+    json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', cleaned)
+    if json_match:
+        cleaned = json_match.group(1).strip()
+    
+    # 2. Find the first '{' and last '}' to handle leading/trailing conversational text
+    if not cleaned.startswith('{'):
+        brace_match = re.search(r'\{[\s\S]*\}', cleaned)
+        if brace_match:
+            cleaned = brace_match.group(0)
+    
+    # 3. Fix invalid JSON escapes (e.g. LaTeX \mathbb, \to)
+    cleaned = _fix_json_backslash_escapes(cleaned)
+    
+    # 4. Parse
+    return json.loads(cleaned)
 
 
 @api_view(['POST'])
@@ -918,24 +947,11 @@ Return ONLY valid JSON — no extra text, no markdown fences:
         response_text = call_ai(prompt, max_tokens=4000)
         _increment_ai_usage(request.user)
 
-        # Strip markdown fences and parse JSON
-        cleaned = response_text.strip()
-        # Remove ```json ... ``` or ``` ... ``` wrappers
-        json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', cleaned)
-        if json_match:
-            cleaned = json_match.group(1).strip()
-        # Also try finding a { ... } block if the model added leading text
-        if not cleaned.startswith('{'):
-            brace_match = re.search(r'\{[\s\S]*\}', cleaned)
-            if brace_match:
-                cleaned = brace_match.group(0)
-
-        # Fix invalid JSON escapes (e.g. LaTeX \mathbb, \to in string values break JSON)
-        cleaned = _fix_json_backslash_escapes(cleaned)
-
         try:
-            result = json.loads(cleaned)
-        except json.JSONDecodeError as e:
+            result = safe_json_loads(response_text)
+            if not result:
+                raise ValueError("No JSON found")
+        except (json.JSONDecodeError, ValueError) as e:
             logger.warning("parse_questions: JSON decode failed: %s\nRaw response:\n%s", e, response_text[:500])
             return Response(
                 {

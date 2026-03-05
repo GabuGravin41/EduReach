@@ -331,13 +331,50 @@ export const StudyGroupsPage: React.FC = () => {
 
   // If a group is active, render the detailed dashboard
   if (activeGroup) {
+    const isMember = activeGroup.is_member || (user && activeGroup.creator && user.id === activeGroup.creator.id);
+
+    if (!isMember) {
+      return (
+        <div className="h-full flex flex-col items-center justify-center p-8 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden max-w-4xl mx-auto my-12 text-center">
+          <div className="w-20 h-20 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mb-6">
+            <UsersIcon className="w-10 h-10 text-indigo-600 dark:text-indigo-400" />
+          </div>
+          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-3">Membership Required</h2>
+          <p className="text-slate-600 dark:text-slate-400 max-w-md mb-8 leading-relaxed">
+            You've reached <span className="font-bold text-slate-800 dark:text-slate-200">{activeGroup.name}</span>.
+            Join this group to participate in discussions, take on challenges, and collaborate with other learners.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+            <Button
+              variant="secondary"
+              className="px-8"
+              onClick={() => {
+                setActiveGroup(null);
+                navigate(ROUTES.studyGroups);
+              }}
+            >
+              Back to All Groups
+            </Button>
+            <Button
+              variant="primary"
+              className="px-8 bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none"
+              onClick={() => handleJoinToggle(activeGroup)}
+              disabled={joinGroupMutation.isPending}
+            >
+              {joinGroupMutation.isPending ? 'Joining...' : 'Join Group Now'}
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="h-full flex flex-col">
         {joinMessage && (
           <div
             className={`mb-4 rounded-lg border px-4 py-3 flex items-center justify-between gap-3 ${joinMessage.type === 'success'
-                ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
-                : 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+              ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+              : 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
               }`}
           >
             <p className="text-sm font-medium">{joinMessage.text}</p>
@@ -993,8 +1030,8 @@ export const StudyGroupsPage: React.FC = () => {
       {joinMessage && (
         <div
           className={`rounded-lg border px-4 py-3 flex items-center justify-between gap-3 ${joinMessage.type === 'success'
-              ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
-              : 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+            ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+            : 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
             }`}
         >
           <p className="text-sm font-medium">{joinMessage.text}</p>
@@ -1112,8 +1149,8 @@ export const StudyGroupsPage: React.FC = () => {
                       type="button"
                       onClick={(e) => handleVisibilityToggle(group, e)}
                       className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs font-semibold ${group.is_public
-                          ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-200'
-                          : 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-700 dark:text-amber-200'
+                        ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-200'
+                        : 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-700 dark:text-amber-200'
                         }`}
                       title="Click to toggle between public and private"
                     >

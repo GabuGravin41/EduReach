@@ -9,7 +9,10 @@ from decimal import Decimal, InvalidOperation
 from datetime import timedelta
 from django.shortcuts import get_object_or_404
 import re
-from ai_service.views import call_ai
+import logging
+from ai_service.views import call_ai, safe_json_loads
+
+logger = logging.getLogger(__name__)
 from .models import (
     Course,
     Lesson,
@@ -68,13 +71,15 @@ class CourseViewSet(viewsets.ModelViewSet):
             # If usage tracking fails, do not block course creation.
             pass
 
-        requested_title = serializer.validated_data.get('title', '')
+        requested_title = serializer.validated_data.get('title', 'Untitled Course').strip()
         unique_title = self._build_unique_title_for_owner(self.request.user, requested_title)
+        
         try:
             serializer.save(owner=self.request.user, title=unique_title)
         except IntegrityError:
-            fallback_title = self._build_unique_title_for_owner(self.request.user, unique_title)
-            serializer.save(owner=self.request.user, title=fallback_title)
+            # Final fallback title if collision still happens (rare)
+            final_title = f"{unique_title} - {timezone.now().strftime('%Y%m%d%H%M')}"
+            serializer.save(owner=self.request.user, title=final_title)
         try:
             usage = self.request.user.get_current_usage()
             usage.courses_created += 1
@@ -371,6 +376,7 @@ class CourseViewSet(viewsets.ModelViewSet):
 
         metadata = {}
 
+        fetch_status = 'not_attempted'
         # If transcript is not provided manually, try auto-fetching from YouTube.
         if not transcript and auto_fetch_transcript:
             try:
@@ -379,16 +385,20 @@ class CourseViewSet(viewsets.ModelViewSet):
                 if result.get('success'):
                     transcript_data = result.get('transcript', {})
                     transcript = transcript_data.get('transcript', '') or transcript
+                    fetch_status = 'success'
 
                     metadata = result.get('metadata', {})
                     if duration == 'N/A' and metadata.get('duration'):
                         duration = str(metadata.get('duration'))
                 else:
-                    # Keep lesson creation resilient; frontend can still add manual transcript.
-                    pass
-            except Exception:
-                # Transcript pull failures should not block lesson creation.
+                    fetch_status = 'failed'
+                    logger.warning("Auto-transcript fetch failed for %s: %s", video_url, result.get('error'))
+            except Exception as e:
+                fetch_status = 'error'
+                logger.error("Transcript pull exception for %s: %s", video_url, e)
                 pass
+        elif transcript:
+            fetch_status = 'provided'
 
         if not title:
             title = metadata.get('title') or f'Lesson {next_order + 1}'
@@ -407,7 +417,9 @@ class CourseViewSet(viewsets.ModelViewSet):
         )
 
         serializer = LessonSerializer(lesson)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        data = serializer.data
+        data['transcript_fetch_status'] = fetch_status
+        return Response(data, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def start_session(self, request):
@@ -718,17 +730,15 @@ class LessonViewSet(viewsets.ModelViewSet):
         num_questions = request.data.get('num_questions', 5)
         difficulty = request.data.get('difficulty', 'medium')
         
-        # Call AI service to generate quiz using unified provider (Gemini primary, OpenRouter fallback)
+        # Call AI service to generate quiz using unified provider
         try:
-            import json
-
             prompt = f"""
             Based on the following video transcript, generate {num_questions} {difficulty} difficulty quiz questions.
 
             Transcript:
-            {transcript[:3000]}
+            {transcript[:4000]}
 
-            Please generate questions in the following JSON format:
+            Return ONLY valid JSON. Use LaTeX ($...$ for inline, $$...$$ for block math) for any formulas:
             {{
                 "questions": [
                     {{
@@ -742,22 +752,16 @@ class LessonViewSet(viewsets.ModelViewSet):
             }}
 
             Ensure the questions are relevant to the transcript content and test understanding of key concepts.
+            IMPORTANT for valid JSON: Inside every JSON string value, escape backslashes by doubling them (e.g. write \\\\mathbb instead of \\mathbb).
             """
 
             # Use shared AI call helper (handles Gemini vs OpenRouter and rate limits)
-            response_text = call_ai(prompt, max_tokens=1000)
+            response_text = call_ai(prompt, max_tokens=1500)
 
-            # Normalize and parse JSON
-            response_text = response_text.strip()
-            if response_text.startswith('```json'):
-                response_text = response_text[7:]
-            if response_text.startswith('```'):
-                response_text = response_text[3:]
-            if response_text.endswith('```'):
-                response_text = response_text[:-3]
-            response_text = response_text.strip()
-
-            quiz_data = json.loads(response_text)
+            # Robust parse
+            quiz_data = safe_json_loads(response_text)
+            if not quiz_data:
+                raise ValueError("No JSON captured from AI response")
 
             return Response({
                 'success': True,
@@ -767,13 +771,15 @@ class LessonViewSet(viewsets.ModelViewSet):
                 'transcript_source': 'auto' if lesson.transcript else 'manual'
             })
 
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning("generate_quiz: JSON decoding failed: %s", e)
             return Response({
                 'success': False,
-                'error': 'Failed to parse AI response',
-                'raw_response': response_text
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                'error': 'AI output was not in valid JSON format. Try again or provide a better transcript.',
+                'raw_response': response_text if 'response_text' in locals() else None
+            }, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
         except Exception as e:
+            logger.error("generate_quiz: unexpected error: %s", e, exc_info=True)
             return Response({
                 'success': False,
                 'error': f'Error generating quiz: {str(e)}'
