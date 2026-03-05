@@ -89,6 +89,10 @@ export const StudyGroupsPage: React.FC = () => {
   const [joinMessage, setJoinMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const queryClient = useQueryClient();
 
+  // Track processed join requests to prevent infinite loops
+  const processedTokens = React.useRef<Set<string>>(new Set());
+  const processedGroupIds = React.useRef<Set<number>>(new Set());
+
   const normalizedPosts = Array.isArray(groupPosts)
     ? groupPosts
     : (groupPosts && (groupPosts as any).results && Array.isArray((groupPosts as any).results)
@@ -228,10 +232,13 @@ export const StudyGroupsPage: React.FC = () => {
     if (!token) return;
     if (!user) return; // wait until user is logged in
 
-    if (pendingJoinToken === token) return; // avoid duplicate calls
+    // Guard: don't process the same token more than once per mount
+    if (processedTokens.current.has(token)) return;
+    if (pendingJoinToken === token) return;
 
     setJoinMessage(null);
     setPendingJoinToken(token);
+    processedTokens.current.add(token);
 
     joinGroupByTokenMutation
       .mutateAsync(token)
@@ -257,23 +264,13 @@ export const StudyGroupsPage: React.FC = () => {
               ? detail
               : 'Could not join this group. Please try again or open the link when you have a stable connection.',
         });
-        setPendingJoinToken(null);
+        // Do NOT reset pendingJoinToken here, as it would cause the effect to re-run if token is still in URL
         navigate(ROUTES.studyGroups, { replace: true });
       });
   }, [urlInviteToken, user, joinGroupByTokenMutation, pendingJoinToken, queryClient, navigate, location.pathname]);
 
-  // After joining via token, if the group appears in the list, open it automatically.
-  useEffect(() => {
-    if (!pendingJoinToken) return;
-    // Try to find the group in the current list
-    // Since we just refetched, it should appear
-    const found = groups.find((g) => {
-      // We don't know the group ID from the token, so we rely on the join response
-      // This is handled by the previous effect that navigates to the group detail page
-      return true; // placeholder
-    });
-    setPendingJoinToken(null);
-  }, [groups, pendingJoinToken]);
+  // Remove the problematic auto-open effect for tokens that was resetting the guard
+
 
   // Handle invite-by-URL: join_group query param or /study-groups/:id path
   useEffect(() => {
@@ -281,10 +278,14 @@ export const StudyGroupsPage: React.FC = () => {
     if (!idNum) return;
     if (!user) return; // wait until user is logged in
 
+    // Guard: don't process the same group ID join more than once per mount
+    if (processedGroupIds.current.has(idNum)) return;
+
     const targetPath = ROUTES.studyGroupDetail(idNum);
 
     // If we're already on this group's page and it is active, avoid re-running
     if (location.pathname === targetPath && activeGroup && Number(activeGroup.id) === idNum) {
+      processedGroupIds.current.add(idNum); // Mark as done since we are already there
       return;
     }
 
@@ -292,17 +293,20 @@ export const StudyGroupsPage: React.FC = () => {
     if (group?.is_member) {
       setActiveGroup(group);
       setGroupTab('overview');
-      setPendingJoinGroupId(null);
       setJoinMessage(null);
+      processedGroupIds.current.add(idNum);
       if (location.pathname !== targetPath) {
         navigate(targetPath, { replace: true });
       }
       return;
     }
+
     if (pendingJoinGroupId === idNum) return;
 
     setJoinMessage(null);
     setPendingJoinGroupId(idNum);
+    processedGroupIds.current.add(idNum);
+
     joinGroupMutation
       .mutateAsync(idNum)
       .then(async () => {
@@ -319,26 +323,11 @@ export const StudyGroupsPage: React.FC = () => {
           type: 'error',
           text: typeof detail === 'string' ? detail : 'Could not join this group. Please try again or open the link when you have a stable connection.',
         });
-        setPendingJoinGroupId(null);
+        // Do NOT reset pendingJoinGroupId here
         navigate(ROUTES.studyGroups, { replace: true });
       });
   }, [urlGroupId, user, groups, joinGroupMutation, pendingJoinGroupId, queryClient, navigate, location.pathname, activeGroup]);
 
-  // After joining via URL, if the group appears in the list, open it automatically.
-  useEffect(() => {
-    if (!pendingJoinGroupId) return;
-    const found = groups.find((g) => Number(g.id) === Number(pendingJoinGroupId));
-    if (found) {
-      const targetPath = ROUTES.studyGroupDetail(Number(found.id));
-      setActiveGroup(found);
-      setGroupTab('overview');
-      setPendingJoinGroupId(null);
-      setJoinMessage(null);
-      if (location.pathname !== targetPath) {
-        navigate(targetPath, { replace: true });
-      }
-    }
-  }, [groups, pendingJoinGroupId, navigate, location.pathname]);
 
   // If a group is active, render the detailed dashboard
   if (activeGroup) {
@@ -346,11 +335,10 @@ export const StudyGroupsPage: React.FC = () => {
       <div className="h-full flex flex-col">
         {joinMessage && (
           <div
-            className={`mb-4 rounded-lg border px-4 py-3 flex items-center justify-between gap-3 ${
-              joinMessage.type === 'success'
+            className={`mb-4 rounded-lg border px-4 py-3 flex items-center justify-between gap-3 ${joinMessage.type === 'success'
                 ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
                 : 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
-            }`}
+              }`}
           >
             <p className="text-sm font-medium">{joinMessage.text}</p>
             <button type="button" onClick={() => setJoinMessage(null)} className="shrink-0 px-3 py-1.5 rounded-md border border-current opacity-80 hover:opacity-100 text-sm font-medium">
@@ -782,9 +770,8 @@ export const StudyGroupsPage: React.FC = () => {
                       Create Group Challenge
                     </h3>
                     <ChevronDownIcon
-                      className={`w-5 h-5 text-slate-500 flex-shrink-0 transition-transform duration-200 ${
-                        createChallengeExpanded ? 'rotate-180' : ''
-                      }`}
+                      className={`w-5 h-5 text-slate-500 flex-shrink-0 transition-transform duration-200 ${createChallengeExpanded ? 'rotate-180' : ''
+                        }`}
                     />
                   </button>
                   {createChallengeExpanded && (
@@ -1005,11 +992,10 @@ export const StudyGroupsPage: React.FC = () => {
     <div className="space-y-6">
       {joinMessage && (
         <div
-          className={`rounded-lg border px-4 py-3 flex items-center justify-between gap-3 ${
-            joinMessage.type === 'success'
+          className={`rounded-lg border px-4 py-3 flex items-center justify-between gap-3 ${joinMessage.type === 'success'
               ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
               : 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
-          }`}
+            }`}
         >
           <p className="text-sm font-medium">{joinMessage.text}</p>
           <button type="button" onClick={() => setJoinMessage(null)} className="shrink-0 px-3 py-1.5 rounded-md border border-current opacity-80 hover:opacity-100 text-sm font-medium">
@@ -1125,11 +1111,10 @@ export const StudyGroupsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={(e) => handleVisibilityToggle(group, e)}
-                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs font-semibold ${
-                        group.is_public
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs font-semibold ${group.is_public
                           ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-200'
                           : 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:border-amber-700 dark:text-amber-200'
-                      }`}
+                        }`}
                       title="Click to toggle between public and private"
                     >
                       {group.is_public ? 'Public • click to make private' : 'Private • click to make public'}
