@@ -257,9 +257,27 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
         }
     };
 
+    const handleUnmarkLessonComplete = async (lessonId: number) => {
+        try {
+            setCompletingLessonId(lessonId);
+            await apiClient.post(`/lessons/${lessonId}/unmark_complete/`, {});
+            if (onUpdateLesson) {
+                onUpdateLesson(course.id, lessonId, { isCompleted: false });
+            }
+        } catch (error) {
+            console.error('Failed to unmark lesson complete:', error);
+            alert('Failed to update progress. Please try again.');
+        } finally {
+            setCompletingLessonId(null);
+        }
+    };
+
     const extractVideoId = (urlOrId: string): string | null => {
-        const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/;
-        const match = urlOrId.match(regex);
+        if (!urlOrId) return null;
+        const trimmed = urlOrId.trim();
+        if (/^[0-9A-Za-z_-]{11}$/.test(trimmed)) return trimmed;
+        const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([0-9A-Za-z_-]{11})/;
+        const match = trimmed.match(regex);
         return match ? match[1] : null;
     };
 
@@ -711,16 +729,14 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                                                     >
                                                         {lesson.isCompleted ? 'Review' : 'Start'}
                                                     </Button>
-                                                    {!lesson.isCompleted && (
-                                                        <Button
-                                                            variant="secondary"
-                                                            size="sm"
-                                                            onClick={() => handleMarkLessonComplete(lesson.id)}
-                                                            isLoading={completingLessonId === lesson.id}
-                                                        >
-                                                            Mark complete
-                                                        </Button>
-                                                    )}
+                                                    <Button
+                                                        variant="secondary"
+                                                        size="sm"
+                                                        onClick={() => lesson.isCompleted ? handleUnmarkLessonComplete(lesson.id) : handleMarkLessonComplete(lesson.id)}
+                                                        isLoading={completingLessonId === lesson.id}
+                                                    >
+                                                        {lesson.isCompleted ? 'Unmark complete' : 'Mark complete'}
+                                                    </Button>
                                                     {canManageCourse && (
                                                         <>
                                                             <button

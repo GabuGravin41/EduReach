@@ -703,6 +703,26 @@ class LessonViewSet(viewsets.ModelViewSet):
             'progress_percentage': progress.progress_percentage,
             'completed_lesson_ids': list(progress.completed_lessons.values_list('id', flat=True)),
         })
+
+    @action(detail=True, methods=['post'])
+    def unmark_complete(self, request, pk=None):
+        """
+        Unmark lesson as complete for the current user and update course progress.
+        """
+        lesson = self.get_object()
+        progress, _ = UserProgress.objects.get_or_create(
+            user=request.user,
+            course=lesson.course
+        )
+        progress.completed_lessons.remove(lesson)
+        progress.update_progress()
+        return Response({
+            'success': True,
+            'course_id': lesson.course_id,
+            'lesson_id': lesson.id,
+            'progress_percentage': progress.progress_percentage,
+            'completed_lesson_ids': list(progress.completed_lessons.values_list('id', flat=True)),
+        })
     
     @action(detail=True, methods=['post'])
     def generate_quiz(self, request, pk=None):

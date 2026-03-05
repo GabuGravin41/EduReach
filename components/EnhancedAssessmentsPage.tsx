@@ -522,76 +522,76 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                     </button>
                 </div>
             ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {sortedAssessments.map((exam, idx) => (
-                    <div
-                        key={`assessment-${idx}-${exam.id ?? 'local'}`}
-                        className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-xl transition-shadow"
-                    >
-                        <div className="p-6">
-                            <div className="flex items-start justify-between mb-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg">
-                                        {getQuestionTypeIcon(exam.question_types)}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {sortedAssessments.map((exam, idx) => (
+                        <div
+                            key={`assessment-${idx}-${exam.id ?? 'local'}`}
+                            className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-xl transition-shadow"
+                        >
+                            <div className="p-6">
+                                <div className="flex items-start justify-between mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg">
+                                            {getQuestionTypeIcon(exam.question_types)}
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">{exam.title}</h3>
+                                            <p className="text-sm text-slate-600 dark:text-slate-400">{exam.topic}</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">{exam.title}</h3>
-                                        <p className="text-sm text-slate-600 dark:text-slate-400">{exam.topic}</p>
-                                    </div>
+                                    {exam.difficulty && (
+                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDifficultyColor(exam.difficulty)}`}>
+                                            {exam.difficulty}
+                                        </span>
+                                    )}
                                 </div>
-                                {exam.difficulty && (
-                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDifficultyColor(exam.difficulty)}`}>
-                                        {exam.difficulty}
-                                    </span>
+
+                                {exam.description && (
+                                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 line-clamp-2">
+                                        {exam.description}
+                                    </p>
                                 )}
-                            </div>
 
-                            {exam.description && (
-                                <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 line-clamp-2">
-                                    {exam.description}
-                                </p>
-                            )}
-
-                            <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400 mb-4">
-                                <span className="flex items-center gap-1">
-                                    <ClipboardCheckIcon className="w-4 h-4" />
-                                    {exam.questions} Questions
-                                </span>
-                                <span className="flex items-center gap-1">
-                                    <ClockIcon className="w-4 h-4" />
-                                    {exam.time} mins
-                                </span>
-                            </div>
-
-                            {exam.status === 'completed' && (
-                                <div className="bg-slate-50 dark:bg-slate-700 rounded-lg p-3 mb-4">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-sm text-slate-600 dark:text-slate-400">Last Score</span>
-                                        <span className="font-bold text-lg text-teal-600 dark:text-teal-400">{exam.score}</span>
-                                    </div>
+                                <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400 mb-4">
+                                    <span className="flex items-center gap-1">
+                                        <ClipboardCheckIcon className="w-4 h-4" />
+                                        {exam.questions} Questions
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                        <ClockIcon className="w-4 h-4" />
+                                        {exam.time} mins
+                                    </span>
                                 </div>
-                            )}
 
-                            <div className="flex items-center gap-3">
-                                <button
-                                    onClick={() => onSelectExam(exam.id)}
-                                    className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-                                >
-                                    {exam.status === 'completed' ? 'Review' : (exam.assessment_type === 'quiz' ? 'Start Quiz' : 'Start Exam')}
-                                </button>
-                                <button
-                                    onClick={(e) => handleChallengeClick(e, exam)}
-                                    className="px-4 py-2 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-800/50 transition-colors font-medium flex items-center gap-1.5"
-                                    title="Challenge someone or create a public challenge"
-                                >
-                                    <SwordsIcon className="w-4 h-4" />
-                                    Challenge
-                                </button>
+                                {exam.status === 'completed' && (
+                                    <div className="bg-slate-50 dark:bg-slate-700 rounded-lg p-3 mb-4">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm text-slate-600 dark:text-slate-400">Last Score</span>
+                                            <span className="font-bold text-lg text-teal-600 dark:text-teal-400">{exam.score}</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() => onSelectExam(exam.id)}
+                                        className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                                    >
+                                        {exam.status === 'completed' ? 'Review' : (exam.assessment_type === 'quiz' ? 'Start Quiz' : 'Start Exam')}
+                                    </button>
+                                    <button
+                                        onClick={(e) => handleChallengeClick(e, exam)}
+                                        className="px-4 py-2 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-800/50 transition-colors font-medium flex items-center gap-1.5"
+                                        title="Challenge someone or create a public challenge"
+                                    >
+                                        <SwordsIcon className="w-4 h-4" />
+                                        Challenge / Share
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
             )}
 
             {isChallengeModalOpen && selectedExam && (

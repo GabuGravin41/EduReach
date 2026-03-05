@@ -22,12 +22,12 @@ interface AssessmentsPageProps {
     tierUsage: TierUsage;
 }
 
-export const AssessmentsPage: React.FC<AssessmentsPageProps> = ({ 
-    assessments, 
-    onSelectExam, 
-    setView, 
+export const AssessmentsPage: React.FC<AssessmentsPageProps> = ({
+    assessments,
+    onSelectExam,
+    setView,
     userTier,
-    tierUsage 
+    tierUsage
 }) => {
     const [isChallengeModalOpen, setIsChallengeModalOpen] = useState(false);
     const [selectedExamTitle, setSelectedExamTitle] = useState('');
@@ -45,15 +45,15 @@ export const AssessmentsPage: React.FC<AssessmentsPageProps> = ({
     };
 
     const filteredAssessments = assessments.filter(exam => {
-        const matchesFilter = filterType === 'all' 
-            ? true 
-            : filterType === 'completed' 
-                ? exam.status === 'completed' 
+        const matchesFilter = filterType === 'all'
+            ? true
+            : filterType === 'completed'
+                ? exam.status === 'completed'
                 : exam.status !== 'completed';
-        
-        const matchesSearch = exam.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                              exam.topic.toLowerCase().includes(searchQuery.toLowerCase());
-        
+
+        const matchesSearch = exam.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            exam.topic.toLowerCase().includes(searchQuery.toLowerCase());
+
         return matchesFilter && matchesSearch;
     });
 
@@ -76,14 +76,14 @@ export const AssessmentsPage: React.FC<AssessmentsPageProps> = ({
 
             <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
                 <div className="flex gap-2 w-full md:w-auto">
-                    <input 
-                        type="text" 
-                        placeholder="Search assessments..." 
+                    <input
+                        type="text"
+                        placeholder="Search assessments..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 w-full md:w-64 focus:ring-2 focus:ring-indigo-500 outline-none"
                     />
-                    <select 
+                    <select
                         value={filterType}
                         onChange={(e) => setFilterType(e.target.value as any)}
                         className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 outline-none"
@@ -94,14 +94,14 @@ export const AssessmentsPage: React.FC<AssessmentsPageProps> = ({
                     </select>
                 </div>
                 <div className="flex gap-3 w-full md:w-auto">
-                    <button 
+                    <button
                         onClick={() => handleCreateNew('generate_ai_quiz')}
                         className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors shadow-sm font-medium"
                     >
                         <SparklesIcon className="w-4 h-4" />
                         AI Assessment
                     </button>
-                    <button 
+                    <button
                         onClick={() => handleCreateNew('create_exam')}
                         className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm font-medium"
                     >
@@ -119,19 +119,18 @@ export const AssessmentsPage: React.FC<AssessmentsPageProps> = ({
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {filteredAssessments.map(exam => (
-                    <div 
-                        key={exam.id} 
+                    <div
+                        key={exam.id}
                         className="bg-white dark:bg-slate-800 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-shadow cursor-pointer group"
                         onClick={() => onSelectExam(exam.id)}
                     >
                         <div className="flex justify-between items-start mb-4">
                             <div>
                                 <div className="flex flex-wrap items-center gap-2 mb-2">
-                                    <span className={`px-2 py-1 text-xs rounded font-bold uppercase tracking-wide ${
-                                        exam.assessment_type === 'exam' 
-                                        ? 'bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-800' 
-                                        : 'bg-teal-100 text-teal-700 border border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-800'
-                                    }`}>
+                                    <span className={`px-2 py-1 text-xs rounded font-bold uppercase tracking-wide ${exam.assessment_type === 'exam'
+                                            ? 'bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-800'
+                                            : 'bg-teal-100 text-teal-700 border border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-800'
+                                        }`}>
                                         {exam.assessment_type === 'exam' ? 'Exam' : 'Quiz'}
                                     </span>
                                     <span className="px-2 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 text-xs rounded font-medium uppercase tracking-wide">
@@ -166,12 +165,13 @@ export const AssessmentsPage: React.FC<AssessmentsPageProps> = ({
                                 </span>
                             </div>
                             <div className="flex gap-2">
-                                <button 
+                                <button
                                     onClick={(e) => handleChallengeClick(e, exam.title)}
-                                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
-                                    title="Challenge a friend"
+                                    className="px-3 py-1.5 flex items-center gap-1.5 text-slate-500 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors text-sm font-medium"
+                                    title="Challenge a friend or share link"
                                 >
-                                    <SwordsIcon className="w-5 h-5" />
+                                    <SwordsIcon className="w-4 h-4" />
+                                    <span>Challenge / Share</span>
                                 </button>
                                 <button className="px-4 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
                                     {exam.status === 'completed' ? 'Review' : (exam.assessment_type === 'exam' ? 'Start Exam' : 'Start Quiz')}
@@ -191,9 +191,9 @@ export const AssessmentsPage: React.FC<AssessmentsPageProps> = ({
             )}
 
             {isChallengeModalOpen && (
-                <ChallengeModal 
-                    examTitle={selectedExamTitle} 
-                    onClose={() => setIsChallengeModalOpen(false)} 
+                <ChallengeModal
+                    examTitle={selectedExamTitle}
+                    onClose={() => setIsChallengeModalOpen(false)}
                 />
             )}
         </div>

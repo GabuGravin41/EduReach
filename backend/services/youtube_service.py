@@ -71,15 +71,15 @@ class YouTubeTranscriptService:
         """
         Extract video ID from various YouTube URL formats
         """
-        patterns = [
-            r'(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)',
-            r'youtube\.com\/watch\?.*v=([^&\n?#]+)',
-        ]
-        
-        for pattern in patterns:
-            match = re.search(pattern, url)
-            if match:
-                return match.group(1)
+        if not url: return None
+        url = url.strip()
+        if re.match(r'^[0-9A-Za-z_-]{11}$', url):
+            return url
+            
+        # Standard YouTube URLs, Shorts, and shortened youtu.be URLs
+        match = re.search(r'(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([0-9A-Za-z_-]{11})', url)
+        if match:
+            return match.group(1)
         
         return None
     
