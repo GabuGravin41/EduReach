@@ -115,8 +115,8 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
         const url = `https://www.youtube.com/watch?v=${videoId}`;
         const resp = await apiClient.post('/youtube/extract-transcript/', { url });
         const data = resp.data as any;
-        if (data.success && data.transcript?.transcript) {
-          setLiveTranscript(data.transcript.transcript);
+        if (data.success && (data.transcript?.timestamped_transcript || data.transcript?.transcript)) {
+          setLiveTranscript(data.transcript.timestamped_transcript || data.transcript.transcript);
           // Notify user via system message
           setMessages(prev => [...prev, {
             role: 'assistant',
@@ -446,6 +446,16 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
     setQuizSaved(true);
   };
 
+  const handleSeekTo = (seconds: number) => {
+    if (videoRef.current) {
+      videoRef.current.seekTo(seconds);
+      // If study panel is open, maybe focus the video
+      if (!isStudyPanelOpen) {
+        setIsStudyPanelOpen(true);
+      }
+    }
+  };
+
   const handlePlayerReady = () => {
     if (pendingSeekRef.current !== null && videoRef.current) {
       videoRef.current.seekTo(pendingSeekRef.current);
@@ -568,6 +578,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
               onSaveQuiz={handleSaveQuiz}
               isSavingQuiz={isSavingQuiz}
               quizSaved={quizSaved}
+              onSeekTo={handleSeekTo}
             />
           </div>
         </div>

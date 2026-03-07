@@ -5,6 +5,7 @@ import 'katex/dist/katex.min.css';
 
 interface MarkdownRendererProps {
   content: string;
+  onTimestampClick?: (seconds: number) => void;
 }
 
 type MathSegment = { type: 'math'; content: string; block: boolean };
@@ -65,7 +66,7 @@ function splitMathSegments(str: string): (MathSegment | TextSegment)[] {
  * - Lists: - item or * item
  * - Headers: # H1, ## H2, etc.
  */
-export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
+export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, onTimestampClick }) => {
   
   const renderMath = (text: string, isBlock: boolean) => {
     const trimmed = (text || '').trim();
@@ -87,29 +88,60 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
     }
   };
 
-  /** Renders bold, italic, inline code (no math). */
+  /** Renders bold, italic, inline code, and timestamps. */
   const renderTextFormatting = (text: string): React.ReactNode[] => {
     const parts: React.ReactNode[] = [];
     let lastIndex = 0;
-    const regex = /(\*\*|__)(.*?)\1|(\*|_)(.*?)\3|`([^`]+)`/g;
+    
+    // Regex matches:
+    // 1. **bold** or __bold__
+    // 2. *italic* or _italic_
+    // 3. `code`
+    // 4. [HH:MM:SS] or [MM:SS] timestamps
+    const regex = /(\*\*|__)(.*?)\1|(\*|_)(.*?)\3|`([^`]+)`|\[(\d{1,2}:)?(\d{1,2}):(\d{1,2})\]/g;
+    
     let match;
     while ((match = regex.exec(text)) !== null) {
       if (match.index > lastIndex) {
         parts.push(text.substring(lastIndex, match.index));
       }
+      
       if (match[1]) {
+        // Bold
         parts.push(<strong key={`b-${parts.length}`} className="font-semibold">{match[2]}</strong>);
       } else if (match[3]) {
+        // Italic
         parts.push(<em key={`i-${parts.length}`} className="italic">{match[4]}</em>);
       } else if (match[5]) {
+        // Code
         parts.push(
           <code key={`c-${parts.length}`} className="bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-xs font-mono text-pink-600 dark:text-pink-400">
             {match[5]}
           </code>
         );
+      } else if (match[7] && match[8]) {
+        // Timestamp [HH:MM:SS] or [MM:SS]
+        // match[6] exists if HH: is present
+        const h = match[6] ? parseInt(match[6].replace(':', ''), 10) : 0;
+        const m = parseInt(match[7], 10);
+        const s = parseInt(match[8], 10);
+        const totalSeconds = (h * 3600) + (m * 60) + s;
+        const timeStr = match[0]; // the original [MM:SS] string
+        
+        parts.push(
+          <button
+            key={`ts-${parts.length}`}
+            onClick={() => onTimestampClick?.(totalSeconds)}
+            className="inline-flex items-center px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors text-xs font-medium border border-blue-200 dark:border-blue-800 mx-0.5"
+            title={`Jump to ${timeStr}`}
+          >
+            {timeStr}
+          </button>
+        );
       }
       lastIndex = regex.lastIndex;
     }
+    
     if (lastIndex < text.length) parts.push(text.substring(lastIndex));
     return parts.length > 0 ? parts : [text];
   };

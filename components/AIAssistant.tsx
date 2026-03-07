@@ -25,6 +25,7 @@ interface AIAssistantProps {
   onSaveQuiz?: () => Promise<void>;
   isSavingQuiz?: boolean;
   quizSaved?: boolean;
+  onSeekTo?: (seconds: number) => void;
 }
 
 type ActiveTab = 'chat' | 'quiz';
@@ -41,6 +42,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   onSaveQuiz,
   isSavingQuiz,
   quizSaved,
+  onSeekTo,
 }) => {
   const [input, setInput] = useState('');
   const [activeTab, setActiveTab] = useState<ActiveTab>('chat');
@@ -155,7 +157,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                             }`}
                         >
                             {(msg.role === 'model' || msg.role === 'assistant') && msg.content ? (
-                                <MarkdownRenderer content={msg.content} />
+                                <MarkdownRenderer content={msg.content} onTimestampClick={onSeekTo} />
                             ) : (
                                 <span className={`${msg.role === 'user' ? 'whitespace-pre-wrap' : ''}`}>
                                     {msg.content}

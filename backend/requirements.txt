@@ -21,6 +21,14 @@ youtube-transcript-api==1.2.3
 # HTTP requests
 requests==2.31.0
 
+# Background tasks
+celery[redis]==5.3.6
+redis==5.0.1
+
+# Speech-to-text (Local Fallback)
+openai-whisper==20231117
+yt-dlp>=2024.3.10
+
 # Environment variables
 python-dotenv==1.0.1
 

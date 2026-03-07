@@ -527,9 +527,9 @@ def chat(request):
 - Based strictly on the provided video context
 - Clear and easy to understand
 - If technical or mathematical content is involved, use LaTeX ($...$ for inline, $$...$$ for block math).
+- **IMPORTANT**: When referencing specific parts of the video, ALWAYS cite the timestamp in the format `[MM:SS]` (e.g., [01:23]). The user can click these to jump to that moment in the video.
 
-If the user asks about video content, answer based on the context provided.
-If they ask something off-topic, politely redirect them back to the learning material."""
+If the user asks about video content, use the timestamps provided in the context to cite your sources."""
         
         optimized_context = context
         # Keep chat prompts tight for consistent latency on free-tier models.

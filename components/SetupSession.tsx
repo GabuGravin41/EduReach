@@ -46,7 +46,7 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
         const data = response.data as any;
         
         if (data.success) {
-          const transcriptText = data.transcript.transcript;
+          const transcriptText = data.transcript.timestamped_transcript || data.transcript.transcript;
           setTranscript(transcriptText);
           if (!sessionTitle && data.metadata?.title) {
             setSessionTitle(data.metadata.title);

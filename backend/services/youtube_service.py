@@ -198,6 +198,16 @@ class YouTubeTranscriptService:
         except Exception as e:
             fallbacks.append({'method': 'yt_dlp', 'error': str(e)})
 
+        # ULTIMATE Fallback: Whisper (Heavy)
+        try:
+            res = self._extract_with_whisper(video_id, language_code)
+            fallbacks.append({'method': 'whisper', 'result': bool(res)})
+            if res:
+                res['fallbacks'] = fallbacks
+                return res
+        except Exception as e:
+            fallbacks.append({'method': 'whisper', 'error': str(e)})
+
         # Nothing found
         return {
             'success': False,
@@ -308,6 +318,25 @@ class YouTubeTranscriptService:
             # Format transcript with better spacing
             full_transcript = ' '.join([e.get('text', '').strip() for e in normalized_entries if e.get('text', '').strip()])
 
+            # Helper for timestamp formatting
+            def format_ts(seconds):
+                s = int(seconds)
+                m, s = divmod(s, 60)
+                h, m = divmod(m, 60)
+                if h > 0:
+                    return f"[{h:02d}:{m:02d}:{s:02d}]"
+                return f"[{m:02d}:{s:02d}]"
+
+            # Create a version of the transcript with timestamps embedded every ~20 seconds or so
+            # or at the start of each segment for better accuracy
+            timestamped_parts = []
+            for e in normalized_entries:
+                t = e.get('text', '').strip()
+                if t:
+                    timestamped_parts.append(f"{format_ts(e.get('start', 0))} {t}")
+            
+            timestamped_transcript = ' '.join(timestamped_parts)
+
             if not full_transcript:
                 return None
 
@@ -316,6 +345,7 @@ class YouTubeTranscriptService:
                 'video_id': video_id,
                 'language': language_code,
                 'transcript': full_transcript,
+                'timestamped_transcript': timestamped_transcript,
                 'segments': [
                     {
                         'start': float(e.get('start', 0)),
@@ -411,6 +441,7 @@ class YouTubeTranscriptService:
                     'video_id': video_id,
                     'language': language_code,
                     'transcript': full_transcript.strip(),
+                    'timestamped_transcript': ' '.join([f"[{int(s['start']//60):02d}:{int(s['start']%60):02d}] {s['text']}" for s in segments]),
                     'segments': segments,
                     'word_count': len(full_transcript.split()),
                     'extracted_at': datetime.now().isoformat(),
@@ -576,6 +607,81 @@ class YouTubeTranscriptService:
 
         return None
 
+    def _extract_with_whisper(self, video_id: str, language_code: str) -> Optional[Dict]:
+        """
+        ULTIMATE FALLBACK: Download audio via yt-dlp and transcribe using local Whisper.
+        Note: This is heavy and should ideally run in a background task.
+        """
+        try:
+            import whisper
+            import tempfile
+            from pathlib import Path
+            import yt_dlp
+        except ImportError:
+            print("Whisper or yt-dlp not installed for local extraction.")
+            return None
+
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
+        temp_dir = Path(tempfile.gettempdir()) / "edureach_whisper"
+        temp_dir.mkdir(exist_ok=True)
+        
+        output_template = str(temp_dir / f"{video_id}.%(ext)s")
+        
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'outtmpl': output_template,
+            'quiet': True,
+            'no_warnings': True,
+        }
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([video_url])
+            
+            audio_path = temp_dir / f"{video_id}.mp3"
+            if not audio_path.exists():
+                return None
+
+            # Load model (tiny/base for speed/memory efficiency in dev/general use)
+            model = whisper.load_model("base")
+            result = model.transcribe(str(audio_path), language=language_code if language_code != 'auto' else None)
+            
+            full_text = result.get("text", "").strip()
+            segments = []
+            for seg in result.get("segments", []):
+                segments.append({
+                    'start': seg.get('start'),
+                    'duration': seg.get('end') - seg.get('start'),
+                    'text': seg.get('text', '').strip()
+                })
+
+            # Clean up audio file
+            if audio_path.exists():
+                audio_path.unlink()
+
+            if not full_text:
+                return None
+
+            return {
+                'success': True,
+                'video_id': video_id,
+                'language': language_code,
+                'transcript': full_text,
+                'timestamped_transcript': ' '.join([f"[{int(s['start']//60):02d}:{int(s['start']%60):02d}] {s['text']}" for s in segments]),
+                'segments': segments,
+                'word_count': len(full_text.split()),
+                'extracted_at': datetime.now().isoformat(),
+                'method': 'whisper_local'
+            }
+        except Exception as e:
+            print(f"Whisper extraction failed for {video_id}: {e}")
+            return None
+
     def get_video_chapters(self, video_id: str) -> List[Dict]:
         """
         Extract video chapters/timestamps if available
@@ -682,6 +788,7 @@ def extract_transcript(request):
                 'success': True,
                 'video_id': video_id,
                 'transcript': result.get('transcript'),
+                'timestamped_transcript': result.get('timestamped_transcript'),
                 'segments': result.get('segments', []),
                 'language': result.get('language')
             })
