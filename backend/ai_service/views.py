@@ -360,13 +360,54 @@ def generate_quiz(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Unified AI provider (OpenRouter preferred, Gemini fallback if configured)
-        prompt = f"""Generate exactly {num_questions} {difficulty} difficulty quiz questions from this transcript:
+        # ── Chunked generation strategy ──
+        # For large question sets or long contexts, generate in batches of 5.
+        # Each batch gets a different slice of the context so all material is covered.
+        BATCH_SIZE = 5
+        try:
+            num_questions = int(num_questions)
+        except (TypeError, ValueError):
+            num_questions = 5
+        num_questions = max(1, min(num_questions, 50))
 
-{combined_context}
+        total_batches = max(1, (num_questions + BATCH_SIZE - 1) // BATCH_SIZE)
+        context_len = len(combined_context)
+        max_context_per_batch = 8000
 
-IMPORTANT: Return ONLY valid JSON with exactly {num_questions} questions. Each question must be properly formatted.
-You MUST return complete, valid JSON. Do NOT truncate or cut off the output — all {num_questions} questions must be included.
+        # Create context chunks — each batch gets a different slice of the material
+        context_chunks = []
+        if context_len <= max_context_per_batch:
+            context_chunks = [combined_context] * total_batches
+        else:
+            chunk_size = min(max_context_per_batch, context_len // total_batches + 500)
+            for i in range(total_batches):
+                start = int(i * (context_len - chunk_size) / max(total_batches - 1, 1)) if total_batches > 1 else 0
+                end = start + chunk_size
+                context_chunks.append(combined_context[start:end])
+
+        long_read = getattr(settings, 'OPENROUTER_READ_TIMEOUT_LONG_SECONDS', 90)
+        prompt_continuation = '''IMPORTANT for valid JSON: Inside every JSON string value, escape backslashes by doubling them (e.g. write \\\\mathbb instead of \\mathbb).'''
+
+        all_questions = []
+        batch_errors = []
+
+        for batch_idx in range(total_batches):
+            batch_count = min(BATCH_SIZE, num_questions - len(all_questions))
+            if batch_count <= 0:
+                break
+
+            batch_context = context_chunks[batch_idx] if batch_idx < len(context_chunks) else context_chunks[-1]
+
+            avoid_clause = ""
+            if all_questions:
+                existing_qs = "; ".join([q.get("question", "")[:60] for q in all_questions[-5:]])
+                avoid_clause = f"\n\nDo NOT repeat these questions you already generated: {existing_qs}"
+
+            prompt = f"""Generate exactly {batch_count} {difficulty} difficulty quiz questions from this content:
+
+{batch_context}
+
+IMPORTANT: Return ONLY valid JSON with exactly {batch_count} questions.{avoid_clause}
 
 Use LaTeX ($...$ for inline, $$...$$ for block math) for any formulas:
 {{"questions": [
@@ -380,51 +421,49 @@ Use LaTeX ($...$ for inline, $$...$$ for block math) for any formulas:
 ]}}
 
 Requirements:
-- Generate exactly {num_questions} questions
+- Generate exactly {batch_count} questions
 - Mix question types: multiple choice, true/false, short answer
 - For multiple choice: provide exactly 4 options as full text strings AND set correct_answer to the FULL TEXT of the correct option (not just a letter)
 - For true/false: set correct_answer to "True" or "False"
 - For short answer: provide the expected answer
 - Include detailed explanations for all questions
-- Questions should test key concepts from the transcript"""
+- Questions should test key concepts from the content"""
 
-        # Increase max tokens for larger question sets (4000 base + 600 per additional question)
-        max_tokens_needed = min(4000 + (num_questions - 5) * 600, 12000) if num_questions > 5 else 4000
-        prompt_continuation = '''IMPORTANT for valid JSON: Inside every JSON string value, escape backslashes by doubling them (e.g. write \\\\mathbb instead of \\mathbb).'''
+            try:
+                response_text = call_ai(
+                    prompt + prompt_continuation,
+                    max_tokens=4000,
+                    prefer_openrouter=True,
+                    openrouter_read_timeout=long_read,
+                )
+                batch_data = safe_json_loads(response_text)
+                if batch_data and isinstance(batch_data, dict):
+                    batch_questions = batch_data.get('questions', [])
+                    if isinstance(batch_questions, list):
+                        all_questions.extend(batch_questions)
+                elif batch_data and isinstance(batch_data, list):
+                    all_questions.extend(batch_data)
+            except Exception as batch_err:
+                logger.warning("Quiz batch %d/%d failed: %s", batch_idx + 1, total_batches, batch_err)
+                batch_errors.append(f"Batch {batch_idx + 1}: {str(batch_err)[:100]}")
 
-        # Quiz is long-running: use OpenRouter first with longer read timeout to avoid pipeline timeout
-        long_read = getattr(settings, 'OPENROUTER_READ_TIMEOUT_LONG_SECONDS', 90)
-        response_text = call_ai(
-            prompt + prompt_continuation,
-            max_tokens=max_tokens_needed,
-            prefer_openrouter=True,
-            openrouter_read_timeout=long_read,
-        )
-
-        # Try to parse the response as JSON
-        try:
-            quiz_data = safe_json_loads(response_text)
-            if quiz_data is None:
-                raise ValueError("No JSON object found in response")
-            
+        if not all_questions:
             _increment_ai_usage(request.user)
-
-            payload = quiz_data
-            if isinstance(payload, dict) and pdf_pages:
-                payload['pdf_context_pages_used'] = pdf_pages
-            return Response(payload, status=status.HTTP_200_OK)
-        except (json.JSONDecodeError, ValueError) as e:
-            # If JSON parsing fails, return the raw response for debugging/fallback
-            logger.warning("generate_quiz: JSON decoding failed: %s", e)
-            _increment_ai_usage(request.user)
+            error_detail = '; '.join(batch_errors) if batch_errors else 'AI returned no parseable questions.'
             return Response(
-                {
-                    'error': 'Failed to parse AI output as JSON.',
-                    'raw_response': response_text
-                },
+                {'error': f'Failed to generate quiz: {error_detail}', 'raw_response': ''},
                 status=status.HTTP_200_OK
             )
-    
+
+        _increment_ai_usage(request.user)
+
+        payload = {'questions': all_questions}
+        if pdf_pages:
+            payload['pdf_context_pages_used'] = pdf_pages
+        if total_batches > 1:
+            payload['batches_used'] = total_batches
+        return Response(payload, status=status.HTTP_200_OK)
+
     except AIProviderUnavailableError as e:
         return Response(
             {
@@ -440,6 +479,8 @@ Requirements:
             {'error': f'Failed to generate quiz: {str(e)}', 'type': type(e).__name__},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
 
 
 @api_view(['POST'])
