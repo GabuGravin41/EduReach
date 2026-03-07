@@ -126,7 +126,8 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   // Initial Welcome Message if no history
   useEffect(() => {
     if (messages.length === 0) {
-      if (!transcript) {
+      const hasTranscript = transcript && transcript.trim().length > 0;
+      if (!hasTranscript) {
         setMessages([
           { role: 'model', content: "Hello! I'm Edu, your AI assistant. It looks like this video doesn't have a transcript available, so I won't be able to answer questions specific to its content. However, I can still answer general questions or explain concepts if you provide some context!" }
         ]);
@@ -211,7 +212,8 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   }
 
   const handleGenerateQuiz = async () => {
-    if (!transcript) {
+    const hasTranscript = transcript && transcript.trim().length > 0;
+    if (!hasTranscript) {
       setMessages(prev => [...prev, { role: 'model', content: "I cannot generate a quiz because this video doesn't have a transcript." }]);
       return;
     }
@@ -286,11 +288,11 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
     setLastPrompt(message);
 
     try {
-      let context = transcript || "No transcript available for this video.";
+      let context = transcript && transcript.trim().length > 0 ? transcript : "No transcript available for this video.";
       let optimizedMessage = message;
       const wantsDetailed = /explain more|tell me more|detailed|deep dive|elaborate/i.test(message);
 
-      if (transcript && transcript.length > 5000) {
+      if (transcript && transcript.trim().length > 0 && transcript.length > 5000) {
         const chunks = chunkTranscript(transcript, 3000);
         const relevantChunks = findRelevantChunks(chunks, message, wantsDetailed ? 4 : 2);
         context = relevantChunks.join('\n\n---\n\n');

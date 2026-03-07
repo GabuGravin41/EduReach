@@ -437,7 +437,188 @@ Response: 201 Created
 
 ---
 
-## 6. AI Service Endpoints
+## 6. Discussion Threads Endpoints
+
+### List Discussion Channels
+```http
+GET /api/community/channels/
+Authorization: Bearer <token>
+
+Response: 200 OK
+{
+  "count": 10,
+  "next": "url",
+  "previous": null,
+  "results": [
+    {
+      "id": 1,
+      "course": 1,
+      "course_id": 1,
+      "course_title": "React Fundamentals",
+      "threads": [...],
+      "created_at": "datetime"
+    }
+  ]
+}
+```
+
+### Get Channel Threads
+```http
+GET /api/community/channels/{id}/threads/
+Authorization: Bearer <token>
+
+Response: 200 OK
+[
+  {
+    "id": 1,
+    "title": "Help with useEffect dependency array",
+    "author_username": "alice123",
+    "is_pinned": false,
+    "reply_count": 3,
+    "vote_count": 8,
+    "views": 45,
+    "created_at": "datetime"
+  }
+]
+```
+
+### Create Discussion Thread
+```http
+POST /api/community/threads/
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "course_id": 1,
+  "title": "string",
+  "content": "string"
+}
+
+Response: 201 Created
+{
+  "id": 1,
+  "channel": 1,
+  "author": {...},
+  "title": "string",
+  "content": "string",
+  "is_pinned": false,
+  "views": 0,
+  "reply_count": 0,
+  "vote_count": 0,
+  "replies": [],
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+### Get Threads for a Course
+```http
+GET /api/community/threads/?course_id=1
+Authorization: Bearer <token>
+
+Response: 200 OK
+[
+  {
+    "id": 1,
+    "title": "Help with useEffect dependency array",
+    "author_username": "alice123",
+    "is_pinned": false,
+    "reply_count": 3,
+    "vote_count": 8,
+    "views": 45,
+    "created_at": "datetime"
+  }
+]
+```
+
+### Get Thread Details
+```http
+GET /api/community/threads/{id}/
+Authorization: Bearer <token>
+
+Response: 200 OK
+{
+  "id": 1,
+  "channel": 1,
+  "author": {...},
+  "title": "string",
+  "content": "string",
+  "is_pinned": false,
+  "views": 45,
+  "reply_count": 3,
+  "vote_count": 8,
+  "replies": [...],
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+### Create Thread Reply
+```http
+POST /api/community/replies/
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "thread": 1,
+  "content": "string"
+}
+
+Response: 201 Created
+{
+  "id": 1,
+  "thread": 1,
+  "author": {...},
+  "content": "string",
+  "is_verified": false,
+  "is_accepted": false,
+  "upvotes": 0,
+  "user_upvoted": false,
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+### Upvote Thread Reply
+```http
+POST /api/community/replies/{id}/upvote/
+Authorization: Bearer <token>
+
+Response: 200 OK
+{
+  "upvotes": 5,
+  "user_upvoted": true,
+  "message": "Upvoted!"
+}
+```
+
+### Mark Reply as Accepted
+```http
+POST /api/community/replies/{id}/mark_as_accepted/
+Authorization: Bearer <token>
+
+Response: 200 OK
+{
+  "is_accepted": true,
+  "message": "Answer marked as accepted"
+}
+```
+
+### Pin/Unpin Thread
+```http
+POST /api/community/threads/{id}/pin/
+Authorization: Bearer <token>
+
+Response: 200 OK
+{
+  "is_pinned": true,
+  "message": "Thread pinned"
+}
+```
+
+---
+
+## 7. AI Service Endpoints
 
 ### Generate Quiz from Transcript
 ```http

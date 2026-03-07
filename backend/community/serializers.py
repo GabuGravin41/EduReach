@@ -150,12 +150,14 @@ class DiscussionThreadSerializer(serializers.ModelSerializer):
     replies = ThreadReplySerializer(many=True, read_only=True)
     reply_count = serializers.IntegerField(read_only=True)
     vote_count = serializers.IntegerField(read_only=True)
+    course_id = serializers.IntegerField(write_only=True, required=False)
 
     class Meta:
         model = DiscussionThread
         fields = [
             'id',
             'channel',
+            'course_id',
             'author',
             'author_username',
             'title',
@@ -169,6 +171,18 @@ class DiscussionThreadSerializer(serializers.ModelSerializer):
             'updated_at'
         ]
         read_only_fields = ['id', 'channel', 'author', 'views', 'created_at', 'updated_at']
+
+    def create(self, validated_data):
+        course_id = validated_data.pop('course_id', None)
+        if course_id:
+            from .models import CourseChannel
+            # Get or create channel for the course
+            channel, created = CourseChannel.objects.get_or_create(
+                course_id=course_id,
+                defaults={'created_at': None}  # Will use auto_now_add
+            )
+            validated_data['channel'] = channel
+        return super().create(validated_data)
 
 
 class DiscussionThreadListSerializer(serializers.ModelSerializer):

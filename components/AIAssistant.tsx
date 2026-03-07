@@ -112,8 +112,8 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
 
         {activeTab === 'chat' && (
              <div className="flex-1 flex flex-col min-h-0">
-                <div className="flex-1 p-4 overflow-y-auto">
-                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                <div className="flex-1 p-4 overflow-hidden flex flex-col">
+                    <div className="mb-3 flex flex-wrap items-center gap-2 flex-shrink-0">
                       {quickPrompts.map((prompt) => (
                         <Button
                           key={prompt.label}
@@ -136,7 +136,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                         </Button>
                       )}
                     </div>
-                    <div className="space-y-4">
+                    <div className="flex-1 overflow-y-auto space-y-4 min-h-0">
                     {messagesWithIds.map((msg) => (
                         <div key={msg.id} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
                         {(msg.role === 'model' || msg.role === 'assistant') && (

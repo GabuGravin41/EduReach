@@ -209,12 +209,20 @@ class DiscussionThreadViewSet(viewsets.ModelViewSet):
     GET /api/community/threads/<id>/ - Get detail (increments views)
     PATCH /api/community/threads/<id>/ - Update
     DELETE /api/community/threads/<id>/ - Delete
+    GET /api/community/threads/?course_id=<id> - Get threads for a course
     """
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
         from .models import DiscussionThread
-        return DiscussionThread.objects.all()
+        queryset = DiscussionThread.objects.all()
+
+        # Filter by course_id if provided
+        course_id = self.request.query_params.get('course_id')
+        if course_id:
+            queryset = queryset.filter(channel__course_id=course_id)
+
+        return queryset
 
     def get_serializer_class(self):
         from .serializers import DiscussionThreadSerializer, DiscussionThreadListSerializer
@@ -229,26 +237,19 @@ class DiscussionThreadViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Auto-set author to current user with permission checks."""
-        # Ensure reply posting follows channel permissions
-        reply_thread = None
-        try:
-            reply_thread = serializer.validated_data.get('thread')
-        except Exception:
-            reply_thread = None
+        from courses.models import UserProgress, Course
 
-        if not reply_thread:
-            thread_id = self.request.data.get('thread')
-            if thread_id:
-                from .models import DiscussionThread
-                reply_thread = DiscussionThread.objects.filter(id=thread_id).first()
-
-        # If thread belongs to a course channel that is private, ensure membership
-        if reply_thread and getattr(reply_thread, 'channel', None) and getattr(reply_thread.channel, 'course', None):
-            from courses.models import UserProgress
-            course = reply_thread.channel.course
-            user = self.request.user
-            if not (user.is_staff or course.owner == user or UserProgress.objects.filter(user=user, course=course).exists()):
-                raise permissions.PermissionDenied('You must be enrolled in the course to reply to this thread.')
+        # Check if course_id is provided for permission validation
+        course_id = self.request.data.get('course_id')
+        if course_id:
+            try:
+                course = Course.objects.get(id=course_id)
+                user = self.request.user
+                # Allow staff, course owner, or enrolled users to create threads
+                if not (user.is_staff or course.owner == user or UserProgress.objects.filter(user=user, course=course).exists()):
+                    raise permissions.PermissionDenied('You must be enrolled in the course to create discussions.')
+            except Course.DoesNotExist:
+                raise permissions.PermissionDenied('Course not found.')
 
         serializer.save(author=self.request.user)
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { DiscussionFeed } from './DiscussionFeed';
 import { DiscussionThread } from './DiscussionThread';
 import { CreateThreadModal } from './CreateThreadModal';
+import apiClient from '../src/services/api';
 
 interface ThreadReply {
   id: number;
@@ -74,135 +75,146 @@ export const DiscussionsPage: React.FC<DiscussionsPageProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'popular' | 'unanswered'>('recent');
   const [error, setError] = useState<string | null>(null);
-  // Store full data for threads we create so opening them shows correct title/content
-  const [createdThreadsDetail, setCreatedThreadsDetail] = useState<Record<number, { title: string; content: string }>>({});
 
-  // Mock data for demo
+  // Load threads for this course
   useEffect(() => {
     if (view === 'feed') {
-        setIsLoading(true);
-        setTimeout(() => {
-            setThreads([
-                {
-                    id: 1,
-                    title: "Help with useEffect dependency array",
-                    author: { id: 1, username: "Alice" },
-                    is_pinned: false,
-                    reply_count: 2,
-                    vote_count: 5,
-                    views: 120,
-                    created_at: new Date().toISOString()
-                },
-                {
-                    id: 2,
-                    title: "Course Resources Link Broken",
-                    author: { id: 2, username: "Bob" },
-                    is_pinned: true,
-                    reply_count: 0,
-                    vote_count: 10,
-                    views: 300,
-                    created_at: new Date(Date.now() - 86400000).toISOString()
-                }
-            ]);
-            setIsLoading(false);
-        }, 800);
+      loadThreads();
     }
   }, [view, courseId]);
 
-  // Create new thread
-  const handleCreateThread = async (title: string, content: string) => {
-    setIsCreating(true);
-    // Mock API call
-    setTimeout(() => {
-        const newId = Date.now();
-        const newThread = {
-            id: newId,
-            title,
-            author: { id: currentUserId || 999, username: "You" },
-            is_pinned: false,
-            reply_count: 0,
-            vote_count: 0,
-            views: 0,
-            created_at: new Date().toISOString()
-        };
-        setCreatedThreadsDetail(prev => ({ ...prev, [newId]: { title, content } }));
-        setThreads([newThread, ...threads]);
-        setIsCreating(false);
-        setShowCreateModal(false);
-    }, 1000);
+  const loadThreads = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Get threads directly for this course
+      const response = await apiClient.get(`/community/threads/?course_id=${courseId}`);
+      setThreads(response.data.results || []);
+    } catch (error: any) {
+      console.error('Failed to load threads:', error);
+      setError(error.response?.data?.detail || 'Failed to load discussions');
+      setThreads([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const fetchThreadDetail = (threadId: number) => {
-      const created = createdThreadsDetail[threadId];
-      const preview = threads.find(t => t.id === threadId);
+  // Create new thread
+  const handleCreateThread = async (title: string, content: string) => {
+    try {
+      setIsCreating(true);
+      setError(null);
+
+      // Create the thread directly with course_id
+      const response = await apiClient.post('/community/threads/', {
+        course_id: courseId,
+        title,
+        content
+      });
+
+      // Add to threads list
+      setThreads(prev => [response.data, ...prev]);
+      setShowCreateModal(false);
+    } catch (error: any) {
+      console.error('Failed to create thread:', error);
+      setError(error.response?.data?.detail || 'Failed to create discussion');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const fetchThreadDetail = async (threadId: number) => {
+    try {
       setIsLoading(true);
-      setTimeout(() => {
-          setSelectedThread({
-              id: threadId,
-              title: created?.title ?? preview?.title ?? 'Discussion',
-              content: created?.content ?? "I'm having trouble understanding when to add functions to the dependency array. Can someone explain?",
-              author: preview?.author ?? { id: currentUserId ?? 1, username: "You" },
-              is_pinned: false,
-              views: created ? 1 : 125,
-              created_at: preview?.created_at ?? new Date().toISOString(),
-              replies: created ? [] : [
-                  {
-                      id: 101,
-                      author: { id: 3, username: "Charlie" },
-                      content: "Generally, if your effect uses a value from the component scope (props, state, functions), it should be in the dependency array.",
-                      is_verified: true,
-                      is_accepted: true,
-                      upvotes: 12,
-                      user_upvoted: false,
-                      created_at: new Date().toISOString()
-                  }
-              ]
-          });
-          setView('thread');
-          setIsLoading(false);
-      }, 300);
-  }
+      setError(null);
+
+      // Get full thread details with replies
+      const response = await apiClient.get(`/community/threads/${threadId}/`);
+      setSelectedThread(response.data);
+      setView('thread');
+    } catch (error: any) {
+      console.error('Failed to load thread details:', error);
+      setError(error.response?.data?.detail || 'Failed to load discussion details');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Reply to thread
   const handleReply = async (content: string) => {
     if (!selectedThread) return;
-    setIsReplying(true);
-    setTimeout(() => {
-        const newReply = {
-            id: Date.now(),
-            author: { id: currentUserId || 999, username: "You" },
-            content,
-            is_verified: false,
-            is_accepted: false,
-            upvotes: 0,
-            user_upvoted: false,
-            created_at: new Date().toISOString()
-        };
-        setSelectedThread({
-            ...selectedThread,
-            replies: [...selectedThread.replies, newReply]
-        });
-        setIsReplying(false);
-    }, 1000);
+
+    try {
+      setIsReplying(true);
+      setError(null);
+
+      // Create the reply
+      const response = await apiClient.post('/community/replies/', {
+        thread: selectedThread.id,
+        content
+      });
+
+      // Update the thread with the new reply
+      setSelectedThread(prev => prev ? {
+        ...prev,
+        replies: [...prev.replies, response.data]
+      } : null);
+    } catch (error: any) {
+      console.error('Failed to create reply:', error);
+      setError(error.response?.data?.detail || 'Failed to post reply');
+    } finally {
+      setIsReplying(false);
+    }
   };
 
   // Upvote reply
   const handleUpvote = async (replyId: number) => {
     if (!selectedThread) return;
-    // Optimistic update
-    setSelectedThread({
-        ...selectedThread,
-        replies: selectedThread.replies.map(r => r.id === replyId ? { ...r, upvotes: r.upvotes + 1, user_upvoted: true } : r)
-    });
+
+    try {
+      // Call the upvote API
+      const response = await apiClient.post(`/community/replies/${replyId}/upvote/`);
+
+      // Update the reply in the thread
+      setSelectedThread(prev => prev ? {
+        ...prev,
+        replies: prev.replies.map(reply =>
+          reply.id === replyId
+            ? {
+                ...reply,
+                upvotes: response.data.upvotes,
+                user_upvoted: response.data.user_upvoted
+              }
+            : reply
+        )
+      } : null);
+    } catch (error: any) {
+      console.error('Failed to upvote reply:', error);
+      setError(error.response?.data?.detail || 'Failed to upvote');
+    }
   };
 
   // Mark reply as accepted
   const handleMarkAccepted = async (replyId: number) => {
     if (!selectedThread) return;
-    setSelectedThread({
-        ...selectedThread,
-        replies: selectedThread.replies.map(r => r.id === replyId ? { ...r, is_accepted: true } : r)
-    });
+
+    try {
+      const response = await apiClient.post(`/community/replies/${replyId}/mark_as_accepted/`);
+
+      // Update the reply in the thread
+      setSelectedThread(prev => prev ? {
+        ...prev,
+        replies: prev.replies.map(reply =>
+          reply.id === replyId
+            ? { ...reply, is_accepted: response.data.is_accepted }
+            : reply
+        )
+      } : null);
+    } catch (error: any) {
+      console.error('Failed to mark reply as accepted:', error);
+      setError(error.response?.data?.detail || 'Failed to mark reply as accepted');
+    }
   };
 
   return (
