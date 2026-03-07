@@ -10,6 +10,7 @@ import { PanelRightIcon } from './icons/PanelRightIcon';
 import type { YouTubeEvent } from 'react-youtube';
 
 const PLAYER_HEIGHT_STORAGE_KEY = 'edureach_player_height';
+const CHAT_STORAGE_KEY_PREFIX = 'edureach:chat:';
 const DEFAULT_PLAYER_HEIGHT = 'aspect-video'; // Default: maintains 16:9 aspect ratio
 
 interface LearningSessionProps {
@@ -56,6 +57,40 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
       setPlayerHeight(parseInt(savedHeight, 10));
     }
   }, []);
+
+  // Load chat messages from localStorage on mount (fallback persistence)
+  useEffect(() => {
+    if (!videoId) return;
+    const chatKey = `${CHAT_STORAGE_KEY_PREFIX}${videoId}`;
+    try {
+      const saved = localStorage.getItem(chatKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as ChatMessage[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load chat history from localStorage:', error);
+    }
+  }, [videoId]);
+
+  // Save chat messages to localStorage whenever they change
+  useEffect(() => {
+    if (!videoId || messages.length === 0) return;
+    const chatKey = `${CHAT_STORAGE_KEY_PREFIX}${videoId}`;
+    try {
+      const json = JSON.stringify(messages);
+      // Only persist if under 2MB to avoid quota issues
+      if (json.length < 2 * 1024 * 1024) {
+        localStorage.setItem(chatKey, json);
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+        try { localStorage.removeItem(chatKey); } catch {}
+      }
+    }
+  }, [messages, videoId]);
 
   // Handle resize start
   const handleResizeStart = (e: React.MouseEvent<HTMLDivElement>) => {

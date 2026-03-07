@@ -170,6 +170,9 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
     const [publicChallenges, setPublicChallenges] = useState<PublicChallengeItem[]>([]);
     const [publicChallengesLoading, setPublicChallengesLoading] = useState(false);
     const [filterType, setFilterType] = useState<'all' | 'completed' | 'pending'>('all');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterAssessmentType, setFilterAssessmentType] = useState<'all' | 'quiz' | 'exam'>('all');
+    const [filterSubject, setFilterSubject] = useState<string>('all');
 
     useEffect(() => {
         let mounted = true;
@@ -244,10 +247,39 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
         }
     };
 
-    const filteredAssessments = assessments.filter(exam => {
-        if (filterType === 'completed') return exam.status === 'completed';
-        if (filterType === 'pending') return exam.status !== 'completed';
-        return true;
+    // Get unique subjects for filter dropdown
+    const uniqueSubjects = Array.from(new Set(assessments.map(a => a.topic).filter(Boolean)));
+
+    // Group assessments by title to detect duplicates
+    const titleCounts = assessments.reduce((acc, assessment) => {
+        acc[assessment.title] = (acc[assessment.title] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+
+    const processedAssessments = assessments.map(assessment => ({
+        ...assessment,
+        displayTitle: titleCounts[assessment.title] > 1
+            ? `${assessment.title} (${assessment.topic}${assessment.created_at ? ` — ${new Date(assessment.created_at).toLocaleDateString()}` : ''})`
+            : assessment.title
+    }));
+
+    const filteredAssessments = processedAssessments.filter(exam => {
+        const matchesStatus = filterType === 'all'
+            ? true
+            : filterType === 'completed'
+                ? exam.status === 'completed'
+                : exam.status !== 'completed';
+
+        const matchesAssessmentType = filterAssessmentType === 'all' || exam.assessment_type === filterAssessmentType;
+
+        const matchesSubject = filterSubject === 'all' || exam.topic === filterSubject;
+
+        const matchesSearch = !searchQuery.trim() ||
+            exam.displayTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            exam.topic.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (exam.description || '').toLowerCase().includes(searchQuery.toLowerCase());
+
+        return matchesStatus && matchesAssessmentType && matchesSubject && matchesSearch;
     });
 
     const sortedAssessments = [...filteredAssessments].sort((a, b) => {
@@ -495,6 +527,40 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                 </select>
             </div>
 
+            {/* Search and Advanced Filters */}
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700 mb-6">
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                        type="text"
+                        placeholder="Search assessments by title, topic, or description..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                    />
+                    <select
+                        value={filterAssessmentType}
+                        onChange={(e) => setFilterAssessmentType(e.target.value as 'all' | 'quiz' | 'exam')}
+                        className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                        <option value="all">All Types</option>
+                        <option value="quiz">Quizzes Only</option>
+                        <option value="exam">Exams Only</option>
+                    </select>
+                    {uniqueSubjects.length > 0 && (
+                        <select
+                            value={filterSubject}
+                            onChange={(e) => setFilterSubject(e.target.value)}
+                            className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        >
+                            <option value="all">All Subjects</option>
+                            {uniqueSubjects.map(subject => (
+                                <option key={subject} value={subject}>{subject}</option>
+                            ))}
+                        </select>
+                    )}
+                </div>
+            </div>
+
             {/* Quiz vs Exam — short hint for users */}
             <div className="flex flex-wrap items-center gap-4 mb-4 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400">
                 <span className="font-medium text-slate-700 dark:text-slate-300">Quick guide:</span>
@@ -535,8 +601,17 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                                             {getQuestionTypeIcon(exam.question_types)}
                                         </div>
                                         <div>
-                                            <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">{exam.title}</h3>
-                                            <p className="text-sm text-slate-600 dark:text-slate-400">{exam.topic}</p>
+                                            <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">{exam.displayTitle}</h3>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <span className={`px-2 py-0.5 text-xs rounded-full font-bold uppercase tracking-wide ${
+                                                    exam.assessment_type === 'exam'
+                                                        ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
+                                                        : 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300'
+                                                }`}>
+                                                    {exam.assessment_type === 'exam' ? 'Exam' : 'Quiz'}
+                                                </span>
+                                                <p className="text-sm text-slate-600 dark:text-slate-400">{exam.topic}</p>
+                                            </div>
                                         </div>
                                     </div>
                                     {exam.difficulty && (

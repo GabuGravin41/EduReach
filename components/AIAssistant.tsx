@@ -45,6 +45,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   const [input, setInput] = useState('');
   const [activeTab, setActiveTab] = useState<ActiveTab>('chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   
   // Convert messages to include unique IDs for rendering
   const messagesWithIds = messages.map((msg, idx) => ({
@@ -53,7 +54,9 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   })) as ChatMessageWithId[];
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
   };
 
   useEffect(scrollToBottom, [messages]);
@@ -136,7 +139,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                         </Button>
                       )}
                     </div>
-                    <div className="flex-1 overflow-y-auto space-y-4 min-h-0">
+                    <div ref={chatContainerRef} className="flex-1 overflow-y-auto space-y-4 min-h-0">
                     {messagesWithIds.map((msg) => (
                         <div key={msg.id} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
                         {(msg.role === 'model' || msg.role === 'assistant') && (
@@ -229,7 +232,15 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                     </div>
                 )}
                 <div className="flex-1 overflow-y-auto">
-                    <QuizView quiz={quiz} onUpdateQuiz={onUpdateQuiz} />
+                    {isLoading && !quiz ? (
+                      <div className="p-6 h-full flex flex-col items-center justify-center text-center gap-4">
+                        <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-600 border-t-emerald-500 rounded-full animate-spin" />
+                        <p className="text-slate-600 dark:text-slate-300 font-medium">AI is generating your quiz&hellip;</p>
+                        <p className="text-sm text-slate-400 dark:text-slate-500">This may take a moment depending on the video length.</p>
+                      </div>
+                    ) : (
+                      <QuizView quiz={quiz} onUpdateQuiz={onUpdateQuiz} />
+                    )}
                 </div>
             </div>
         )}
