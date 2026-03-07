@@ -84,7 +84,7 @@ export function pathnameToView(pathname: string): { view: View; courseId: number
   if (segments[0] === 'courses') return { view: 'courses', courseId: null, examId: null };
   if (segments[0] === 'assessments') return { view: 'assessments', courseId: null, examId: null };
   if (p === '/community') return { view: 'community', courseId: null, examId: null };
-  if (p === '/study-groups') return { view: 'study_groups', courseId: null, examId: null };
+  if (segments[0] === 'study-groups') return { view: 'study_groups', courseId: null, examId: null };
   if (p === '/pricing' || p === '/billing') return { view: 'billing', courseId: null, examId: null };
   if (p === '/profile') return { view: 'profile', courseId: null, examId: null };
   if (p === '/admin') return { view: 'admin_panel', courseId: null, examId: null };
