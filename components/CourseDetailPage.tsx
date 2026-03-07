@@ -1,15 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
+import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { PlayIcon } from './icons/PlayIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { ClipboardCheckIcon } from './icons/ClipboardCheckIcon';
 import { PencilIcon } from './icons/PencilIcon';
+import { PlusCircleIcon } from './icons/PlusCircleIcon';
+import { TrashIcon } from './icons/TrashIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XCircleIcon } from './icons/XCircleIcon';
 import { View, UserTier } from '../App';
 import { Button } from './ui/Button';
 import { DiscussionsPage } from './DiscussionsPage';
 import apiClient from '../src/services/api';
 import type { Course as ApiCourse, Lesson as ApiLesson } from '../src/services/courseService';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { youtubeService } from '../src/services/youtubeService';
 
 // Use API types as baseline
 type Lesson = ApiLesson & {
@@ -80,6 +86,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     const [activeTab, setActiveTab] = useState<'lessons' | 'discussions' | 'notes' | 'manage'>('lessons');
     const [isEditingCourse, setIsEditingCourse] = useState(false);
     const [lessonsWithNotes, setLessonsWithNotes] = useState<Lesson[]>([]);
+    const [expandedNoteId, setExpandedNoteId] = useState<number | null>(null);
 
     // Manage Course State (simple title/description editing)
     const [editForm, setEditForm] = useState({ title: '', description: '' });
@@ -91,6 +98,10 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
         videoUrl: '',
         transcriptLanguage: 'en',
         autoFetchTranscript: true,
+        validated: false,
+        validating: false,
+        videoInfo: undefined as any,
+        error: undefined as string | undefined,
     });
     const [isSavingLesson, setIsSavingLesson] = useState(false);
     const [lessonFormError, setLessonFormError] = useState('');
@@ -179,6 +190,16 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
             return;
         }
 
+        // Auto-validate video if not already validated
+        if (!lessonForm.validated && !lessonForm.validating) {
+            await validateLessonVideo();
+        }
+
+        if (!lessonForm.validated) {
+            setLessonFormError('Please validate the video URL before saving.');
+            return;
+        }
+
         if (!onAddLesson) return;
 
         try {
@@ -188,7 +209,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                 title: lessonForm.title,
                 videoId,
                 videoUrl: lessonForm.videoUrl,
-                transcript: '',
+                transcript: lessonForm.videoInfo?.transcript || '',
                 transcriptLanguage: lessonForm.transcriptLanguage,
                 autoFetchTranscript: lessonForm.autoFetchTranscript,
             });
@@ -197,6 +218,10 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                 videoUrl: '',
                 transcriptLanguage: 'en',
                 autoFetchTranscript: true,
+                validated: false,
+                validating: false,
+                videoInfo: undefined,
+                error: undefined,
             });
             setIsLessonFormOpen(false);
         } catch (error) {
@@ -279,6 +304,57 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
         const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([0-9A-Za-z_-]{11})/;
         const match = trimmed.match(regex);
         return match ? match[1] : null;
+    };
+
+    const validateLessonVideo = async (): Promise<boolean> => {
+        const videoId = extractVideoId(lessonForm.videoUrl);
+        
+        if (!videoId || videoId.length !== 11) {
+            setLessonForm(prev => ({
+                ...prev,
+                error: 'Invalid YouTube URL or Video ID',
+                validated: false,
+                validating: false
+            }));
+            return false;
+        }
+        
+        setLessonForm(prev => ({ ...prev, validating: true }));
+        
+        try {
+            const metadata = await youtubeService.getVideoMetadata({ videoId });
+            const transcript = await youtubeService.extractTranscript({ videoId });
+            
+            setLessonForm(prev => ({
+                ...prev,
+                validated: true,
+                validating: false,
+                videoInfo: {
+                    title: metadata?.title || 'Unknown',
+                    description: metadata?.description,
+                    duration: metadata?.duration,
+                    hasTranscript: metadata?.hasTranscript,
+                    thumbnail: metadata?.thumbnails?.high?.url,
+                    transcript: transcript.success ? transcript.transcript : undefined
+                },
+                error: undefined
+            }));
+            
+            // Auto-fill title if empty
+            if (!lessonForm.title && metadata?.title) {
+                setLessonForm(prev => ({ ...prev, title: metadata.title }));
+            }
+            
+            return true;
+        } catch (error: any) {
+            setLessonForm(prev => ({
+                ...prev,
+                validated: true,
+                validating: false,
+                error: 'Could not auto-fetch details; you can still save this lesson.'
+            }));
+            return true;
+        }
     };
 
     const handleEditLesson = (lesson: Lesson) => {
@@ -547,59 +623,76 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                             )}
                         </div>
                         {isLessonFormOpen && (
-                            <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-                                <div className="grid gap-3 md:grid-cols-2">
-                                    <input
-                                        type="text"
-                                        placeholder="Lesson title"
-                                        value={lessonForm.title}
-                                        onChange={(e) => setLessonForm({ ...lessonForm, title: e.target.value })}
-                                        className="w-full rounded-md border border-slate-300 bg-transparent p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600"
-                                    />
-                                    <input
-                                        type="text"
-                                        placeholder="YouTube URL or video ID"
-                                        value={lessonForm.videoUrl}
-                                        onChange={(e) => setLessonForm({ ...lessonForm, videoUrl: e.target.value })}
-                                        className="w-full rounded-md border border-slate-300 bg-transparent p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600"
-                                    />
-                                </div>
-                                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                    <select
-                                        value={lessonForm.transcriptLanguage}
-                                        onChange={(e) => setLessonForm({ ...lessonForm, transcriptLanguage: e.target.value })}
-                                        className="w-full rounded-md border border-slate-300 bg-transparent p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600"
-                                    >
-                                        <option value="en">English transcript</option>
-                                        <option value="es">Spanish transcript</option>
-                                        <option value="fr">French transcript</option>
-                                        <option value="de">German transcript</option>
-                                        <option value="hi">Hindi transcript</option>
-                                        <option value="pt">Portuguese transcript</option>
-                                    </select>
-                                    <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                                        <input
-                                            type="checkbox"
-                                            checked={lessonForm.autoFetchTranscript}
-                                            onChange={(e) => setLessonForm({ ...lessonForm, autoFetchTranscript: e.target.checked })}
-                                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            <div className="mb-6 space-y-4">
+                                <div className="flex items-end gap-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                                    <span className="font-bold text-slate-500 dark:text-slate-400">New</span>
+                                    <div className="flex-1">
+                                        <label className="block text-xs font-medium mb-1">Lesson Title</label>
+                                        <input 
+                                            type="text" 
+                                            value={lessonForm.title} 
+                                            onChange={e => setLessonForm(prev => ({ ...prev, title: e.target.value }))} 
+                                            required 
+                                            placeholder="e.g., Introduction to React" 
+                                            className="w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-1 focus:ring-indigo-500" 
                                         />
-                                        Auto-pull transcript from YouTube
-                                    </label>
+                                    </div>
+                                    <div className="flex-1">
+                                        <label className="block text-xs font-medium mb-1">YouTube URL or Video ID</label>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="text"
+                                                value={lessonForm.videoUrl}
+                                                onChange={e => setLessonForm(prev => ({ ...prev, videoUrl: e.target.value, validated: false, error: undefined }))}
+                                                onPaste={() => {
+                                                    // Auto-fetch details immediately after paste
+                                                    setTimeout(() => validateLessonVideo(), 50);
+                                                }}
+                                                onBlur={() => {
+                                                    if (lessonForm.videoUrl.trim()) {
+                                                        validateLessonVideo();
+                                                    }
+                                                }}
+                                                required
+                                                placeholder="e.g., https://www.youtube.com/watch?v=... or zNzzGgr2mhk"
+                                                className="w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => validateLessonVideo()}
+                                                disabled={!lessonForm.videoUrl.trim() || lessonForm.validating}
+                                                className="px-3 py-2 text-xs rounded-md border border-indigo-300 text-indigo-700 hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-700 dark:text-indigo-300 dark:hover:bg-indigo-900/20"
+                                            >
+                                                {lessonForm.validating ? 'Checking...' : 'Auto-fill'}
+                                            </button>
+                                        </div>
+                                        {lessonForm.validated && !lessonForm.error && (
+                                            <p className="mt-1 flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+                                                <CheckCircleIcon className="w-3.5 h-3.5" />
+                                                Video validated
+                                            </p>
+                                        )}
+                                        {!!lessonForm.error && (
+                                            <p className={`mt-1 flex items-center gap-1 text-xs ${lessonForm.validated ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                                <XCircleIcon className="w-3.5 h-3.5" />
+                                                {lessonForm.error}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button onClick={handleQuickLessonSubmit} isLoading={isSavingLesson} size="sm">
+                                            Save lesson
+                                        </Button>
+                                        <Button variant="ghost" onClick={() => setIsLessonFormOpen(false)} size="sm">
+                                            Cancel
+                                        </Button>
+                                    </div>
                                 </div>
                                 {lessonFormError && (
-                                    <p className="mt-2 text-sm text-rose-500">
+                                    <p className="text-sm text-rose-500">
                                         {lessonFormError}
                                     </p>
                                 )}
-                                <div className="mt-3 flex gap-2">
-                                    <Button onClick={handleQuickLessonSubmit} isLoading={isSavingLesson}>
-                                        Save lesson
-                                    </Button>
-                                    <Button variant="ghost" onClick={() => setIsLessonFormOpen(false)}>
-                                        Cancel
-                                    </Button>
-                                </div>
                             </div>
                         )}
                         {courseLessons.length === 0 ? (
@@ -773,32 +866,45 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                         </h2>
                         {aggregatedNotes.length > 0 ? (
                             <div className="space-y-6">
-                                {aggregatedNotes.map(lesson => (
-                                    <div key={lesson.id} className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-5 border border-slate-200 dark:border-slate-700">
-                                        <div className="flex justify-between items-center mb-3">
-                                            <h3 className="font-semibold text-slate-800 dark:text-slate-100">{lesson.title}</h3>
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() =>
-                                                    onStartLesson({
-                                                        videoId: lesson.videoId,
-                                                        transcript: getLessonTranscript(lesson) || '',
-                                                        title: lesson.title,
-                                                        courseId: course.id,
-                                                        lessonId: lesson.id,
-                                                        attachToCourse: false,
-                                                    })
-                                                }
-                                            >
-                                                Edit Note
-                                            </Button>
+                                {aggregatedNotes.map(lesson => {
+                                    const isExpanded = expandedNoteId === lesson.id;
+                                    return (
+                                        <div key={lesson.id} className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-5 border border-slate-200 dark:border-slate-700">
+                                            <div className="flex justify-between items-center mb-3">
+                                                <button
+                                                    onClick={() => setExpandedNoteId(isExpanded ? null : lesson.id)}
+                                                    className="flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg p-2 -m-2 transition-colors"
+                                                >
+                                                    <ChevronDownIcon
+                                                        className={`w-4 h-4 text-slate-600 dark:text-slate-400 transition-transform ${isExpanded ? 'rotate-0' : '-rotate-90'}`}
+                                                    />
+                                                    <h3 className="font-semibold text-slate-800 dark:text-slate-100">{lesson.title}</h3>
+                                                </button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() =>
+                                                        onStartLesson({
+                                                            videoId: lesson.videoId,
+                                                            transcript: getLessonTranscript(lesson) || '',
+                                                            title: lesson.title,
+                                                            courseId: course.id,
+                                                            lessonId: lesson.id,
+                                                            attachToCourse: false,
+                                                        })
+                                                    }
+                                                >
+                                                    Edit Note
+                                                </Button>
+                                            </div>
+                                            {isExpanded && (
+                                                <div className="prose dark:prose-invert max-w-none text-sm bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
+                                                    <MarkdownRenderer content={lesson.notes || ''} />
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="prose dark:prose-invert max-w-none text-sm bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
-                                            <MarkdownRenderer content={lesson.notes || ''} />
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         ) : (
                             <div className="text-center py-12 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">

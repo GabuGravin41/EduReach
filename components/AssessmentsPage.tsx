@@ -32,6 +32,9 @@ export const AssessmentsPage: React.FC<AssessmentsPageProps> = ({
     const [isChallengeModalOpen, setIsChallengeModalOpen] = useState(false);
     const [selectedExamTitle, setSelectedExamTitle] = useState('');
     const [filterType, setFilterType] = useState<'all' | 'completed' | 'pending'>('all');
+    const [filterAssessmentType, setFilterAssessmentType] = useState<'all' | 'quiz' | 'exam'>('all');
+    const [filterSubject, setFilterSubject] = useState<string>('all');
+    const [selectedTags, setSelectedTags] = useState<string[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
 
     const handleChallengeClick = (e: React.MouseEvent, title: string) => {
@@ -44,18 +47,53 @@ export const AssessmentsPage: React.FC<AssessmentsPageProps> = ({
         setView(view);
     };
 
-    const filteredAssessments = assessments.filter(exam => {
+    // Get unique subjects from assessments
+    const uniqueSubjects = Array.from(new Set(assessments.map(a => a.topic).filter(Boolean)));
+
+    // Get unique tags from assessments
+    const allTags = Array.from(new Set(assessments.flatMap(a => a.tags || []))) as string[];
+
+    // Group assessments by title to detect duplicates
+    const titleCounts = assessments.reduce((acc, assessment) => {
+        acc[assessment.title] = (acc[assessment.title] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+
+    const processedAssessments = assessments.map(assessment => ({
+        ...assessment,
+        displayTitle: titleCounts[assessment.title] > 1 
+            ? `${assessment.title} (${assessment.topic}${assessment.tags?.length ? ` - ${assessment.tags.join(', ')}` : ''})`
+            : assessment.title
+    }));
+
+    const filteredAssessments = processedAssessments.filter(exam => {
         const matchesFilter = filterType === 'all'
             ? true
             : filterType === 'completed'
                 ? exam.status === 'completed'
                 : exam.status !== 'completed';
 
-        const matchesSearch = exam.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            exam.topic.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesAssessmentType = filterAssessmentType === 'all' || exam.assessment_type === filterAssessmentType;
 
-        return matchesFilter && matchesSearch;
+        const matchesSubject = filterSubject === 'all' || exam.topic === filterSubject;
+
+        const matchesTags = selectedTags.length === 0 || 
+            (exam.tags && selectedTags.every(tag => exam.tags!.includes(tag)));
+
+        const matchesSearch = exam.displayTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            exam.topic.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (exam.tags && exam.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())));
+
+        return matchesFilter && matchesAssessmentType && matchesSubject && matchesTags && matchesSearch;
     });
+
+    const handleTagToggle = (tag: string) => {
+        setSelectedTags(prev => 
+            prev.includes(tag) 
+                ? prev.filter(t => t !== tag)
+                : [...prev, tag]
+        );
+    };
 
     return (
         <div className="space-y-8">
@@ -111,6 +149,53 @@ export const AssessmentsPage: React.FC<AssessmentsPageProps> = ({
                 </div>
             </div>
 
+            {/* Advanced Filters */}
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                <div className="flex flex-wrap items-center gap-4">
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Filters:</span>
+                    
+                    <select
+                        value={filterAssessmentType}
+                        onChange={(e) => setFilterAssessmentType(e.target.value as 'all' | 'quiz' | 'exam')}
+                        className="px-3 py-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                    >
+                        <option value="all">All Types</option>
+                        <option value="quiz">Quizzes Only</option>
+                        <option value="exam">Exams Only</option>
+                    </select>
+
+                    <select
+                        value={filterSubject}
+                        onChange={(e) => setFilterSubject(e.target.value)}
+                        className="px-3 py-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                    >
+                        <option value="all">All Subjects</option>
+                        {uniqueSubjects.map(subject => (
+                            <option key={subject} value={subject}>{subject}</option>
+                        ))}
+                    </select>
+
+                    {allTags.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm text-slate-600 dark:text-slate-400">Tags:</span>
+                            {allTags.map(tag => (
+                                <button
+                                    key={tag}
+                                    onClick={() => handleTagToggle(tag)}
+                                    className={`px-2 py-1 text-xs rounded-full transition-colors ${
+                                        selectedTags.includes(tag)
+                                            ? 'bg-indigo-600 text-white'
+                                            : 'bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-500'
+                                    }`}
+                                >
+                                    {tag}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+
             <div className="flex flex-wrap items-center gap-4 mb-4 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400">
                 <span className="font-medium text-slate-700 dark:text-slate-300">Quick guide:</span>
                 <span><strong className="text-teal-600 dark:text-teal-400">Quiz</strong> — short knowledge check.</span>
@@ -136,9 +221,14 @@ export const AssessmentsPage: React.FC<AssessmentsPageProps> = ({
                                     <span className="px-2 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 text-xs rounded font-medium uppercase tracking-wide">
                                         {exam.topic}
                                     </span>
+                                    {exam.tags && exam.tags.map(tag => (
+                                        <span key={tag} className="px-2 py-1 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 text-xs rounded-full font-medium">
+                                            #{tag}
+                                        </span>
+                                    ))}
                                 </div>
                                 <h3 className="text-xl font-bold text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                                    {exam.title}
+                                    {exam.displayTitle}
                                 </h3>
                             </div>
                             {exam.status === 'completed' && (

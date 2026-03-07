@@ -360,21 +360,41 @@ def generate_quiz(request):
             )
 
         # Unified AI provider (OpenRouter preferred, Gemini fallback if configured)
-        prompt = f"""Generate {num_questions} {difficulty} difficulty quiz questions from this transcript:
+        prompt = f"""Generate exactly {num_questions} {difficulty} difficulty quiz questions from this transcript:
 
 {combined_context}
 
-Return ONLY valid JSON (no extra text). Use LaTeX ($...$ for inline, $$...$$ for block math) for any formulas:
-{{"questions": [{{"question": "?", "type": "mcq", "options": ["A", "B", "C", "D"], "correct_answer": "A", "explanation": "Why"}}]}}
+IMPORTANT: Return ONLY valid JSON with exactly {num_questions} questions. Each question must be properly formatted.
 
-Be concise. Questions should test key concepts.
+Use LaTeX ($...$ for inline, $$...$$ for block math) for any formulas:
+{{"questions": [
+  {{
+    "question": "Sample question text?",
+    "type": "mcq",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correct_answer": "A",
+    "explanation": "Why this is correct"
+  }}
+]}}
+
+Requirements:
+- Generate exactly {num_questions} questions
+- Mix question types: multiple choice, true/false, short answer
+- For multiple choice: provide exactly 4 options labeled A, B, C, D
+- For true/false: set correct_answer to "True" or "False"
+- For short answer: provide the expected answer
+- Include detailed explanations for all questions
+- Questions should test key concepts from the transcript"""
+
+        # Increase max tokens for larger question sets (4000 base + 500 per additional question)
+        max_tokens_needed = min(4000 + (num_questions - 5) * 500, 8000) if num_questions > 5 else 4000
 IMPORTANT for valid JSON: Inside every JSON string value, escape backslashes by doubling them (e.g. write \\\\mathbb instead of \\mathbb)."""
 
         # Quiz is long-running: use OpenRouter first with longer read timeout to avoid pipeline timeout
         long_read = getattr(settings, 'OPENROUTER_READ_TIMEOUT_LONG_SECONDS', 90)
         response_text = call_ai(
             prompt,
-            max_tokens=1000,
+            max_tokens=max_tokens_needed,
             prefer_openrouter=True,
             openrouter_read_timeout=long_read,
         )

@@ -22,11 +22,32 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
   const [assessmentMode, setAssessmentMode] = useState<AssessmentMode>('quiz');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [currentTag, setCurrentTag] = useState('');
   
   // Linking
   const [selectedCourseId, setSelectedCourseId] = useState<number | ''>('');
   const [selectedLessonId, setSelectedLessonId] = useState<number | ''>('');
   const [pdfInfoMessage, setPdfInfoMessage] = useState('');
+
+  const handleAddTag = () => {
+    const trimmed = currentTag.trim().toLowerCase();
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags([...tags, trimmed]);
+      setCurrentTag('');
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(tags.filter(tag => tag !== tagToRemove));
+  };
+
+  const handleTagKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddTag();
+    }
+  };
 
   const mapToQuestionObjects = (questions: any[], type: string) => {
       if (!Array.isArray(questions)) return [];
@@ -153,9 +174,10 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
       }
 
       const newQuiz = {
-        title: `AI Generated ${topic} Quiz`,
+        title: `AI Generated ${topic} ${assessmentMode === 'exam' ? 'Exam' : 'Quiz'}`,
         description: `Assessment generated from provided source material about ${topic}`,
         topic: topic,
+        tags: tags.length > 0 ? tags : undefined,
         questions: mappedQuestions.length,
         questions_data: mappedQuestions, 
         time: numQuestions * (assessmentMode === 'exam' ? 10 : 2),
@@ -249,6 +271,46 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
             required 
             placeholder="e.g., Combinatorics, The French Revolution"
             className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+
+        <div>
+          <label htmlFor="tags" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tags (Optional)</label>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {tags.map(tag => (
+              <span key={tag} className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs rounded-full">
+                {tag}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveTag(tag)}
+                  className="ml-1 text-indigo-500 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-200"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              id="tags"
+              value={currentTag}
+              onChange={e => setCurrentTag(e.target.value)}
+              onKeyPress={handleTagKeyPress}
+              placeholder="Add tags (press Enter)"
+              className="flex-1 p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <button
+              type="button"
+              onClick={handleAddTag}
+              disabled={!currentTag.trim()}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Add
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Tags help organize and filter your assessments (e.g., "math", "physics", "chapter-1")
+          </p>
         </div>
         
         <div>

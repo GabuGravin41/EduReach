@@ -143,6 +143,7 @@ export interface Assessment {
     difficulty?: 'easy' | 'medium' | 'hard';
     question_types?: string[];
     created_at?: string;
+    tags?: string[];
     // For AI generated ones
     questions_data?: any[]; 
     source_type?: 'text' | 'youtube';
