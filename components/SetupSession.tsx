@@ -29,34 +29,54 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
   const fetchTranscript = async (url: string, lang: string = language) => {
     setIsLoading(true);
     setError('');
-    setStatusMessage('Fetching transcript...');
     
-    try {
-      const response = await apiClient.post('/youtube/extract-transcript/', { url, language: lang });
-      const data = response.data as any;
-      
-      if (data.success) {
-        const transcriptText = data.transcript.transcript;
-        setTranscript(transcriptText);
-        if (!sessionTitle && data.metadata?.title) {
-          setSessionTitle(data.metadata.title);
-        }
-        setError('');
-        setStatusMessage(`Transcript ready (${data.transcript.language?.toUpperCase() || lang.toUpperCase()})`);
-        return transcriptText;
+    const MAX_RETRIES = 3;
+    const RETRY_DELAYS = [3000, 6000, 10000]; // ms between retries
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      if (attempt > 0) {
+        setStatusMessage(`Retrying transcript fetch (${attempt}/${MAX_RETRIES})...`);
+        await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt - 1] || 5000));
       } else {
-        setError(data.error || 'Failed to fetch transcript');
-        setStatusMessage('');
-        return null;
+        setStatusMessage('Fetching transcript...');
       }
-    } catch (err: any) {
-      const errorMsg = err.response?.data?.error || 'Failed to fetch transcript. You can enter it manually.';
-      setError(errorMsg);
-      setStatusMessage('');
-      return null;
-    } finally {
-      setIsLoading(false);
+
+      try {
+        const response = await apiClient.post('/youtube/extract-transcript/', { url, language: lang });
+        const data = response.data as any;
+        
+        if (data.success) {
+          const transcriptText = data.transcript.transcript;
+          setTranscript(transcriptText);
+          if (!sessionTitle && data.metadata?.title) {
+            setSessionTitle(data.metadata.title);
+          }
+          setError('');
+          setStatusMessage(`Transcript ready (${data.transcript.language?.toUpperCase() || lang.toUpperCase()})`);
+          setIsLoading(false);
+          return transcriptText;
+        }
+        // If not successful but no error thrown, continue to retry
+        if (attempt === MAX_RETRIES) {
+          setError(data.error || 'Failed to fetch transcript');
+          setStatusMessage('');
+          setIsLoading(false);
+          return null;
+        }
+      } catch (err: any) {
+        if (attempt === MAX_RETRIES) {
+          const errorMsg = err.response?.data?.error || 'Failed to fetch transcript. You can enter it manually.';
+          setError(errorMsg);
+          setStatusMessage('');
+          setIsLoading(false);
+          return null;
+        }
+        // Otherwise, continue to next retry
+      }
     }
+
+    setIsLoading(false);
+    return null;
   };
 
   const handleUrlChange = async (url: string) => {

@@ -92,6 +92,53 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
     }
   }, [messages, videoId]);
 
+  // ── Background transcript polling ──
+  // If the session started without a real transcript, silently retry in the background.
+  const [liveTranscript, setLiveTranscript] = useState(transcript);
+  useEffect(() => {
+    // Only poll if transcript is missing or is the placeholder
+    const isMissing = !liveTranscript ||
+      liveTranscript.includes('[Transcript could not be automatically extracted') ||
+      liveTranscript.trim().length < 50;
+
+    if (!isMissing || !videoId) return;
+
+    const POLL_INTERVAL = 30_000; // 30 seconds
+    const MAX_POLLS = 5;
+    let pollCount = 0;
+    let cancelled = false;
+
+    const poll = async () => {
+      if (cancelled || pollCount >= MAX_POLLS) return;
+      pollCount++;
+      try {
+        const url = `https://www.youtube.com/watch?v=${videoId}`;
+        const resp = await apiClient.post('/youtube/extract-transcript/', { url });
+        const data = resp.data as any;
+        if (data.success && data.transcript?.transcript) {
+          setLiveTranscript(data.transcript.transcript);
+          // Notify user via system message
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: '📝 *Transcript fetched successfully in the background!* The AI now has full context from this video.',
+          } as ChatMessage]);
+          return; // Stop polling
+        }
+      } catch {
+        // Silently ignore, will retry
+      }
+      if (!cancelled && pollCount < MAX_POLLS) {
+        setTimeout(poll, POLL_INTERVAL);
+      }
+    };
+
+    const timer = setTimeout(poll, POLL_INTERVAL);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [videoId]); // Only run once on mount
+
+  // Use liveTranscript (with background-fetched data) wherever transcript is needed
+  const effectiveTranscript = liveTranscript || transcript;
+
   // Handle resize start
   const handleResizeStart = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -161,7 +208,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   // Initial Welcome Message if no history
   useEffect(() => {
     if (messages.length === 0) {
-      const hasTranscript = transcript && transcript.trim().length > 0;
+      const hasTranscript = effectiveTranscript && effectiveTranscript.trim().length > 0;
       if (!hasTranscript) {
         setMessages([
           { role: 'model', content: "Hello! I'm Edu, your AI assistant. It looks like this video doesn't have a transcript available, so I won't be able to answer questions specific to its content. However, I can still answer general questions or explain concepts if you provide some context!" }
@@ -247,7 +294,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   }
 
   const handleGenerateQuiz = async () => {
-    const hasTranscript = transcript && transcript.trim().length > 0;
+    const hasTranscript = effectiveTranscript && effectiveTranscript.trim().length > 0;
     if (!hasTranscript) {
       setMessages(prev => [...prev, { role: 'model', content: "I cannot generate a quiz because this video doesn't have a transcript." }]);
       return;
@@ -256,9 +303,9 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
     setQuizSaved(false);
     setQuizError(null);
     try {
-      let quizTranscript = transcript;
-      if (transcript.length > 10000) {
-        const chunks = chunkTranscript(transcript, 4000);
+      let quizTranscript = effectiveTranscript;
+      if (effectiveTranscript.length > 10000) {
+        const chunks = chunkTranscript(effectiveTranscript, 4000);
         const mid = Math.floor(chunks.length / 2);
         quizTranscript = [chunks[0], chunks[mid], chunks[chunks.length - 1]].filter(Boolean).join('\n...\n');
       }
@@ -323,12 +370,12 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
     setLastPrompt(message);
 
     try {
-      let context = transcript && transcript.trim().length > 0 ? transcript : "No transcript available for this video.";
+      let context = effectiveTranscript && effectiveTranscript.trim().length > 0 ? effectiveTranscript : "No transcript available for this video.";
       let optimizedMessage = message;
       const wantsDetailed = /explain more|tell me more|detailed|deep dive|elaborate/i.test(message);
 
-      if (transcript && transcript.trim().length > 0 && transcript.length > 5000) {
-        const chunks = chunkTranscript(transcript, 3000);
+      if (effectiveTranscript && effectiveTranscript.trim().length > 0 && effectiveTranscript.length > 5000) {
+        const chunks = chunkTranscript(effectiveTranscript, 3000);
         const relevantChunks = findRelevantChunks(chunks, message, wantsDetailed ? 4 : 2);
         context = relevantChunks.join('\n\n---\n\n');
       }
@@ -424,7 +471,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 lg:h-full lg:min-h-0 relative p-4 sm:p-6 lg:p-0">
+    <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-4rem)] overflow-hidden relative p-4 sm:p-6 lg:p-0">
       {/* Mobile Toggle Buttons */}
       <div className="lg:hidden flex justify-between mb-2 flex-shrink-0 gap-2">
         <Button variant="outline" size="sm" onClick={() => setIsStudyPanelOpen(prev => !prev)} className="flex-1">
@@ -436,7 +483,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
       </div>
 
       {/* Video and Notes Section */}
-      <div className={`flex flex-col gap-4 ${isAIPanelOpen ? 'lg:w-[70%]' : 'lg:w-full'
+      <div className={`flex flex-col gap-4 overflow-y-auto ${isAIPanelOpen ? 'lg:w-[70%]' : 'lg:w-full'
         } lg:h-full lg:min-h-0`}>
         {/* Video Player Container with Resize Handle */}
         <div
@@ -480,7 +527,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
             }`}>
             <StudyPanel
               transcriptRef={transcriptRef}
-              transcript={transcript}
+              transcript={effectiveTranscript}
               notes={notes}
               onNotesChange={setNotes}
               videoId={videoId}
@@ -503,7 +550,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
             }
           `}
         >
-          <div className="h-full w-full overflow-hidden flex flex-col">
+          <div className="h-full w-full overflow-y-auto flex flex-col">
             {quizError && (
               <div className="px-3 py-2 text-xs text-rose-800 bg-rose-50 border-b border-rose-200">
                 {quizError}
