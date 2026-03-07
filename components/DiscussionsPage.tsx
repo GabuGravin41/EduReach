@@ -15,8 +15,9 @@ interface ThreadReply {
   content: string;
   is_verified: boolean;
   is_accepted: boolean;
-  upvotes: number;
-  user_upvoted: boolean;
+  helpful_votes: number;
+  not_helpful_votes: number;
+  user_vote_type: 'helpful' | 'not_helpful' | null;
   created_at: string;
 }
 
@@ -168,13 +169,14 @@ export const DiscussionsPage: React.FC<DiscussionsPageProps> = ({
     }
   };
 
-  // Upvote reply
-  const handleUpvote = async (replyId: number) => {
+  // Vote on reply (helpful/not helpful)
+  const handleVote = async (replyId: number, voteType: 'helpful' | 'not_helpful') => {
     if (!selectedThread) return;
 
     try {
-      // Call the upvote API
-      const response = await apiClient.post(`/community/replies/${replyId}/upvote/`);
+      const response = await apiClient.post(`/community/replies/${replyId}/vote/`, {
+        vote_type: voteType
+      });
 
       // Update the reply in the thread
       setSelectedThread(prev => prev ? {
@@ -183,15 +185,16 @@ export const DiscussionsPage: React.FC<DiscussionsPageProps> = ({
           reply.id === replyId
             ? {
                 ...reply,
-                upvotes: response.data.upvotes,
-                user_upvoted: response.data.user_upvoted
+                helpful_votes: response.data.helpful_votes,
+                not_helpful_votes: response.data.not_helpful_votes,
+                user_vote_type: response.data.user_vote_type
               }
             : reply
         )
       } : null);
     } catch (error: any) {
-      console.error('Failed to upvote reply:', error);
-      setError(error.response?.data?.detail || 'Failed to upvote');
+      console.error('Failed to vote on reply:', error);
+      setError(error.response?.data?.detail || 'Failed to vote');
     }
   };
 
@@ -246,7 +249,7 @@ export const DiscussionsPage: React.FC<DiscussionsPageProps> = ({
           thread={selectedThread}
           onBack={() => setView('feed')}
           onReply={handleReply}
-          onUpvote={handleUpvote}
+          onVote={handleVote}
           onMarkAccepted={handleMarkAccepted}
           isLoading={isLoading}
           isReplying={isReplying}
@@ -257,7 +260,6 @@ export const DiscussionsPage: React.FC<DiscussionsPageProps> = ({
 
       {/* Create Thread Modal */}
       <CreateThreadModal
-        isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSubmit={handleCreateThread}
         isLoading={isCreating}

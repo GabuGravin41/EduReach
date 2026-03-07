@@ -382,10 +382,11 @@ class ThreadReplyViewSet(viewsets.ModelViewSet):
         })
 
 
-class UpvoteReplyView(APIView):
+class VoteReplyView(APIView):
     """
-    Upvote/remove upvote on a reply.
-    POST /api/community/replies/<reply_id>/upvote/
+    Vote on a reply (helpful/not helpful).
+    POST /api/community/replies/<reply_id>/vote/
+    Body: {"vote_type": "helpful"} or {"vote_type": "not_helpful"}
     """
     permission_classes = [permissions.IsAuthenticated]
 
@@ -393,33 +394,45 @@ class UpvoteReplyView(APIView):
         from .models import ThreadReply, ThreadVote
         
         reply = get_object_or_404(ThreadReply, id=reply_id)
+        vote_type = request.data.get('vote_type')
         
-        # Check if user already voted
-        vote = ThreadVote.objects.filter(
+        if vote_type not in ['helpful', 'not_helpful']:
+            return Response(
+                {'detail': 'vote_type must be "helpful" or "not_helpful"'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if user already voted on this reply
+        existing_vote = ThreadVote.objects.filter(
             reply=reply,
             user=request.user
         ).first()
         
-        if vote:
-            # Remove vote
-            vote.delete()
-            reply.upvotes = max(0, reply.upvotes - 1)
-            reply.save()
-            return Response({
-                'upvotes': reply.upvotes,
-                'user_upvoted': False,
-                'message': 'Upvote removed'
-            })
+        if existing_vote:
+            if existing_vote.vote_type == vote_type:
+                # User is trying to vote the same way again - remove the vote
+                existing_vote.delete()
+                message = f'{vote_type.replace("_", " ").title()} vote removed'
+                user_vote_type = None
+            else:
+                # User is changing their vote
+                existing_vote.vote_type = vote_type
+                existing_vote.save()
+                message = f'Changed vote to {vote_type.replace("_", " ").title()}'
+                user_vote_type = vote_type
         else:
-            # Add vote
+            # New vote
             ThreadVote.objects.create(
                 reply=reply,
-                user=request.user
+                user=request.user,
+                vote_type=vote_type
             )
-            reply.upvotes += 1
-            reply.save()
-            return Response({
-                'upvotes': reply.upvotes,
-                'user_upvoted': True,
-                'message': 'Upvoted!'
-            })
+            message = f'Voted {vote_type.replace("_", " ").title()}'
+            user_vote_type = vote_type
+        
+        return Response({
+            'helpful_votes': reply.helpful_votes,
+            'not_helpful_votes': reply.not_helpful_votes,
+            'user_vote_type': user_vote_type,
+            'message': message
+        })

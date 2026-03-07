@@ -113,7 +113,9 @@ class ThreadReplySerializer(serializers.ModelSerializer):
     """Serializer for thread replies."""
     author = UserBasicSerializer(read_only=True)
     author_username = serializers.CharField(source='author.username', read_only=True)
-    user_upvoted = serializers.SerializerMethodField()
+    helpful_votes = serializers.SerializerMethodField()
+    not_helpful_votes = serializers.SerializerMethodField()
+    user_vote_type = serializers.SerializerMethodField()
 
     class Meta:
         model = ThreadReply
@@ -125,22 +127,27 @@ class ThreadReplySerializer(serializers.ModelSerializer):
             'content',
             'is_verified',
             'is_accepted',
-            'upvotes',
-            'user_upvoted',
+            'helpful_votes',
+            'not_helpful_votes',
+            'user_vote_type',
             'created_at',
             'updated_at'
         ]
-        read_only_fields = ['id', 'thread', 'author', 'upvotes', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'thread', 'author', 'helpful_votes', 'not_helpful_votes', 'created_at', 'updated_at']
 
-    def get_user_upvoted(self, obj):
-        """Check if current user upvoted this reply."""
+    def get_helpful_votes(self, obj):
+        return obj.helpful_votes
+
+    def get_not_helpful_votes(self, obj):
+        return obj.not_helpful_votes
+
+    def get_user_vote_type(self, obj):
+        """Get the current user's vote type for this reply."""
         request = self.context.get('request')
         if request and request.user.is_authenticated:
-            return ThreadVote.objects.filter(
-                reply=obj,
-                user=request.user
-            ).exists()
-        return False
+            vote = obj.votes.filter(user=request.user).first()
+            return vote.vote_type if vote else None
+        return None
 
 
 class DiscussionThreadSerializer(serializers.ModelSerializer):

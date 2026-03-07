@@ -388,12 +388,12 @@ Requirements:
 
         # Increase max tokens for larger question sets (4000 base + 500 per additional question)
         max_tokens_needed = min(4000 + (num_questions - 5) * 500, 8000) if num_questions > 5 else 4000
-IMPORTANT for valid JSON: Inside every JSON string value, escape backslashes by doubling them (e.g. write \\\\mathbb instead of \\mathbb)."""
+        prompt_continuation = '''IMPORTANT for valid JSON: Inside every JSON string value, escape backslashes by doubling them (e.g. write \\\\mathbb instead of \\mathbb).'''
 
         # Quiz is long-running: use OpenRouter first with longer read timeout to avoid pipeline timeout
         long_read = getattr(settings, 'OPENROUTER_READ_TIMEOUT_LONG_SECONDS', 90)
         response_text = call_ai(
-            prompt,
+            prompt + prompt_continuation,
             max_tokens=max_tokens_needed,
             prefer_openrouter=True,
             openrouter_read_timeout=long_read,
@@ -424,7 +424,6 @@ IMPORTANT for valid JSON: Inside every JSON string value, escape backslashes by 
             )
     
     except AIProviderUnavailableError as e:
-        logger.warning("AI unavailable in generate_quiz: %s", e)
         return Response(
             {
                 'error': 'AI service temporarily unavailable. Verify OPENROUTER_API_KEY and provider quota, then retry.',

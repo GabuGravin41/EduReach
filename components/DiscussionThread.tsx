@@ -14,8 +14,9 @@ interface ThreadReply {
   content: string;
   is_verified: boolean;
   is_accepted: boolean;
-  upvotes: number;
-  user_upvoted: boolean;
+  helpful_votes: number;
+  not_helpful_votes: number;
+  user_vote_type: 'helpful' | 'not_helpful' | null;
   created_at: string;
 }
 
@@ -37,7 +38,7 @@ interface DiscussionThreadProps {
   };
   onBack: () => void;
   onReply: (content: string) => void;
-  onUpvote: (replyId: number) => void;
+  onVote: (replyId: number, voteType: 'helpful' | 'not_helpful') => void;
   onMarkAccepted: (replyId: number) => void;
   isLoading?: boolean;
   isReplying?: boolean;
@@ -49,7 +50,7 @@ export const DiscussionThread: React.FC<DiscussionThreadProps> = ({
   thread,
   onBack,
   onReply,
-  onUpvote,
+  onVote,
   onMarkAccepted,
   isLoading = false,
   isReplying = false,
@@ -195,15 +196,28 @@ export const DiscussionThread: React.FC<DiscussionThreadProps> = ({
 
               {/* Reply Actions */}
               <div className="flex items-center gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                <button
-                  onClick={() => onUpvote(reply.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${reply.user_upvoted
-                      ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => onVote(reply.id, 'helpful')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${
+                      reply.user_vote_type === 'helpful'
+                        ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
                     }`}
-                >
-                  <span className="text-sm font-semibold">Helpful • {reply.upvotes}</span>
-                </button>
+                  >
+                    <span className="text-sm">👍 Helpful • {reply.helpful_votes}</span>
+                  </button>
+                  <button
+                    onClick={() => onVote(reply.id, 'not_helpful')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${
+                      reply.user_vote_type === 'not_helpful'
+                        ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    <span className="text-sm">👎 Not Helpful • {reply.not_helpful_votes}</span>
+                  </button>
+                </div>
 
                 {currentUserId === thread.author.id && !reply.is_accepted && (
                   <button

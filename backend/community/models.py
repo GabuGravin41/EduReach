@@ -165,7 +165,6 @@ class ThreadReply(models.Model):
         default=False,
         help_text="Thread author can mark as accepted answer"
     )
-    upvotes = models.PositiveIntegerField(default=0)
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
@@ -175,12 +174,32 @@ class ThreadReply(models.Model):
         return f"Reply to '{self.thread.title}' by {self.author.username}"
 
     class Meta:
-        ordering = ['-is_accepted', '-is_verified', '-upvotes', '-created_at']
+        ordering = ['-is_accepted', '-is_verified', '-created_at']
         verbose_name = "Thread Reply"
+
+    @property
+    def helpful_votes(self):
+        return self.votes.filter(vote_type='helpful').count()
+
+    @property
+    def not_helpful_votes(self):
+        return self.votes.filter(vote_type='not_helpful').count()
+
+    @property
+    def user_vote_type(self):
+        """Get the current user's vote type for this reply."""
+        from django.contrib.auth import get_user
+        # This will be set by the serializer context
+        return None
 
 
 class ThreadVote(models.Model):
-    """Track upvotes on replies (ensure unique votes)."""
+    """Track votes on replies (helpful/not helpful)."""
+    VOTE_CHOICES = [
+        ('helpful', 'Helpful'),
+        ('not_helpful', 'Not Helpful'),
+    ]
+    
     reply = models.ForeignKey(
         ThreadReply,
         on_delete=models.CASCADE,
@@ -190,6 +209,11 @@ class ThreadVote(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE
     )
+    vote_type = models.CharField(
+        max_length=20,
+        choices=VOTE_CHOICES,
+        default='helpful'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -198,4 +222,4 @@ class ThreadVote(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.user.username} upvoted reply {self.reply.id}"
+        return f"{self.user.username} voted {self.vote_type} on reply {self.reply.id}"

@@ -6,7 +6,7 @@ from .views import (
     DiscussionThreadViewSet,
     ThreadReplyViewSet,
     CourseChannelViewSet,
-    UpvoteReplyView
+    VoteReplyView
 )
 
 router = DefaultRouter()
@@ -18,5 +18,5 @@ router.register(r'channels', CourseChannelViewSet, basename='channel')
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('replies/<int:reply_id>/upvote/', UpvoteReplyView.as_view(), name='upvote-reply'),
+    path('replies/<int:reply_id>/vote/', VoteReplyView.as_view(), name='vote-reply'),
 ]

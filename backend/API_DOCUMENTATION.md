@@ -514,21 +514,14 @@ Response: 201 Created
 ### Get Threads for a Course
 ```http
 GET /api/community/threads/?course_id=1
-Authorization: Bearer <token>
 
 Response: 200 OK
-[
-  {
-    "id": 1,
-    "title": "Help with useEffect dependency array",
-    "author_username": "alice123",
-    "is_pinned": false,
-    "reply_count": 3,
-    "vote_count": 8,
-    "views": 45,
-    "created_at": "datetime"
-  }
-]
+{
+  "helpful_vote": 5,
+  "not_helpful_vote": 1,
+  "user_vote_type": "helpful",
+  "message": "Voted helpful"
+}
 ```
 
 ### Get Thread Details
@@ -546,49 +539,30 @@ Response: 200 OK
   "is_pinned": false,
   "views": 45,
   "reply_count": 3,
-  "vote_count": 8,
-  "replies": [...],
-  "created_at": "datetime",
-  "updated_at": "datetime"
-}
-```
-
-### Create Thread Reply
+  "vote_count": 6,
+  "replies": [
+### Vote on Thread Reply
 ```http
-POST /api/community/replies/
+POST /api/community/replies/{id}/vote/
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "thread": 1,
-  "content": "string"
+  "vote_type": "helpful"
 }
 
-Response: 201 Created
+# or
+
 {
-  "id": 1,
-  "thread": 1,
-  "author": {...},
-  "content": "string",
-  "is_verified": false,
-  "is_accepted": false,
-  "upvotes": 0,
-  "user_upvoted": false,
-  "created_at": "datetime",
-  "updated_at": "datetime"
+  "vote_type": "not_helpful"
 }
-```
-
-### Upvote Thread Reply
-```http
-POST /api/community/replies/{id}/upvote/
-Authorization: Bearer <token>
 
 Response: 200 OK
 {
-  "upvotes": 5,
-  "user_upvoted": true,
-  "message": "Upvoted!"
+  "helpful_votes": 5,
+  "not_helpful_votes": 1,
+  "user_vote_type": "helpful",
+  "message": "Voted Helpful"
 }
 ```
 
