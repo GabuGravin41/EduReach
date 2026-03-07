@@ -34,6 +34,12 @@ export const QuizView: React.FC<QuizViewProps> = ({
   const questions: Question[] = useMemo(() => {
     if (!quiz || !Array.isArray(quiz)) return [];
 
+    // Helper: convert letter answer ('A','B','C','D') to index
+    const letterToIndex = (letter: string): number => {
+      const map: Record<string, number> = { 'A': 0, 'B': 1, 'C': 2, 'D': 3, 'a': 0, 'b': 1, 'c': 2, 'd': 3 };
+      return map[letter?.trim()] ?? -1;
+    };
+
     return quiz.map((q: any, idx) => {
       // If it's already a valid Question with a type, return it
       if (q.type && q.id) {
@@ -42,9 +48,13 @@ export const QuizView: React.FC<QuizViewProps> = ({
 
       const baseId = `ai-${idx}-${Date.now()}`;
 
+      // Normalize fields: options/choices, correctAnswer/correct_answer
+      const options = q.options ?? q.choices ?? [];
+      const correctAnswer = q.correctAnswer ?? q.correct_answer;
+
       // Handle AI Service Schema mappings
       // Case 1: Essay (has question, maybe no options/correctAnswer)
-      if (q.question && !q.options && !q.correctAnswer) {
+      if (q.question && options.length === 0 && !correctAnswer) {
         return {
           id: baseId,
           type: 'essay',
@@ -58,13 +68,13 @@ export const QuizView: React.FC<QuizViewProps> = ({
       }
 
       // Case 2: Short Answer (has question and correctAnswer, no options)
-      if (q.question && q.correctAnswer && (!q.options || q.options.length === 0)) {
+      if (q.question && correctAnswer && options.length === 0) {
         return {
           id: baseId,
           type: 'short_answer',
           points: 5,
           question_text: q.question,
-          correct_answers: [q.correctAnswer],
+          correct_answers: [correctAnswer],
           case_sensitive: false,
           exact_match: false,
           max_length: 100
@@ -72,12 +82,27 @@ export const QuizView: React.FC<QuizViewProps> = ({
       }
 
       // Case 3: Multiple Choice (default fallback if options exist)
+      // Determine correct_answer_index robustly
+      let correctIndex = typeof q.correct_answer_index === 'number' ? q.correct_answer_index : -1;
+      if (correctIndex < 0 && correctAnswer && options.length > 0) {
+        // Try exact match first
+        correctIndex = options.indexOf(correctAnswer);
+        // Try letter mapping (A/B/C/D)
+        if (correctIndex < 0) {
+          correctIndex = letterToIndex(correctAnswer);
+        }
+        // Try case-insensitive match
+        if (correctIndex < 0) {
+          const lowerAnswer = String(correctAnswer).toLowerCase();
+          correctIndex = options.findIndex((o: string) => o.toLowerCase() === lowerAnswer);
+        }
+      }
       return {
         id: baseId,
         type: 'multiple_choice',
-        question_text: q.question || 'Untitled Question',
-        options: q.options || [],
-        correct_answer_index: q.options && q.correctAnswer ? q.options.indexOf(q.correctAnswer) : 0,
+        question_text: q.question || q.question_text || 'Untitled Question',
+        options,
+        correct_answer_index: correctIndex >= 0 ? correctIndex : 0,
         points: 1
       } as MultipleChoiceQuestion;
     });

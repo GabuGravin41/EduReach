@@ -210,20 +210,45 @@ class YouTubeTranscriptService:
     
     def _extract_with_transcript_api(self, video_id: str, language_code: str) -> Optional[Dict]:
         """
-        Extract using youtube-transcript-api library (if installed)
+        Extract using youtube-transcript-api library (if installed).
+        Supports both v1.x (fetch/list instance methods) and v0.x (get_transcript class methods).
         """
         try:
             from youtube_transcript_api import YouTubeTranscriptApi
-            from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
+            # Import known error classes; names vary by version so wrap safely
+            try:
+                from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
+            except ImportError:
+                TranscriptsDisabled = NoTranscriptFound = VideoUnavailable = Exception
 
             transcript_list = None
 
-            # Primary: try the common get_transcript API if available
-            if hasattr(YouTubeTranscriptApi, 'get_transcript'):
+            # ── v1.x API: instance methods .fetch() and .list() ──
+            # In v1.x, get_transcript / list_transcripts were removed.
+            # The new API: api = YouTubeTranscriptApi(); result = api.fetch(video_id)
+            if hasattr(YouTubeTranscriptApi, 'fetch') and not hasattr(YouTubeTranscriptApi, 'get_transcript'):
+                try:
+                    api = YouTubeTranscriptApi()
+                    try:
+                        transcript_list = api.fetch(video_id, languages=[language_code])
+                    except Exception:
+                        try:
+                            transcript_list = api.fetch(video_id, languages=['en'])
+                            language_code = 'en'
+                        except Exception:
+                            try:
+                                transcript_list = api.fetch(video_id)
+                            except Exception:
+                                transcript_list = None
+                except Exception as e:
+                    print(f"youtube-transcript-api v1.x fetch failed: {e}")
+                    transcript_list = None
+
+            # ── v0.x API: static/class methods get_transcript() ──
+            if transcript_list is None and hasattr(YouTubeTranscriptApi, 'get_transcript'):
                 try:
                     transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[language_code])
                 except (NoTranscriptFound, TranscriptsDisabled):
-                    # fallback to English
                     try:
                         transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
                         language_code = 'en'
@@ -233,11 +258,10 @@ class YouTubeTranscriptService:
                         except Exception:
                             transcript_list = None
 
-            # Secondary: some versions expose list_transcripts API
+            # ── v0.x fallback: list_transcripts() ──
             if transcript_list is None and hasattr(YouTubeTranscriptApi, 'list_transcripts'):
                 try:
                     transcript_list_obj = YouTubeTranscriptApi.list_transcripts(video_id)
-                    # try to find preferred language
                     try:
                         fetched = transcript_list_obj.find_transcript([language_code]).fetch()
                         transcript_list = fetched
@@ -247,9 +271,7 @@ class YouTubeTranscriptService:
                             transcript_list = fetched
                             language_code = 'en'
                         except Exception:
-                            # try first available
                             try:
-                                # pick first transcript key if available
                                 keys = list(getattr(transcript_list_obj, '_transcripts', {}).keys())
                                 if keys:
                                     fetched = transcript_list_obj.find_transcript(keys).fetch()
@@ -262,14 +284,29 @@ class YouTubeTranscriptService:
             if not transcript_list:
                 return None
 
-            # If transcript_list is in object form (list of dicts) or similar, normalize
+            # ── Normalize entries ──
+            # v1.x returns FetchedTranscript objects with .text/.start/.duration attributes
+            # v0.x returns list of dicts with 'text'/'start'/'duration' keys
             if isinstance(transcript_list, dict):
                 entries = [transcript_list]
             else:
-                entries = transcript_list
+                entries = list(transcript_list)
+
+            # Normalize each entry to a dict
+            normalized_entries = []
+            for entry in entries:
+                if isinstance(entry, dict):
+                    normalized_entries.append(entry)
+                else:
+                    # v1.x FetchedTranscriptSnippet — has .text, .start, .duration attrs
+                    normalized_entries.append({
+                        'text': getattr(entry, 'text', str(entry)),
+                        'start': float(getattr(entry, 'start', 0)),
+                        'duration': float(getattr(entry, 'duration', 0)),
+                    })
 
             # Format transcript with better spacing
-            full_transcript = ' '.join([entry.get('text', '').strip() for entry in entries if entry.get('text', '').strip()])
+            full_transcript = ' '.join([e.get('text', '').strip() for e in normalized_entries if e.get('text', '').strip()])
 
             if not full_transcript:
                 return None
@@ -281,12 +318,12 @@ class YouTubeTranscriptService:
                 'transcript': full_transcript,
                 'segments': [
                     {
-                        'start': float(entry.get('start', 0)),
-                        'duration': float(entry.get('duration', 0)),
-                        'text': entry.get('text', '').strip()
+                        'start': float(e.get('start', 0)),
+                        'duration': float(e.get('duration', 0)),
+                        'text': e.get('text', '').strip()
                     }
-                    for entry in entries
-                    if entry.get('text', '').strip()
+                    for e in normalized_entries
+                    if e.get('text', '').strip()
                 ],
                 'word_count': len(full_transcript.split()),
                 'extracted_at': datetime.now().isoformat(),
@@ -295,9 +332,6 @@ class YouTubeTranscriptService:
 
         except ImportError:
             print("youtube-transcript-api not installed")
-            return None
-        except VideoUnavailable:
-            print(f"Video {video_id} is unavailable")
             return None
         except Exception as e:
             print(f"youtube-transcript-api extraction failed: {e}")

@@ -112,7 +112,18 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
               } as PassageQuestion;
           } else {
               const options = normalized.options || [];
-              const correctIndex = options.indexOf(normalized.correctAnswer);
+              // Try exact match first
+              let correctIndex = options.indexOf(normalized.correctAnswer);
+              // Try letter mapping (A/B/C/D)
+              if (correctIndex < 0 && normalized.correctAnswer) {
+                  const letterMap: Record<string, number> = { 'A': 0, 'B': 1, 'C': 2, 'D': 3, 'a': 0, 'b': 1, 'c': 2, 'd': 3 };
+                  correctIndex = letterMap[normalized.correctAnswer.trim()] ?? -1;
+              }
+              // Try case-insensitive match
+              if (correctIndex < 0 && normalized.correctAnswer && options.length > 0) {
+                  const lower = String(normalized.correctAnswer).toLowerCase();
+                  correctIndex = options.findIndex((o: string) => o.toLowerCase() === lower);
+              }
               return {
                   id: baseId,
                   type: 'multiple_choice',
@@ -173,11 +184,17 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
         return;
       }
 
+      // Auto-add system tags
+      const autoTags = new Set(tags);
+      autoTags.add('ai-generated');
+      autoTags.add(assessmentMode); // 'quiz' or 'exam'
+      const finalTags = Array.from(autoTags);
+
       const newQuiz = {
-        title: `AI Generated ${topic} ${assessmentMode === 'exam' ? 'Exam' : 'Quiz'}`,
-        description: `Assessment generated from provided source material about ${topic}`,
+        title: topic,
+        description: `${assessmentMode === 'exam' ? 'Exam' : 'Quiz'} about ${topic}`,
         topic: topic,
-        tags: tags.length > 0 ? tags : undefined,
+        tags: finalTags,
         questions: mappedQuestions.length,
         questions_data: mappedQuestions, 
         time: numQuestions * (assessmentMode === 'exam' ? 10 : 2),

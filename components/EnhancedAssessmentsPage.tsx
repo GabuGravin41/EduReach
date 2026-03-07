@@ -173,6 +173,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
     const [searchQuery, setSearchQuery] = useState('');
     const [filterAssessmentType, setFilterAssessmentType] = useState<'all' | 'quiz' | 'exam'>('all');
     const [filterSubject, setFilterSubject] = useState<string>('all');
+    const [filterTag, setFilterTag] = useState<string>('all');
 
     useEffect(() => {
         let mounted = true;
@@ -250,18 +251,28 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
     // Get unique subjects for filter dropdown
     const uniqueSubjects = Array.from(new Set(assessments.map(a => a.topic).filter(Boolean)));
 
+    // Get unique tags from all assessments for tag filter
+    const uniqueTags = Array.from(new Set(
+        assessments.flatMap(a => (a as any).tags || []).filter(Boolean)
+    )).sort();
+
     // Group assessments by title to detect duplicates
     const titleCounts = assessments.reduce((acc, assessment) => {
         acc[assessment.title] = (acc[assessment.title] || 0) + 1;
         return acc;
     }, {} as Record<string, number>);
 
-    const processedAssessments = assessments.map(assessment => ({
-        ...assessment,
-        displayTitle: titleCounts[assessment.title] > 1
-            ? `${assessment.title} (${assessment.topic}${assessment.created_at ? ` — ${new Date(assessment.created_at).toLocaleDateString()}` : ''})`
-            : assessment.title
-    }));
+    const processedAssessments = assessments.map(assessment => {
+        const creator = (assessment as any).created_by_username || (assessment as any).creator_username || '';
+        let displayTitle = assessment.title;
+        if (titleCounts[assessment.title] > 1) {
+            const parts = [assessment.topic];
+            if (creator) parts.push(`by ${creator}`);
+            if (assessment.created_at) parts.push(new Date(assessment.created_at).toLocaleDateString());
+            displayTitle = `${assessment.title} (${parts.join(' — ')})`;
+        }
+        return { ...assessment, displayTitle, _creator: creator };
+    });
 
     const filteredAssessments = processedAssessments.filter(exam => {
         const matchesStatus = filterType === 'all'
@@ -279,7 +290,10 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
             exam.topic.toLowerCase().includes(searchQuery.toLowerCase()) ||
             (exam.description || '').toLowerCase().includes(searchQuery.toLowerCase());
 
-        return matchesStatus && matchesAssessmentType && matchesSubject && matchesSearch;
+        const examTags: string[] = (exam as any).tags || [];
+        const matchesTag = filterTag === 'all' || examTags.includes(filterTag);
+
+        return matchesStatus && matchesAssessmentType && matchesSubject && matchesSearch && matchesTag;
     });
 
     const sortedAssessments = [...filteredAssessments].sort((a, b) => {
@@ -559,6 +573,35 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                         </select>
                     )}
                 </div>
+                {/* Tag filter chips */}
+                {uniqueTags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 self-center">Tags:</span>
+                        <button
+                            onClick={() => setFilterTag('all')}
+                            className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                                filterTag === 'all'
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+                            }`}
+                        >
+                            All
+                        </button>
+                        {uniqueTags.map(tag => (
+                            <button
+                                key={tag}
+                                onClick={() => setFilterTag(tag === filterTag ? 'all' : tag)}
+                                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                                    filterTag === tag
+                                        ? 'bg-indigo-600 text-white'
+                                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+                                }`}
+                            >
+                                {tag}
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Quiz vs Exam — short hint for users */}
@@ -602,7 +645,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                                         </div>
                                         <div>
                                             <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">{exam.displayTitle}</h3>
-                                            <div className="flex items-center gap-2 mt-1">
+                                            <div className="flex flex-wrap items-center gap-2 mt-1">
                                                 <span className={`px-2 py-0.5 text-xs rounded-full font-bold uppercase tracking-wide ${
                                                     exam.assessment_type === 'exam'
                                                         ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
@@ -610,8 +653,31 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                                                 }`}>
                                                     {exam.assessment_type === 'exam' ? 'Exam' : 'Quiz'}
                                                 </span>
+                                                {((exam as any).tags || []).includes('ai-generated') ? (
+                                                    <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                                                        AI Generated
+                                                    </span>
+                                                ) : (exam as any)._creator ? (
+                                                    <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                                                        by {(exam as any)._creator}
+                                                    </span>
+                                                ) : null}
                                                 <p className="text-sm text-slate-600 dark:text-slate-400">{exam.topic}</p>
                                             </div>
+                                            {/* Tags */}
+                                            {((exam as any).tags || []).filter((t: string) => t !== 'ai-generated' && t !== 'quiz' && t !== 'exam').length > 0 && (
+                                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                                    {((exam as any).tags || []).filter((t: string) => t !== 'ai-generated' && t !== 'quiz' && t !== 'exam').map((tag: string) => (
+                                                        <span
+                                                            key={tag}
+                                                            onClick={() => setFilterTag(tag)}
+                                                            className="px-2 py-0.5 text-xs rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-300 cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+                                                        >
+                                                            {tag}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                     {exam.difficulty && (

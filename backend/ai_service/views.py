@@ -349,7 +349,8 @@ def generate_quiz(request):
         combined_context = "\n\n---\n\n".join(combined_context_parts).strip()
 
         # Bound total context to keep generation latency predictable.
-        max_context_chars = 12000
+        # For larger question sets, use less context to leave more room for output.
+        max_context_chars = 8000 if num_questions > 5 else 12000
         if len(combined_context) > max_context_chars:
             combined_context = combined_context[:max_context_chars]
 
@@ -365,6 +366,7 @@ def generate_quiz(request):
 {combined_context}
 
 IMPORTANT: Return ONLY valid JSON with exactly {num_questions} questions. Each question must be properly formatted.
+You MUST return complete, valid JSON. Do NOT truncate or cut off the output — all {num_questions} questions must be included.
 
 Use LaTeX ($...$ for inline, $$...$$ for block math) for any formulas:
 {{"questions": [
@@ -372,7 +374,7 @@ Use LaTeX ($...$ for inline, $$...$$ for block math) for any formulas:
     "question": "Sample question text?",
     "type": "mcq",
     "options": ["Option A", "Option B", "Option C", "Option D"],
-    "correct_answer": "A",
+    "correct_answer": "Option A",
     "explanation": "Why this is correct"
   }}
 ]}}
@@ -380,14 +382,14 @@ Use LaTeX ($...$ for inline, $$...$$ for block math) for any formulas:
 Requirements:
 - Generate exactly {num_questions} questions
 - Mix question types: multiple choice, true/false, short answer
-- For multiple choice: provide exactly 4 options labeled A, B, C, D
+- For multiple choice: provide exactly 4 options as full text strings AND set correct_answer to the FULL TEXT of the correct option (not just a letter)
 - For true/false: set correct_answer to "True" or "False"
 - For short answer: provide the expected answer
 - Include detailed explanations for all questions
 - Questions should test key concepts from the transcript"""
 
-        # Increase max tokens for larger question sets (4000 base + 500 per additional question)
-        max_tokens_needed = min(4000 + (num_questions - 5) * 500, 8000) if num_questions > 5 else 4000
+        # Increase max tokens for larger question sets (4000 base + 600 per additional question)
+        max_tokens_needed = min(4000 + (num_questions - 5) * 600, 12000) if num_questions > 5 else 4000
         prompt_continuation = '''IMPORTANT for valid JSON: Inside every JSON string value, escape backslashes by doubling them (e.g. write \\\\mathbb instead of \\mathbb).'''
 
         # Quiz is long-running: use OpenRouter first with longer read timeout to avoid pipeline timeout
