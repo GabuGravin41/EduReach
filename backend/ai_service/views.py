@@ -423,7 +423,7 @@ Use LaTeX ($...$ for inline, $$...$$ for block math) for any formulas:
 Requirements:
 - Generate exactly {batch_count} questions
 - Mix question types: multiple choice, true/false, short answer
-- For multiple choice: provide exactly 4 options as full text strings AND set correct_answer to the FULL TEXT of the correct option (not just a letter)
+- CRITICAL for multiple choice: you MUST always include an "options" array with exactly 4 non-empty string values. The "correct_answer" must be the FULL TEXT of one of those options (not just a letter like A/B/C/D). Never omit or leave the options array empty.
 - For true/false: set correct_answer to "True" or "False"
 - For short answer: provide the expected answer
 - Include detailed explanations for all questions

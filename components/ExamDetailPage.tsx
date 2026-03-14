@@ -26,6 +26,7 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
             ? `${typeof window !== 'undefined' ? window.location.origin : ''}/assessments/${liveExam.id}?share_token=${shareToken}`
             : '';
 
+    const [isLoadingDetail, setIsLoadingDetail] = React.useState(true);
     const [attempts, setAttempts] = React.useState<AssessmentAttempt[]>([]);
     const [isLoadingAttempts, setIsLoadingAttempts] = React.useState(false);
     const [publicAttempts, setPublicAttempts] = React.useState<AssessmentAttempt[]>([]);
@@ -40,11 +41,14 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
 
     React.useEffect(() => {
         const load = async () => {
+            setIsLoadingDetail(true);
             try {
                 const detail = await assessmentService.getAssessment(exam.id);
                 setLiveExam(detail as any);
             } catch {
                 // keep fallback exam object from props for offline mode
+            } finally {
+                setIsLoadingDetail(false);
             }
         };
         load();
@@ -253,7 +257,7 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                 <div className="p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                     <h1 className="text-2xl font-bold text-slate-800 dark:text-white">{liveExam.title}</h1>
                     <p className="text-slate-600 dark:text-slate-400 mt-1">{liveExam.description}</p>
-                    {!isCreator && (
+                    {!isCreator && tokenFromUrl && (
                         <button
                             onClick={handleJoinChallenge}
                             className="mt-3 px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold"
@@ -264,7 +268,12 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                 </div>
                 <div className="flex-1 min-h-0 overflow-hidden grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
                     <div className="min-h-0">
-                        {quizData.length > 0 ? (
+                        {isLoadingDetail ? (
+                            <div className="h-full flex flex-col items-center justify-center gap-3 text-slate-500">
+                                <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                                <p className="text-sm font-medium">Loading assessment...</p>
+                            </div>
+                        ) : quizData.length > 0 ? (
                             <QuizView
                                 quiz={quizData as Question[]}
                                 timeLimitMinutes={liveExam.time || liveExam.time_limit_minutes || 30}
@@ -277,160 +286,163 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                             </div>
                         )}
                     </div>
+                    {/* Sidebar: Creator gets full tools, participants get leaderboard only */}
                     {(isCreator || shareToken) && (
                         <div className="border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 overflow-y-auto">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-bold">Creator Tools</h3>
-                                <button
-                                    onClick={loadAttempts}
-                                    className="text-sm px-3 py-1 rounded-md border border-slate-200 dark:border-slate-700"
-                                >
-                                    Refresh
-                                </button>
-                            </div>
-                            {inviteLink && (
-                                <div className="mb-4">
-                                    <p className="text-xs text-slate-500 mb-1">Invite link (read-only grading access)</p>
-                                    <div className="flex gap-2">
-                                        <input
-                                            value={inviteLink}
-                                            readOnly
-                                            className="flex-1 text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
-                                        />
+                            {isCreator ? (
+                                <>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="text-lg font-bold">Creator Tools</h3>
                                         <button
-                                            onClick={handleCopyInvite}
-                                            className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                                            onClick={loadAttempts}
+                                            className="text-sm px-3 py-1 rounded-md border border-slate-200 dark:border-slate-700"
                                         >
-                                            {copyState === 'copied' ? 'Copied!' : copyState === 'error' ? 'Failed' : 'Copy Link'}
+                                            Refresh
                                         </button>
                                     </div>
-                                </div>
-                            )}
-                            {isCreator && (
-                                <div className="mb-4">
-                                    <p className="text-xs text-slate-500 mb-1">Result visibility policy</p>
-                                    <select
-                                        value={liveExam.results_visibility || 'opt_in_public'}
-                                        onChange={(e) => handlePolicyChange(e.target.value as 'private' | 'opt_in_public' | 'public')}
-                                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
-                                    >
-                                        <option value="private">Instructor only</option>
-                                        <option value="opt_in_public">Students choose public/private</option>
-                                        <option value="public">Always public to participants</option>
-                                    </select>
-                                </div>
-                            )}
-                            {!isCreator && (liveExam.results_visibility || 'opt_in_public') === 'opt_in_public' && (
-                                <div className="mb-4">
-                                    <p className="text-xs text-slate-500 mb-1">My result visibility</p>
-                                    <div className="flex gap-2">
-                                        <select
-                                            value={myResultPublic ? 'public' : 'private'}
-                                            onChange={(e) => setMyResultPublic(e.target.value === 'public')}
-                                            className="flex-1 px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
-                                        >
-                                            <option value="private">Private</option>
-                                            <option value="public">Public</option>
-                                        </select>
-                                        <button
-                                            onClick={handleResultVisibilitySave}
-                                            disabled={isSavingVisibility}
-                                            className="px-3 py-2 text-xs rounded-lg bg-indigo-600 text-white"
-                                        >
-                                            {isSavingVisibility ? 'Saving...' : 'Save'}
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                            <button
-                                onClick={handleExport}
-                                className="w-full mb-2 px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold"
-                            >
-                                Export Attempts (CSV)
-                            </button>
-                            <button
-                                onClick={handleExportPDF}
-                                className="w-full mb-4 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold"
-                            >
-                                Export Attempts (PDF)
-                            </button>
-                            <button
-                                onClick={loadPublicAttempts}
-                                className="w-full mb-4 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-semibold"
-                            >
-                                Load Public Results
-                            </button>
-                            {isLoadingAttempts ? (
-                                <p className="text-sm text-slate-500">Loading attempts...</p>
-                            ) : attempts.length === 0 ? (
-                                <p className="text-sm text-slate-500">No attempts yet.</p>
-                            ) : (
-                                <div className="space-y-4">
-                                    {attempts.map((attempt) => (
-                                        <div key={attempt.id} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
-                                            <div className="flex items-center justify-between">
-                                                <div>
-                                                    <p className="font-semibold text-sm">{attempt.user?.username || attempt.user_username || 'Student'}</p>
-                                                    <p className="text-xs text-slate-500">Score: {attempt.score || '-'}</p>
-                                                </div>
-                                                <span className="text-xs text-slate-500">{attempt.status}</span>
-                                            </div>
-                                            <div className="mt-3 grid grid-cols-2 gap-2">
+                                    {inviteLink && (
+                                        <div className="mb-4">
+                                            <p className="text-xs text-slate-500 mb-1">Invite link (read-only grading access)</p>
+                                            <div className="flex gap-2">
                                                 <input
-                                                    placeholder="Score (e.g. 8/10)"
-                                                    value={gradingMap[attempt.id]?.score || ''}
-                                                    onChange={(e) => setGradingMap(prev => ({
-                                                        ...prev,
-                                                        [attempt.id]: {
-                                                            score: e.target.value,
-                                                            percentage: prev[attempt.id]?.percentage || ''
-                                                        }
-                                                    }))}
-                                                    className="px-2 py-1 text-xs rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                                                    value={inviteLink}
+                                                    readOnly
+                                                    className="flex-1 text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
                                                 />
-                                                <input
-                                                    placeholder="%"
-                                                    value={gradingMap[attempt.id]?.percentage || ''}
-                                                    onChange={(e) => setGradingMap(prev => ({
-                                                        ...prev,
-                                                        [attempt.id]: {
-                                                            score: prev[attempt.id]?.score || '',
-                                                            percentage: e.target.value
-                                                        }
-                                                    }))}
-                                                    className="px-2 py-1 text-xs rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
-                                                />
+                                                <button
+                                                    onClick={handleCopyInvite}
+                                                    className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                                                >
+                                                    {copyState === 'copied' ? 'Copied!' : copyState === 'error' ? 'Failed' : 'Copy Link'}
+                                                </button>
                                             </div>
-                                            {Array.isArray(attempt.answer_images) && attempt.answer_images.length > 0 && (
-                                                <div className="mt-3 space-y-2">
-                                                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Submitted image solutions</p>
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        {attempt.answer_images.map((img) => (
-                                                            <a
-                                                                key={img.id}
-                                                                href={img.image}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                className="block rounded border border-slate-200 dark:border-slate-700 overflow-hidden"
-                                                            >
-                                                                <img src={img.image} alt={`Answer ${img.question_id}`} className="w-full h-24 object-cover" />
-                                                            </a>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                            <button
-                                                onClick={() => handleManualGrade(attempt.id)}
-                                                className="mt-2 w-full px-2 py-1 text-xs rounded bg-indigo-600 text-white"
-                                            >
-                                                Save Grade
-                                            </button>
                                         </div>
-                                    ))}
-                                </div>
+                                    )}
+                                    <div className="mb-4">
+                                        <p className="text-xs text-slate-500 mb-1">Result visibility policy</p>
+                                        <select
+                                            value={liveExam.results_visibility || 'opt_in_public'}
+                                            onChange={(e) => handlePolicyChange(e.target.value as 'private' | 'opt_in_public' | 'public')}
+                                            className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                                        >
+                                            <option value="private">Instructor only</option>
+                                            <option value="opt_in_public">Students choose public/private</option>
+                                            <option value="public">Always public to participants</option>
+                                        </select>
+                                    </div>
+                                    <button
+                                        onClick={handleExport}
+                                        className="w-full mb-2 px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold"
+                                    >
+                                        Export Attempts (CSV)
+                                    </button>
+                                    <button
+                                        onClick={handleExportPDF}
+                                        className="w-full mb-4 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold"
+                                    >
+                                        Export Attempts (PDF)
+                                    </button>
+                                    {isLoadingAttempts ? (
+                                        <p className="text-sm text-slate-500">Loading attempts...</p>
+                                    ) : attempts.length === 0 ? (
+                                        <p className="text-sm text-slate-500">No attempts yet. Click Refresh to load.</p>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            {attempts.map((attempt) => (
+                                                <div key={attempt.id} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <div>
+                                                            <p className="font-semibold text-sm">{attempt.user?.username || attempt.user_username || 'Student'}</p>
+                                                            <p className="text-xs text-slate-500">Score: {attempt.score || '-'}</p>
+                                                        </div>
+                                                        <span className="text-xs text-slate-500">{attempt.status}</span>
+                                                    </div>
+                                                    <div className="mt-3 grid grid-cols-2 gap-2">
+                                                        <input
+                                                            placeholder="Score (e.g. 8/10)"
+                                                            value={gradingMap[attempt.id]?.score || ''}
+                                                            onChange={(e) => setGradingMap(prev => ({
+                                                                ...prev,
+                                                                [attempt.id]: {
+                                                                    score: e.target.value,
+                                                                    percentage: prev[attempt.id]?.percentage || ''
+                                                                }
+                                                            }))}
+                                                            className="px-2 py-1 text-xs rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                                                        />
+                                                        <input
+                                                            placeholder="%"
+                                                            value={gradingMap[attempt.id]?.percentage || ''}
+                                                            onChange={(e) => setGradingMap(prev => ({
+                                                                ...prev,
+                                                                [attempt.id]: {
+                                                                    score: prev[attempt.id]?.score || '',
+                                                                    percentage: e.target.value
+                                                                }
+                                                            }))}
+                                                            className="px-2 py-1 text-xs rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                                                        />
+                                                    </div>
+                                                    {Array.isArray(attempt.answer_images) && attempt.answer_images.length > 0 && (
+                                                        <div className="mt-3 space-y-2">
+                                                            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Submitted image solutions</p>
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                                {attempt.answer_images.map((img) => (
+                                                                    <a
+                                                                        key={img.id}
+                                                                        href={img.image}
+                                                                        target="_blank"
+                                                                        rel="noreferrer"
+                                                                        className="block rounded border border-slate-200 dark:border-slate-700 overflow-hidden"
+                                                                    >
+                                                                        <img src={img.image} alt={`Answer ${img.question_id}`} className="w-full h-24 object-cover" />
+                                                                    </a>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    <button
+                                                        onClick={() => handleManualGrade(attempt.id)}
+                                                        className="mt-2 w-full px-2 py-1 text-xs rounded bg-indigo-600 text-white"
+                                                    >
+                                                        Save Grade
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <>
+                                    {/* Participant view: result visibility + leaderboard only */}
+                                    <h3 className="text-lg font-bold mb-4">Assessment Results</h3>
+                                    {(liveExam.results_visibility || 'opt_in_public') === 'opt_in_public' && (
+                                        <div className="mb-4">
+                                            <p className="text-xs text-slate-500 mb-1">My result visibility</p>
+                                            <div className="flex gap-2">
+                                                <select
+                                                    value={myResultPublic ? 'public' : 'private'}
+                                                    onChange={(e) => setMyResultPublic(e.target.value === 'public')}
+                                                    className="flex-1 px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                                                >
+                                                    <option value="private">Private</option>
+                                                    <option value="public">Public</option>
+                                                </select>
+                                                <button
+                                                    onClick={handleResultVisibilitySave}
+                                                    disabled={isSavingVisibility}
+                                                    className="px-3 py-2 text-xs rounded-lg bg-indigo-600 text-white"
+                                                >
+                                                    {isSavingVisibility ? 'Saving...' : 'Save'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
                             )}
+                            {/* Leaderboard — visible to both creator and participants */}
                             {publicAttempts.length > 0 && (
-                                <div className="mt-8">
+                                <div className={isCreator ? "mt-8" : "mt-4"}>
                                     <div className="flex items-center gap-2 mb-4">
                                         <div className="p-1.5 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
                                             <TrophyIcon className="w-4 h-4 text-amber-600" />
@@ -444,7 +456,6 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                                                 const percA = Number(a.percentage || 0);
                                                 const percB = Number(b.percentage || 0);
                                                 if (percB !== percA) return percB - percA;
-                                                // Secondary sort: faster time is better
                                                 return (a.time_taken_seconds || 999999) - (b.time_taken_seconds || 999999);
                                             })
                                             .map((attempt, i) => {
@@ -473,6 +484,12 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                                                 );
                                             })}
                                     </div>
+                                </div>
+                            )}
+                            {publicAttempts.length === 0 && !isCreator && (
+                                <div className="mt-4 text-center py-6">
+                                    <TrophyIcon className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                                    <p className="text-sm text-slate-500">No public results yet. Complete the assessment to see the leaderboard.</p>
                                 </div>
                             )}
                         </div>

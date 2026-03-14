@@ -37,7 +37,8 @@ const BASE = '';
 export const discussionService = {
   async listChannels(): Promise<CourseChannel[]> {
     const { data } = await apiClient.get(`${BASE}/channels/`);
-    return data;
+    // Handle DRF pagination: response may be { results: [...] } or a plain array
+    return Array.isArray(data) ? data : (data?.results ?? []);
   },
 
   async getChannel(id: number): Promise<CourseChannel> {
@@ -47,12 +48,12 @@ export const discussionService = {
 
   async getChannelThreads(channelId: number, params?: { search?: string; sort?: string }): Promise<DiscussionThread[]> {
     const { data } = await apiClient.get(`${BASE}/channels/${channelId}/threads/`, { params });
-    return data;
+    return Array.isArray(data) ? data : (data?.results ?? []);
   },
 
   async listThreads(params?: Record<string, any>): Promise<DiscussionThread[]> {
     const { data } = await apiClient.get(`${BASE}/threads/`, { params });
-    return data;
+    return Array.isArray(data) ? data : (data?.results ?? []);
   },
 
   async getThread(id: number): Promise<DiscussionThread> {
@@ -67,7 +68,7 @@ export const discussionService = {
 
   async listReplies(threadId: number): Promise<ThreadReply[]> {
     const { data } = await apiClient.get(`${BASE}/replies/`, { params: { thread: threadId } });
-    return data;
+    return Array.isArray(data) ? data : (data?.results ?? []);
   },
 
   async createReply(threadId: number, content: string): Promise<ThreadReply> {
@@ -75,8 +76,8 @@ export const discussionService = {
     return data;
   },
 
-  async upvoteReply(replyId: number): Promise<{ upvotes: number; user_upvoted: boolean }> {
-    const { data } = await apiClient.post(`${BASE}/replies/${replyId}/upvote/`);
+  async voteReply(replyId: number, voteType: 'helpful' | 'not_helpful' = 'helpful'): Promise<{ helpful_votes: number; not_helpful_votes: number; user_vote_type: string | null }> {
+    const { data } = await apiClient.post(`${BASE}/replies/${replyId}/vote/`, { vote_type: voteType });
     return data;
   },
 

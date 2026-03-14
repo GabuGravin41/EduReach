@@ -307,7 +307,14 @@ class ThreadReplyViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         from .models import ThreadReply
-        return ThreadReply.objects.all()
+        queryset = ThreadReply.objects.all()
+
+        # Filter by thread if provided
+        thread_id = self.request.query_params.get('thread')
+        if thread_id:
+            queryset = queryset.filter(thread_id=thread_id)
+
+        return queryset
 
     def get_serializer_class(self):
         from .serializers import ThreadReplySerializer

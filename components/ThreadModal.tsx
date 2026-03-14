@@ -42,8 +42,8 @@ export const ThreadModal: React.FC<Props> = ({ threadId, onClose }) => {
 
   const handleUpvote = async (replyId: number) => {
     try {
-      const res = await discussionService.upvoteReply(replyId);
-      setReplies(prev => prev.map(r => r.id === replyId ? { ...r, upvotes: res.upvotes } : r));
+      const res = await discussionService.voteReply(replyId, 'helpful');
+      setReplies(prev => prev.map(r => r.id === replyId ? { ...r, upvotes: res.helpful_votes } : r));
     } catch (err) {
       console.error('Upvote failed', err);
     }

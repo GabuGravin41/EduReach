@@ -12,7 +12,9 @@ import time
 from datetime import datetime
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from youtube_transcript_api import YouTubeTranscriptApi
+# NOTE: youtube_transcript_api is imported inside _extract_with_transcript_api()
+# with a try/except so that the entire service doesn't crash if it's
+# missing or has version issues.  Do NOT add a top-level import here.
 
 class YouTubeTranscriptService:
     """
@@ -233,10 +235,21 @@ class YouTubeTranscriptService:
 
             transcript_list = None
 
+            # Detect library version to pick the right API surface.
+            # v1.x removed get_transcript / list_transcripts and uses instance .fetch().
+            # Some v1.x builds still define get_transcript as a shim, so also check the
+            # package version when available.
+            _is_v1 = False
+            try:
+                import importlib.metadata as _meta
+                _ver = _meta.version('youtube-transcript-api')
+                _is_v1 = int(_ver.split('.')[0]) >= 1
+            except Exception:
+                # Fallback to attribute check
+                _is_v1 = hasattr(YouTubeTranscriptApi, 'fetch') and not hasattr(YouTubeTranscriptApi, 'get_transcript')
+
             # ── v1.x API: instance methods .fetch() and .list() ──
-            # In v1.x, get_transcript / list_transcripts were removed.
-            # The new API: api = YouTubeTranscriptApi(); result = api.fetch(video_id)
-            if hasattr(YouTubeTranscriptApi, 'fetch') and not hasattr(YouTubeTranscriptApi, 'get_transcript'):
+            if _is_v1:
                 try:
                     api = YouTubeTranscriptApi()
                     try:

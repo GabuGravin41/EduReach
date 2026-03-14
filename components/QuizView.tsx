@@ -82,6 +82,22 @@ export const QuizView: React.FC<QuizViewProps> = ({
       }
 
       // Case 3: Multiple Choice (default fallback if options exist)
+      // If AI generated an MCQ without options, fall back to short_answer
+      // so the user can still answer the question.
+      if (options.length === 0) {
+        return {
+          id: baseId,
+          type: 'short_answer',
+          question_text: q.question || q.question_text || 'Untitled Question',
+          correct_answers: correctAnswer ? [correctAnswer] : [],
+          case_sensitive: false,
+          exact_match: false,
+          max_length: 200,
+          points: q.points || 1,
+          explanation: q.explanation,
+        } as ShortAnswerQuestion;
+      }
+
       // Determine correct_answer_index robustly
       let correctIndex = typeof q.correct_answer_index === 'number' ? q.correct_answer_index : -1;
       if (correctIndex < 0 && correctAnswer && options.length > 0) {
@@ -103,7 +119,8 @@ export const QuizView: React.FC<QuizViewProps> = ({
         question_text: q.question || q.question_text || 'Untitled Question',
         options,
         correct_answer_index: correctIndex >= 0 ? correctIndex : 0,
-        points: 1
+        points: q.points || 1,
+        explanation: q.explanation,
       } as MultipleChoiceQuestion;
     });
   }, [quiz]);

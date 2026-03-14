@@ -158,12 +158,14 @@ class DiscussionThreadSerializer(serializers.ModelSerializer):
     reply_count = serializers.IntegerField(read_only=True)
     vote_count = serializers.IntegerField(read_only=True)
     course_id = serializers.IntegerField(write_only=True, required=False)
+    channel_id = serializers.IntegerField(write_only=True, required=False)
 
     class Meta:
         model = DiscussionThread
         fields = [
             'id',
             'channel',
+            'channel_id',
             'course_id',
             'author',
             'author_username',
@@ -180,11 +182,23 @@ class DiscussionThreadSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'channel', 'author', 'views', 'created_at', 'updated_at']
 
     def create(self, validated_data):
+        from .models import CourseChannel
+
         course_id = validated_data.pop('course_id', None)
-        if course_id:
-            from .models import CourseChannel
-            # Get or create channel for the course
-            channel, created = CourseChannel.objects.get_or_create(
+        channel_id = validated_data.pop('channel_id', None)
+
+        # Also accept 'channel' from the raw request data (frontend may send it
+        # even though the field is read-only on the serializer).
+        if not channel_id and not course_id:
+            channel_id = self.initial_data.get('channel')
+
+        if channel_id:
+            try:
+                validated_data['channel'] = CourseChannel.objects.get(id=channel_id)
+            except CourseChannel.DoesNotExist:
+                raise serializers.ValidationError({'channel': 'Channel not found.'})
+        elif course_id:
+            channel, _created = CourseChannel.objects.get_or_create(
                 course_id=course_id,
                 defaults={'created_at': None}  # Will use auto_now_add
             )
@@ -194,6 +208,7 @@ class DiscussionThreadSerializer(serializers.ModelSerializer):
 
 class DiscussionThreadListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for thread lists (no nested replies)."""
+    author = UserBasicSerializer(read_only=True)
     author_username = serializers.CharField(source='author.username', read_only=True)
     reply_count = serializers.IntegerField(read_only=True)
     vote_count = serializers.IntegerField(read_only=True)
@@ -203,6 +218,7 @@ class DiscussionThreadListSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'title',
+            'author',
             'author_username',
             'is_pinned',
             'reply_count',
