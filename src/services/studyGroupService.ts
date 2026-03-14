@@ -62,7 +62,7 @@ export interface CreateStudyGroupPayload {
 export const studyGroupService = {
   async listGroups(params?: { course?: number }): Promise<StudyGroup[]> {
     const { data } = await apiClient.get('/study-groups/groups/', { params });
-    return data;
+    return Array.isArray(data) ? data : (data?.results ?? []);
   },
 
   async createGroup(payload: CreateStudyGroupPayload): Promise<StudyGroup> {
@@ -92,7 +92,7 @@ export const studyGroupService = {
     const { data } = await apiClient.get('/study-groups/group-posts/', {
       params: { group: groupId },
     });
-    return data;
+    return Array.isArray(data) ? data : (data?.results ?? []);
   },
 
   async createGroupPost(groupId: number, content: string): Promise<StudyGroupPost> {
@@ -123,7 +123,7 @@ export const studyGroupService = {
 
   async getChallenges(groupId: number) {
     const { data } = await apiClient.get('/study-groups/challenges/', { params: { group: groupId } });
-    return data;
+    return Array.isArray(data) ? data : (data?.results ?? []);
   },
 
   async createChallenge(payload: {

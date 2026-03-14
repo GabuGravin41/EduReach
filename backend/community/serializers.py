@@ -200,7 +200,6 @@ class DiscussionThreadSerializer(serializers.ModelSerializer):
         elif course_id:
             channel, _created = CourseChannel.objects.get_or_create(
                 course_id=course_id,
-                defaults={'created_at': None}  # Will use auto_now_add
             )
             validated_data['channel'] = channel
         return super().create(validated_data)
