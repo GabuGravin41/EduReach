@@ -52,8 +52,8 @@ class CourseViewSet(viewsets.ModelViewSet):
         if self.request.user.is_authenticated:
             return Course.objects.filter(
                 models.Q(is_public=True) | models.Q(owner=self.request.user)
-            )
-        return Course.objects.filter(is_public=True)
+            ).select_related('owner').prefetch_related('lessons')
+        return Course.objects.filter(is_public=True).select_related('owner').prefetch_related('lessons')
 
     def perform_create(self, serializer):
         """Set the owner to the current user."""

@@ -31,8 +31,8 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         if self.request.user.is_authenticated:
             return Assessment.objects.filter(
                 models.Q(is_public=True) | models.Q(creator=self.request.user)
-            )
-        return Assessment.objects.filter(is_public=True)
+            ).select_related('creator').prefetch_related('questions')
+        return Assessment.objects.filter(is_public=True).select_related('creator').prefetch_related('questions')
 
     def perform_create(self, serializer):
         """Set the creator to the current user."""
@@ -50,6 +50,20 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         except Exception:
             # If usage tracking fails, do not block assessment creation.
             pass
+
+        # Auto-disambiguate duplicate titles for the same creator.
+        # If "Python Quiz" already exists, the new one becomes "Python Quiz (2)", etc.
+        base_title = serializer.validated_data.get('title', '')
+        if base_title:
+            existing_titles = set(
+                Assessment.objects.filter(creator=self.request.user, title__startswith=base_title)
+                .values_list('title', flat=True)
+            )
+            if base_title in existing_titles:
+                n = 2
+                while f'{base_title} ({n})' in existing_titles:
+                    n += 1
+                serializer.validated_data['title'] = f'{base_title} ({n})'
 
         serializer.save(creator=self.request.user)
         try:

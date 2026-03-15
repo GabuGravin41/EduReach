@@ -53,6 +53,9 @@ export interface InitiatePaymentResponse {
   account?: string;
   amount?: string;
   currency?: string;
+  /** Paystack flow: redirect user to this URL to complete payment */
+  paystack_url?: string;
+  reference?: string;
 }
 
 export interface EnterpriseInquiryPayload {
@@ -116,6 +119,11 @@ export const paymentService = {
 
   submitEnterpriseInquiry: async (payload: EnterpriseInquiryPayload): Promise<{ detail: string }> => {
     const { data } = await apiClient.post('/payments/enterprise-inquiry/', payload);
+    return data;
+  },
+
+  paystackVerify: async (payload: { reference: string }): Promise<{ detail: string; payment: Payment }> => {
+    const { data } = await apiClient.post('/payments/paystack/verify/', payload);
     return data;
   },
 };

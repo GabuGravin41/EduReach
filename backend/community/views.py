@@ -12,7 +12,7 @@ from .serializers import (
 
 class PostViewSet(viewsets.ModelViewSet):
     """ViewSet for managing posts."""
-    queryset = Post.objects.all()
+    queryset = Post.objects.all().select_related('author').prefetch_related('comments__author', 'likes')
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get_serializer_class(self):
@@ -136,7 +136,7 @@ class CourseChannelViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         from .models import CourseChannel
-        return CourseChannel.objects.all()
+        return CourseChannel.objects.all().select_related('course').prefetch_related('threads__author')
 
     def get_serializer_class(self):
         from .serializers import CourseChannelSerializer
@@ -232,7 +232,9 @@ class DiscussionThreadViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         from .models import DiscussionThread
-        queryset = DiscussionThread.objects.all()
+        queryset = DiscussionThread.objects.all().select_related(
+            'author', 'channel__course'
+        ).prefetch_related('replies__author', 'replies__votes')
 
         # Filter by course_id if provided
         course_id = self.request.query_params.get('course_id')
@@ -324,7 +326,7 @@ class ThreadReplyViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         from .models import ThreadReply
-        queryset = ThreadReply.objects.all()
+        queryset = ThreadReply.objects.all().select_related('author').prefetch_related('votes')
 
         # Filter by thread if provided
         thread_id = self.request.query_params.get('thread')

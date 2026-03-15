@@ -5,6 +5,7 @@ import { HeartIcon } from './icons/HeartIcon';
 import { MessageSquareIcon } from './icons/MessageSquareIcon';
 import { discussionService, CourseChannel, DiscussionThread } from '../src/services/discussionService';
 import { ThreadModal } from './ThreadModal';
+import { useToast } from '../src/contexts/ToastContext';
 import { TrashIcon } from './icons/TrashIcon';
 import { HashIcon } from './icons/HashIcon';
 import { TrendingIcon } from './icons/TrendingIcon';
@@ -58,6 +59,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
     const [newThreadContent, setNewThreadContent] = useState('');
     const [composerError, setComposerError] = useState('');
     const [composerLoading, setComposerLoading] = useState(false);
+    const toast = useToast();
 
     // Community analytics (leaderboard + trending topics)
     const { data: leaderboardData } = useCommunityLeaderboard();
@@ -141,8 +143,11 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
             setShowComposer(false);
             setNewThreadTitle('');
             setNewThreadContent('');
+            toast.success('Thread posted!');
         } catch (err: any) {
-            setComposerError(err?.response?.data?.detail || 'Failed to create thread');
+            const msg = err?.response?.data?.detail || 'Failed to create thread';
+            setComposerError(msg);
+            toast.error(msg);
         } finally {
             setComposerLoading(false);
         }

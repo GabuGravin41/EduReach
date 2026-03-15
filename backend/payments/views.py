@@ -19,6 +19,7 @@ from .serializers import (
     SubscriptionSerializer,
 )
 from .services import MPesaService, CardPaymentService, BankTransferService
+from .paystack_service import PaystackService
 
 logger = logging.getLogger(__name__)
 
@@ -204,8 +205,38 @@ class PaymentInitiateView(APIView):
             payment.save(update_fields=['metadata', 'updated_at'])
             message = f'Reference: {payment.reference_code}. {instructions}'
 
+        elif method.name == PaymentMethod.Method.PAYSTACK:
+            try:
+                paystack = PaystackService()
+                # Convert amount to smallest unit (multiply by 100)
+                amount_kobo = int(amount_value * 100)
+                # Use a short unique reference
+                ref = f'EDU-{user.id}-{payment.id}'
+                payment.reference_code = ref
+                payment.save(update_fields=['reference_code'])
+
+                # Map currency for Paystack (NGN is default, USD supported)
+                paystack_currency = currency if currency in ('NGN', 'USD', 'GHS', 'ZAR') else 'NGN'
+
+                tx_data = paystack.initialize_transaction(
+                    email=user.email,
+                    amount_kobo=amount_kobo,
+                    reference=ref,
+                    currency=paystack_currency,
+                )
+                payment.metadata.update({'paystack_access_code': tx_data.get('access_code'), 'paystack_authorization_url': tx_data.get('authorization_url')})
+                payment.save(update_fields=['metadata', 'updated_at'])
+                message = f'Complete your payment using Paystack. Reference: {ref}. Use the payment link or enter your reference when asked.'
+            except Exception as exc:
+                payment.mark_failed({'error': str(exc)})
+                return Response({'detail': f'Paystack error: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
+
         serializer = PaymentSerializer(payment)
-        return Response({'payment': serializer.data, 'message': message}, status=status.HTTP_201_CREATED)
+        response_data = {'payment': serializer.data, 'message': message}
+        if method.name == PaymentMethod.Method.PAYSTACK and payment.metadata.get('paystack_authorization_url'):
+            response_data['paystack_url'] = payment.metadata['paystack_authorization_url']
+            response_data['reference'] = payment.reference_code
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
 
 class ConfirmPaybillView(APIView):
@@ -427,5 +458,81 @@ class EnterpriseInquiryView(APIView):
             )
 
         return Response({'detail': 'Inquiry sent successfully.'}, status=status.HTTP_200_OK)
+
+
+class PaystackVerifyView(APIView):
+    """
+    User calls this after completing Paystack payment to verify and mark as complete.
+    POST /api/payments/paystack/verify/
+    Body: {"reference": "EDU-1-42"}
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        reference = (request.data.get('reference') or '').strip()
+        if not reference:
+            return Response({'detail': 'reference is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            payment = Payment.objects.get(reference_code=reference, user=request.user)
+        except Payment.DoesNotExist:
+            return Response({'detail': 'Payment not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if payment.status == Payment.Status.COMPLETED:
+            return Response({'detail': 'Payment already verified', 'payment': PaymentSerializer(payment).data})
+
+        try:
+            paystack = PaystackService()
+            tx = paystack.verify_transaction(reference)
+        except Exception as exc:
+            return Response({'detail': f'Verification failed: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
+
+        if tx.get('status') == 'success':
+            payment.mark_completed({'paystack_verification': tx})
+            return Response({
+                'detail': 'Payment verified successfully! Click "Activate Subscription" to complete.',
+                'payment': PaymentSerializer(payment).data,
+            })
+        else:
+            payment.mark_failed({'paystack_verification': tx})
+            return Response(
+                {'detail': f'Payment was not successful: {tx.get("gateway_response", "Unknown error")}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+
+class PaystackWebhookView(APIView):
+    """
+    Handles Paystack webhook events.
+    POST /api/payments/paystack/webhook/
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        import hmac
+        import hashlib
+        from django.conf import settings as django_settings
+
+        secret = getattr(django_settings, 'PAYSTACK_SECRET_KEY', '')
+        signature = request.headers.get('x-paystack-signature', '')
+        body = request.body
+        expected = hmac.new(secret.encode('utf-8'), body, hashlib.sha512).hexdigest()
+
+        if signature != expected:
+            return Response({'detail': 'Invalid signature'}, status=status.HTTP_400_BAD_REQUEST)
+
+        event = request.data.get('event')
+        data = request.data.get('data', {})
+
+        if event == 'charge.success':
+            reference = data.get('reference', '')
+            try:
+                payment = Payment.objects.get(reference_code=reference)
+                if payment.status != Payment.Status.COMPLETED:
+                    payment.mark_completed({'paystack_webhook': data})
+            except Payment.DoesNotExist:
+                pass
+
+        return Response({'status': 'ok'})
 
 # Create your views here.

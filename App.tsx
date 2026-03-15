@@ -28,6 +28,7 @@ import { MenuIcon } from './components/icons/MenuIcon';
 import { SparklesIcon } from './components/icons/SparklesIcon';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { courseService, Course } from './src/services/courseService';
+import { useToast } from './src/contexts/ToastContext';
 
 // Lazy load heavy components for better performance
 const CreateCoursePage = lazy(() => import('./components/CreateCoursePage').then(module => ({ default: module.CreateCoursePage })));
@@ -123,6 +124,7 @@ const CommunityView: React.FC<CommunityViewProps> = ({ userTier, username }) => 
   const toggleLikeMutation = useToggleLike();
   const addCommentMutation = useAddComment();
   const deletePostMutation = useDeletePost();
+  const toast = useToast();
 
   const mappedPosts = Array.isArray(apiPosts)
     ? apiPosts.map((p: any) => ({
@@ -144,14 +146,23 @@ const CommunityView: React.FC<CommunityViewProps> = ({ userTier, username }) => 
       onPostCreated={async (content) => {
         try {
           await createPostMutation.mutateAsync({ content });
+          toast.success('Post shared with the community!');
         } catch (err) {
-          console.error('Create post failed', err);
+          toast.error('Failed to post. Please try again.');
         }
       }}
-      onToggleLike={(id) => toggleLikeMutation.mutate(id)}
-      onAddComment={async (postId, comment) => addCommentMutation.mutate({ postId, data: { content: comment } })}
+      onToggleLike={(id) => toggleLikeMutation.mutate(id, {
+        onError: () => toast.error('Could not update like. Try again.'),
+      })}
+      onAddComment={async (postId, comment) => addCommentMutation.mutate(
+        { postId, data: { content: comment } },
+        { onError: () => toast.error('Comment failed. Please try again.') },
+      )}
       userTier={userTier}
-      onDeletePost={(id) => deletePostMutation.mutate(id)}
+      onDeletePost={(id) => deletePostMutation.mutate(id, {
+        onSuccess: () => toast.success('Post deleted.'),
+        onError: () => toast.error('Could not delete post.'),
+      })}
       userScore={120}
       username={username}
     />
@@ -608,7 +619,7 @@ const AppContent: React.FC = () => {
     const renderContent = () => {
       switch (currentView) {
         case 'dashboard':
-          return <Dashboard onStartSession={() => setView('setup_session')} onSelectCourse={(id) => setView('course_detail', { courseId: id })} userTier={userTier} />;
+          return <Dashboard onStartSession={() => setView('setup_session')} onSelectCourse={(id) => setView('course_detail', { courseId: id })} userTier={userTier} username={user?.username ?? (user as any)?.email ?? undefined} />;
         case 'courses':
           return <MyCoursesPage courses={courses} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onNewCourse={() => setView('create_course')} userTier={userTier} currentUserId={user?.id} highlightedCourseId={recentlyCreatedCourseId ?? undefined} />;
         case 'create_course':

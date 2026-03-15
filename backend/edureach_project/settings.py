@@ -420,6 +420,12 @@ AI_REQUEST_DEADLINE_SECONDS = int(os.environ.get('AI_REQUEST_DEADLINE_SECONDS', 
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@edureach.app')
 ENTERPRISE_INQUIRY_EMAIL = os.environ.get('ENTERPRISE_INQUIRY_EMAIL', 'hello@edureach.app')
 
+# Paystack payment integration
+PAYSTACK_SECRET_KEY = os.environ.get('PAYSTACK_SECRET_KEY', '')
+
+# Frontend URL for email links (study reminders, etc.)
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://edureach.app')
+
 # Security settings for production
 if not DEBUG:
     # Railway handles SSL, don't redirect

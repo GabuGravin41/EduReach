@@ -37,6 +37,7 @@ class PaymentMethod(TimeStampedModel):
         BANK_TRANSFER = 'bank_transfer', 'Bank Transfer'
         CARD = 'card', 'Card Payment'
         PAYPAL = 'paypal', 'PayPal / International'
+        PAYSTACK = 'paystack', 'Paystack (Card / Bank)'
 
     name = models.CharField(max_length=50, choices=Method.choices, unique=True)
     display_name = models.CharField(max_length=100)

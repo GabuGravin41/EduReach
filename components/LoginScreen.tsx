@@ -121,11 +121,7 @@ export const LoginScreen: React.FC = () => {
     }
   };
   const handleSocialLogin = (provider: 'google' | 'github') => {
-    console.log(`Attempting social login with ${provider}`);
-    setError(`Social login via ${provider} is not implemented in this demo.`);
-    // For a demo, you could also just log the user in:
-    // setIsLoading(true);
-    // setTimeout(() => onLogin(), 1000);
+    setError(`${provider === 'google' ? 'Google' : 'GitHub'} sign-in is coming soon! Please use username and password for now.`);
   };
 
   return (
@@ -148,14 +144,37 @@ export const LoginScreen: React.FC = () => {
         <h1 className="text-5xl font-bold bg-gradient-to-r from-orange-600 via-blue-600 to-emerald-600 bg-clip-text text-transparent mb-3">
           EduReach
         </h1>
-        <p className="text-slate-600 dark:text-slate-300 mb-8 text-lg">
-          Your AI-powered study partner for YouTube videos
+        <p className="text-slate-600 dark:text-slate-300 mb-2 text-lg font-medium">
+          Learn smarter. Study together. Excel further.
         </p>
+        <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm">
+          AI-powered courses · Assessments · Study Groups · Community
+        </p>
+        <div className="grid grid-cols-3 gap-3 mb-6 text-xs text-slate-600 dark:text-slate-400">
+          <div className="bg-white/60 dark:bg-slate-800/60 rounded-lg p-2.5 text-center backdrop-blur-sm">
+            <div className="text-lg mb-1">🎓</div>
+            <span className="font-medium">Smart Courses</span>
+          </div>
+          <div className="bg-white/60 dark:bg-slate-800/60 rounded-lg p-2.5 text-center backdrop-blur-sm">
+            <div className="text-lg mb-1">✍️</div>
+            <span className="font-medium">AI Assessments</span>
+          </div>
+          <div className="bg-white/60 dark:bg-slate-800/60 rounded-lg p-2.5 text-center backdrop-blur-sm">
+            <div className="text-lg mb-1">👥</div>
+            <span className="font-medium">Study Groups</span>
+          </div>
+        </div>
         <button
-          onClick={() => setShowModal(true)}
-          className="w-full bg-gradient-to-r from-blue-600 to-emerald-600 text-white font-bold py-4 px-6 rounded-md hover:from-blue-700 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+          onClick={() => { setShowModal(true); setIsLogin(false); }}
+          className="w-full bg-gradient-to-r from-blue-600 to-emerald-600 text-white font-bold py-4 px-6 rounded-md hover:from-blue-700 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-[1.02] mb-3"
         >
-          Get Started
+          Get Started Free
+        </button>
+        <button
+          onClick={() => { setShowModal(true); setIsLogin(true); }}
+          className="w-full border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-semibold py-3 px-6 rounded-md hover:bg-white/50 dark:hover:bg-slate-800/50 transition-all"
+        >
+          Sign In
         </button>
       </div>
       {/* Beautiful Modal */}

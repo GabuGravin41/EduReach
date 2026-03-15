@@ -121,6 +121,12 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     currency: string;
   } | null>(null);
   const [paybillTransactionCode, setPaybillTransactionCode] = useState('');
+  const [paystackPending, setPaystackPending] = useState<{
+    url: string;
+    reference: string;
+    paymentId: number;
+  } | null>(null);
+  const [paystackReference, setPaystackReference] = useState('');
   const [isEnterpriseModalOpen, setIsEnterpriseModalOpen] = useState(false);
   const [enterpriseName, setEnterpriseName] = useState('');
   const [enterpriseEmail, setEnterpriseEmail] = useState('');
@@ -156,9 +162,15 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
           amount: response.amount ?? String(response.payment.amount),
           currency: response.currency ?? response.payment.currency,
         });
+        setPaystackPending(null);
         setPaymentMessage('Pay using the details below, then enter your M-Pesa transaction code.');
+      } else if (response.paystack_url) {
+        setPaystackPending({ url: response.paystack_url, reference: response.reference ?? '', paymentId: response.payment.id });
+        setPaybillPending(null);
+        setPaymentMessage('Your Paystack payment link is ready. Click the button to pay, then return and verify your payment.');
       } else {
         setPaybillPending(null);
+        setPaystackPending(null);
         setPaymentMessage(
           response.message ||
             (response.payment.status === 'pending'
@@ -182,6 +194,20 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     },
     onError: (error: any) => {
       setPaymentMessage(error?.response?.data?.detail || 'Could not submit code. Please try again.');
+    },
+  });
+
+  const verifyPaystackMutation = useMutation({
+    mutationFn: paymentService.paystackVerify,
+    onSuccess: (data) => {
+      setLatestPayment(data.payment);
+      setPaystackPending(null);
+      setPaystackReference('');
+      setPaymentMessage(data.detail || 'Payment verified successfully! Click "Activate Subscription" to complete.');
+      historyQuery.refetch();
+    },
+    onError: (error: any) => {
+      setPaymentMessage(error?.response?.data?.detail || 'Verification failed. Please try again.');
     },
   });
 
@@ -560,6 +586,14 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                     </div>
                 )}
 
+                {selectedMethod?.name === 'paystack' && (
+                    <div className="animate-in fade-in slide-in-from-top-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
+                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                            Pay securely with Paystack using your card, bank transfer, or USSD. Supports NGN, USD, GHS, ZAR. After payment, click Verify to activate your subscription.
+                        </p>
+                    </div>
+                )}
+
                 {paybillPending && (
                     <div className="animate-in fade-in slide-in-from-top-2 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 space-y-3">
                         <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Pay with M-Pesa</p>
@@ -590,6 +624,29 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                             className="w-full justify-center"
                         >
                             I've paid, submit code
+                        </Button>
+                    </div>
+                )}
+
+                {paystackPending && (
+                    <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 space-y-3">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Complete Paystack Payment</p>
+                        <a
+                            href={paystackPending.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block w-full text-center py-2.5 px-4 bg-[#0ba4db] hover:bg-[#0993c4] text-white rounded-lg font-semibold text-sm transition-colors"
+                        >
+                            Pay with Paystack →
+                        </a>
+                        <p className="text-xs text-slate-500">Reference: <span className="font-mono font-bold">{paystackPending.reference}</span></p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">After paying, click "Verify Payment" below to confirm.</p>
+                        <Button
+                            onClick={() => verifyPaystackMutation.mutate({ reference: paystackPending.reference })}
+                            isLoading={verifyPaystackMutation.isPending}
+                            className="w-full justify-center"
+                        >
+                            Verify Payment
                         </Button>
                     </div>
                 )}

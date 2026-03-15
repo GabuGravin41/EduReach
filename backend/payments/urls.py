@@ -9,6 +9,8 @@ from .views import (
     SubscriptionUpgradeView,
     SubscriptionCancelView,
     EnterpriseInquiryView,
+    PaystackVerifyView,
+    PaystackWebhookView,
 )
 
 
@@ -24,5 +26,7 @@ urlpatterns = [
     path('subscription/upgrade/', SubscriptionUpgradeView.as_view(), name='subscription-upgrade'),
     path('subscription/cancel/', SubscriptionCancelView.as_view(), name='subscription-cancel'),
     path('enterprise-inquiry/', EnterpriseInquiryView.as_view(), name='enterprise-inquiry'),
+    path('paystack/verify/', PaystackVerifyView.as_view(), name='paystack-verify'),
+    path('paystack/webhook/', PaystackWebhookView.as_view(), name='paystack-webhook'),
 ]
 
