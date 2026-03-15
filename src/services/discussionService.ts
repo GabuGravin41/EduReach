@@ -2,8 +2,10 @@ import apiClient from './api';
 
 export interface CourseChannel {
   id: number;
-  course: number;
-  course_title?: string;
+  course: number | null;
+  name?: string;
+  display_name?: string;
+  course_title?: string | null;
   created_at: string;
 }
 
@@ -25,7 +27,9 @@ export interface ThreadReply {
   thread: number;
   author: { id: number; username: string };
   content: string;
-  upvotes: number;
+  helpful_votes: number;
+  not_helpful_votes: number;
+  user_vote_type: string | null;
   is_verified: boolean;
   is_accepted: boolean;
   created_at: string;
@@ -37,8 +41,12 @@ const BASE = '';
 export const discussionService = {
   async listChannels(): Promise<CourseChannel[]> {
     const { data } = await apiClient.get(`${BASE}/channels/`);
-    // Handle DRF pagination: response may be { results: [...] } or a plain array
     return Array.isArray(data) ? data : (data?.results ?? []);
+  },
+
+  async getCommunityChannel(): Promise<CourseChannel> {
+    const { data } = await apiClient.get(`${BASE}/channels/community/`);
+    return data;
   },
 
   async getChannel(id: number): Promise<CourseChannel> {

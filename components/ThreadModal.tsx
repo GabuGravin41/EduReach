@@ -43,7 +43,7 @@ export const ThreadModal: React.FC<Props> = ({ threadId, onClose }) => {
   const handleUpvote = async (replyId: number) => {
     try {
       const res = await discussionService.voteReply(replyId, 'helpful');
-      setReplies(prev => prev.map(r => r.id === replyId ? { ...r, upvotes: res.helpful_votes } : r));
+      setReplies(prev => prev.map(r => r.id === replyId ? { ...r, helpful_votes: res.helpful_votes } : r));
     } catch (err) {
       console.error('Upvote failed', err);
     }
@@ -78,7 +78,7 @@ export const ThreadModal: React.FC<Props> = ({ threadId, onClose }) => {
                       <p className="text-sm text-slate-500">{r.content}</p>
                     </div>
                     <div className="text-sm text-slate-500">
-                      <button onClick={() => handleUpvote(r.id)} className="px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-600">▲ {r.upvotes}</button>
+                      <button onClick={() => handleUpvote(r.id)} className="px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-600">▲ {r.helpful_votes}</button>
                     </div>
                   </div>
                 </div>

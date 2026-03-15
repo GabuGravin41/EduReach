@@ -73,12 +73,12 @@ class PostViewSet(viewsets.ModelViewSet):
             # Unlike if already liked
             like.delete()
             return Response(
-                {'message': 'Post unliked', 'liked': False},
+                {'message': 'Post unliked', 'liked': False, 'likes': post.like_count},
                 status=status.HTTP_200_OK
             )
-        
+
         return Response(
-            {'message': 'Post liked', 'liked': True},
+            {'message': 'Post liked', 'liked': True, 'likes': post.like_count},
             status=status.HTTP_201_CREATED
         )
 
@@ -171,6 +171,23 @@ class CourseChannelViewSet(viewsets.ReadOnlyModelViewSet):
                     raise permissions.PermissionDenied('You must be enrolled in the course to post in this channel.')
 
         serializer.save(author=self.request.user)
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='community',
+        url_name='community-channel',
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def get_community_channel(self, request):
+        """Get (or lazily create) the single global community channel."""
+        from .models import CourseChannel
+        channel, _ = CourseChannel.objects.get_or_create(
+            course=None,
+            name='Community',
+        )
+        serializer = self.get_serializer(channel)
+        return Response(serializer.data)
 
     @action(
         detail=True,

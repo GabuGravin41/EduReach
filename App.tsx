@@ -125,15 +125,16 @@ const CommunityView: React.FC<CommunityViewProps> = ({ userTier, username }) => 
   const deletePostMutation = useDeletePost();
 
   const mappedPosts = Array.isArray(apiPosts)
-    ? apiPosts.map(p => ({
+    ? apiPosts.map((p: any) => ({
         id: p.id,
-        author: p.author,
+        // list serializer returns author_username; full serializer returns author (object or string)
+        author: p.author_username ?? (typeof p.author === 'string' ? p.author : p.author?.username) ?? 'User',
         avatar: UserCircleIcon,
         time: p.created_at ? new Date(p.created_at).toLocaleString() : 'Just now',
         content: p.content,
-        likes: p.likes ?? 0,
-        comments: p.comments ?? [],
-        liked: p.liked ?? false,
+        likes: p.like_count ?? p.likes ?? 0,
+        comments: Array.isArray(p.comments) ? p.comments : [],
+        liked: p.is_liked ?? p.liked ?? false,
       }))
     : [];
 

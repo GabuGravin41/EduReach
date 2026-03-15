@@ -4,11 +4,15 @@ import { API_ENDPOINTS } from '../config/api';
 export interface Post {
   id: number;
   author: string;
+  author_username?: string;
   avatar?: string;
   content: string;
   likes: number;
+  like_count?: number;
+  comment_count?: number;
   comments: Comment[];
   liked: boolean;
+  is_liked?: boolean;
   created_at: string;
   updated_at?: string;
 }
@@ -32,13 +36,13 @@ export const communityService = {
   // Get all posts
   async getPosts(): Promise<Post[]> {
     const response = await apiClient.get(API_ENDPOINTS.POSTS);
-    return response.data;
+    return Array.isArray(response.data) ? response.data : (response.data?.results ?? []);
   },
 
   // Get user's posts
   async getMyPosts(): Promise<Post[]> {
     const response = await apiClient.get(API_ENDPOINTS.MY_POSTS);
-    return response.data;
+    return Array.isArray(response.data) ? response.data : (response.data?.results ?? []);
   },
 
   // Get single post

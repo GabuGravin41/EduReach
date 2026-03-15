@@ -6,6 +6,7 @@ import type { Assessment, Question } from '../types';
 import { TrophyIcon } from './icons/TrophyIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { QuizView } from './QuizView';
+import { AssessmentAnalytics } from './AssessmentAnalytics';
 import { assessmentService, AssessmentAttempt } from '../src/services/assessmentService';
 import { useAuth } from '../src/contexts/useAuth';
 
@@ -34,6 +35,7 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
     const [isSavingVisibility, setIsSavingVisibility] = React.useState(false);
     const [gradingMap, setGradingMap] = React.useState<Record<number, { score: string; percentage: string }>>({});
     const [copyState, setCopyState] = React.useState<'idle' | 'copied' | 'error'>('idle');
+    const [sidebarTab, setSidebarTab] = React.useState<'grading' | 'analytics'>('grading');
 
     React.useEffect(() => {
         setLiveExam(exam);
@@ -291,8 +293,40 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                         <div className="border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 overflow-y-auto">
                             {isCreator ? (
                                 <>
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h3 className="text-lg font-bold">Creator Tools</h3>
+                                    {/* Tab toggle */}
+                                    <div className="flex gap-1 mb-4 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                                        {(['grading', 'analytics'] as const).map(tab => (
+                                            <button
+                                                key={tab}
+                                                onClick={() => {
+                                                    setSidebarTab(tab);
+                                                    if (tab === 'analytics' && attempts.length === 0 && !isLoadingAttempts) {
+                                                        loadAttempts();
+                                                    }
+                                                }}
+                                                className={`flex-1 py-1.5 text-xs font-bold rounded-lg capitalize transition-colors ${sidebarTab === tab
+                                                    ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
+                                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                                    }`}
+                                            >
+                                                {tab === 'grading' ? 'Grading' : '📊 Analytics'}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* Analytics tab */}
+                                    {sidebarTab === 'analytics' && (
+                                        <AssessmentAnalytics
+                                            attempts={attempts}
+                                            questions={questionsArray}
+                                            isLoading={isLoadingAttempts}
+                                        />
+                                    )}
+
+                                    {/* Grading tab */}
+                                    {sidebarTab === 'grading' && (
+                                    <><div className="flex items-center justify-between mb-4">
+                                        <h3 className="text-base font-bold text-slate-700 dark:text-slate-200">Creator Tools</h3>
                                         <button
                                             onClick={loadAttempts}
                                             className="text-sm px-3 py-1 rounded-md border border-slate-200 dark:border-slate-700"
@@ -411,6 +445,8 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                                             ))}
                                         </div>
                                     )}
+                                    </> )}
+                                    {/* end grading tab */}
                                 </>
                             ) : (
                                 <>

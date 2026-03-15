@@ -229,22 +229,31 @@ class DiscussionThreadListSerializer(serializers.ModelSerializer):
 
 
 class CourseChannelSerializer(serializers.ModelSerializer):
-    """Serializer for course discussion channels."""
+    """Serializer for discussion channels (course-linked or standalone community)."""
     threads = DiscussionThreadListSerializer(many=True, read_only=True)
-    course_title = serializers.CharField(
-        source='course.title',
-        read_only=True
-    )
-    course_id = serializers.IntegerField(source='course.id', read_only=True)
+    course_title = serializers.SerializerMethodField()
+    course_id = serializers.SerializerMethodField()
+    display_name = serializers.SerializerMethodField()
 
     class Meta:
         model = CourseChannel
         fields = [
             'id',
+            'name',
+            'display_name',
             'course',
             'course_id',
             'course_title',
             'threads',
-            'created_at'
+            'created_at',
         ]
         read_only_fields = fields
+
+    def get_course_title(self, obj):
+        return obj.course.title if obj.course else None
+
+    def get_course_id(self, obj):
+        return obj.course.id if obj.course else None
+
+    def get_display_name(self, obj):
+        return obj.display_name

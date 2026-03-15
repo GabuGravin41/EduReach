@@ -55,6 +55,7 @@ export const StudyGroupsPage: React.FC = () => {
   const [activeGroup, setActiveGroup] = useState<StudyGroup | null>(null);
   const [groupTab, setGroupTab] = useState<'overview' | 'discussions' | 'members' | 'leaderboard' | 'events' | 'invites'>('overview');
   const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteStatus, setInviteStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [challengeTitle, setChallengeTitle] = useState('');
   const [challengeDescription, setChallengeDescription] = useState('');
   const [selectedAssessmentId, setSelectedAssessmentId] = useState<string>('');
@@ -425,7 +426,7 @@ export const StudyGroupsPage: React.FC = () => {
               {['overview', 'discussions', 'members', 'leaderboard', 'events', 'invites'].map((tab) => (
                 <button
                   key={tab}
-                  onClick={() => setGroupTab(tab as any)}
+                  onClick={() => { setGroupTab(tab as any); setInviteStatus(null); }}
                   className={`py-4 px-1 text-sm font-semibold border-b-2 transition-colors ${groupTab === tab
                     ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
                     : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -995,32 +996,33 @@ export const StudyGroupsPage: React.FC = () => {
                       type="email"
                       placeholder="friend@university.edu"
                       value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
+                      onChange={(e) => { setInviteEmail(e.target.value); setInviteStatus(null); }}
+                      onKeyDown={(e) => e.key === 'Enter' && inviteEmail && !inviteMemberMutation.isPending && (e.currentTarget.form as any)?.requestSubmit?.()}
                       className="flex-1 p-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500"
                     />
                     <Button
                       disabled={!inviteEmail || inviteMemberMutation.isPending}
                       onClick={async () => {
                         if (!inviteEmail) return;
+                        setInviteStatus(null);
                         try {
                           await inviteMemberMutation.mutateAsync({ groupId: activeGroup.id, email: inviteEmail });
-                          alert(
-                            'If this email belongs to an existing EduReach account, they have been added to the group and will see it in their Study Groups list.'
-                          );
+                          setInviteStatus({ type: 'success', message: 'Added! They will see this group in their Study Groups list.' });
                           setInviteEmail('');
                         } catch (err: any) {
                           const detail = err?.response?.data?.detail;
-                          if (detail) {
-                            alert(detail);
-                          } else {
-                            alert('Could not add this email to the group. They may not have an EduReach account yet.');
-                          }
+                          setInviteStatus({ type: 'error', message: detail || 'No EduReach account found with that email.' });
                         }
                       }}
                     >
                       {inviteMemberMutation.isPending ? 'Adding…' : 'Add to group'}
                     </Button>
                   </div>
+                  {inviteStatus && (
+                    <p className={`mt-2 text-sm font-medium ${inviteStatus.type === 'success' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {inviteStatus.message}
+                    </p>
+                  )}
                   <p className="mt-1 text-xs text-slate-500">
                     This does not send an external email yet. It simply adds an existing EduReach user (matched by email) into this group.
                   </p>

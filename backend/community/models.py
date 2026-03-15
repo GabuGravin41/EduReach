@@ -79,16 +79,36 @@ class Like(models.Model):
 # ============================================================================
 
 class CourseChannel(models.Model):
-    """One discussion channel per course."""
+    """
+    A discussion channel.  Either tied to a specific course (course != null) or
+    a free-standing community channel (course == null, name set to e.g. 'Community').
+    """
+    name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Display name for non-course channels (e.g. 'Community')",
+    )
     course = models.OneToOneField(
         'courses.Course',
         on_delete=models.CASCADE,
-        related_name='discussion_channel'
+        related_name='discussion_channel',
+        null=True,
+        blank=True,
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Discussion for {self.course.title}"
+        if self.course:
+            return f"Discussion for {self.course.title}"
+        return self.name or f"Channel {self.id}"
+
+    @property
+    def display_name(self):
+        if self.name:
+            return self.name
+        if self.course:
+            return self.course.title
+        return f"Channel {self.id}"
 
     class Meta:
         verbose_name = "Course Discussion Channel"
@@ -134,8 +154,8 @@ class DiscussionThread(models.Model):
 
     @property
     def vote_count(self):
-        """Total upvotes on all replies."""
-        return sum(r.upvotes for r in self.replies.all())
+        """Total helpful votes on all replies."""
+        return sum(r.helpful_votes for r in self.replies.all())
 
     def increment_views(self):
         self.views += 1
