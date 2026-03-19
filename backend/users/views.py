@@ -1,7 +1,7 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import User
+from .models import User, Notification
 from .serializers import UserSerializer, UserProfileSerializer, ChallengeableUserSerializer
 from courses.models import Course
 from assessments.models import Assessment
@@ -117,3 +117,44 @@ class UserViewSet(viewsets.ModelViewSet):
             'ai_queries_limit': limits['ai_queries'] if limits['ai_queries'] != float('inf') else None,
             'resets_at': resets_at,
         })
+
+
+class NotificationViewSet(viewsets.ViewSet):
+    """Manage in-app notifications for the current user."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def list(self, request):
+        """Return all unread notifications for the current user, newest first."""
+        notifs = Notification.objects.filter(
+            recipient=request.user, is_read=False
+        ).select_related('sender')[:50]
+        data = [
+            {
+                'id': n.id,
+                'notif_type': n.notif_type,
+                'title': n.title,
+                'message': n.message,
+                'assessment_id': n.assessment_id,
+                'share_token': n.share_token,
+                'sender_username': n.sender.username if n.sender else None,
+                'created_at': n.created_at.isoformat(),
+            }
+            for n in notifs
+        ]
+        return Response(data)
+
+    @action(detail=True, methods=['post'], url_path='mark-read')
+    def mark_read(self, request, pk=None):
+        """Mark a single notification as read."""
+        notif = Notification.objects.filter(pk=pk, recipient=request.user).first()
+        if not notif:
+            return Response({'detail': 'Not found.'}, status=404)
+        notif.is_read = True
+        notif.save(update_fields=['is_read'])
+        return Response({'detail': 'Marked as read.'})
+
+    @action(detail=False, methods=['post'], url_path='mark-all-read')
+    def mark_all_read(self, request):
+        """Mark all notifications as read."""
+        Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True)
+        return Response({'detail': 'All notifications marked as read.'})

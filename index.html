@@ -28,6 +28,16 @@
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
+  <script>
+    (function() {
+      try {
+        var saved = localStorage.getItem('edureach:theme');
+        if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      } catch(e) {}
+    })();
+  </script>
   <body class="bg-slate-100 dark:bg-slate-900">
     <div id="root"></div>
   <script type="module" src="/index.tsx"></script>

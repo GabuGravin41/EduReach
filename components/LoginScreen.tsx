@@ -2,8 +2,27 @@ import React, { useState } from 'react';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { useAuth } from '../src/contexts/useAuth';
 
+const EyeIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+  </svg>
+);
+
+const EyeOffIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+  </svg>
+);
+
+const CheckIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+  </svg>
+);
+
 export const LoginScreen: React.FC = () => {
-  const [showModal, setShowModal] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
   const [signupStep, setSignupStep] = useState<1 | 2>(1);
   const [username, setUsername] = useState('');
@@ -14,9 +33,32 @@ export const LoginScreen: React.FC = () => {
   const [learnerType, setLearnerType] = useState<'high_school' | 'university' | 'teacher' | 'professional' | ''>('');
   const [interests, setInterests] = useState<string[]>([]);
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { login, register } = useAuth();
+
+  const passwordStrength = password.length === 0 ? null : password.length < 8 ? 'weak' : password.length < 12 ? 'good' : 'strong';
+
+  const resetForm = () => {
+    setUsername(''); setEmail(''); setFirstName(''); setLastName('');
+    setLearningGoal(''); setLearnerType(''); setInterests([]);
+    setSignupStep(1); setPassword(''); setShowPassword(false); setError('');
+  };
+
+  const openLogin = () => { resetForm(); setIsLogin(true); setShowAuth(true); };
+  const openSignup = () => { resetForm(); setIsLogin(false); setShowAuth(true); };
+  const closeAuth = () => { if (!isLoading) { setShowAuth(false); resetForm(); } };
+
+  const canGoToStep2 = username.trim() && firstName.trim() && lastName.trim() && email.trim();
+
+  const handleNextStep = () => {
+    if (!username.trim()) { setError('Please enter a username.'); return; }
+    if (!firstName.trim() || !lastName.trim()) { setError('Please enter your first and last name.'); return; }
+    if (!email.trim()) { setError('Please enter your email address.'); return; }
+    setError('');
+    setSignupStep(2);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,16 +74,15 @@ export const LoginScreen: React.FC = () => {
       return;
     }
     if (!isLogin) {
-      if (!trimmedEmail) {
-        setError('Email is required for registration.');
-        return;
-      }
-      if (!trimmedFirstName || !trimmedLastName) {
-        setError('Please provide your first and last name so we can personalise your experience.');
+      if (!trimmedEmail) { setError('Email is required.'); return; }
+      if (!trimmedFirstName || !trimmedLastName) { setError('Please enter your first and last name.'); return; }
+      if (password.length < 8) {
+        setError('Password must be at least 8 characters.');
+        setSignupStep(1);
         return;
       }
       if (!learningGoal) {
-        setError('Tell us what brings you to EduReach so we can tailor your journey.');
+        setError('Please tell us what brings you to EduReach.');
         setSignupStep(2);
         return;
       }
@@ -51,13 +92,12 @@ export const LoginScreen: React.FC = () => {
         return;
       }
     }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters long.');
+    if (isLogin && !password) {
+      setError('Please enter your password.');
       return;
     }
 
     setIsLoading(true);
-
     try {
       if (isLogin) {
         await login(trimmedUsername, password);
@@ -73,45 +113,24 @@ export const LoginScreen: React.FC = () => {
           interests,
         });
       }
-
-      setShowModal(false);
-      setUsername('');
-      setEmail('');
-      setFirstName('');
-      setLastName('');
-      setLearningGoal('');
-      setLearnerType('');
-      setInterests([]);
-      setSignupStep(1);
-      setPassword('');
+      setShowAuth(false);
+      resetForm();
     } catch (err: any) {
-      console.error('Authentication failed:', err);
       const data = err?.response?.data;
       if (!navigator.onLine) {
-        setError('No backend connection. Reconnect to sign in, or continue with your last cached session if available.');
+        setError('No internet connection. Please check your network and try again.');
         return;
       }
-      // Helpful debug logging in dev
-      if (data) console.debug('Auth error response data:', data);
-      let message =
-        err?.response?.data?.detail ||
-        err?.response?.data?.non_field_errors?.[0];
-
+      let message = err?.response?.data?.detail || err?.response?.data?.non_field_errors?.[0];
       if (!message && data && typeof data === 'object') {
         const firstKey = Object.keys(data)[0];
         const value = (data as Record<string, unknown>)[firstKey];
-        if (Array.isArray(value) && value.length > 0) {
-          message = String(value[0]);
-        } else if (typeof value === 'string') {
-          message = value;
-        }
+        if (Array.isArray(value) && value.length > 0) message = String(value[0]);
+        else if (typeof value === 'string') message = value;
       }
-
       if (!message) {
-        // Prefer a server-provided message if present
         message = (data && typeof data === 'string' && data) || err?.message || 'Authentication failed. Please try again.';
       }
-      // In development, append raw server JSON to help debugging (not shown to end users in production)
       if (process.env.NODE_ENV !== 'production' && data && typeof data === 'object') {
         message = `${message} — ${JSON.stringify(data)}`;
       }
@@ -120,242 +139,400 @@ export const LoginScreen: React.FC = () => {
       setIsLoading(false);
     }
   };
-  const handleSocialLogin = (provider: 'google' | 'github') => {
-    setError(`${provider === 'google' ? 'Google' : 'GitHub'} sign-in is coming soon! Please use username and password for now.`);
-  };
+
+  const inputClass = "w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-all text-sm";
+
+  const goalOptions = [
+    { value: 'school', icon: '🎓', label: 'School & university', desc: 'Stay on top of coursework' },
+    { value: 'career', icon: '💼', label: 'Career growth', desc: 'Build professional skills' },
+    { value: 'exams', icon: '📝', label: 'Exam preparation', desc: 'Ace certifications & tests' },
+    { value: 'curious', icon: '🔭', label: 'Personal curiosity', desc: 'Explore topics I love' },
+  ] as const;
+
+  const typeOptions = [
+    { value: 'high_school', icon: '🏫', label: 'High school student' },
+    { value: 'university', icon: '🎓', label: 'University student' },
+    { value: 'teacher', icon: '👨‍🏫', label: 'Teacher or coach' },
+    { value: 'professional', icon: '💼', label: 'Working professional' },
+  ] as const;
 
   return (
-    <div className="relative flex items-center justify-center min-h-screen bg-gradient-to-br from-orange-50 via-blue-50 to-emerald-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 overflow-hidden">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-orange-200/30 dark:bg-orange-900/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-20 right-10 w-96 h-96 bg-blue-200/30 dark:bg-blue-900/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-emerald-200/20 dark:bg-emerald-900/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
+    <div className="relative flex items-center justify-center min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 overflow-hidden">
+      {/* Background blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none select-none" aria-hidden>
+        <div className="absolute -top-40 -right-40 w-[600px] h-[600px] bg-indigo-200/40 dark:bg-indigo-900/20 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-[600px] h-[600px] bg-purple-200/40 dark:bg-purple-900/20 rounded-full blur-3xl" />
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-96 h-96 bg-blue-100/30 dark:bg-blue-900/10 rounded-full blur-3xl" />
       </div>
 
-      {/* Landing Page Content */}
-      <div className="relative text-center p-8 max-w-md w-full z-10">
-        <div className="flex justify-center items-center mb-6">
-          <div className="relative">
-            <SparklesIcon className="w-20 h-20 text-blue-600 dark:text-blue-400 animate-pulse" />
-            <div className="absolute inset-0 bg-blue-400/20 rounded-full blur-xl"></div>
-          </div>
+      {/* Landing */}
+      <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-lg w-full">
+        {/* Logo */}
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-xl shadow-indigo-500/30 flex items-center justify-center mb-6">
+          <SparklesIcon className="w-9 h-9 text-white" />
         </div>
-        <h1 className="text-5xl font-bold bg-gradient-to-r from-orange-600 via-blue-600 to-emerald-600 bg-clip-text text-transparent mb-3">
-          EduReach
+
+        <h1 className="text-5xl sm:text-6xl font-black text-slate-900 dark:text-white tracking-tight mb-3">
+          Edu<span className="bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">Reach</span>
         </h1>
-        <p className="text-slate-600 dark:text-slate-300 mb-2 text-lg font-medium">
+        <p className="text-lg text-slate-600 dark:text-slate-300 mb-2 font-medium">
           Learn smarter. Study together. Excel further.
         </p>
-        <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm">
-          AI-powered courses · Assessments · Study Groups · Community
+        <p className="text-sm text-slate-400 dark:text-slate-500 mb-10">
+          AI-powered courses &middot; Assessments &middot; Study Groups
         </p>
-        <div className="grid grid-cols-3 gap-3 mb-6 text-xs text-slate-600 dark:text-slate-400">
-          <div className="bg-white/60 dark:bg-slate-800/60 rounded-lg p-2.5 text-center backdrop-blur-sm">
-            <div className="text-lg mb-1">🎓</div>
-            <span className="font-medium">Smart Courses</span>
-          </div>
-          <div className="bg-white/60 dark:bg-slate-800/60 rounded-lg p-2.5 text-center backdrop-blur-sm">
-            <div className="text-lg mb-1">✍️</div>
-            <span className="font-medium">AI Assessments</span>
-          </div>
-          <div className="bg-white/60 dark:bg-slate-800/60 rounded-lg p-2.5 text-center backdrop-blur-sm">
-            <div className="text-lg mb-1">👥</div>
-            <span className="font-medium">Study Groups</span>
-          </div>
+
+        {/* Feature pills */}
+        <div className="flex flex-wrap justify-center gap-2 mb-10">
+          {['AI Tutor', 'Video Lessons', 'Live Quizzes', 'Study Groups', 'Leaderboards'].map((f) => (
+            <span key={f} className="px-3 py-1 rounded-full bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-300 shadow-sm backdrop-blur-sm">
+              {f}
+            </span>
+          ))}
         </div>
-        <button
-          onClick={() => { setShowModal(true); setIsLogin(false); }}
-          className="w-full bg-gradient-to-r from-blue-600 to-emerald-600 text-white font-bold py-4 px-6 rounded-md hover:from-blue-700 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-[1.02] mb-3"
-        >
-          Get Started Free
-        </button>
-        <button
-          onClick={() => { setShowModal(true); setIsLogin(true); }}
-          className="w-full border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-semibold py-3 px-6 rounded-md hover:bg-white/50 dark:hover:bg-slate-800/50 transition-all"
-        >
-          Sign In
-        </button>
+
+        {/* CTAs */}
+        <div className="w-full flex flex-col gap-3 max-w-sm">
+          <button
+            onClick={openSignup}
+            className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+          >
+            Get started free
+          </button>
+          <button
+            onClick={openLogin}
+            className="w-full bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold py-3.5 px-6 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
+          >
+            Sign in
+          </button>
+        </div>
       </div>
-      {/* Beautiful Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 overflow-y-auto">
-          {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-black/40 backdrop-blur-md"
-            onClick={() => !isLoading && setShowModal(false)}
+
+      {/* Auth Modal */}
+      {showAuth && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div
+            className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+            onClick={closeAuth}
             aria-hidden
           />
-          
-          {/* Modal */}
-          <div className="relative bg-white dark:bg-slate-800 rounded-md p-6 sm:p-8 w-full max-w-md max-h-[calc(100vh-3rem)] overflow-y-auto border border-slate-200 dark:border-slate-700 shadow-2xl animate-scale-in">
-            {/* Close Button */}
-            <button
-              onClick={() => setShowModal(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 w-8 h-8 flex items-center justify-center rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-              aria-label="Close modal"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+          <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/50 dark:border-slate-700/50 overflow-hidden my-auto animate-auth-in">
+            {/* Top accent bar */}
+            <div className="h-1 w-full bg-gradient-to-r from-indigo-500 to-purple-600" />
 
-            {/* Logo */}
-            <div className="flex justify-center mb-6">
-              <div className="relative">
-                <SparklesIcon className="w-16 h-16 text-blue-600 dark:text-blue-400" />
-                <div className="absolute inset-0 bg-blue-400/20 rounded-full blur-lg"></div>
-              </div>
-            </div>
+            <div className="p-8">
+              {/* Close */}
+              <button
+                onClick={closeAuth}
+                className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                aria-label="Close"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
 
-            {/* Title */}
-            <h2 className="text-3xl font-bold text-center bg-gradient-to-r from-blue-600 to-emerald-600 bg-clip-text text-transparent mb-2">
-              {isLogin ? 'Welcome Back' : 'Join EduReach'}
-            </h2>
-            <p className="text-center text-slate-600 dark:text-slate-400 mb-6">
-              {isLogin ? 'Sign in to continue your learning journey' : 'Start your learning adventure today'}
-            </p>
-
-            {/* Error Message */}
-            {error && (
-              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-md text-sm">
-                {error}
-              </div>
-            )}
-
-            {/* Login / Signup Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-colors"
-                  required
-                  disabled={isLoading}
-                  placeholder="Username"
-                  aria-label="Username"
-                />
-              </div>
-
-              {!isLogin ? (
-                <div className="relative overflow-hidden">
-                  <div className="flex transition-transform duration-300 ease-out" style={{ transform: signupStep === 1 ? 'translateX(0%)' : 'translateX(-100%)' }}>
-                    <div className="w-full flex-shrink-0 space-y-3 pr-2">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-slate-100 placeholder-slate-400" disabled={isLoading} placeholder="First name" aria-label="First name" />
-                        <input type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-slate-100 placeholder-slate-400" disabled={isLoading} placeholder="Last name" aria-label="Last name" />
-                      </div>
-                      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-slate-100 placeholder-slate-400" required disabled={isLoading} placeholder="Email" aria-label="Email" />
-                      <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-slate-100 placeholder-slate-400" required disabled={isLoading} placeholder="Password" minLength={8} aria-label="Password" />
-                    </div>
-                    <div className="w-full flex-shrink-0 space-y-3 pl-2">
-                      <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">What brings you to EduReach?</p>
-                      <div className="grid grid-cols-1 gap-2 text-xs">
-                        {(['school', 'career', 'exams', 'curious'] as const).map((g) => (
-                          <button key={g} type="button" onClick={() => setLearningGoal(g)} disabled={isLoading}
-                            className={`w-full text-left px-3 py-2 rounded-md border ${learningGoal === g ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'}`}>
-                            {g === 'school' && 'Stay on top of school / university courses'}
-                            {g === 'career' && 'Grow my skills for career / projects'}
-                            {g === 'exams' && 'Prepare for important exams or certifications'}
-                            {g === 'curious' && 'Learn new topics and challenge myself for fun'}
-                          </button>
-                        ))}
-                      </div>
-                      <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2 mt-3">Which describes you best?</p>
-                      <div className="grid grid-cols-1 gap-2 text-xs">
-                        {(['high_school', 'university', 'teacher', 'professional'] as const).map((t) => (
-                          <button key={t} type="button" onClick={() => setLearnerType(t)} disabled={isLoading}
-                            className={`w-full text-left px-3 py-2 rounded-md border ${learnerType === t ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-200' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'}`}>
-                            {t === 'high_school' && 'High school student'}
-                            {t === 'university' && 'University student'}
-                            {t === 'teacher' && 'Teacher / coach'}
-                            {t === 'professional' && 'Professional / other'}
-                          </button>
-                        ))}
-                      </div>
-                      <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2 mt-3">What are you interested in? (optional)</p>
-                      <div className="grid grid-cols-1 gap-2 text-xs">
-                        {[
-                          { key: 'math', label: 'Mathematics & problem solving' },
-                          { key: 'programming', label: 'Programming & computer science' },
-                          { key: 'data_ai', label: 'Data, AI & analytics' },
-                          { key: 'science', label: 'Science & engineering' },
-                          { key: 'languages', label: 'Languages & communication' },
-                          { key: 'exams_prep', label: 'Exam preparation' },
-                          { key: 'career_skills', label: 'Career & professional skills' },
-                          { key: 'creative', label: 'Creative skills (writing, art, music)' },
-                        ].map(({ key, label }) => {
-                          const active = interests.includes(key);
-                          return (
-                            <button key={key} type="button" onClick={() => setInterests((prev) => prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key])} disabled={isLoading}
-                              className={`w-full text-left px-3 py-2 rounded-md border ${active ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-200' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/40'}`}>
-                              {label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
+              {/* Header */}
+              <div className="mb-7">
+                <div className="flex items-center gap-3 mb-1">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                    <SparklesIcon className="w-4 h-4 text-white" />
                   </div>
-                  <div className="mt-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                    <button type="button" disabled={signupStep === 1 || isLoading} onClick={() => setSignupStep(1)} className="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-600 disabled:opacity-40">← Back</button>
-                    <span>Step {signupStep} of 2</span>
-                    <button type="button" disabled={signupStep === 2 || isLoading || !firstName.trim() || !lastName.trim() || !email.trim()} onClick={() => setSignupStep(2)} className="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-600 disabled:opacity-40">Next →</button>
-                  </div>
+                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">EduReach</span>
                 </div>
-              ) : (
-                <div>
-                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-slate-100 placeholder-slate-400" required disabled={isLoading} placeholder="Password" minLength={8} aria-label="Password" />
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                  {isLogin ? 'Welcome back' : signupStep === 1 ? 'Create your account' : 'Tell us about yourself'}
+                </h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                  {isLogin
+                    ? 'Sign in to continue your learning journey'
+                    : signupStep === 1
+                    ? 'Step 1 of 2 — Account details'
+                    : 'Step 2 of 2 — Personalise your experience'}
+                </p>
+              </div>
+
+              {/* Step indicator (signup only) */}
+              {!isLogin && (
+                <div className="flex items-center gap-2 mb-6">
+                  <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-all ${signupStep >= 1 ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                    {signupStep > 1 ? <CheckIcon className="w-3.5 h-3.5" /> : '1'}
+                  </div>
+                  <div className={`flex-1 h-0.5 rounded-full transition-all ${signupStep > 1 ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'}`} />
+                  <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-all ${signupStep === 2 ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                    2
+                  </div>
                 </div>
               )}
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-gradient-to-r from-blue-600 to-emerald-600 text-white py-3 rounded-md font-bold hover:from-blue-700 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-[1.01] flex items-center justify-center gap-2"
-              >
-                {isLoading && (
-                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden>
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              {/* Error */}
+              {error && (
+                <div className="mb-5 p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800/60 text-red-700 dark:text-red-400 rounded-xl text-sm flex items-start gap-2">
+                  <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
-                )}
-                {isLoading ? (isLogin ? 'Signing in…' : 'Creating account…') : (isLogin ? 'Sign In' : 'Create Account')}
-              </button>
-            </form>
+                  {error}
+                </div>
+              )}
 
-            {/* Toggle Login/Signup */}
-            <p className="mt-6 text-center text-slate-600 dark:text-slate-400 text-sm">
-              {isLogin ? "Don't have an account? " : "Already have an account? "}
-              <button
-                onClick={() => {
-                  setIsLogin(!isLogin);
-                  setError('');
-                  setSignupStep(1);
-                }}
-                className="text-blue-600 dark:text-blue-400 font-semibold hover:underline"
-                disabled={isLoading}
-              >
-                {isLogin ? 'Sign Up' : 'Sign In'}
-              </button>
-            </p>
+              <form onSubmit={handleSubmit} noValidate>
+                {/* LOGIN FORM */}
+                {isLogin && (
+                  <div className="space-y-4">
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className={inputClass}
+                      disabled={isLoading}
+                      placeholder="Username"
+                      autoComplete="username"
+                      autoFocus
+                    />
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className={`${inputClass} pr-11`}
+                        disabled={isLoading}
+                        placeholder="Password"
+                        autoComplete="current-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(p => !p)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* SIGNUP STEP 1 */}
+                {!isLogin && signupStep === 1 && (
+                  <div className="space-y-4">
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className={inputClass}
+                      disabled={isLoading}
+                      placeholder="Username"
+                      autoComplete="username"
+                      autoFocus
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        className={inputClass}
+                        disabled={isLoading}
+                        placeholder="First name"
+                        autoComplete="given-name"
+                      />
+                      <input
+                        type="text"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        className={inputClass}
+                        disabled={isLoading}
+                        placeholder="Last name"
+                        autoComplete="family-name"
+                      />
+                    </div>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className={inputClass}
+                      disabled={isLoading}
+                      placeholder="Email address"
+                      autoComplete="email"
+                    />
+                    <div className="space-y-1.5">
+                      <div className="relative">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className={`${inputClass} pr-11`}
+                          disabled={isLoading}
+                          placeholder="Password"
+                          autoComplete="new-password"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(p => !p)}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                          tabIndex={-1}
+                        >
+                          {showPassword ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      {/* Password hint */}
+                      <div className="flex items-center gap-2 px-1">
+                        {password.length > 0 && (
+                          <>
+                            <div className="flex gap-1 flex-1">
+                              {[1, 2, 3].map((i) => (
+                                <div
+                                  key={i}
+                                  className={`h-1 flex-1 rounded-full transition-all ${
+                                    passwordStrength === 'weak' && i === 1 ? 'bg-red-400' :
+                                    passwordStrength === 'good' && i <= 2 ? 'bg-amber-400' :
+                                    passwordStrength === 'strong' ? 'bg-emerald-500' :
+                                    'bg-slate-200 dark:bg-slate-700'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                            <span className={`text-xs font-medium ${
+                              passwordStrength === 'weak' ? 'text-red-500' :
+                              passwordStrength === 'good' ? 'text-amber-500' :
+                              'text-emerald-600 dark:text-emerald-400'
+                            }`}>
+                              {passwordStrength === 'weak' ? `${8 - password.length} more needed` :
+                               passwordStrength === 'good' ? 'Good' : 'Strong'}
+                            </span>
+                          </>
+                        )}
+                        {password.length === 0 && (
+                          <span className="text-xs text-slate-400">Minimum 8 characters</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SIGNUP STEP 2 */}
+                {!isLogin && signupStep === 2 && (
+                  <div className="space-y-5">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">What brings you here?</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {goalOptions.map((g) => (
+                          <button
+                            key={g.value}
+                            type="button"
+                            onClick={() => setLearningGoal(g.value)}
+                            disabled={isLoading}
+                            className={`text-left p-3 rounded-xl border-2 transition-all ${
+                              learningGoal === g.value
+                                ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/50'
+                                : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800/50'
+                            }`}
+                          >
+                            <div className="text-xl mb-1">{g.icon}</div>
+                            <div className="text-xs font-semibold text-slate-800 dark:text-slate-100 leading-snug">{g.label}</div>
+                            <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{g.desc}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Which best describes you?</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {typeOptions.map((t) => (
+                          <button
+                            key={t.value}
+                            type="button"
+                            onClick={() => setLearnerType(t.value)}
+                            disabled={isLoading}
+                            className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all ${
+                              learnerType === t.value
+                                ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/50'
+                                : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800/50'
+                            }`}
+                          >
+                            <span className="text-lg">{t.icon}</span>
+                            <span className="text-xs font-medium text-slate-700 dark:text-slate-200">{t.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Footer actions */}
+                <div className="mt-6 space-y-3">
+                  {!isLogin && signupStep === 1 ? (
+                    <button
+                      type="button"
+                      onClick={handleNextStep}
+                      disabled={isLoading || !canGoToStep2}
+                      className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl shadow-md shadow-indigo-500/20 transition-all"
+                    >
+                      Continue
+                    </button>
+                  ) : !isLogin && signupStep === 2 ? (
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setSignupStep(1); setError(''); }}
+                        disabled={isLoading}
+                        className="flex-1 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm"
+                      >
+                        Back
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="flex-[2] bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2"
+                      >
+                        {isLoading && (
+                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                        )}
+                        {isLoading ? 'Creating account...' : 'Create account'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2"
+                    >
+                      {isLoading && (
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                      )}
+                      {isLoading ? 'Signing in...' : 'Sign in'}
+                    </button>
+                  )}
+
+                  <p className="text-center text-slate-500 dark:text-slate-400 text-sm">
+                    {isLogin ? "Don't have an account? " : 'Already have an account? '}
+                    <button
+                      type="button"
+                      onClick={() => { setIsLogin(!isLogin); setError(''); setSignupStep(1); }}
+                      className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
+                      disabled={isLoading}
+                    >
+                      {isLogin ? 'Sign up' : 'Sign in'}
+                    </button>
+                  </p>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
+
       <style>{`
-        @keyframes scale-in {
-          from {
-            opacity: 0;
-            transform: scale(0.9);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
+        @keyframes auth-in {
+          from { opacity: 0; transform: translateY(16px) scale(0.97); }
+          to   { opacity: 1; transform: translateY(0)   scale(1);    }
         }
-        .animate-scale-in {
-          animation: scale-in 0.3s ease-out forwards;
-        }
+        .animate-auth-in { animation: auth-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
       `}</style>
     </div>
   );

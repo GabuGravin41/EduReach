@@ -4,6 +4,7 @@ import { SwordsIcon } from './icons/SwordsIcon';
 import { XIcon } from './icons/XIcon';
 import { assessmentService } from '../src/services/assessmentService';
 import { authService, type ChallengeableUser } from '../src/services/authService';
+import { notificationService } from '../src/services/notificationService';
 
 interface ChallengeModalProps {
   examTitle: string;
@@ -16,6 +17,7 @@ export const ChallengeModal: React.FC<ChallengeModalProps> = ({ examTitle, asses
   const [mode, setMode] = useState<'choose' | 'friend' | 'public'>('choose');
   const [selectedFriend, setSelectedFriend] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
+  const [sendState, setSendState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [publicListed, setPublicListed] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [challengeableUsers, setChallengeableUsers] = useState<ChallengeableUser[]>([]);
   const [friendsLoadState, setFriendsLoadState] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
@@ -116,7 +118,7 @@ export const ChallengeModal: React.FC<ChallengeModalProps> = ({ examTitle, asses
                   <SwordsIcon className="w-10 h-10 text-amber-500 flex-shrink-0" />
                   <div>
                     <span className="font-semibold text-slate-800 dark:text-slate-100 block">Public challenge</span>
-                    <span className="text-xs text-slate-500 dark:text-slate-400">Share a link — anyone can join and compare results</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">Share a link -- anyone can join and compare results</span>
                   </div>
                 </button>
               </div>
@@ -129,23 +131,23 @@ export const ChallengeModal: React.FC<ChallengeModalProps> = ({ examTitle, asses
                 <h3 className="font-semibold mb-2 text-slate-700 dark:text-slate-300">Select a user to challenge</h3>
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
                   {friendsLoadState === 'loading' && (
-                    <p className="text-sm text-slate-500 dark:text-slate-400 py-4 text-center">Loading users…</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 py-4 text-center">Loading users...</p>
                   )}
                   {friendsLoadState === 'error' && (
                     <p className="text-sm text-amber-600 dark:text-amber-400 py-4 text-center">Could not load users. Try again later.</p>
                   )}
                   {friendsLoadState === 'ok' && challengeableUsers.length === 0 && (
-                    <p className="text-sm text-slate-500 dark:text-slate-400 py-4 text-center">No other users on the platform yet. Use “Public challenge” to share a link.</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 py-4 text-center">No other users on the platform yet. Use "Public challenge" to share a link.</p>
                   )}
-                  {friendsLoadState === 'ok' && challengeableUsers.map((user) => {
-                    const avatarUrl = user.avatar ? authService.getMediaUrl(user.avatar) : null;
+                  {friendsLoadState === 'ok' && challengeableUsers.map((u) => {
+                    const avatarUrl = u.avatar ? authService.getMediaUrl(u.avatar) : null;
                     return (
                       <button
-                        key={user.id}
+                        key={u.id}
                         type="button"
-                        onClick={() => setSelectedFriend(user.id)}
+                        onClick={() => { setSelectedFriend(u.id); setSendState('idle'); }}
                         className={`w-full flex items-center gap-3 p-2.5 rounded-lg border-2 transition-colors ${
-                          selectedFriend === user.id
+                          selectedFriend === u.id
                             ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/50'
                             : 'border-transparent hover:bg-slate-100 dark:hover:bg-slate-700/50'
                         }`}
@@ -155,12 +157,22 @@ export const ChallengeModal: React.FC<ChallengeModalProps> = ({ examTitle, asses
                         ) : (
                           <UserCircleIcon className="w-8 h-8 text-slate-400 flex-shrink-0" />
                         )}
-                        <span className="font-medium text-slate-700 dark:text-slate-200 truncate">{user.display_name}</span>
+                        <span className="font-medium text-slate-700 dark:text-slate-200 truncate">{u.display_name}</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
+              {sendState === 'sent' && (
+                <p className="text-sm text-emerald-600 dark:text-emerald-400 font-medium text-center pb-2">
+                  They'll see your challenge in their notifications.
+                </p>
+              )}
+              {sendState === 'error' && (
+                <p className="text-sm text-amber-600 dark:text-amber-400 text-center pb-2">
+                  Couldn't deliver in-app. Link copied -- share it manually.
+                </p>
+              )}
               <div className="flex gap-2">
                 <button type="button" onClick={handleBackFromFriend} className="flex-1 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-medium">
                   Back
@@ -168,15 +180,20 @@ export const ChallengeModal: React.FC<ChallengeModalProps> = ({ examTitle, asses
                 <button
                   type="button"
                   onClick={async () => {
-                    if (selectedFriend) {
+                    if (!selectedFriend) return;
+                    setSendState('sending');
+                    try {
+                      await notificationService.sendChallenge(assessmentId, selectedFriend);
+                      setSendState('sent');
+                    } catch {
                       await handleCopyLink();
+                      setSendState('error');
                     }
-                    onClose();
                   }}
-                  disabled={!selectedFriend}
+                  disabled={!selectedFriend || sendState === 'sending' || sendState === 'sent'}
                   className="flex-1 bg-indigo-600 text-white font-bold py-2.5 px-4 rounded-lg hover:bg-indigo-700 disabled:bg-slate-400 dark:disabled:bg-slate-600 disabled:cursor-not-allowed"
                 >
-                  Send challenge
+                  {sendState === 'sending' ? 'Sending...' : sendState === 'sent' ? 'Sent!' : 'Send challenge'}
                 </button>
               </div>
             </>

@@ -21,7 +21,7 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
     const [liveExam, setLiveExam] = React.useState<any>(exam);
     const tokenFromUrl = React.useMemo(() => new URLSearchParams(location.search || '').get('share_token'), [location.search]);
     const shareToken = liveExam?.share_token ?? tokenFromUrl ?? undefined;
-    const isCreator = !!(user && liveExam?.creator && user.id === liveExam.creator.id);
+    const isCreator = !!(user && liveExam?.creator && String(user.id) === String(liveExam.creator.id));
     const inviteLink =
         shareToken && liveExam?.id
             ? `${typeof window !== 'undefined' ? window.location.origin : ''}/assessments/${liveExam.id}?share_token=${shareToken}`
@@ -288,8 +288,8 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                             </div>
                         )}
                     </div>
-                    {/* Sidebar: Creator gets full tools, participants get leaderboard only */}
-                    {(isCreator || shareToken) && (
+                    {/* Sidebar: Creator gets full tools; participants only see leaderboard (only when they have a share token) */}
+                    {(isCreator || (shareToken && publicAttempts.length > 0)) && (
                         <div className="border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 overflow-y-auto">
                             {isCreator ? (
                                 <>

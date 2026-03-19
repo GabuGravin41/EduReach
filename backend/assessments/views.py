@@ -14,6 +14,7 @@ from .serializers import (
     AssessmentAnswerImageSerializer, ManualGradeSerializer
 )
 from courses.permissions import IsOwnerOrReadOnly
+from users.models import User as UserModel, Notification
 
 
 class AssessmentViewSet(viewsets.ModelViewSet):
@@ -477,6 +478,30 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         if not created:
             return Response({'detail': 'Already joined challenge.'}, status=status.HTTP_200_OK)
         return Response({'detail': 'Joined challenge successfully.'})
+
+    @action(detail=True, methods=['post'], url_path='send-challenge')
+    def send_challenge(self, request, pk=None):
+        """Send a challenge notification to a specific user."""
+        assessment = self.get_object()
+        target_user_id = request.data.get('target_user_id')
+        if not target_user_id:
+            return Response({'detail': 'target_user_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            target_user = UserModel.objects.get(pk=target_user_id)
+        except UserModel.DoesNotExist:
+            return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if target_user == request.user:
+            return Response({'detail': 'You cannot challenge yourself.'}, status=status.HTTP_400_BAD_REQUEST)
+        Notification.objects.create(
+            recipient=target_user,
+            sender=request.user,
+            notif_type='challenge',
+            title=f'{request.user.username} challenged you!',
+            message=f'{request.user.username} has challenged you to take "{assessment.title}". Think you can beat their score?',
+            assessment_id=assessment.id,
+            share_token=assessment.share_token or '',
+        )
+        return Response({'detail': f'Challenge sent to {target_user.username}.'})
 
     @action(detail=True, methods=['post'], url_path='publish-public-challenge')
     def publish_public_challenge(self, request, pk=None):

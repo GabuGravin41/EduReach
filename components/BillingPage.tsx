@@ -377,7 +377,11 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                 {subscriptionQuery.data && (
                     <div className="flex items-center gap-2 mt-2 text-emerald-600 text-sm font-medium">
                         <CheckCircleIcon className="w-4 h-4" />
-                        <span>Active • Renews on {new Date(subscriptionQuery.data.expires_at).toLocaleDateString()}</span>
+                        <span>Active{(() => {
+                            const d = subscriptionQuery.data.expires_at ? new Date(subscriptionQuery.data.expires_at) : null;
+                            if (!d || isNaN(d.getTime())) return '';
+                            return ` • Renews on ${d.toLocaleDateString()}`;
+                        })()}</span>
                     </div>
                 )}
                 {!subscriptionQuery.data && currentTier === 'free' && (
@@ -667,24 +671,19 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
 
                 {/* Actions */}
                 <div className="pt-2 space-y-3">
-                    <Button 
-                        onClick={handleStartPayment} 
+                    <Button
+                        onClick={handleStartPayment}
                         isLoading={initiatePaymentMutation.isPending}
                         className="w-full justify-center"
                         disabled={safeCurrentTier === selectedTier}
                     >
                         {safeCurrentTier === selectedTier ? 'Current Plan Active' : `Pay ${formatAmount(currency, selectedPrice)}`}
                     </Button>
-                    
-                    <Button
-                        variant="secondary"
-                        onClick={handleActivateSubscription}
-                        disabled={!latestPayment}
-                        isLoading={upgradeMutation.isPending}
-                        className="w-full justify-center"
-                    >
-                        Activate Subscription
-                    </Button>
+                    {latestPayment && (
+                        <p className="text-xs text-center text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 rounded-lg p-3">
+                            Payment received. We will review and activate your subscription within 24 hours. You will receive a confirmation once it's active.
+                        </p>
+                    )}
                 </div>
 
                 {/* Messages */}

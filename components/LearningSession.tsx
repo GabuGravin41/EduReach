@@ -93,8 +93,9 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   }, [messages, videoId]);
 
   // ── Background transcript polling ──
-  // If the session started without a real transcript, silently retry in the background.
+  // If the session started without a real transcript, fetch immediately then retry every 20s.
   const [liveTranscript, setLiveTranscript] = useState(transcript);
+  const [transcriptFetching, setTranscriptFetching] = useState(false);
   useEffect(() => {
     // Only poll if transcript is missing or is the placeholder
     const isMissing = !liveTranscript ||
@@ -103,7 +104,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
 
     if (!isMissing || !videoId) return;
 
-    const POLL_INTERVAL = 30_000; // 30 seconds
+    const RETRY_INTERVAL = 20_000; // 20 seconds between retries
     const MAX_POLLS = 5;
     let pollCount = 0;
     let cancelled = false;
@@ -111,29 +112,28 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
     const poll = async () => {
       if (cancelled || pollCount >= MAX_POLLS) return;
       pollCount++;
+      setTranscriptFetching(true);
       try {
         const url = `https://www.youtube.com/watch?v=${videoId}`;
         const resp = await apiClient.post('/youtube/extract-transcript/', { url });
         const data = resp.data as any;
         if (data.success && (data.transcript?.timestamped_transcript || data.transcript?.transcript)) {
           setLiveTranscript(data.transcript.timestamped_transcript || data.transcript.transcript);
-          // Notify user via system message
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: '📝 *Transcript fetched successfully in the background!* The AI now has full context from this video.',
-          } as ChatMessage]);
+          setTranscriptFetching(false);
           return; // Stop polling
         }
       } catch {
         // Silently ignore, will retry
       }
+      setTranscriptFetching(false);
       if (!cancelled && pollCount < MAX_POLLS) {
-        setTimeout(poll, POLL_INTERVAL);
+        setTimeout(poll, RETRY_INTERVAL);
       }
     };
 
-    const timer = setTimeout(poll, POLL_INTERVAL);
-    return () => { cancelled = true; clearTimeout(timer); };
+    // Start immediately — no artificial delay
+    poll();
+    return () => { cancelled = true; };
   }, [videoId]); // Only run once on mount
 
   // Use liveTranscript (with background-fetched data) wherever transcript is needed
@@ -538,6 +538,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
             <StudyPanel
               transcriptRef={transcriptRef}
               transcript={effectiveTranscript}
+              transcriptFetching={transcriptFetching}
               notes={notes}
               onNotesChange={setNotes}
               videoId={videoId}

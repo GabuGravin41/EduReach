@@ -113,6 +113,8 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
     const [isDeletingCourse, setIsDeletingCourse] = useState(false);
     const [completingLessonId, setCompletingLessonId] = useState<number | null>(null);
+    // Local tracking of completed lesson IDs for immediate UI update (overrides API data until next refetch)
+    const [localCompletedIds, setLocalCompletedIds] = useState<Set<number> | null>(null);
     const [transcriptModalLesson, setTranscriptModalLesson] = useState<Lesson | null>(null);
     const [manualTranscript, setManualTranscript] = useState('');
     const [transcriptLanguageInput, setTranscriptLanguageInput] = useState('en');
@@ -124,10 +126,10 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     useEffect(() => {
         if (course) {
             setEditForm({ title: course.title, description: course.description });
-            // Load notes for all lessons in the course
+            setLocalCompletedIds(null); // reset so fresh API data is used
             loadLessonNotes();
         }
-    }, [course]);
+    }, [course?.id]);
 
     useEffect(() => {
         if (!canManageCourse && activeTab === 'manage') {
@@ -270,13 +272,21 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     const handleMarkLessonComplete = async (lessonId: number) => {
         try {
             setCompletingLessonId(lessonId);
-            await apiClient.post(`/lessons/${lessonId}/mark_complete/`, {});
+            const response = await apiClient.post(`/lessons/${lessonId}/mark_complete/`, {});
+            // Immediately update local state from server response so progress bar refreshes instantly
+            const serverIds: number[] | undefined = response.data?.completed_lesson_ids;
+            if (Array.isArray(serverIds)) {
+                setLocalCompletedIds(new Set(serverIds));
+            } else {
+                setLocalCompletedIds(prev => new Set([...(prev ?? completedLessonIds), lessonId]));
+            }
             if (onUpdateLesson) {
                 onUpdateLesson(course.id, lessonId, { isCompleted: true });
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to mark lesson complete:', error);
-            alert('Failed to update progress. Please try again.');
+            const msg = error?.response?.data?.detail || error?.response?.data?.error || 'Failed to update progress. Please try again.';
+            alert(msg);
         } finally {
             setCompletingLessonId(null);
         }
@@ -285,13 +295,24 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     const handleUnmarkLessonComplete = async (lessonId: number) => {
         try {
             setCompletingLessonId(lessonId);
-            await apiClient.post(`/lessons/${lessonId}/unmark_complete/`, {});
+            const response = await apiClient.post(`/lessons/${lessonId}/unmark_complete/`, {});
+            const serverIds: number[] | undefined = response.data?.completed_lesson_ids;
+            if (Array.isArray(serverIds)) {
+                setLocalCompletedIds(new Set(serverIds));
+            } else {
+                setLocalCompletedIds(prev => {
+                    const next = new Set(prev ?? completedLessonIds);
+                    next.delete(lessonId);
+                    return next;
+                });
+            }
             if (onUpdateLesson) {
                 onUpdateLesson(course.id, lessonId, { isCompleted: false });
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to unmark lesson complete:', error);
-            alert('Failed to update progress. Please try again.');
+            const msg = error?.response?.data?.detail || error?.response?.data?.error || 'Failed to update progress. Please try again.';
+            alert(msg);
         } finally {
             setCompletingLessonId(null);
         }
@@ -512,7 +533,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
         };
     };
 
-    const completedLessonIds = new Set<number>(
+    const completedLessonIds = localCompletedIds ?? new Set<number>(
         Array.isArray((course as any).completed_lesson_ids) ? (course as any).completed_lesson_ids : []
     );
     const courseLessons = (Array.isArray(course.lessons) ? course.lessons : []).map((lesson) => ({

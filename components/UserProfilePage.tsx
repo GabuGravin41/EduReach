@@ -134,14 +134,14 @@ export const UserProfilePage: React.FC = () => {
                     ) : (
                         <div className={`w-full h-full bg-gradient-to-r ${tierGradients[safeTier]} opacity-90`} />
                     )}
-                    <div className="absolute inset-0 flex items-center justify-end gap-2 p-3 opacity-0 hover:opacity-100 transition-opacity bg-black/20">
-                        <label className="px-3 py-1.5 rounded-lg bg-white/90 dark:bg-slate-800 text-slate-800 dark:text-white text-sm font-medium cursor-pointer shadow">
-                            {coverUrl ? 'Change cover' : 'Add cover image'}
+                    <div className="absolute inset-0 flex items-center justify-end gap-2 p-3 bg-black/10">
+                        <label className="px-3 py-1.5 rounded-lg bg-white/90 dark:bg-slate-800 text-slate-800 dark:text-white text-sm font-medium cursor-pointer shadow hover:bg-white transition-colors">
+                            {coverUrl ? 'Change cover' : 'Add cover photo'}
                             <input type="file" accept="image/*" className="hidden" onChange={handleCoverChange} />
                         </label>
                         {coverUrl && (
-                            <button type="button" onClick={handleRemoveCover} className="px-3 py-1.5 rounded-lg bg-white/90 dark:bg-slate-800 text-slate-800 dark:text-white text-sm font-medium shadow">
-                                Remove cover
+                            <button type="button" onClick={handleRemoveCover} className="px-3 py-1.5 rounded-lg bg-white/90 dark:bg-slate-800 text-slate-800 dark:text-white text-sm font-medium shadow hover:bg-white transition-colors">
+                                Remove
                             </button>
                         )}
                     </div>
@@ -149,16 +149,16 @@ export const UserProfilePage: React.FC = () => {
 
                 <div className="px-6 pb-6">
                     <div className="relative flex flex-col md:flex-row md:items-end -mt-14 gap-5">
-                        <div className="relative group">
+                        <div className="relative">
                             <label className="block cursor-pointer">
-                                <div className={`w-28 h-28 rounded-xl bg-slate-100 dark:bg-slate-900 border-4 border-white dark:border-slate-800 shadow-sm flex items-center justify-center overflow-hidden transition-transform group-hover:scale-105`}>
+                                <div className={`w-28 h-28 rounded-xl bg-slate-100 dark:bg-slate-900 border-4 border-white dark:border-slate-800 shadow-sm flex items-center justify-center overflow-hidden`}>
                                     {avatarUrl ? (
                                         <img src={avatarUrl} alt={user.username} className="w-full h-full object-cover" />
                                     ) : (
                                         <UserCircleIcon className="w-20 h-20 text-slate-300 dark:text-slate-700" />
                                     )}
                                 </div>
-                                <span className="absolute bottom-0 right-0 text-xs font-medium text-slate-600 dark:text-slate-400 bg-white/90 dark:bg-slate-800 px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">Change photo</span>
+                                <span className="absolute bottom-0 left-0 right-0 text-xs font-medium text-center text-slate-700 dark:text-slate-200 bg-white/90 dark:bg-slate-800 py-0.5 rounded-b-xl">Change photo</span>
                                 <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
                             </label>
                             <div className="absolute -bottom-1.5 -right-1.5 bg-indigo-600 text-white w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm shadow ring-2 ring-white dark:ring-slate-800">

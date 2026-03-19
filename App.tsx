@@ -29,6 +29,7 @@ import { SparklesIcon } from './components/icons/SparklesIcon';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { courseService, Course } from './src/services/courseService';
 import { useToast } from './src/contexts/ToastContext';
+import { notificationService, type AppNotification } from './src/services/notificationService';
 
 // Lazy load heavy components for better performance
 const CreateCoursePage = lazy(() => import('./components/CreateCoursePage').then(module => ({ default: module.CreateCoursePage })));
@@ -169,11 +170,67 @@ const CommunityView: React.FC<CommunityViewProps> = ({ userTier, username }) => 
   );
 };
 
+const useDarkMode = () => {
+    const [isDark, setIsDark] = useState(() => {
+        try {
+            const saved = localStorage.getItem('edureach:theme');
+            if (saved) return saved === 'dark';
+            return window.matchMedia('(prefers-color-scheme: dark)').matches;
+        } catch { return false; }
+    });
+
+    const toggle = () => {
+        setIsDark(prev => {
+            const next = !prev;
+            try {
+                localStorage.setItem('edureach:theme', next ? 'dark' : 'light');
+                document.documentElement.classList.toggle('dark', next);
+            } catch {}
+            return next;
+        });
+    };
+
+    // Sync class on mount in case localStorage was already set
+    useEffect(() => {
+        document.documentElement.classList.toggle('dark', isDark);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    return { isDark, toggle };
+};
+
 const AppContent: React.FC = () => {
     const { user, logout, isLoading } = useAuth();
     const location = useLocation();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
+    const { isDark, toggle: toggleDark } = useDarkMode();
+    const [notifications, setNotifications] = useState<AppNotification[]>([]);
+    const [notifOpen, setNotifOpen] = useState(false);
+
+    // Poll for unread notifications every 30s while logged in
+    useEffect(() => {
+      if (!user) return;
+      const fetchNotifs = () => {
+        notificationService.getUnread()
+          .then(setNotifications)
+          .catch(() => {});
+      };
+      fetchNotifs();
+      const interval = setInterval(fetchNotifs, 30000);
+      return () => clearInterval(interval);
+    }, [user]);
+
+    // Close notification dropdown when clicking outside
+    useEffect(() => {
+      if (!notifOpen) return;
+      const handler = (e: MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (!target.closest('[data-notif-panel]')) setNotifOpen(false);
+      };
+      document.addEventListener('mousedown', handler);
+      return () => document.removeEventListener('mousedown', handler);
+    }, [notifOpen]);
 
     const route = pathnameToView(location.pathname);
     const currentView = route.view;
@@ -642,7 +699,7 @@ const AppContent: React.FC = () => {
                   onSelectExam={(id) => setView('exam_detail', { examId: id })} 
                   onUpdateCourse={handleUpdateCourseDetails}
                   onUpdateLesson={(cId, lId, updates) => {
-                    queryClient.invalidateQueries({ queryKey: COURSE_KEYS.detail(cId) });
+                    queryClient.refetchQueries({ queryKey: COURSE_KEYS.detail(cId) });
                     queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() });
                     queryClient.invalidateQueries({ queryKey: COURSE_KEYS.my() });
                   }}
@@ -787,9 +844,36 @@ const AppContent: React.FC = () => {
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
            <header className="lg:hidden p-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
               <span className="font-bold text-lg">EduReach</span>
-              <button onClick={() => setIsMobileOpen(true)} className="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700">
+              <div className="flex items-center gap-1">
+                {/* Mobile notification bell */}
+                <button
+                  onClick={() => setNotifOpen(prev => !prev)}
+                  className="relative p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                  {notifications.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                      {notifications.length > 9 ? '9+' : notifications.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={toggleDark}
+                  aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                  className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+                >
+                  {isDark ? (
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" /></svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" /></svg>
+                  )}
+                </button>
+                <button onClick={() => setIsMobileOpen(true)} className="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
-              </button>
+                </button>
+              </div>
            </header>
            <main className={`flex-1 overflow-y-auto ${currentView === 'learning_session' ? 'p-0 sm:p-4 lg:p-8' : 'p-4 sm:p-6 lg:p-8'}`}>
               {showInstallPrompt && installEvent && (
@@ -861,7 +945,79 @@ const AppContent: React.FC = () => {
                 </div>
               )}
               {currentView !== 'learning_session' && (
-                <div className="mb-4 flex items-center justify-end">
+                <div className="mb-4 flex items-center justify-end gap-3">
+                  {/* Notification bell */}
+                  <div className="relative" data-notif-panel="1">
+                    <button
+                      onClick={() => setNotifOpen(prev => !prev)}
+                      aria-label="Notifications"
+                      className="relative p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                      {notifications.length > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                          {notifications.length > 9 ? '9+' : notifications.length}
+                        </span>
+                      )}
+                    </button>
+                    {notifOpen && (
+                      <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+                          <span className="font-bold text-slate-800 dark:text-slate-100">Notifications</span>
+                          {notifications.length > 0 && (
+                            <button
+                              onClick={() => { notificationService.markAllRead().catch(() => {}); setNotifications([]); }}
+                              className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                            >
+                              Mark all read
+                            </button>
+                          )}
+                        </div>
+                        <div className="max-h-72 overflow-y-auto">
+                          {notifications.length === 0 ? (
+                            <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-6">No new notifications</p>
+                          ) : (
+                            notifications.map(n => (
+                              <div
+                                key={n.id}
+                                className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer"
+                                onClick={() => {
+                                  notificationService.markRead(n.id).catch(() => {});
+                                  setNotifications(prev => prev.filter(x => x.id !== n.id));
+                                  if (n.assessment_id) {
+                                    const path = n.share_token
+                                      ? `/assessments/${n.assessment_id}?share_token=${n.share_token}`
+                                      : `/assessments/${n.assessment_id}`;
+                                    navigate(path);
+                                  }
+                                  setNotifOpen(false);
+                                }}
+                              >
+                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{n.title}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{n.message}</p>
+                                {n.assessment_id && (
+                                  <span className="inline-block mt-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium">Tap to open challenge →</span>
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={toggleDark}
+                    aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                    className="hidden lg:flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    {isDark ? (
+                      <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" /></svg>Light mode</>
+                    ) : (
+                      <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" /></svg>Dark mode</>
+                    )}
+                  </button>
                   <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
                     aiStatus === 'up'
                       ? 'bg-emerald-50 border-emerald-200 text-emerald-700'

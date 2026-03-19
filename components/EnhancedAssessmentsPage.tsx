@@ -179,7 +179,8 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
         let mounted = true;
         setPublicChallengesLoading(true);
         assessmentService.getPublicChallenges()
-            .then((list) => { if (mounted) setPublicChallenges(list); })
+            .then((list) => { if (mounted) setPublicChallenges(Array.isArray(list) ? list : []); })
+            .catch(() => { if (mounted) setPublicChallenges([]); })
             .finally(() => { if (mounted) setPublicChallengesLoading(false); });
         return () => { mounted = false; };
     }, []);
@@ -297,21 +298,19 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
     });
 
     const sortedAssessments = [...filteredAssessments].sort((a, b) => {
-        switch (sortBy) {
-            case 'difficulty':
-                const difficultyOrder = { easy: 1, medium: 2, hard: 3 };
-                return (difficultyOrder[a.difficulty || 'medium'] || 2) - (difficultyOrder[b.difficulty || 'medium'] || 2);
-            case 'score':
-                if (a.status === 'completed' && b.status === 'completed') {
-                    const aScore = parseFloat(a.score.split('/')[0]) / parseFloat(a.score.split('/')[1]) || 0;
-                    const bScore = parseFloat(b.score.split('/')[0]) / parseFloat(b.score.split('/')[1]) || 0;
-                    return bScore - aScore;
-                }
-                return 0;
-            case 'recent':
-            default:
-                return new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime();
+        if (sortBy === 'difficulty') {
+            const difficultyOrder: Record<string, number> = { easy: 1, medium: 2, hard: 3 };
+            return (difficultyOrder[a.difficulty || 'medium'] || 2) - (difficultyOrder[b.difficulty || 'medium'] || 2);
         }
+        if (sortBy === 'score') {
+            if (a.status === 'completed' && b.status === 'completed') {
+                const aScore = parseFloat(a.score.split('/')[0]) / parseFloat(a.score.split('/')[1]) || 0;
+                const bScore = parseFloat(b.score.split('/')[0]) / parseFloat(b.score.split('/')[1]) || 0;
+                return bScore - aScore;
+            }
+            return 0;
+        }
+        return new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime();
     });
 
     return (
