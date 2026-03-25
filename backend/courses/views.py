@@ -11,7 +11,6 @@ from django.shortcuts import get_object_or_404
 import re
 import logging
 from ai_service.views import call_ai, safe_json_loads
-from ai_service.tasks import sync_transcript_task
 
 logger = logging.getLogger(__name__)
 from .models import (
@@ -417,10 +416,22 @@ class CourseViewSet(viewsets.ModelViewSet):
             manual_transcript=manual_transcript
         )
 
-        # Trigger background sync if transcript is still missing
+        # If transcript still missing, do a second synchronous attempt directly
         if not lesson.transcript and auto_fetch_transcript:
-            sync_transcript_task.delay(lesson.id)
-            fetch_status = 'processing'
+            try:
+                service2 = YouTubeTranscriptService()
+                result2 = service2.extract_transcript(lesson.video_id, transcript_language)
+                if result2.get('success'):
+                    lesson.transcript = result2.get('timestamped_transcript') or result2.get('transcript')
+                    from django.utils import timezone as tz
+                    lesson.transcript_fetched_at = tz.now()
+                    lesson.save()
+                    fetch_status = 'success'
+                else:
+                    fetch_status = 'failed'
+            except Exception as e:
+                logger.error("Second transcript attempt failed for %s: %s", video_url, e)
+                fetch_status = 'failed'
 
         serializer = LessonSerializer(lesson)
         data = serializer.data
@@ -504,9 +515,18 @@ class CourseViewSet(viewsets.ModelViewSet):
                 transcript_language=transcript_language
             )
             
-            # ALWAYS trigger background sync for ad-hoc sessions if no transcript provided
+            # Fetch transcript synchronously if not provided
             if not lesson.transcript:
-                sync_transcript_task.delay(lesson.id)
+                try:
+                    svc = YouTubeTranscriptService()
+                    tres = svc.extract_transcript(lesson.video_id, transcript_language)
+                    if tres.get('success'):
+                        lesson.transcript = tres.get('timestamped_transcript') or tres.get('transcript')
+                        from django.utils import timezone as tz
+                        lesson.transcript_fetched_at = tz.now()
+                        lesson.save()
+                except Exception as e:
+                    logger.error("Session transcript fetch failed for %s: %s", video_url, e)
             
             serializer = LessonSerializer(lesson)
             return Response(
@@ -586,15 +606,35 @@ class LessonViewSet(viewsets.ModelViewSet):
                 'has_manual_fallback': bool(lesson.manual_transcript)
             })
         
-        # Trigger background sync
-        sync_transcript_task.delay(lesson.id)
-        
-        return Response({
-            'success': True,
-            'message': 'Transcript sync started in background',
-            'lesson_id': lesson.id,
-            'status': 'processing'
-        })
+        # Fetch synchronously so the caller gets the result immediately
+        try:
+            from django.utils import timezone as tz
+            service = YouTubeTranscriptService()
+            result = service.extract_transcript(lesson.video_id, language or lesson.transcript_language or 'en')
+            if result.get('success'):
+                lesson.transcript = result.get('timestamped_transcript') or result.get('transcript')
+                lesson.transcript_fetched_at = tz.now()
+                lesson.save()
+                return Response({
+                    'success': True,
+                    'transcript': lesson.transcript,
+                    'method': result.get('method'),
+                    'used_cookies': result.get('used_cookies', False),
+                    'source': 'fetched'
+                })
+            else:
+                return Response({
+                    'success': False,
+                    'error': result.get('error', 'Could not fetch transcript'),
+                    'fallbacks': result.get('fallbacks', []),
+                    'has_manual_fallback': bool(lesson.manual_transcript)
+                }, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error("fetch_transcript error for lesson %s: %s", lesson.id, e)
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])
     def update_manual_transcript(self, request, pk=None):

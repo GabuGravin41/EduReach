@@ -15,6 +15,12 @@ import { XIcon } from './icons/XIcon';
 import { View, UserTier } from '../App';
 import { Button } from './ui/Button';
 
+const AnalyticsIcon: React.FC<{className?: string}> = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+  </svg>
+);
+
 interface SidebarProps {
   currentView: string;
   setView: (view: View) => void;
@@ -26,6 +32,8 @@ interface SidebarProps {
   onTierChange: (tier: UserTier) => void;
   isMobileOpen: boolean;
   setIsMobileOpen: (isOpen: boolean) => void;
+  isDark?: boolean;
+  onToggleDark?: () => void;
 }
 
 const tierNames: Record<UserTier, string> = {
@@ -58,7 +66,7 @@ const RoleSwitcher: React.FC<{ currentTier: UserTier; onTierChange: (tier: UserT
     );
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout, onNewSession, isCollapsed, setIsCollapsed, userTier, onTierChange, isMobileOpen, setIsMobileOpen }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout, onNewSession, isCollapsed, setIsCollapsed, userTier, onTierChange, isMobileOpen, setIsMobileOpen, isDark, onToggleDark }) => {
   // Only show admin-specific UI elements to admin users
   const safeTier: UserTier = userTier in tierNames ? userTier : 'free';
   const isAdmin = safeTier === 'admin';
@@ -68,6 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
     { id: 'admin_panel', label: 'Admin Panel', icon: AdminPanelIcon, adminOnly: true },
     { id: 'courses', label: 'My Courses', icon: BookOpenIcon, adminOnly: false },
     { id: 'assessments', label: 'Assessments', icon: ClipboardCheckIcon, adminOnly: false },
+    { id: 'analytics', label: 'Analytics', icon: AnalyticsIcon, adminOnly: false },
     { id: 'community', label: 'Community', icon: UsersIcon, adminOnly: false },
     { id: 'study_groups', label: 'Study Groups', icon: UsersIcon, adminOnly: false },
     { id: 'billing', label: 'Billing & Plans', icon: PriceTagIcon, adminOnly: false },
@@ -123,7 +132,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
         {/* Mobile Close Button */}
         <div className="flex items-center justify-between mb-4 lg:mb-6">
           <div className={`flex items-center gap-2 ${isCollapsed ? 'justify-center px-0' : 'px-3'}`}>
-            <SparklesIcon className="w-7 h-7 text-blue-600" />
+            <img src="/logo.svg" className="w-7 h-7 flex-shrink-0" alt="EduReach" />
             {!isCollapsed && <span className="text-xl font-bold text-gray-800 dark:text-white">EduReach</span>}
           </div>
           {/* Mobile close button */}
@@ -186,7 +195,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
         )}
 
         <div className="hidden lg:block border-t border-blue-100 dark:border-slate-800 pt-4">
-          <button 
+          {onToggleDark && (
+            <button
+              onClick={onToggleDark}
+              title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              className={`w-full flex items-center gap-2 rounded-md hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors min-h-[44px] mb-2 ${isCollapsed ? 'justify-center p-2' : 'px-3 py-2.5'}`}
+            >
+              {isDark ? (
+                <svg className="w-5 h-5 text-amber-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5 text-slate-500 dark:text-slate-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                </svg>
+              )}
+              {!isCollapsed && <span className="text-sm text-slate-600 dark:text-slate-300">{isDark ? 'Light Mode' : 'Dark Mode'}</span>}
+            </button>
+          )}
+          <button
             onClick={() => {
               setView('profile');
               setIsMobileOpen(false);

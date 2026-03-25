@@ -200,13 +200,30 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         
         attempt.answers = serializer.validated_data['answers']
 
-        # If assessment has essay or AI-gradable short answers, mark submitted and grade in background
-        if attempt._assessment_needs_ai_grading():
+        # Determine if any questions need AI grading (essay or short_answer with model solution).
+        # This is true regardless of assessment_type (quiz or exam) — grading mode is determined
+        # by question types, not by the quiz/exam distinction.
+        needs_ai_grading = attempt._assessment_needs_ai_grading()
+
+        if needs_ai_grading:
+            # Save answers and mark as SUBMITTED first so there's a record even if grading fails.
             attempt.status = UserAttempt.Status.SUBMITTED
             if not attempt.submitted_at:
                 attempt.submitted_at = timezone.now()
             attempt.save(update_fields=['answers', 'status', 'submitted_at'])
-            # Enforce visibility policy
+
+            # Attempt synchronous AI grading within the same request.
+            # If it succeeds the status is promoted to GRADED by calculate_score().
+            # If it raises (timeout, API error, quota exceeded) we leave it as SUBMITTED
+            # so the instructor or the client can retry via /run-grading.
+            try:
+                attempt.refresh_from_db()
+                attempt.calculate_score()
+            except Exception:
+                pass  # Status stays SUBMITTED; client should show retry/poll UI.
+
+            attempt.refresh_from_db()
+            # Enforce visibility policy regardless of final grading status.
             if assessment.results_visibility == Assessment.ResultsVisibility.PUBLIC:
                 attempt.is_public_result = True
             elif assessment.results_visibility == Assessment.ResultsVisibility.PRIVATE:
@@ -214,7 +231,7 @@ class AssessmentViewSet(viewsets.ModelViewSet):
             attempt.save(update_fields=['is_public_result'])
             return Response(UserAttemptSerializer(attempt).data)
 
-        # All questions auto-grade: score immediately
+        # All questions are auto-gradable (MCQ / true_false / exact-match short_answer): score immediately.
         attempt.calculate_score()
 
         # Enforce creator-level visibility policy.

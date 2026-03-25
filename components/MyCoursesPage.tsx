@@ -68,8 +68,31 @@ export const MyCoursesPage: React.FC<MyCoursesPageProps> = ({ courses, onSelectC
             const creatorName = course.owner?.username || 'Unknown';
             const visibility = (course.is_public ?? course.isPublic) ? 'Public' : 'Private';
             const progress = typeof course.progress === 'number' ? course.progress : 0;
-            const actionLabel = progress > 0 ? 'Resume' : 'Start';
+            const actionLabel = progress === 0 ? 'Start Course' : progress === 100 ? 'Review' : 'Continue';
             const isHighlighted = highlightedCourseId === course.id;
+
+            // Color coding: 0-33 red/amber, 34-66 amber/yellow, 67-99 blue, 100 green
+            const progressBarColor = progress === 100
+                ? 'from-emerald-500 to-green-500'
+                : progress >= 67
+                    ? 'from-blue-500 to-indigo-500'
+                    : progress >= 34
+                        ? 'from-amber-400 to-yellow-500'
+                        : progress > 0
+                            ? 'from-red-400 to-amber-500'
+                            : 'from-slate-300 to-slate-300';
+            const progressTextColor = progress === 100
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : progress >= 67
+                    ? 'text-blue-600 dark:text-blue-400'
+                    : progress >= 34
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-slate-500 dark:text-slate-400';
+            const actionButtonColor = progress === 0
+                ? 'bg-indigo-600 hover:bg-indigo-700'
+                : progress === 100
+                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : 'bg-blue-600 hover:bg-blue-700';
 
             return (
               <div
@@ -109,20 +132,27 @@ export const MyCoursesPage: React.FC<MyCoursesPageProps> = ({ courses, onSelectC
                     <span className="font-medium text-slate-600 dark:text-slate-300">Creator:</span> {creatorName} ·
                     <span className="ml-1">Updated {updatedAt}</span>
                   </div>
-                  <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 mt-auto">
-                      <div className="bg-indigo-600 h-2.5 rounded-full" style={{ width: `${progress}%` }}></div>
-                  </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <p className="text-xs text-slate-500 dark:text-slate-400">{progress}% Complete</p>
-                    <button
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onSelectCourse(course.id);
-                      }}
-                      className="text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1 rounded-full"
-                    >
-                      {actionLabel}
-                    </button>
+                  <div className="mt-auto">
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 overflow-hidden">
+                        <div
+                            className={`bg-gradient-to-r ${progressBarColor} h-2.5 rounded-full transition-all duration-500 ease-out`}
+                            style={{ width: `${progress}%` }}
+                        ></div>
+                    </div>
+                    <div className="flex items-center justify-between mt-2">
+                      <p className={`text-xs font-semibold ${progressTextColor}`}>
+                        {progress === 100 ? '✓ Complete' : `${progress}% Complete`}
+                      </p>
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onSelectCourse(course.id);
+                        }}
+                        className={`text-xs font-semibold text-white ${actionButtonColor} px-3 py-1 rounded-full transition-colors`}
+                      >
+                        {actionLabel}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

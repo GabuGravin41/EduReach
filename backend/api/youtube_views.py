@@ -154,6 +154,66 @@ def get_video_info(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+def test_transcripts(request):
+    """
+    Bulk-test transcript fetching for a list of YouTube URLs.
+
+    POST /api/youtube/test-transcripts/
+    {
+        "urls": [
+            "https://www.youtube.com/watch?v=...",
+            "https://youtu.be/...",
+            ...
+        ]
+    }
+
+    Returns per-URL success/fail with the method used and word count.
+    Useful for verifying that transcript fetching works in production.
+    """
+    urls = request.data.get('urls', [])
+    if not urls or not isinstance(urls, list):
+        return Response({'error': 'Provide a list of URLs in the "urls" field'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if len(urls) > 20:
+        return Response({'error': 'Maximum 20 URLs per request'}, status=status.HTTP_400_BAD_REQUEST)
+
+    service = YouTubeTranscriptService()
+    results = []
+
+    for url in urls:
+        url = url.strip()
+        video_id = service.extract_video_id(url)
+        if not video_id:
+            results.append({'url': url, 'video_id': None, 'success': False, 'error': 'Invalid YouTube URL'})
+            continue
+
+        try:
+            result = service.extract_transcript(video_id)
+            results.append({
+                'url': url,
+                'video_id': video_id,
+                'success': result.get('success', False),
+                'method': result.get('method'),
+                'word_count': result.get('word_count', 0),
+                'used_cookies': result.get('used_cookies', False),
+                'error': result.get('error') if not result.get('success') else None,
+                'fallbacks': result.get('fallbacks', [])
+            })
+        except Exception as e:
+            results.append({'url': url, 'video_id': video_id, 'success': False, 'error': str(e)})
+
+    total = len(results)
+    succeeded = sum(1 for r in results if r['success'])
+
+    return Response({
+        'summary': {'total': total, 'succeeded': succeeded, 'failed': total - succeeded},
+        'cookies_configured': bool(service.cookies_path),
+        'results': results
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def save_video_notes(request):
     """
     Save user notes for a video

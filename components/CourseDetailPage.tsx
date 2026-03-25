@@ -546,11 +546,23 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     const visibleLessons = courseLessons.slice(0, lessonLimit);
 
     const completedCount = courseLessons.filter(l => l.isCompleted).length;
-    const computedProgress = courseLessons.length > 0
-        ? Math.round((completedCount / courseLessons.length) * 100)
-        : 0;
-    const apiProgress = typeof course.progress === 'number' ? course.progress : undefined;
-    const actualProgress = apiProgress ?? computedProgress;
+    // Always calculate progress from local state for instant UI updates
+    const effectiveProgress = localCompletedIds
+        ? Math.round((localCompletedIds.size / (courseLessons.length || 1)) * 100)
+        : courseLessons.length > 0
+            ? Math.round((completedCount / courseLessons.length) * 100)
+            : (typeof course.progress === 'number' ? course.progress : 0);
+    const actualProgress = effectiveProgress;
+
+    // Color coding for progress bar: 0-33 red/amber, 34-66 amber/yellow, 67-99 blue, 100 green
+    const getProgressBarColor = (pct: number) => {
+        if (pct === 100) return 'from-emerald-500 to-green-500';
+        if (pct >= 67) return 'from-blue-500 to-indigo-500';
+        if (pct >= 34) return 'from-amber-400 to-yellow-500';
+        return 'from-red-400 to-amber-500';
+    };
+    const progressBarColor = getProgressBarColor(actualProgress);
+
     const nextLesson = courseLessons.find(l => !l.isCompleted) || courseLessons[0];
     const startLabel = actualProgress > 0 ? 'Resume' : 'Start';
 
@@ -598,14 +610,22 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                             📚 {completedCount} of {courseLessons.length} lessons completed
                         </span>
                         <span className="hidden sm:inline text-gray-400">•</span>
-                        <span className="text-emerald-600 dark:text-emerald-400 font-bold text-base">
-                            🎯 {actualProgress}% Complete
+                        <span className={`font-bold text-base transition-colors duration-300 ${
+                            actualProgress === 100
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : actualProgress >= 67
+                                    ? 'text-blue-600 dark:text-blue-400'
+                                    : actualProgress >= 34
+                                        ? 'text-amber-600 dark:text-amber-400'
+                                        : 'text-red-500 dark:text-red-400'
+                        }`}>
+                            {actualProgress === 100 ? '✓ ' : '🎯 '}{actualProgress}% Complete
                         </span>
                     </div>
 
                     <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden shadow-inner">
                         <div
-                            className="bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 h-4 rounded-full transition-all duration-700 ease-out shadow-sm"
+                            className={`bg-gradient-to-r ${progressBarColor} h-4 rounded-full transition-all duration-700 ease-out shadow-sm`}
                             style={{ width: `${actualProgress}%` }}
                         ></div>
                     </div>
@@ -729,10 +749,17 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                                     const transcriptStatus = getTranscriptStatus(lesson);
 
                                     return (
-                                        <li key={index} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 rounded-xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-blue-200 dark:hover:border-slate-500 transition-all duration-200">
+                                        <li key={index} className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 rounded-xl border shadow-sm hover:shadow-md transition-all duration-300 ${
+                                            lesson.isCompleted
+                                                ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/50'
+                                                : 'bg-white dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 hover:border-blue-200 dark:hover:border-slate-500'
+                                        }`}>
                                             <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
-                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${lesson.isCompleted ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-600'}`}>
-                                                    <PlayIcon className="w-4 h-4 text-white" />
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm transition-all duration-300 ${lesson.isCompleted ? 'bg-emerald-500 scale-110' : 'bg-slate-200 dark:bg-slate-600'}`}>
+                                                    {lesson.isCompleted
+                                                        ? <CheckCircleIcon className="w-5 h-5 text-white" />
+                                                        : <PlayIcon className="w-4 h-4 text-white" />
+                                                    }
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     {isEditing ? (

@@ -5,6 +5,7 @@ import { View } from '../App';
 import type { Assessment, Question } from '../types';
 import { TrophyIcon } from './icons/TrophyIcon';
 import { ClockIcon } from './icons/ClockIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
 import { QuizView } from './QuizView';
 import { AssessmentAnalytics } from './AssessmentAnalytics';
 import { assessmentService, AssessmentAttempt } from '../src/services/assessmentService';
@@ -28,6 +29,7 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
             : '';
 
     const [isLoadingDetail, setIsLoadingDetail] = React.useState(true);
+    const [hasStarted, setHasStarted] = React.useState(false);
     const [attempts, setAttempts] = React.useState<AssessmentAttempt[]>([]);
     const [isLoadingAttempts, setIsLoadingAttempts] = React.useState(false);
     const [publicAttempts, setPublicAttempts] = React.useState<AssessmentAttempt[]>([]);
@@ -180,9 +182,22 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
         );
     }
 
-    // Convert legacy question formats if needed or use questions_data (ensure we always have an array)
+    // ── Derived helpers ──────────────────────────────────────────────────────
+    const assessmentType: 'quiz' | 'exam' = liveExam?.assessment_type === 'quiz' ? 'quiz' : 'exam';
+    const typeLabel = assessmentType === 'quiz' ? 'QUIZ' : 'EXAM';
+
+    // Detect AI-graded question types from the live exam questions.
     const rawQuestions = liveExam?.questions;
     const questionsArray = Array.isArray(rawQuestions) ? rawQuestions : [];
+
+    const hasAiGradedQuestions = questionsArray.some(
+        (q: any) =>
+            q.question_type === 'essay' ||
+            (q.question_type === 'short_answer' && (q.explanation || '').trim().length > 0)
+    );
+    const hasObjectiveQuestions = questionsArray.some(
+        (q: any) => q.question_type === 'mcq' || q.question_type === 'true_false'
+    );
     const questionsData = liveExam?.questions_data;
     const quizData = Array.isArray(questionsData)
         ? questionsData
@@ -230,7 +245,7 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                                 onClick={() => setView('create_exam', { state: { editExamId: liveExam.id } })}
                                 className="px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
                             >
-                                Edit assessment
+                                Edit {typeLabel === 'QUIZ' ? 'Quiz' : 'Exam'}
                             </button>
                             <button
                                 onClick={async () => {
@@ -257,8 +272,34 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
 
             <div className="flex-1 min-h-0 bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
                 <div className="p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                    <h1 className="text-2xl font-bold text-slate-800 dark:text-white">{liveExam.title}</h1>
+                    {/* Large type badge + title */}
+                    <div className="flex items-start gap-3 flex-wrap mb-2">
+                        {assessmentType === 'exam' ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-extrabold uppercase tracking-widest border-2 border-amber-400 bg-amber-100 text-amber-800 dark:border-amber-600 dark:bg-amber-900/40 dark:text-amber-200 shadow-sm flex-shrink-0">
+                                <span className="w-2 h-2 rounded-full bg-amber-500 dark:bg-amber-400" />
+                                EXAM
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-extrabold uppercase tracking-widest border-2 border-blue-400 bg-blue-100 text-blue-800 dark:border-blue-600 dark:bg-blue-900/40 dark:text-blue-200 shadow-sm flex-shrink-0">
+                                <span className="w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400" />
+                                QUIZ
+                            </span>
+                        )}
+                        <h1 className="text-2xl font-bold text-slate-800 dark:text-white leading-tight">{liveExam.title}</h1>
+                    </div>
                     <p className="text-slate-600 dark:text-slate-400 mt-1">{liveExam.description}</p>
+
+                    {/* AI grading notice — shown before starting */}
+                    {hasAiGradedQuestions && !hasStarted && (
+                        <div className="mt-4 flex items-start gap-3 px-4 py-3 rounded-xl bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800">
+                            <SparklesIcon className="w-5 h-5 text-violet-600 dark:text-violet-400 flex-shrink-0 mt-0.5" />
+                            <p className="text-sm text-violet-800 dark:text-violet-200">
+                                This {assessmentType === 'quiz' ? 'quiz' : 'exam'} includes <strong>AI-graded questions</strong> (essay or written responses).
+                                Results will be available shortly after submission while AI grades your written answers.
+                            </p>
+                        </div>
+                    )}
+
                     {!isCreator && tokenFromUrl && (
                         <button
                             onClick={handleJoinChallenge}
@@ -274,6 +315,53 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                             <div className="h-full flex flex-col items-center justify-center gap-3 text-slate-500">
                                 <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                                 <p className="text-sm font-medium">Loading assessment...</p>
+                            </div>
+                        ) : quizData.length > 0 && !hasStarted ? (
+                            <div className="h-full flex flex-col items-center justify-center gap-6 p-8">
+                                <div className="text-center max-w-lg">
+                                    {/* Big type pill */}
+                                    {assessmentType === 'exam' ? (
+                                        <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-base font-extrabold uppercase tracking-widest border-2 border-amber-400 bg-amber-100 text-amber-800 dark:border-amber-600 dark:bg-amber-900/40 dark:text-amber-200 mb-4">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                                            EXAM
+                                        </span>
+                                    ) : (
+                                        <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-base font-extrabold uppercase tracking-widest border-2 border-blue-400 bg-blue-100 text-blue-800 dark:border-blue-600 dark:bg-blue-900/40 dark:text-blue-200 mb-4">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                                            QUIZ
+                                        </span>
+                                    )}
+                                    <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">
+                                        Ready to begin?
+                                    </h2>
+                                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">
+                                        {quizData.length} question{quizData.length !== 1 ? 's' : ''} &nbsp;·&nbsp; {liveExam.time || liveExam.time_limit_minutes || 30} minute time limit
+                                    </p>
+                                    {/* Question type breakdown */}
+                                    <div className="flex items-center justify-center gap-3 flex-wrap mb-6">
+                                        {hasObjectiveQuestions && (
+                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                                                Auto-graded
+                                            </span>
+                                        )}
+                                        {hasAiGradedQuestions && (
+                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                                                <SparklesIcon className="w-3 h-3" />
+                                                AI-graded questions
+                                            </span>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => setHasStarted(true)}
+                                        className={`px-8 py-3 rounded-xl font-bold text-lg hover:opacity-90 transition shadow-lg text-white ${
+                                            assessmentType === 'exam'
+                                                ? 'bg-gradient-to-r from-amber-500 to-orange-600 shadow-amber-500/25'
+                                                : 'bg-gradient-to-r from-blue-600 to-indigo-600 shadow-blue-500/25'
+                                        }`}
+                                    >
+                                        {assessmentType === 'quiz' ? 'Start Quiz' : 'Start Exam'}
+                                    </button>
+                                </div>
                             </div>
                         ) : quizData.length > 0 ? (
                             <QuizView

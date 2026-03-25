@@ -228,20 +228,32 @@ class AssessmentAnswerImageSerializer(serializers.ModelSerializer):
 class UserAttemptSerializer(serializers.ModelSerializer):
     """Serializer for UserAttempt model."""
     assessment_title = serializers.CharField(source='assessment.title', read_only=True)
+    assessment_type = serializers.CharField(source='assessment.assessment_type', read_only=True)
+    has_ai_graded_questions = serializers.SerializerMethodField()
     user_username = serializers.CharField(source='user.username', read_only=True)
     answer_images = AssessmentAnswerImageSerializer(many=True, read_only=True)
-    
+
+    def get_has_ai_graded_questions(self, obj):
+        """Returns True if the assessment has essay or AI-graded short_answer questions."""
+        for q in obj.assessment.questions.all():
+            if q.question_type == 'essay':
+                return True
+            if q.question_type == 'short_answer' and (q.explanation or '').strip():
+                return True
+        return False
+
     class Meta:
         model = UserAttempt
         fields = [
             'id', 'user', 'user_username', 'assessment',
-            'assessment_title', 'status', 'score', 'percentage',
+            'assessment_title', 'assessment_type', 'has_ai_graded_questions',
+            'status', 'score', 'percentage',
             'answers', 'answer_images', 'is_public_result',
-            'started_at', 'submitted_at', 'time_taken_minutes'
+            'started_at', 'submitted_at', 'time_taken_minutes', 'time_taken_seconds'
         ]
         read_only_fields = [
             'id', 'user', 'score', 'percentage',
-            'started_at', 'submitted_at', 'time_taken_minutes'
+            'started_at', 'submitted_at', 'time_taken_minutes', 'time_taken_seconds'
         ]
 
 

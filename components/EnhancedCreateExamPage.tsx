@@ -103,8 +103,13 @@ export const EnhancedCreateExamPage: React.FC<EnhancedCreateExamPageProps> = ({
     const [timeLimit, setTimeLimit] = useState(30);
     const [questions, setQuestions] = useState<Question[]>([]);
     const [selectedQuestionType, setSelectedQuestionType] = useState<QuestionType>('multiple_choice');
+    const [assessmentType, setAssessmentType] = useState<'quiz' | 'exam'>('quiz');
+    const [gradingMode, setGradingMode] = useState<'ai' | 'manual'>('ai');
 
     const features = TIER_FEATURES[userTier];
+
+    // Derived: does the current question list have any AI-gradable types?
+    const hasAiGradableQuestions = questions.some(q => q.type === 'essay' || q.type === 'short_answer');
 
     const createNewQuestion = (type: QuestionType): Question => {
         const baseId = Date.now().toString();
@@ -211,6 +216,8 @@ export const EnhancedCreateExamPage: React.FC<EnhancedCreateExamPageProps> = ({
             topic: topic.trim(),
             description: description.trim(),
             time_limit_minutes: timeLimit,
+            assessment_type: assessmentType,
+            grading_mode: gradingMode,
             questions: questions
         };
 
@@ -291,18 +298,178 @@ export const EnhancedCreateExamPage: React.FC<EnhancedCreateExamPageProps> = ({
         <div className="max-w-4xl mx-auto">
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-2">
-                    Create New Assessment
+                    Create New {assessmentType === 'quiz' ? 'Quiz' : 'Exam'}
                 </h1>
                 <p className="text-slate-600 dark:text-slate-400">
-                    Build a comprehensive assessment with multiple question types
+                    {assessmentType === 'quiz'
+                        ? 'Build a quick, practice-focused quiz with multiple question types'
+                        : 'Build a formal, timed exam with comprehensive question coverage'}
                 </p>
             </div>
 
-            {/* Exam Details */}
-            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 mb-8">
-                <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-4">
-                    Assessment Details
+            {/* ── STEP 1: QUIZ vs EXAM prominent selector ──────────────────────── */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 mb-6">
+                <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-1">
+                    Step 1: What are you creating?
                 </h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">
+                    Choose the type of assessment. This affects defaults and how it appears to students.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* QUIZ option */}
+                    <button
+                        type="button"
+                        onClick={() => setAssessmentType('quiz')}
+                        className={`relative flex flex-col items-start p-5 rounded-xl border-2 text-left transition-all focus:outline-none ${
+                            assessmentType === 'quiz'
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-lg shadow-blue-500/15'
+                                : 'border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 bg-white dark:bg-slate-800'
+                        }`}
+                    >
+                        {assessmentType === 'quiz' && (
+                            <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
+                                <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
+                                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                            </span>
+                        )}
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold uppercase tracking-widest border-2 border-blue-400 bg-blue-100 text-blue-800 dark:border-blue-600 dark:bg-blue-900/40 dark:text-blue-200 mb-3">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400" />
+                            QUIZ
+                        </span>
+                        <h3 className="font-bold text-slate-800 dark:text-slate-100 text-base mb-1">Short practice check</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Shorter, practice-focused. Good for quick knowledge checks, homework, or informal self-study.</p>
+                        <ul className="mt-3 space-y-1">
+                            {['Typically 5–15 questions', 'Lower stakes, for practice', 'Usually unproctored', 'Can be retaken freely'].map(item => (
+                                <li key={item} className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                    <span className="w-1 h-1 rounded-full bg-blue-400 flex-shrink-0" />
+                                    {item}
+                                </li>
+                            ))}
+                        </ul>
+                    </button>
+
+                    {/* EXAM option */}
+                    <button
+                        type="button"
+                        onClick={() => { setAssessmentType('exam'); if (timeLimit < 30) setTimeLimit(60); }}
+                        className={`relative flex flex-col items-start p-5 rounded-xl border-2 text-left transition-all focus:outline-none ${
+                            assessmentType === 'exam'
+                                ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20 shadow-lg shadow-amber-500/15'
+                                : 'border-slate-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-700 bg-white dark:bg-slate-800'
+                        }`}
+                    >
+                        {assessmentType === 'exam' && (
+                            <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center">
+                                <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
+                                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                            </span>
+                        )}
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold uppercase tracking-widest border-2 border-amber-400 bg-amber-100 text-amber-800 dark:border-amber-600 dark:bg-amber-900/40 dark:text-amber-200 mb-3">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400" />
+                            EXAM
+                        </span>
+                        <h3 className="font-bold text-slate-800 dark:text-slate-100 text-base mb-1">Formal assessment</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Formal assessment, timed, and scored. For course milestones, certifications, or official grading.</p>
+                        <ul className="mt-3 space-y-1">
+                            {['Typically 20+ questions', 'Counts toward a grade', 'Timed and structured', 'Essay/written questions supported'].map(item => (
+                                <li key={item} className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                    <span className="w-1 h-1 rounded-full bg-amber-400 flex-shrink-0" />
+                                    {item}
+                                </li>
+                            ))}
+                        </ul>
+                    </button>
+                </div>
+            </div>
+
+            {/* ── STEP 2: Grading Mode ───────────────────────────────────────────── */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 mb-6">
+                <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-1">
+                    Step 2: How should submissions be graded?
+                </h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">
+                    Objective questions (MCQ, True/False) are always auto-graded. This setting applies to written responses.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* AI auto-grade */}
+                    <button
+                        type="button"
+                        onClick={() => setGradingMode('ai')}
+                        className={`relative flex flex-col items-start p-5 rounded-xl border-2 text-left transition-all focus:outline-none ${
+                            gradingMode === 'ai'
+                                ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20 shadow-lg shadow-violet-500/15'
+                                : 'border-slate-200 dark:border-slate-700 hover:border-violet-300 dark:hover:border-violet-700 bg-white dark:bg-slate-800'
+                        }`}
+                    >
+                        {gradingMode === 'ai' && (
+                            <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-violet-500 flex items-center justify-center">
+                                <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
+                                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                            </span>
+                        )}
+                        <div className="flex items-center gap-2 mb-3">
+                            <div className="p-1.5 bg-violet-100 dark:bg-violet-900/30 rounded-lg">
+                                <svg className="w-5 h-5 text-violet-600 dark:text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                            </div>
+                            <span className="font-bold text-slate-800 dark:text-slate-100">AI grades automatically</span>
+                        </div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">AI evaluates essay and short-answer responses immediately after submission. Students see results in minutes.</p>
+                        <p className="mt-2 text-xs font-medium text-violet-600 dark:text-violet-400">
+                            {features.can_create_essay ? 'Available on your plan' : 'Learner+ plan required for essay grading'}
+                        </p>
+                    </button>
+
+                    {/* Manual grading */}
+                    <button
+                        type="button"
+                        onClick={() => setGradingMode('manual')}
+                        className={`relative flex flex-col items-start p-5 rounded-xl border-2 text-left transition-all focus:outline-none ${
+                            gradingMode === 'manual'
+                                ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 shadow-lg shadow-emerald-500/15'
+                                : 'border-slate-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700 bg-white dark:bg-slate-800'
+                        }`}
+                    >
+                        {gradingMode === 'manual' && (
+                            <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
+                                <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
+                                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                            </span>
+                        )}
+                        <div className="flex items-center gap-2 mb-3">
+                            <div className="p-1.5 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
+                                <svg className="w-5 h-5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                            </div>
+                            <span className="font-bold text-slate-800 dark:text-slate-100">I grade manually</span>
+                        </div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">You review each submission and assign scores yourself. Use this when you want full control over written responses.</p>
+                        <p className="mt-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">Always available — no AI quota used</p>
+                    </button>
+                </div>
+                {/* Note about objective questions */}
+                <p className="mt-3 text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    MCQ and True/False questions are always auto-graded instantly, regardless of this setting.
+                </p>
+            </div>
+
+            {/* Step 3: Assessment Details */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 mb-8">
+                <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-1">
+                    Step 3: {assessmentType === 'quiz' ? 'Quiz' : 'Exam'} Details
+                </h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">
+                    Set the title, topic, description, and time limit for your {assessmentType}.
+                </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     <div>
@@ -411,11 +578,29 @@ export const EnhancedCreateExamPage: React.FC<EnhancedCreateExamPageProps> = ({
                 </div>
             </div>
 
-            {/* Add Question Section */}
+            {/* Step 4: Add Questions */}
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 mb-8">
-                <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-4">
-                    Add Questions
+                <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-1">
+                    Step 4: Add Questions
                 </h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                    {assessmentType === 'quiz'
+                        ? 'Add questions for your quiz. MCQ and True/False work best for quick practice.'
+                        : 'Add questions for your exam. Mix objective and written questions for a comprehensive assessment.'}
+                </p>
+                {/* Grading mode reminder banner */}
+                {hasAiGradableQuestions && (
+                    <div className="mb-4 flex items-start gap-2 px-4 py-3 rounded-xl bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 text-sm">
+                        <svg className="w-4 h-4 text-violet-600 dark:text-violet-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <span className="text-violet-800 dark:text-violet-200">
+                            You have written questions — these will be{' '}
+                            <strong>{gradingMode === 'ai' ? 'graded by AI automatically' : 'graded manually by you'}</strong>.
+                            Change in Step 2 if needed.
+                        </span>
+                    </div>
+                )}
 
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <button
@@ -497,13 +682,29 @@ export const EnhancedCreateExamPage: React.FC<EnhancedCreateExamPageProps> = ({
                 >
                     Cancel
                 </button>
-                <div className="flex gap-3">
+                <div className="flex items-center gap-3">
+                    {/* Summary chip */}
+                    {assessmentType === 'exam' ? (
+                        <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold uppercase tracking-widest border-2 border-amber-400 bg-amber-100 text-amber-800 dark:border-amber-600 dark:bg-amber-900/40 dark:text-amber-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            EXAM
+                        </span>
+                    ) : (
+                        <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold uppercase tracking-widest border-2 border-blue-400 bg-blue-100 text-blue-800 dark:border-blue-600 dark:bg-blue-900/40 dark:text-blue-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                            QUIZ
+                        </span>
+                    )}
                     <button
                         onClick={handleSubmit}
                         disabled={!title.trim() || questions.length === 0}
-                        className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                        className={`px-6 py-3 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-bold ${
+                            assessmentType === 'exam'
+                                ? 'bg-amber-500 hover:bg-amber-600'
+                                : 'bg-blue-600 hover:bg-blue-700'
+                        }`}
                     >
-                        Create Assessment
+                        Create {assessmentType === 'quiz' ? 'Quiz' : 'Exam'}
                     </button>
                 </div>
             </div>

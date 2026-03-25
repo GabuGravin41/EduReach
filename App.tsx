@@ -41,6 +41,7 @@ const EnhancedAssessmentsPage = lazy(() => import('./components/EnhancedAssessme
 const EnhancedCreateExamPage = lazy(() => import('./components/EnhancedCreateExamPage').then(module => ({ default: module.EnhancedCreateExamPage })));
 const StudyGroupsPage = lazy(() => import('./components/StudyGroupsPage').then(module => ({ default: module.StudyGroupsPage })));
 const BulkCreateExamPage = lazy(() => import('./components/BulkCreateExamPage').then(module => ({ default: module.BulkCreateExamPage })));
+const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard').then(module => ({ default: module.AnalyticsDashboard })));
 
   
 export type UserTier = 'free' | 'learner' | 'pro' | 'pro_plus' | 'admin';
@@ -781,6 +782,8 @@ const AppContent: React.FC = () => {
              );
            }
            return <AdminDashboard />;
+        case 'analytics':
+           return <AnalyticsDashboard userTier={userTier} currentUserId={user?.id} />;
         case 'bulk_create_exam':
            return <BulkCreateExamPage onCancel={() => setView('assessments')} onBatchCreated={() => setView('assessments')} />;
         case 'setup_session':
@@ -840,6 +843,8 @@ const AppContent: React.FC = () => {
           onTierChange={setUserTier}
           isMobileOpen={isMobileOpen}
           setIsMobileOpen={setIsMobileOpen}
+          isDark={isDark}
+          onToggleDark={toggleDark}
         />
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
            <header className="lg:hidden p-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">

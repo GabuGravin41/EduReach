@@ -5,6 +5,7 @@ import { PriceTagIcon } from './icons/PriceTagIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { XIcon } from './icons/XIcon';
+import { XCircleIcon } from './icons/XCircleIcon';
 import { Button } from './ui/Button';
 import { UserTier } from '../App';
 
@@ -22,6 +23,7 @@ interface TierInfo {
   description: string;
   features: string[];
   isPopular?: boolean;
+  color: string; // tailwind accent color token
 }
 
 const tiers: Record<'learner' | 'pro' | 'pro_plus', TierInfo> = {
@@ -30,6 +32,7 @@ const tiers: Record<'learner' | 'pro' | 'pro_plus', TierInfo> = {
     monthlyPrice: { USD: 4, KES: 350 },
     priceSuffix: '/ month',
     description: 'Break past the basic limits with expanded creation tools.',
+    color: 'indigo',
     features: [
       'Create up to 5 courses',
       'Up to 25 lessons per course',
@@ -45,6 +48,7 @@ const tiers: Record<'learner' | 'pro' | 'pro_plus', TierInfo> = {
     monthlyPrice: { USD: 11, KES: 950 },
     priceSuffix: '/ month',
     description: 'For power users and content creators who want the best.',
+    color: 'violet',
     features: [
       'Unlimited courses & lessons',
       'Unlimited public course access',
@@ -59,6 +63,7 @@ const tiers: Record<'learner' | 'pro' | 'pro_plus', TierInfo> = {
     monthlyPrice: { USD: 19, KES: 1700 },
     priceSuffix: '/ month',
     description: 'The ultimate toolkit for educators and lifelong learners.',
+    color: 'purple',
     features: [
       'Everything in Pro',
       'Unlimited exams',
@@ -70,6 +75,20 @@ const tiers: Record<'learner' | 'pro' | 'pro_plus', TierInfo> = {
   },
 };
 
+// ── Feature comparison table ───────────────────────────────────────────────
+type FeatureRow = { feature: string; free: string | boolean; learner: string | boolean; pro: string | boolean; pro_plus: string | boolean };
+
+const featureRows: FeatureRow[] = [
+  { feature: 'AI Queries / month',       free: '20',           learner: 'Unlimited',  pro: 'Unlimited',  pro_plus: 'Unlimited'  },
+  { feature: 'Create courses',           free: '1',            learner: '5',          pro: 'Unlimited',  pro_plus: 'Unlimited'  },
+  { feature: 'Create assessments',       free: '3',            learner: '10',         pro: '50',         pro_plus: 'Unlimited'  },
+  { feature: 'Community access',         free: true,           learner: true,         pro: true,         pro_plus: true         },
+  { feature: 'Study groups',             free: false,          learner: false,        pro: true,         pro_plus: true         },
+  { feature: 'Analytics dashboard',      free: false,          learner: false,        pro: true,         pro_plus: true         },
+  { feature: 'Priority support',         free: false,          learner: false,        pro: false,        pro_plus: true         },
+];
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
 const FeatureListItem: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <li className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
     <CheckCircleIcon className="w-4 h-4 text-teal-500 flex-shrink-0 mt-0.5" />
@@ -95,9 +114,101 @@ const detectKenyaUser = (): boolean => {
 
 const formatAmount = (currency: CurrencyCode, amount: number): string =>
   currency === 'KES'
-    ? `${amount.toLocaleString()} KES`
-    : `$${amount.toLocaleString()}`;
+    ? `KES ${amount.toLocaleString()}`
+    : `$${amount.toLocaleString()} USD`;
 
+/** Show dual-currency price e.g. "$4 USD / KES 350" */
+const formatDualPrice = (tierKey: 'learner' | 'pro' | 'pro_plus'): string => {
+  const t = tiers[tierKey];
+  return `$${t.monthlyPrice.USD} USD / KES ${t.monthlyPrice.KES.toLocaleString()}`;
+};
+
+const formatDate = (dateStr?: string | null): string => {
+  if (!dateStr) return 'N/A';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return 'N/A';
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+};
+
+const daysUntil = (dateStr?: string | null): number | null => {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  return Math.max(0, Math.ceil((d.getTime() - Date.now()) / 86400000));
+};
+
+// Copy-to-clipboard helper
+const copyText = async (text: string): Promise<void> => {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // ignore
+  }
+};
+
+// ── CopyField ────────────────────────────────────────────────────────────────
+const CopyField: React.FC<{ label: string; value: string }> = ({ label, value }) => {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    await copyText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{label}</p>
+      <div className="flex items-center gap-2">
+        <div className="flex-1 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2.5">
+          <span className="font-mono font-bold text-slate-900 dark:text-slate-100 text-lg tracking-widest select-all">{value}</span>
+        </div>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className={`flex-shrink-0 px-3 py-2.5 rounded-lg text-xs font-bold transition-colors ${
+            copied
+              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+              : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-indigo-100 hover:text-indigo-700'
+          }`}
+        >
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ── StatusBadge ──────────────────────────────────────────────────────────────
+const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
+  const map: Record<string, { label: string; cls: string; icon: string }> = {
+    completed: { label: 'Completed', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', icon: '✓' },
+    pending:   { label: 'Pending',   cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',     icon: '⏳' },
+    failed:    { label: 'Failed',    cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',         icon: '✗' },
+  };
+  const cfg = map[status] ?? { label: status, cls: 'bg-slate-100 text-slate-600', icon: '·' };
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${cfg.cls}`}>
+      <span>{cfg.icon}</span>
+      {cfg.label}
+    </span>
+  );
+};
+
+// ── Feature comparison cell ──────────────────────────────────────────────────
+const FeatureCell: React.FC<{ value: string | boolean; isActive: boolean }> = ({ value, isActive }) => {
+  const base = isActive ? 'font-semibold text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-400';
+  if (typeof value === 'boolean') {
+    return (
+      <td className="px-4 py-3 text-center">
+        {value
+          ? <CheckCircleIcon className={`w-4 h-4 mx-auto ${isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-teal-500'}`} />
+          : <XCircleIcon className="w-4 h-4 mx-auto text-slate-300 dark:text-slate-600" />}
+      </td>
+    );
+  }
+  return <td className={`px-4 py-3 text-center text-sm ${base}`}>{value}</td>;
+};
+
+// ── Main Component ─────────────────────────────────────────────────────────
 export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', onSubscriptionActivated }) => {
   const queryClient = useQueryClient();
   const [selectedTier, setSelectedTier] = useState<'learner' | 'pro' | 'pro_plus'>('learner');
@@ -107,7 +218,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     if (saved === 'USD' || saved === 'KES') return saved;
     return detectKenyaUser() ? 'KES' : 'USD';
   });
-  
+
   const [selectedMethodId, setSelectedMethodId] = useState<number | null>(null);
   const [latestPayment, setLatestPayment] = useState<Payment | null>(null);
   const [paymentMessage, setPaymentMessage] = useState<string>('');
@@ -132,6 +243,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
   const [enterpriseEmail, setEnterpriseEmail] = useState('');
   const [enterpriseMessage, setEnterpriseMessage] = useState('');
   const [enterpriseFormMessage, setEnterpriseFormMessage] = useState('');
+  const [showComparison, setShowComparison] = useState(false);
 
   const selectedPrice = tiers[selectedTier].monthlyPrice[currency];
 
@@ -146,7 +258,6 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     queryKey: ['payment-history'],
     queryFn: paymentService.getPaymentHistory,
     retry: false,
-    // Ensure we always get an array, even on error
     select: (data) => Array.isArray(data) ? data : [],
   });
 
@@ -163,7 +274,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
           currency: response.currency ?? response.payment.currency,
         });
         setPaystackPending(null);
-        setPaymentMessage('Pay using the details below, then enter your M-Pesa transaction code.');
+        setPaymentMessage('');
       } else if (response.paystack_url) {
         setPaystackPending({ url: response.paystack_url, reference: response.reference ?? '', paymentId: response.payment.id });
         setPaybillPending(null);
@@ -219,7 +330,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
       queryClient.invalidateQueries({ queryKey: ['subscription'] });
       historyQuery.refetch();
       if (onSubscriptionActivated) {
-          onSubscriptionActivated(selectedTier);
+        onSubscriptionActivated(selectedTier);
       }
     },
   });
@@ -247,11 +358,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
 
   const normalizeTier = (tier: unknown): UserTier => {
     switch (tier) {
-      case 'free':
-      case 'learner':
-      case 'pro':
-      case 'pro_plus':
-      case 'admin':
+      case 'free': case 'learner': case 'pro': case 'pro_plus': case 'admin':
         return tier;
       default:
         return 'free';
@@ -263,15 +370,13 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     queryKey: ['subscription'],
     queryFn: paymentService.getSubscription,
     retry: false,
-    // Avoid unnecessary 404 calls for free users who don't have subscriptions.
     enabled: safeCurrentTier !== 'free',
   });
 
   const currentPlanLabel = useMemo(() => {
     if (safeCurrentTier !== 'free') return safeCurrentTier.replace('_', ' ');
     if (!subscriptionQuery.data) return 'Free';
-    const backendTier = subscriptionQuery.data.tier || 'free';
-    return String(backendTier).replace('_', ' ');
+    return String(subscriptionQuery.data.tier || 'free').replace('_', ' ');
   }, [subscriptionQuery.data, safeCurrentTier]);
 
   const selectedMethod = useMemo(() => {
@@ -284,53 +389,32 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
       setPaymentMessage('Select a payment method first.');
       return;
     }
-
     const effectiveCurrency: CurrencyCode =
       selectedMethod?.name === 'mpesa' || selectedMethod?.name === 'mpesa_paybill' ? 'KES' : currency;
     const amount = tiers[selectedTier].monthlyPrice[effectiveCurrency];
-    
     const payload: any = {
       payment_method_id: selectedMethodId,
-      amount: amount,
+      amount,
       currency: effectiveCurrency,
       metadata: { tier: selectedTier, display_currency: currency },
     };
-
     if (selectedMethod?.name === 'mpesa') {
-      if (!mpesaPhone) {
-        setPaymentMessage('Enter the phone number linked to your M-Pesa account.');
-        return;
-      }
+      if (!mpesaPhone) { setPaymentMessage('Enter the phone number linked to your M-Pesa account.'); return; }
       payload.phone_number = mpesaPhone;
     }
-
     if (selectedMethod?.name === 'card') {
-      if (!cardToken) {
-        setPaymentMessage('Enter a valid card token (demo only).');
-        return;
-      }
+      if (!cardToken) { setPaymentMessage('Enter a valid card token (demo only).'); return; }
       payload.card_token = cardToken;
     }
-
-    initiatePaymentMutation.mutate({
-      ...payload,
-    });
+    initiatePaymentMutation.mutate(payload);
   };
 
   const handleActivateSubscription = () => {
-    if (!latestPayment) {
-      setPaymentMessage('No payment found. Start a payment first.');
-      return;
-    }
-    upgradeMutation.mutate({
-      tier: selectedTier,
-      payment_id: latestPayment.id,
-    });
+    if (!latestPayment) { setPaymentMessage('No payment found. Start a payment first.'); return; }
+    upgradeMutation.mutate({ tier: selectedTier, payment_id: latestPayment.id });
   };
 
-  const handleCancelSubscription = () => {
-    cancelSubscriptionMutation.mutate();
-  };
+  const handleCancelSubscription = () => cancelSubscriptionMutation.mutate();
 
   const handleSubmitEnterpriseInquiry = (e: React.FormEvent) => {
     e.preventDefault();
@@ -344,20 +428,25 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
 
   useEffect(() => {
     const methods = Array.isArray(methodsQuery.data) ? methodsQuery.data : [];
-    if (!selectedMethodId && methods.length > 0) {
-      setSelectedMethodId(methods[0].id);
-    }
+    if (!selectedMethodId && methods.length > 0) setSelectedMethodId(methods[0].id);
   }, [methodsQuery.data, selectedMethodId]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(CURRENCY_STORAGE_KEY, currency);
-    }
+    if (typeof window !== 'undefined') localStorage.setItem(CURRENCY_STORAGE_KEY, currency);
   }, [currency]);
+
+  // ── Subscription status helpers ──────────────────────────────────────────
+  const sub = subscriptionQuery.data;
+  // Cast to any to support optional backend fields not yet in the type definition
+  const subAny = sub as any;
+  const trialDaysLeft = daysUntil(subAny?.trial_ends_at ?? null);
+  const renewsDaysLeft = daysUntil(sub?.expires_at);
+  const isTrial = !!(subAny?.is_trial);
 
   return (
     <div className="space-y-8">
-      {/* Header */}
+
+      {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
         <div className="p-3 rounded-xl bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400">
           <PriceTagIcon className="w-8 h-8" />
@@ -368,40 +457,147 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
         </div>
       </div>
 
-      {/* Current Subscription Status */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">Current Subscription</h2>
+      {/* ── Current subscription status ─────────────────────────────────── */}
+      <div className={`rounded-2xl p-6 border shadow-sm ${
+        safeCurrentTier === 'free'
+          ? 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700'
+          : isTrial
+          ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
+          : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700'
+      }`}>
+        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Current Subscription</p>
+
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-                <p className="text-2xl font-bold capitalize text-slate-900 dark:text-slate-100">{currentPlanLabel} Plan</p>
-                {subscriptionQuery.data && (
-                    <div className="flex items-center gap-2 mt-2 text-emerald-600 text-sm font-medium">
-                        <CheckCircleIcon className="w-4 h-4" />
-                        <span>Active{(() => {
-                            const d = subscriptionQuery.data.expires_at ? new Date(subscriptionQuery.data.expires_at) : null;
-                            if (!d || isNaN(d.getTime())) return '';
-                            return ` • Renews on ${d.toLocaleDateString()}`;
-                        })()}</span>
-                    </div>
-                )}
-                {!subscriptionQuery.data && currentTier === 'free' && (
-                    <p className="text-slate-500 text-sm mt-1">Upgrade to unlock more features.</p>
-                )}
-            </div>
-            {subscriptionQuery.data && (
-                <Button
-                    variant="ghost"
-                    className="text-red-500 hover:text-red-600 dark:hover:text-red-400"
-                    onClick={handleCancelSubscription}
-                    isLoading={cancelSubscriptionMutation.isPending}
-                >
-                    Cancel Subscription
-                </Button>
+          <div>
+            <p className="text-2xl font-bold capitalize text-slate-900 dark:text-slate-100">{currentPlanLabel} Plan</p>
+
+            {safeCurrentTier === 'free' && (
+              <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+                You're on the <strong>Free</strong> plan. Upgrade to unlock more features.
+              </p>
             )}
+
+            {isTrial && trialDaysLeft !== null && (
+              <div className="flex items-center gap-2 mt-2 text-amber-700 dark:text-amber-300 text-sm font-medium">
+                <ClockIcon className="w-4 h-4" />
+                <span>
+                  Trial ends in <strong>{trialDaysLeft} day{trialDaysLeft !== 1 ? 's' : ''}</strong>
+                  {subAny?.trial_ends_at ? ` (${formatDate(subAny.trial_ends_at)})` : ''}
+                  {trialDaysLeft <= 3 && (
+                    <span className="ml-2 px-2 py-0.5 rounded-full bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 text-xs font-bold animate-pulse">
+                      Expires soon!
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
+
+            {sub && !isTrial && (
+              <div className="flex items-center gap-2 mt-2 text-emerald-700 dark:text-emerald-300 text-sm font-medium">
+                <CheckCircleIcon className="w-4 h-4" />
+                <span>
+                  Active
+                  {sub.expires_at ? ` • Renews on ${formatDate(sub.expires_at)}` : ''}
+                  {renewsDaysLeft !== null && renewsDaysLeft <= 7 && (
+                    <span className="ml-2 text-xs text-amber-600 dark:text-amber-400 font-bold">({renewsDaysLeft}d left)</span>
+                  )}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setShowComparison((v) => !v)}
+              className="px-3 py-2 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              {showComparison ? 'Hide' : 'Compare'} Plans
+            </button>
+            {sub && (
+              <Button
+                variant="ghost"
+                className="text-red-500 hover:text-red-600 dark:hover:text-red-400 text-sm"
+                onClick={handleCancelSubscription}
+                isLoading={cancelSubscriptionMutation.isPending}
+              >
+                Cancel Subscription
+              </Button>
+            )}
+          </div>
         </div>
+
+        {/* Free plan feature comparison inline hint */}
+        {safeCurrentTier === 'free' && (
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            {[
+              { label: 'AI Queries', free: '20/mo', paid: 'Unlimited' },
+              { label: 'Courses', free: '1 max', paid: 'Up to Unlimited' },
+              { label: 'Assessments', free: '3 max', paid: 'Up to Unlimited' },
+              { label: 'Analytics', free: 'Basic', paid: 'Full dashboard' },
+            ].map(({ label, free, paid }) => (
+              <div key={label} className="bg-white dark:bg-slate-800 rounded-xl p-3 border border-slate-200 dark:border-slate-700">
+                <p className="font-semibold text-slate-700 dark:text-slate-300 mb-1">{label}</p>
+                <p className="text-slate-400 line-through">{free}</p>
+                <p className="text-indigo-600 dark:text-indigo-400 font-semibold">{paid}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Enterprise quick access */}
+      {/* ── Feature comparison table (collapsible) ───────────────────────── */}
+      {showComparison && (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-x-auto">
+          <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Plan Comparison</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">All prices shown in both USD and KES.</p>
+          </div>
+          <table className="w-full text-sm min-w-[500px]">
+            <thead>
+              <tr className="border-b border-slate-100 dark:border-slate-700">
+                <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-400 w-40">Feature</th>
+                {(['free', 'learner', 'pro', 'pro_plus'] as const).map((tk) => {
+                  const isActive = safeCurrentTier === tk;
+                  const tierLabel = tk === 'free' ? 'Free' : tiers[tk as 'learner' | 'pro' | 'pro_plus'].name;
+                  const price = tk === 'free' ? 'Free' : formatDualPrice(tk as 'learner' | 'pro' | 'pro_plus');
+                  return (
+                    <th
+                      key={tk}
+                      className={`px-4 py-3 text-center font-bold ${
+                        isActive
+                          ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                          : 'text-slate-700 dark:text-slate-200'
+                      }`}
+                    >
+                      <div>{tierLabel}</div>
+                      <div className="text-[11px] font-normal text-slate-400 mt-0.5">{price}</div>
+                      {isActive && (
+                        <div className="text-[10px] mt-1 px-2 py-0.5 rounded-full bg-indigo-600 text-white inline-block">
+                          Your Plan
+                        </div>
+                      )}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+              {featureRows.map((row) => (
+                <tr key={row.feature} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                  <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-300">{row.feature}</td>
+                  <FeatureCell value={row.free} isActive={safeCurrentTier === 'free'} />
+                  <FeatureCell value={row.learner} isActive={safeCurrentTier === 'learner'} />
+                  <FeatureCell value={row.pro} isActive={safeCurrentTier === 'pro'} />
+                  <FeatureCell value={row.pro_plus} isActive={safeCurrentTier === 'pro_plus'} />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── Enterprise banner ─────────────────────────────────────────────── */}
       <div className="rounded-xl border border-indigo-200 dark:border-indigo-900/40 bg-gradient-to-r from-indigo-50 to-cyan-50 dark:from-indigo-900/20 dark:to-cyan-900/10 p-5">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
@@ -412,330 +608,423 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
           </div>
           <button
             type="button"
-            onClick={() => {
-              setEnterpriseFormMessage('');
-              setIsEnterpriseModalOpen(true);
-            }}
-            className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+            onClick={() => { setEnterpriseFormMessage(''); setIsEnterpriseModalOpen(true); }}
+            className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 whitespace-nowrap"
           >
             Contact Sales
           </button>
         </div>
       </div>
 
+      {/* ── Plans + payment ───────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Plans Selection */}
+
+        {/* Plan cards — 2/3 */}
         <div className="lg:col-span-2 space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Select a Plan</h2>
-                <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-600 p-1 bg-white dark:bg-slate-800">
-                    {(['USD', 'KES'] as CurrencyCode[]).map((code) => (
-                        <button
-                            key={code}
-                            type="button"
-                            onClick={() => setCurrency(code)}
-                            className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                                currency === code
-                                    ? 'bg-indigo-600 text-white'
-                                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                            }`}
-                        >
-                            {code}
-                        </button>
-                    ))}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Select a Plan</h2>
+            <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-600 p-1 bg-white dark:bg-slate-800">
+              {(['USD', 'KES'] as CurrencyCode[]).map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  onClick={() => setCurrency(code)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                    currency === code
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {code}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Kenya hint */}
+          {currency === 'KES' && (
+            <p className="text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg px-3 py-2">
+              Prices shown in Kenyan Shillings (KES). M-Pesa Paybill is available for Kenya-based payments.
+            </p>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {(Object.keys(tiers) as Array<'learner' | 'pro' | 'pro_plus'>).map((tierKey) => {
+              const tier = tiers[tierKey];
+              const isSelected = selectedTier === tierKey;
+              const isCurrent = safeCurrentTier === tierKey;
+              return (
+                <div
+                  key={tierKey}
+                  onClick={() => !isCurrent && setSelectedTier(tierKey)}
+                  className={`relative rounded-2xl border-2 p-5 cursor-pointer transition-all duration-200 flex flex-col h-full ${
+                    isSelected
+                      ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-500 ring-1 ring-indigo-600 shadow-lg scale-[1.02]'
+                      : isCurrent
+                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/10 cursor-default opacity-80'
+                      : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800'
+                  }`}
+                >
+                  {tier.isPopular && !isCurrent && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-indigo-600 text-white text-[10px] font-bold rounded-full shadow-sm tracking-wider">
+                      POPULAR
+                    </div>
+                  )}
+                  {isCurrent && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-emerald-600 text-white text-[10px] font-bold rounded-full shadow-sm tracking-wider">
+                      CURRENT
+                    </div>
+                  )}
+
+                  <div className="mb-4">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">{tier.name}</h3>
+                    <div className="flex items-baseline mt-1 gap-1">
+                      <span className="text-2xl font-extrabold text-slate-900 dark:text-slate-100">
+                        {formatAmount(currency, tier.monthlyPrice[currency])}
+                      </span>
+                      <span className="text-sm text-slate-500">{tier.priceSuffix}</span>
+                    </div>
+                    {/* Dual currency hint */}
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                      {currency === 'KES'
+                        ? `$${tier.monthlyPrice.USD} USD / month`
+                        : `KES ${tier.monthlyPrice.KES.toLocaleString()} / month`}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 line-clamp-2 min-h-[2.5rem]">{tier.description}</p>
+                  </div>
+
+                  <div className="flex-grow border-t border-slate-200 dark:border-slate-700 pt-4 mb-4">
+                    <ul className="space-y-3">
+                      {tier.features.map((feature, idx) => (
+                        <FeatureListItem key={idx}>{feature}</FeatureListItem>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="mt-auto">
+                    <div className={`w-full py-2.5 rounded-xl text-center text-sm font-bold transition-colors ${
+                      isSelected && !isCurrent
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : isCurrent
+                        ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30'
+                        : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                    }`}>
+                      {isCurrent ? 'Current Plan' : isSelected ? 'Selected' : 'Select Plan'}
+                    </div>
+                  </div>
                 </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {(Object.keys(tiers) as Array<'learner' | 'pro' | 'pro_plus'>).map((tierKey) => {
-                    const tier = tiers[tierKey];
-                    const isSelected = selectedTier === tierKey;
-                    const isCurrent = safeCurrentTier === tierKey;
-
-                    return (
-                        <div 
-                            key={tierKey}
-                            onClick={() => !isCurrent && setSelectedTier(tierKey)}
-                            className={`relative rounded-xl border-2 p-5 cursor-pointer transition-all duration-200 flex flex-col h-full ${
-                                isSelected 
-                                    ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-500 ring-1 ring-indigo-600 shadow-md transform scale-[1.02]' 
-                                    : isCurrent
-                                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/10 cursor-default opacity-80'
-                                        : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800'
-                            }`}
-                        >
-                            {tier.isPopular && !isCurrent && (
-                                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-indigo-600 text-white text-xs font-bold rounded-full shadow-sm">
-                                    POPULAR
-                                </div>
-                            )}
-                            {isCurrent && (
-                                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-emerald-600 text-white text-xs font-bold rounded-full shadow-sm">
-                                    CURRENT
-                                </div>
-                            )}
-                            
-                            <div className="mb-4">
-                                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">{tier.name}</h3>
-                                <div className="flex items-baseline mt-1">
-                                    <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                                      {formatAmount(currency, tier.monthlyPrice[currency])}
-                                    </span>
-                                    <span className="text-sm text-slate-500 ml-1">{tier.priceSuffix}</span>
-                                </div>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 line-clamp-2 min-h-[2.5rem]">{tier.description}</p>
-                            </div>
-
-                            <div className="flex-grow border-t border-slate-200 dark:border-slate-700 pt-4 mb-4">
-                                <ul className="space-y-3">
-                                    {tier.features.map((feature, idx) => (
-                                        <FeatureListItem key={idx}>{feature}</FeatureListItem>
-                                    ))}
-                                </ul>
-                            </div>
-
-                            <div className="mt-auto">
-                                <div className={`w-full py-2.5 rounded-lg text-center text-sm font-bold transition-colors ${
-                                    isSelected && !isCurrent
-                                        ? 'bg-indigo-600 text-white shadow-md'
-                                        : isCurrent
-                                            ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30'
-                                            : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                                }`}>
-                                    {isCurrent ? 'Current Plan' : isSelected ? 'Selected' : 'Select Plan'}
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Payment Processing */}
+        {/* Payment panel — 1/3 */}
         <div className="space-y-6">
-            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Payment Details</h2>
-            <div className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm space-y-5 sticky top-6">
-                
-                {/* Summary */}
-                <div className="pb-4 border-b border-slate-100 dark:border-slate-700">
-                    <p className="text-sm text-slate-500 mb-1">Selected Plan</p>
-                    <div className="flex justify-between items-center">
-                        <span className="font-bold text-lg text-slate-800 dark:text-slate-100">{tiers[selectedTier].name}</span>
-                        <span className="font-bold text-indigo-600 dark:text-indigo-400">
-                          {formatAmount(currency, selectedPrice)}
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Payment Details</h2>
+
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm space-y-5 sticky top-6">
+
+            {/* Order summary */}
+            <div className="pb-4 border-b border-slate-100 dark:border-slate-700">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Order Summary</p>
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-lg text-slate-800 dark:text-slate-100">{tiers[selectedTier].name}</span>
+                <div className="text-right">
+                  <p className="font-bold text-indigo-600 dark:text-indigo-400">{formatAmount(currency, selectedPrice)}</p>
+                  <p className="text-[10px] text-slate-400">
+                    {currency === 'KES'
+                      ? `$${tiers[selectedTier].monthlyPrice.USD} USD / mo`
+                      : `KES ${tiers[selectedTier].monthlyPrice.KES.toLocaleString()} / mo`}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Method selector */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Payment Method</label>
+              {methodsQuery.isLoading ? (
+                <div className="animate-pulse h-10 bg-slate-100 dark:bg-slate-700 rounded-lg" />
+              ) : methodsQuery.isError ? (
+                <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-sm">
+                  Unable to load payment methods. Please refresh.
+                </div>
+              ) : (
+                <select
+                  className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-200"
+                  value={selectedMethodId ?? ''}
+                  onChange={(e) => setSelectedMethodId(Number(e.target.value))}
+                >
+                  <option value="">Select a payment method</option>
+                  {Array.isArray(methodsQuery.data) && methodsQuery.data.length > 0 ? (
+                    methodsQuery.data.map((method) => (
+                      <option key={method.id} value={method.id}>{method.display_name}</option>
+                    ))
+                  ) : (
+                    <option value="" disabled>No payment methods available</option>
+                  )}
+                </select>
+              )}
+            </div>
+
+            {/* M-Pesa STK push */}
+            {selectedMethod?.name === 'mpesa' && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">M-Pesa Number</label>
+                <input
+                  type="tel"
+                  value={mpesaPhone}
+                  onChange={(e) => setMpesaPhone(e.target.value)}
+                  placeholder="2547XXXXXXXX"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  You will receive an STK push on your phone. Enter your M-Pesa PIN to confirm.
+                </p>
+                {currency !== 'KES' && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    M-Pesa charges in KES — amount will be KES {tiers[selectedTier].monthlyPrice.KES.toLocaleString()}.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* M-Pesa Paybill instructions */}
+            {selectedMethod?.name === 'mpesa_paybill' && !paybillPending && (
+              <div className="p-4 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 space-y-2">
+                <p className="text-sm font-semibold text-green-800 dark:text-green-200">How M-Pesa Paybill works</p>
+                <ol className="list-decimal list-inside text-xs text-green-700 dark:text-green-300 space-y-1">
+                  <li>Click "Pay" below — we'll show you the Paybill number, account, and amount</li>
+                  <li>On your phone: go to <strong>M-Pesa &rarr; Pay Bill</strong></li>
+                  <li>Enter the Paybill number, account number, and exact amount</li>
+                  <li>Enter your PIN and confirm</li>
+                  <li>Enter the transaction code (e.g. <em>QFG7XXXXX</em>) here to verify</li>
+                </ol>
+                <p className="text-[11px] text-green-600 dark:text-green-400 mt-1">
+                  Amount will be in KES: <strong>KES {tiers[selectedTier].monthlyPrice.KES.toLocaleString()}</strong>
+                </p>
+              </div>
+            )}
+
+            {/* PayPal info */}
+            {selectedMethod?.name === 'paypal' && (
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400">
+                Pay in USD or your currency. After clicking Pay, you will receive a reference number.
+                Your plan activates once we confirm receipt.
+              </div>
+            )}
+
+            {/* Paystack info */}
+            {selectedMethod?.name === 'paystack' && (
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400">
+                Pay securely with Paystack — card, bank transfer, or USSD. Supports NGN, USD, GHS, ZAR.
+              </div>
+            )}
+
+            {/* Card */}
+            {selectedMethod?.name === 'card' && (
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Card (test mode)</label>
+                <input
+                  type="text"
+                  value={cardToken}
+                  onChange={(e) => setCardToken(e.target.value)}
+                  placeholder="tok_visa or test token"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <p className="text-xs text-slate-400">Test payments only. Live card processing enabled at launch.</p>
+              </div>
+            )}
+
+            {/* ── Paybill pending — improved UX ── */}
+            {paybillPending && (
+              <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-300 dark:border-emerald-700 overflow-hidden">
+                <div className="px-5 py-3 bg-emerald-500 text-white">
+                  <p className="text-sm font-bold flex items-center gap-2">
+                    <span className="text-lg">📱</span>
+                    Pay with M-Pesa Paybill
+                  </p>
+                  <p className="text-xs text-emerald-100 mt-0.5">Enter the details below in your M-Pesa app</p>
+                </div>
+
+                <div className="p-5 space-y-4">
+                  {/* Step-by-step */}
+                  <div className="space-y-1.5">
+                    {[
+                      'Go to M-Pesa on your phone',
+                      'Select "Pay Bill"',
+                      'Enter the Business Number below',
+                      'Enter the Account Number below',
+                      'Enter the exact Amount shown',
+                      'Confirm with your M-Pesa PIN',
+                    ].map((step, i) => (
+                      <div key={i} className="flex items-start gap-2.5 text-xs text-emerald-800 dark:text-emerald-200">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 flex items-center justify-center font-bold text-[10px]">
+                          {i + 1}
                         </span>
+                        {step}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="space-y-3 pt-2">
+                    <CopyField label="Business Number (Paybill)" value={paybillPending.paybillNumber} />
+                    <CopyField label="Account Number" value={paybillPending.account} />
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Amount to Pay</p>
+                      <div className="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2.5">
+                        <span className="font-mono font-extrabold text-slate-900 dark:text-slate-100 text-xl">
+                          {paybillPending.amount} {paybillPending.currency}
+                        </span>
+                      </div>
                     </div>
-                </div>
+                  </div>
 
-                {/* Method Selection */}
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Payment Method</label>
-                    {methodsQuery.isLoading ? (
-                        <div className="animate-pulse h-10 bg-slate-100 dark:bg-slate-700 rounded-lg"></div>
-                    ) : methodsQuery.isError ? (
-                        <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-sm">
-                            Unable to load payment methods. Please refresh the page.
-                        </div>
-                    ) : (
-                        <select
-                            className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-200"
-                            value={selectedMethodId ?? ''}
-                            onChange={(e) => setSelectedMethodId(Number(e.target.value))}
-                        >
-                            <option value="">Select a payment method</option>
-                            {Array.isArray(methodsQuery.data) && methodsQuery.data.length > 0 ? (
-                                methodsQuery.data.map((method) => (
-                                    <option key={method.id} value={method.id}>
-                                        {method.display_name}
-                                    </option>
-                                ))
-                            ) : (
-                                <option value="" disabled>No payment methods available</option>
-                            )}
-                        </select>
-                    )}
-                </div>
-
-                {/* Dynamic Inputs */}
-                {selectedMethod?.name === 'mpesa' && (
-                    <div className="animate-in fade-in slide-in-from-top-2">
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">M-Pesa Number</label>
-                        <input
-                            type="tel"
-                            value={mpesaPhone}
-                            onChange={(e) => setMpesaPhone(e.target.value)}
-                            placeholder="2547XXXXXXXX"
-                            className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                        {currency !== 'KES' && (
-                            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                                M-Pesa charges in KES. Amount will be billed in KES for this payment.
-                            </p>
-                        )}
-                    </div>
-                )}
-
-                {selectedMethod?.name === 'mpesa_paybill' && (
-                    <div className="animate-in fade-in slide-in-from-top-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
-                        <p className="text-sm text-slate-600 dark:text-slate-400">
-                            Amount is in Kenyan Shillings (KES). After you click Pay, you will see Paybill number, Account and Amount. Go to M-Pesa → Pay Bill → enter those details → pay. Then enter the transaction code you receive below.
-                        </p>
-                    </div>
-                )}
-
-                {selectedMethod?.name === 'paypal' && (
-                    <div className="animate-in fade-in slide-in-from-top-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
-                        <p className="text-sm text-slate-600 dark:text-slate-400">
-                            Pay in USD or your currency. After you click Pay we will show your reference number and instructions; you can pay via PayPal or international bank transfer. Your plan will be activated once we confirm receipt.
-                        </p>
-                    </div>
-                )}
-
-                {selectedMethod?.name === 'paystack' && (
-                    <div className="animate-in fade-in slide-in-from-top-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
-                        <p className="text-sm text-slate-600 dark:text-slate-400">
-                            Pay securely with Paystack using your card, bank transfer, or USSD. Supports NGN, USD, GHS, ZAR. After payment, click Verify to activate your subscription.
-                        </p>
-                    </div>
-                )}
-
-                {paybillPending && (
-                    <div className="animate-in fade-in slide-in-from-top-2 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 space-y-3">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Pay with M-Pesa</p>
-                        <div className="grid gap-2 text-sm">
-                            <p><span className="font-medium text-slate-600 dark:text-slate-400">Paybill:</span> <span className="font-mono font-bold">{paybillPending.paybillNumber}</span></p>
-                            <p><span className="font-medium text-slate-600 dark:text-slate-400">Account:</span> <span className="font-mono font-bold">{paybillPending.account}</span></p>
-                            <p><span className="font-medium text-slate-600 dark:text-slate-400">Amount:</span> <span className="font-mono font-bold">{paybillPending.amount} {paybillPending.currency}</span></p>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">M-Pesa transaction code (after you pay)</label>
-                            <input
-                                type="text"
-                                value={paybillTransactionCode}
-                                onChange={(e) => setPaybillTransactionCode(e.target.value)}
-                                placeholder="e.g. ABC12XY"
-                                className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500"
-                            />
-                        </div>
-                        <Button
-                            onClick={() => {
-                                if (!paybillTransactionCode.trim()) {
-                                    setPaymentMessage('Enter the M-Pesa transaction code you received.');
-                                    return;
-                                }
-                                confirmPaybillMutation.mutate({ paymentId: paybillPending.paymentId, code: paybillTransactionCode });
-                            }}
-                            isLoading={confirmPaybillMutation.isPending}
-                            className="w-full justify-center"
-                        >
-                            I've paid, submit code
-                        </Button>
-                    </div>
-                )}
-
-                {paystackPending && (
-                    <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 space-y-3">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Complete Paystack Payment</p>
-                        <a
-                            href={paystackPending.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block w-full text-center py-2.5 px-4 bg-[#0ba4db] hover:bg-[#0993c4] text-white rounded-lg font-semibold text-sm transition-colors"
-                        >
-                            Pay with Paystack →
-                        </a>
-                        <p className="text-xs text-slate-500">Reference: <span className="font-mono font-bold">{paystackPending.reference}</span></p>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">After paying, click "Verify Payment" below to confirm.</p>
-                        <Button
-                            onClick={() => verifyPaystackMutation.mutate({ reference: paystackPending.reference })}
-                            isLoading={verifyPaystackMutation.isPending}
-                            className="w-full justify-center"
-                        >
-                            Verify Payment
-                        </Button>
-                    </div>
-                )}
-
-                {selectedMethod?.name === 'card' && (
-                    <div className="animate-in fade-in slide-in-from-top-2">
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Card (test mode)</label>
-                        <input
-                            type="text"
-                            value={cardToken}
-                            onChange={(e) => setCardToken(e.target.value)}
-                            placeholder="Use tok_visa or test token from your provider"
-                            className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                        <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">Test payments only. Live card processing will be enabled at launch.</p>
-                    </div>
-                )}
-
-                {/* Actions */}
-                <div className="pt-2 space-y-3">
+                  {/* Transaction code entry */}
+                  <div className="space-y-2 pt-2 border-t border-emerald-200 dark:border-emerald-700">
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      After paying, enter your M-Pesa transaction code:
+                    </p>
+                    <input
+                      type="text"
+                      value={paybillTransactionCode}
+                      onChange={(e) => setPaybillTransactionCode(e.target.value.toUpperCase())}
+                      placeholder="e.g. QFG7XXXXXX"
+                      className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-emerald-500 font-mono tracking-widest uppercase"
+                    />
                     <Button
-                        onClick={handleStartPayment}
-                        isLoading={initiatePaymentMutation.isPending}
-                        className="w-full justify-center"
-                        disabled={safeCurrentTier === selectedTier}
+                      onClick={() => {
+                        if (!paybillTransactionCode.trim()) {
+                          setPaymentMessage('Enter the M-Pesa transaction code from your confirmation SMS.');
+                          return;
+                        }
+                        confirmPaybillMutation.mutate({ paymentId: paybillPending.paymentId, code: paybillTransactionCode });
+                      }}
+                      isLoading={confirmPaybillMutation.isPending}
+                      className="w-full justify-center bg-emerald-600 hover:bg-emerald-700"
                     >
-                        {safeCurrentTier === selectedTier ? 'Current Plan Active' : `Pay ${formatAmount(currency, selectedPrice)}`}
+                      I've paid — Submit Code
                     </Button>
-                    {latestPayment && (
-                        <p className="text-xs text-center text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 rounded-lg p-3">
-                            Payment received. We will review and activate your subscription within 24 hours. You will receive a confirmation once it's active.
-                        </p>
-                    )}
+                  </div>
+
+                  {/* Pending badge */}
+                  <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2">
+                    <ClockIcon className="w-4 h-4 flex-shrink-0 animate-spin" />
+                    <span>Waiting for payment confirmation</span>
+                  </div>
                 </div>
+              </div>
+            )}
 
-                {/* Messages */}
-                {paymentMessage && (
-                    <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm flex items-start gap-2">
-                        <ClockIcon className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                        <span className="flex-1">{paymentMessage}</span>
-                        <button onClick={() => setPaymentMessage('')} className="text-blue-500 hover:text-blue-700">
-                            <XIcon className="w-4 h-4" />
-                        </button>
-                    </div>
-                )}
+            {/* Paystack pending */}
+            {paystackPending && (
+              <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 space-y-3">
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Complete Paystack Payment</p>
+                <a
+                  href={paystackPending.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full text-center py-2.5 px-4 bg-[#0ba4db] hover:bg-[#0993c4] text-white rounded-xl font-semibold text-sm transition-colors"
+                >
+                  Pay with Paystack →
+                </a>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Reference:</span>
+                  <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{paystackPending.reference}</span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-400">After paying, click Verify to confirm.</p>
+                <Button
+                  onClick={() => verifyPaystackMutation.mutate({ reference: paystackPending.reference })}
+                  isLoading={verifyPaystackMutation.isPending}
+                  className="w-full justify-center"
+                >
+                  Verify Payment
+                </Button>
+              </div>
+            )}
+
+            {/* Pay button */}
+            <div className="pt-2 space-y-3">
+              <Button
+                onClick={handleStartPayment}
+                isLoading={initiatePaymentMutation.isPending}
+                className="w-full justify-center"
+                disabled={safeCurrentTier === selectedTier}
+              >
+                {safeCurrentTier === selectedTier
+                  ? 'Current Plan Active'
+                  : `Pay ${formatAmount(currency, selectedPrice)}`}
+              </Button>
+
+              {latestPayment && (
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
+                  <ClockIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>
+                    Payment received and under review. We will activate your subscription within 24 hours.
+                    You'll receive a confirmation once it's active.
+                  </span>
+                </div>
+              )}
             </div>
 
-            {/* History */}
-            <div className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm max-h-[300px] overflow-y-auto">
-                <h3 className="text-base font-semibold mb-4 text-slate-900 dark:text-slate-100">Payment History</h3>
-                {historyQuery.isLoading ? (
-                    <p className="text-sm text-slate-500">Loading history...</p>
-                ) : historyQuery.isError ? (
-                    <p className="text-sm text-amber-600 dark:text-amber-400">Unable to load payment history.</p>
-                ) : Array.isArray(historyQuery.data) && historyQuery.data.length > 0 ? (
-                    <div className="space-y-3">
-                        {historyQuery.data.map((payment) => (
-                        <div key={payment.id} className="p-3 rounded-lg bg-slate-50 dark:bg-slate-700/50 flex items-center justify-between">
-                            <div>
-                                <p className="font-semibold text-sm text-slate-800 dark:text-slate-200">
-                                    {payment.currency} {payment.amount}
-                                </p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">{new Date(payment.created_at).toLocaleDateString()}</p>
-                            </div>
-                            <span
-                            className={`px-2.5 py-0.5 text-xs font-medium rounded-full ${
-                                payment.status === 'completed'
-                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                                : payment.status === 'pending'
-                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                                : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
-                            }`}
-                            >
-                            {payment.status}
-                            </span>
-                        </div>
-                        ))}
-                    </div>
-                ) : (
-                    <p className="text-sm text-slate-500 dark:text-slate-400">No past payments found.</p>
-                )}
+            {/* Message banner */}
+            {paymentMessage && (
+              <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm flex items-start gap-2">
+                <ClockIcon className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span className="flex-1">{paymentMessage}</span>
+                <button onClick={() => setPaymentMessage('')} className="text-blue-500 hover:text-blue-700">
+                  <XIcon className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ── Payment history ── */}
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Payment History</h3>
             </div>
+            {historyQuery.isLoading ? (
+              <div className="p-5 space-y-3">
+                {[1, 2].map((i) => (
+                  <div key={i} className="flex gap-3 animate-pulse">
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-2/3" />
+                      <div className="h-2.5 bg-slate-200 dark:bg-slate-700 rounded w-1/3" />
+                    </div>
+                    <div className="h-6 w-20 bg-slate-200 dark:bg-slate-700 rounded-full" />
+                  </div>
+                ))}
+              </div>
+            ) : historyQuery.isError ? (
+              <p className="p-5 text-sm text-amber-600 dark:text-amber-400">Unable to load payment history.</p>
+            ) : Array.isArray(historyQuery.data) && historyQuery.data.length > 0 ? (
+              <div className="divide-y divide-slate-100 dark:divide-slate-700 max-h-[300px] overflow-y-auto">
+                {historyQuery.data.map((payment) => (
+                  <div key={payment.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                    <div>
+                      <p className="font-semibold text-sm text-slate-800 dark:text-slate-200">
+                        {payment.currency === 'KES'
+                          ? `KES ${Number(payment.amount).toLocaleString()}`
+                          : `$${Number(payment.amount).toLocaleString()} ${payment.currency}`}
+                      </p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{formatDate(payment.created_at)}</p>
+                    </div>
+                    <StatusBadge status={payment.status} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center py-10 px-4 text-center">
+                <p className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-1">No past payments</p>
+                <p className="text-xs text-slate-400">Your payment history will appear here once you subscribe.</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
+      {/* ── Enterprise modal ──────────────────────────────────────────────── */}
       {isEnterpriseModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
           <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl">
@@ -759,7 +1048,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                   required
                   value={enterpriseName}
                   onChange={(e) => setEnterpriseName(e.target.value)}
-                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="Jane Doe"
                 />
               </div>
@@ -770,7 +1059,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                   required
                   value={enterpriseEmail}
                   onChange={(e) => setEnterpriseEmail(e.target.value)}
-                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="you@school.ac.ke"
                 />
               </div>
@@ -782,27 +1071,18 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                   rows={5}
                   value={enterpriseMessage}
                   onChange={(e) => setEnterpriseMessage(e.target.value)}
-                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="Tell us about your institution size, needs, and timeline."
                 />
               </div>
-
               {enterpriseFormMessage && (
                 <p className="text-sm text-indigo-700 dark:text-indigo-300">{enterpriseFormMessage}</p>
               )}
-
               <div className="flex justify-end gap-3 pt-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setIsEnterpriseModalOpen(false)}
-                >
+                <Button type="button" variant="secondary" onClick={() => setIsEnterpriseModalOpen(false)}>
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  isLoading={enterpriseInquiryMutation.isPending}
-                >
+                <Button type="submit" isLoading={enterpriseInquiryMutation.isPending}>
                   Send Inquiry
                 </Button>
               </div>

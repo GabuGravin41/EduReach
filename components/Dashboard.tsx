@@ -1,11 +1,18 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { PlusCircleIcon } from './icons/PlusCircleIcon';
-import { ClockIcon } from './icons/ClockIcon';
 import { PlayCircleIcon } from './icons/PlayCircleIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { BookOpenIcon } from './icons/BookOpenIcon';
+import { TrophyIcon } from './icons/TrophyIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { ClipboardCheckIcon } from './icons/ClipboardCheckIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { UserTier } from '../App';
 import { AdminDashboard } from './AdminDashboard';
 import { useCourses, useMyCourses } from '../src/hooks/useCourses';
 import { useMyAssessments } from '../src/hooks/useAssessments';
+import apiClient from '../src/services/api';
 
 interface DashboardProps {
   onStartSession: () => void;
@@ -14,174 +21,586 @@ interface DashboardProps {
   username?: string;
 }
 
-// Skeleton loader for course cards
+// ── Analytics types ────────────────────────────────────────────────────────
+interface LearnerSummary {
+  total_courses_enrolled: number;
+  total_lessons_completed: number;
+  total_assessments_taken: number;
+  average_score: number;
+  total_xp: number;
+  current_level: number;
+  streak_days: number;
+}
+
+interface RecentActivity {
+  id: number;
+  assessment_title: string;
+  score_percentage: number;
+  submitted_at: string | null;
+  xp_earned: number;
+}
+
+interface LearnerAnalytics {
+  summary: LearnerSummary;
+  recent_activity: RecentActivity[];
+  course_progress: {
+    course_id: number;
+    course_title: string;
+    progress_percentage: number;
+    completed_lessons: number;
+    total_lessons: number;
+    last_accessed: string | null;
+  }[];
+}
+
+// ── Utility helpers ────────────────────────────────────────────────────────
+const getGreeting = (): string => {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+};
+
+/** Deterministic gradient from a string (hashes course title). */
+const titleGradient = (title: string): string => {
+  const palettes = [
+    'from-violet-500 to-purple-700',
+    'from-indigo-500 to-blue-700',
+    'from-teal-500 to-emerald-700',
+    'from-rose-500 to-pink-700',
+    'from-amber-500 to-orange-700',
+    'from-cyan-500 to-sky-700',
+    'from-fuchsia-500 to-purple-700',
+    'from-lime-500 to-green-700',
+  ];
+  let hash = 0;
+  for (let i = 0; i < title.length; i++) hash = (hash * 31 + title.charCodeAt(i)) | 0;
+  return palettes[Math.abs(hash) % palettes.length];
+};
+
+const scoreColor = (pct: number): string => {
+  if (pct >= 80) return 'bg-emerald-500';
+  if (pct >= 60) return 'bg-amber-500';
+  return 'bg-rose-500';
+};
+
+const scoreTextColor = (pct: number): string => {
+  if (pct >= 80) return 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30';
+  if (pct >= 60) return 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30';
+  return 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30';
+};
+
+const relativeTime = (isoStr: string | null): string => {
+  if (!isoStr) return '';
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+};
+
+// ── Skeleton loaders ───────────────────────────────────────────────────────
 const CourseSkeleton: React.FC = () => (
-  <div className="bg-white dark:bg-slate-800 rounded-xl overflow-hidden animate-pulse">
-    <div className="h-32 sm:h-40 bg-slate-200 dark:bg-slate-700" />
-    <div className="p-4 space-y-2">
+  <div className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden animate-pulse border border-slate-100 dark:border-slate-700">
+    <div className="h-36 bg-slate-200 dark:bg-slate-700" />
+    <div className="p-4 space-y-2.5">
       <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
-      <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-full" />
+      <div className="h-2.5 bg-slate-200 dark:bg-slate-700 rounded w-full" />
+      <div className="h-2.5 bg-slate-200 dark:bg-slate-700 rounded w-2/3" />
     </div>
   </div>
 );
 
-// Skeleton loader for activity items
-const ActivitySkeleton: React.FC = () => (
-  <div className="flex items-center gap-4 animate-pulse">
-    <div className="w-11 h-11 rounded-lg bg-slate-200 dark:bg-slate-700 shrink-0" />
-    <div className="flex-1 space-y-1.5">
-      <div className="h-3.5 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
-      <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2" />
+const StatSkeleton: React.FC = () => (
+  <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 animate-pulse border border-slate-100 dark:border-slate-700">
+    <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2 mb-3" />
+    <div className="h-7 bg-slate-200 dark:bg-slate-700 rounded w-1/3" />
+  </div>
+);
+
+// ── Sub-components ─────────────────────────────────────────────────────────
+
+interface StatCardProps {
+  label: string;
+  value: string | number;
+  icon: React.ReactNode;
+  accent: string; // tailwind bg class for icon backdrop
+  sub?: string;
+}
+
+const StatCard: React.FC<StatCardProps> = ({ label, value, icon, accent, sub }) => (
+  <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow flex items-start gap-4">
+    <div className={`p-3 rounded-xl ${accent} flex-shrink-0`}>{icon}</div>
+    <div className="min-w-0">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 truncate">{label}</p>
+      <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-0.5">{value}</p>
+      {sub && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{sub}</p>}
     </div>
   </div>
 );
 
+/** Animated progress bar */
+const ProgressBar: React.FC<{ pct: number }> = ({ pct }) => (
+  <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+    <div
+      className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-700"
+      style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+    />
+  </div>
+);
+
+/** Enrolled course card with progress */
+const EnrolledCourseCard: React.FC<{
+  course: any;
+  progressPct: number;
+  lessonsDone: number;
+  totalLessons: number;
+  onSelect: (id: number) => void;
+}> = ({ course, progressPct, lessonsDone, totalLessons, onSelect }) => {
+  const grad = titleGradient(course.title ?? '');
+  const done = progressPct >= 100;
+  return (
+    <div
+      onClick={() => onSelect(course.id)}
+      className="group bg-white dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-lg transition-all duration-200 cursor-pointer hover:-translate-y-0.5"
+    >
+      {/* Thumbnail / gradient banner */}
+      <div className={`h-36 bg-gradient-to-br ${grad} relative flex items-center justify-center`}>
+        {course.thumbnail ? (
+          <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
+        ) : (
+          <BookOpenIcon className="w-12 h-12 text-white/70 group-hover:scale-110 transition-transform" />
+        )}
+        {done && (
+          <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+            <CheckCircleIcon className="w-3 h-3" /> Done
+          </div>
+        )}
+        <span className="absolute bottom-2 left-2 bg-black/50 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
+          {totalLessons} lesson{totalLessons !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      <div className="p-4 space-y-3">
+        <h3 className="font-bold text-sm text-slate-800 dark:text-white line-clamp-2 leading-snug">
+          {course.title}
+        </h3>
+
+        <div className="space-y-1">
+          <div className="flex justify-between items-center text-[11px] text-slate-500 dark:text-slate-400">
+            <span>{lessonsDone}/{totalLessons} lessons</span>
+            <span className="font-semibold text-indigo-600 dark:text-indigo-400">{Math.round(progressPct)}%</span>
+          </div>
+          <ProgressBar pct={progressPct} />
+        </div>
+
+        <button
+          onClick={(e) => { e.stopPropagation(); onSelect(course.id); }}
+          className={`w-full py-2 rounded-xl text-xs font-bold transition-colors ${
+            done
+              ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100'
+              : progressPct > 0
+              ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+              : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-indigo-50 hover:text-indigo-700'
+          }`}
+        >
+          {done ? 'Review' : progressPct > 0 ? 'Continue' : 'Start'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/** Public/discover course card */
+const DiscoverCard: React.FC<{ course: any; onSelect: (id: number) => void }> = ({ course, onSelect }) => {
+  const grad = titleGradient(course.title ?? '');
+  return (
+    <div
+      onClick={() => onSelect(course.id)}
+      className="group bg-white dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-lg transition-all duration-200 cursor-pointer hover:-translate-y-0.5"
+    >
+      <div className={`h-32 bg-gradient-to-br ${grad} flex items-center justify-center`}>
+        {course.thumbnail ? (
+          <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
+        ) : (
+          <PlayCircleIcon className="w-10 h-10 text-white/70 group-hover:scale-110 transition-transform" />
+        )}
+      </div>
+      <div className="p-4 space-y-2">
+        <h3 className="font-bold text-sm text-slate-800 dark:text-white line-clamp-2 leading-snug">
+          {course.title}
+        </h3>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">
+          {course.description || 'No description.'}
+        </p>
+        {course.owner_username && (
+          <p className="text-[10px] text-slate-400 dark:text-slate-500">by {course.owner_username}</p>
+        )}
+        <button
+          onClick={(e) => { e.stopPropagation(); onSelect(course.id); }}
+          className="w-full mt-1 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-indigo-600 hover:text-white transition-colors"
+        >
+          Enroll
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ── Main Dashboard ─────────────────────────────────────────────────────────
 export const Dashboard: React.FC<DashboardProps> = ({ onStartSession, onSelectCourse, userTier, username }) => {
   const { data: apiCourses, isLoading: coursesLoading } = useCourses();
   const { data: myCourses, isLoading: myCoursesLoading } = useMyCourses();
   const { data: myAssessments, isLoading: assessmentsLoading } = useMyAssessments();
 
-  // Public courses for "Discover" section — exclude ones the user already owns
+  // Analytics — graceful fallback on failure
+  const analyticsQuery = useQuery<LearnerAnalytics>({
+    queryKey: ['learner-analytics'],
+    queryFn: async () => {
+      const res = await apiClient.get('/analytics/learner/');
+      return res.data;
+    },
+    retry: 1,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const analytics = analyticsQuery.data ?? null;
+  const summary = analytics?.summary ?? null;
+  const recentActivity = analytics?.recent_activity ?? [];
+  const courseProgressMap = useMemo(() => {
+    const map = new Map<number, { pct: number; done: number; total: number; lastAccessed: string | null }>();
+    if (analytics?.course_progress) {
+      for (const cp of analytics.course_progress) {
+        map.set(cp.course_id, {
+          pct: cp.progress_percentage,
+          done: cp.completed_lessons,
+          total: cp.total_lessons,
+          lastAccessed: cp.last_accessed,
+        });
+      }
+    }
+    return map;
+  }, [analytics]);
+
+  // Most recently accessed course for "Continue Learning" CTA
+  const mostRecent = useMemo(() => {
+    if (!analytics?.course_progress?.length) return null;
+    return [...analytics.course_progress]
+      .filter((cp) => cp.last_accessed)
+      .sort((a, b) => new Date(b.last_accessed!).getTime() - new Date(a.last_accessed!).getTime())[0] ?? null;
+  }, [analytics]);
+
+  // Partition: enrolled vs discover
   const myCourseIds = new Set(Array.isArray(myCourses) ? myCourses.map((c: any) => c.id) : []);
   const publicCourses = Array.isArray(apiCourses)
     ? apiCourses
         .filter((c: any) => (c.is_public === true || c.isPublic === true) && !myCourseIds.has(c.id))
-        .slice(0, 4)
+        .slice(0, 6)
     : [];
 
-  // Build real activity feed from user's own data
-  const activityItems: { icon: 'course' | 'exam'; title: string; sub: string; id?: number }[] = [];
-
-  if (Array.isArray(myCourses)) {
-    myCourses.slice(0, 3).forEach((c: any) => {
-      activityItems.push({
-        icon: 'course',
-        title: c.title ?? 'Untitled Course',
-        sub: `${c.lessons?.length ?? c.lesson_count ?? 0} lessons`,
-        id: c.id,
-      });
-    });
-  }
-
-  if (Array.isArray(myAssessments)) {
-    myAssessments.slice(0, 3).forEach((a: any) => {
-      activityItems.push({
-        icon: 'exam',
-        title: a.title ?? 'Untitled Assessment',
-        sub: `${a.question_count ?? a.questions?.length ?? '?'} questions`,
-      });
-    });
-  }
-
-  const activityLoading = myCoursesLoading || assessmentsLoading;
+  // Lessons completed this week (naive from analytics, fallback to 0)
+  const lessonsThisWeek = summary?.total_lessons_completed ?? 0;
 
   if (userTier === 'admin') {
     return <AdminDashboard stats={{ totalUsers: 1345, coursesCreated: 218, activeAssessments: 45 }} />;
   }
 
+  const greeting = getGreeting();
+  const displayName = username ? `, ${username}` : '';
+  const streak = summary?.streak_days ?? 0;
+  const xpToday = summary?.total_xp ?? 0;
+  const enrolledCount = Array.isArray(myCourses) ? myCourses.length : 0;
+  const assessmentsTaken = summary?.total_assessments_taken ?? 0;
+
   return (
-    <div>
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-white">
-            Welcome back{username ? `, ${username}` : ''}!
-          </h1>
-          <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 mt-1">
-            Ready to learn something new today?
-          </p>
+    <div className="space-y-8">
+
+      {/* ── Welcome hero ─────────────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 text-white p-6 sm:p-8 shadow-lg">
+        {/* decorative blobs */}
+        <div className="pointer-events-none absolute -top-10 -right-10 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 left-1/4 w-40 h-40 bg-white/5 rounded-full blur-2xl" />
+
+        <div className="relative flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6">
+          <div className="space-y-1">
+            <p className="text-white/70 text-sm font-medium uppercase tracking-widest">Dashboard</p>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+              {greeting}{displayName}! 👋
+            </h1>
+            <p className="text-white/75 text-sm sm:text-base max-w-md">
+              {streak > 0
+                ? `You're on a ${streak}-day streak — keep it up!`
+                : 'Ready to learn something new today?'}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-3 sm:flex-shrink-0">
+            {mostRecent && (
+              <button
+                onClick={() => onSelectCourse(mostRecent.course_id)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-indigo-700 text-sm font-bold hover:bg-indigo-50 transition-colors shadow-sm"
+              >
+                <PlayCircleIcon className="w-4 h-4" />
+                Continue Learning
+              </button>
+            )}
+            <button
+              onClick={onStartSession}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-sm font-bold transition-colors border border-white/30"
+            >
+              <PlusCircleIcon className="w-4 h-4" />
+              New Session
+            </button>
+          </div>
         </div>
-        <button
-          onClick={onStartSession}
-          className="flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 rounded-lg bg-indigo-600 text-white text-sm sm:text-base font-semibold hover:bg-indigo-700 transition-colors whitespace-nowrap"
-        >
-          <PlusCircleIcon className="w-5 h-5" />
-          <span>New Session</span>
-        </button>
+
+        {/* ── Summary bar ── */}
+        <div className="relative mt-6 grid grid-cols-3 gap-3">
+          {[
+            { label: 'Day Streak', value: streak > 0 ? `${streak} 🔥` : '—', sub: 'consecutive days' },
+            { label: 'Total XP', value: xpToday.toLocaleString(), sub: 'experience points' },
+            { label: 'Lessons Done', value: lessonsThisWeek, sub: 'total completed' },
+          ].map(({ label, value, sub }) => (
+            <div key={label} className="bg-white/15 backdrop-blur-sm rounded-xl p-3 border border-white/20 text-center">
+              <p className="text-lg sm:text-2xl font-extrabold">{value}</p>
+              <p className="text-[10px] sm:text-xs text-white/70 mt-0.5">{label}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
-        {/* Recommended courses */}
-        <div className="lg:col-span-2">
-          <h2 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">Discover Courses</h2>
-          {coursesLoading ? (
+      {/* ── Stats row ────────────────────────────────────────────────── */}
+      {analyticsQuery.isLoading ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <StatCard
+            label="Courses Enrolled"
+            value={enrolledCount}
+            icon={<BookOpenIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />}
+            accent="bg-indigo-50 dark:bg-indigo-900/30"
+          />
+          <StatCard
+            label="Assessments Taken"
+            value={assessmentsTaken}
+            icon={<ClipboardCheckIcon className="w-5 h-5 text-violet-600 dark:text-violet-400" />}
+            accent="bg-violet-50 dark:bg-violet-900/30"
+          />
+          <StatCard
+            label="Average Score"
+            value={summary ? `${summary.average_score}%` : '—'}
+            icon={<TrophyIcon className="w-5 h-5 text-amber-500" />}
+            accent="bg-amber-50 dark:bg-amber-900/30"
+            sub={summary?.average_score ? (summary.average_score >= 80 ? 'Great work!' : 'Keep practising') : undefined}
+          />
+          <StatCard
+            label="Current Level"
+            value={summary ? `Lvl ${summary.current_level}` : '—'}
+            icon={<SparklesIcon className="w-5 h-5 text-teal-600 dark:text-teal-400" />}
+            accent="bg-teal-50 dark:bg-teal-900/30"
+            sub={summary ? `${summary.total_xp.toLocaleString()} XP total` : undefined}
+          />
+        </div>
+      )}
+
+      {/* ── My Courses + Activity ─────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        {/* My Courses — 2/3 width */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-white">My Courses</h2>
+            {enrolledCount > 0 && (
+              <span className="text-xs text-slate-500 dark:text-slate-400">{enrolledCount} enrolled</span>
+            )}
+          </div>
+
+          {myCoursesLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <CourseSkeleton /><CourseSkeleton />
             </div>
-          ) : publicCourses.length === 0 ? (
-            <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-              <p className="text-2xl mb-2">🎓</p>
-              <p className="text-slate-600 dark:text-slate-400 font-medium mb-1">All caught up!</p>
-              <p className="text-sm text-slate-500">You've enrolled in all available courses.</p>
+          ) : !Array.isArray(myCourses) || myCourses.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 bg-white dark:bg-slate-800 rounded-2xl border-2 border-dashed border-indigo-200 dark:border-slate-700 text-center px-6">
+              <div className="p-4 rounded-full bg-indigo-50 dark:bg-indigo-900/30 mb-4">
+                <BookOpenIcon className="w-8 h-8 text-indigo-500" />
+              </div>
+              <h3 className="text-base font-bold text-slate-800 dark:text-white mb-1">Start your first course</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-5 max-w-xs">
+                Explore the courses below and hit <strong>Enroll</strong> to begin learning.
+              </p>
+              <button
+                onClick={onStartSession}
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-colors"
+              >
+                Browse Courses
+              </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-              {publicCourses.map((course: any) => (
-                <div
-                  key={course.id}
-                  onClick={() => onSelectCourse(course.id)}
-                  className="bg-white dark:bg-slate-800 rounded-xl shadow-md hover:shadow-lg shadow-slate-900/5 overflow-hidden cursor-pointer group transition-shadow border border-slate-100 dark:border-slate-700"
-                >
-                  <div className="h-32 sm:h-40 bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900/40 dark:to-purple-900/40 flex items-center justify-center relative">
-                    <PlayCircleIcon className="w-12 sm:w-16 h-12 sm:h-16 text-indigo-400 group-hover:text-indigo-600 dark:text-indigo-500 dark:group-hover:text-indigo-300 transition-colors" />
-                  </div>
-                  <div className="p-3 sm:p-4">
-                    <h3 className="font-bold text-base sm:text-lg mb-1 line-clamp-1 text-slate-800 dark:text-white">
-                      {course.title}
-                    </h3>
-                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 line-clamp-2">
-                      {course.description || 'No description provided.'}
-                    </p>
-                    {course.owner_username && (
-                      <p className="text-xs text-slate-400 mt-2">by {course.owner_username}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {myCourses.map((course: any) => {
+                const cp = courseProgressMap.get(course.id);
+                const pct = cp?.pct ?? course.progress ?? 0;
+                const done = cp?.done ?? 0;
+                const total = cp?.total ?? course.lessons?.length ?? course.lesson_count ?? 0;
+                return (
+                  <EnrolledCourseCard
+                    key={course.id}
+                    course={course}
+                    progressPct={pct}
+                    lessonsDone={done}
+                    totalLessons={total}
+                    onSelect={onSelectCourse}
+                  />
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* Activity sidebar */}
-        <div>
-          <h2 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">My Activity</h2>
-          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-lg shadow-slate-900/5 border border-slate-100 dark:border-slate-700 space-y-4">
-            {activityLoading ? (
-              <>
-                <ActivitySkeleton />
-                <ActivitySkeleton />
-                <ActivitySkeleton />
-              </>
-            ) : activityItems.length === 0 ? (
-              <div className="py-6 text-center">
-                <p className="text-2xl mb-2">🌱</p>
-                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">No activity yet</p>
-                <p className="text-xs text-slate-400 mt-1">
-                  Create a course or assessment to get started!
-                </p>
-              </div>
-            ) : (
-              activityItems.map((item, i) => (
-                <div
-                  key={i}
-                  className={`flex items-center gap-4 ${item.id ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
-                  onClick={() => item.id && onSelectCourse(item.id)}
-                >
-                  <div className={`p-3 rounded-lg shrink-0 ${item.icon === 'exam' ? 'bg-amber-50 dark:bg-amber-900/20' : 'bg-indigo-50 dark:bg-indigo-900/20'}`}>
-                    {item.icon === 'exam'
-                      ? <ClockIcon className="w-5 h-5 text-amber-500" />
-                      : <PlayCircleIcon className="w-5 h-5 text-indigo-500" />
-                    }
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-sm text-slate-800 dark:text-white truncate">{item.title}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">{item.sub}</p>
-                  </div>
+        {/* Right panel: activity + next steps */}
+        <div className="space-y-5">
+
+          {/* Recent Assessments */}
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+              <h3 className="font-bold text-sm text-slate-800 dark:text-white">Recent Assessments</h3>
+              <ClipboardCheckIcon className="w-4 h-4 text-slate-400" />
+            </div>
+
+            <div className="divide-y divide-slate-100 dark:divide-slate-700">
+              {assessmentsLoading || analyticsQuery.isLoading ? (
+                <div className="p-5 space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex gap-3 animate-pulse">
+                      <div className="h-8 w-8 rounded-lg bg-slate-200 dark:bg-slate-700 flex-shrink-0" />
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
+                        <div className="h-2.5 bg-slate-200 dark:bg-slate-700 rounded w-1/2" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))
-            )}
+              ) : recentActivity.length === 0 ? (
+                <div className="flex flex-col items-center py-10 px-4 text-center">
+                  <div className="p-3 rounded-full bg-amber-50 dark:bg-amber-900/20 mb-3">
+                    <ClipboardCheckIcon className="w-6 h-6 text-amber-500" />
+                  </div>
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">No quizzes yet</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">Take your first quiz to see your results here.</p>
+                </div>
+              ) : (
+                recentActivity.slice(0, 5).map((a) => (
+                  <div key={a.id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                    <div className="flex-shrink-0">
+                      <span className={`inline-flex items-center justify-center w-9 h-9 rounded-xl text-xs font-extrabold ${scoreTextColor(a.score_percentage)}`}>
+                        {Math.round(a.score_percentage)}%
+                      </span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">{a.assessment_title}</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                        {a.xp_earned > 0 && <span className="text-amber-500 font-medium">+{a.xp_earned} XP · </span>}
+                        {relativeTime(a.submitted_at)}
+                      </p>
+                    </div>
+                    <div className={`w-1.5 h-8 rounded-full flex-shrink-0 ${scoreColor(a.score_percentage)}`} />
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Suggested next steps */}
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-5 space-y-3">
+            <h3 className="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-2">
+              <SparklesIcon className="w-4 h-4 text-indigo-500" />
+              Suggested Next Steps
+            </h3>
+            <ul className="space-y-2.5">
+              {mostRecent && (
+                <li>
+                  <button
+                    onClick={() => onSelectCourse(mostRecent.course_id)}
+                    className="w-full text-left flex items-start gap-3 p-3 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors"
+                  >
+                    <PlayCircleIcon className="w-4 h-4 text-indigo-500 mt-0.5 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 truncate">
+                        Continue: {mostRecent.course_title}
+                      </p>
+                      <p className="text-[10px] text-indigo-500 dark:text-indigo-400">
+                        {Math.round(mostRecent.progress_percentage)}% complete
+                      </p>
+                    </div>
+                  </button>
+                </li>
+              )}
+              {(summary?.total_assessments_taken ?? 0) === 0 && (
+                <li className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 flex items-start gap-3">
+                  <ClipboardCheckIcon className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">Take your first quiz</p>
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400">Test your knowledge and earn XP</p>
+                  </div>
+                </li>
+              )}
+              {streak === 0 && (
+                <li className="p-3 rounded-xl bg-teal-50 dark:bg-teal-900/20 flex items-start gap-3">
+                  <ClockIcon className="w-4 h-4 text-teal-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-teal-700 dark:text-teal-300">Build a daily streak</p>
+                    <p className="text-[10px] text-teal-600 dark:text-teal-400">Study every day to unlock streak bonuses</p>
+                  </div>
+                </li>
+              )}
+              {enrolledCount === 0 && publicCourses.length > 0 && (
+                <li className="p-3 rounded-xl bg-violet-50 dark:bg-violet-900/20 flex items-start gap-3">
+                  <BookOpenIcon className="w-4 h-4 text-violet-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-violet-700 dark:text-violet-300">Enroll in a course below</p>
+                    <p className="text-[10px] text-violet-600 dark:text-violet-400">{publicCourses.length} courses available</p>
+                  </div>
+                </li>
+              )}
+            </ul>
           </div>
         </div>
+      </div>
+
+      {/* ── Discover section ──────────────────────────────────────────── */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-white">Discover Courses</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Public courses you haven't enrolled in yet</p>
+          </div>
+        </div>
+
+        {coursesLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <CourseSkeleton /><CourseSkeleton /><CourseSkeleton />
+          </div>
+        ) : publicCourses.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-14 bg-white dark:bg-slate-800 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-center px-6">
+            <div className="p-4 rounded-full bg-emerald-50 dark:bg-emerald-900/30 mb-4">
+              <CheckCircleIcon className="w-8 h-8 text-emerald-500" />
+            </div>
+            <h3 className="text-base font-bold text-slate-800 dark:text-white mb-1">All caught up!</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xs">
+              You've enrolled in all available public courses. Check back soon for new content.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {publicCourses.map((course: any) => (
+              <DiscoverCard key={course.id} course={course} onSelect={onSelectCourse} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

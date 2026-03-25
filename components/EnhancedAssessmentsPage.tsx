@@ -40,6 +40,7 @@ interface EnhancedAssessmentsPageProps {
     onBulkCreate?: () => void;
     userTier: UserTier;
     tierUsage: TierUsage;
+    isLoading?: boolean;
 }
 
 const TIER_FEATURES = {
@@ -160,7 +161,8 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
     setView,
     onBulkCreate,
     userTier,
-    tierUsage
+    tierUsage,
+    isLoading = false,
 }) => {
     const navigate = useNavigate();
     const [isChallengeModalOpen, setIsChallengeModalOpen] = useState(false);
@@ -249,21 +251,23 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
         }
     };
 
+    if (!assessments) return null;
+
     // Get unique subjects for filter dropdown
-    const uniqueSubjects = Array.from(new Set(assessments.map(a => a.topic).filter(Boolean)));
+    const uniqueSubjects = Array.from(new Set((assessments || []).map(a => a.topic).filter(Boolean)));
 
     // Get unique tags from all assessments for tag filter
     const uniqueTags = Array.from(new Set(
-        assessments.flatMap(a => (a as any).tags || []).filter(Boolean)
+        (assessments || []).flatMap(a => (a as any).tags || []).filter(Boolean)
     )).sort();
 
     // Group assessments by title to detect duplicates
-    const titleCounts = assessments.reduce((acc, assessment) => {
+    const titleCounts = (assessments || []).reduce((acc, assessment) => {
         acc[assessment.title] = (acc[assessment.title] || 0) + 1;
         return acc;
     }, {} as Record<string, number>);
 
-    const processedAssessments = assessments.map(assessment => {
+    const processedAssessments = (assessments || []).map(assessment => {
         const creator = (assessment as any).created_by_username || (assessment as any).creator_username || '';
         let displayTitle = assessment.title;
         if (titleCounts[assessment.title] > 1) {
@@ -313,28 +317,91 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
         return new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime();
     });
 
+    // ── Real stat calculations from actual assessment data ──────────────────
+    const completedAssessments = (assessments || []).filter(a => a.status === 'completed');
+    const avgScore = completedAssessments.length > 0
+        ? Math.round(
+            completedAssessments.reduce((sum, a) => {
+                const parts = (a.score || '0/0').split('/');
+                const earned = parseFloat(parts[0]) || 0;
+                const total = parseFloat(parts[1]) || 0;
+                return sum + (total > 0 ? (earned / total) * 100 : 0);
+            }, 0) / completedAssessments.length
+          )
+        : null;
+    const quizCount = (assessments || []).filter(a => a.assessment_type === 'quiz').length;
+    const examCount = (assessments || []).filter(a => a.assessment_type === 'exam').length;
+
+    // ── Loading skeleton ─────────────────────────────────────────────────────
+    if (isLoading) {
+        return (
+            <div className="max-w-7xl mx-auto animate-pulse">
+                <div className="h-10 w-56 bg-slate-200 dark:bg-slate-700 rounded-lg mb-3" />
+                <div className="h-4 w-80 bg-slate-200 dark:bg-slate-700 rounded mb-8" />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                    {[1, 2, 3].map(i => (
+                        <div key={i} className="h-24 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+                    ))}
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {[1, 2, 3, 4].map(i => (
+                        <div key={i} className="h-48 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="max-w-7xl mx-auto">
             {/* Header */}
-            <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-8 gap-4">
+            <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start mb-8 gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Assessments</h1>
                     <p className="text-slate-600 dark:text-slate-400 mt-1">
-                        Create and take assessments to test your knowledge
+                        Create and take quizzes and exams to test your knowledge
                     </p>
                 </div>
-
-                {/* Usage Stats */}
-                <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                    <div className="text-center">
-                        <p className="text-sm text-slate-600 dark:text-slate-400">Monthly Usage</p>
-                        <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">
-                            {usage.assessments_used} / {usage.assessments_limit === Infinity ? '∞' : usage.assessments_limit}
-                        </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-500">
-                            {usage.assessments_limit !== Infinity && `Resets in ${daysUntilReset} days`}
-                        </p>
+                {/* Quick type guide badges */}
+                <div className="flex items-center gap-3 flex-shrink-0">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-500" />
+                        <span className="text-xs font-bold text-blue-700 dark:text-blue-300">QUIZ</span>
+                        <span className="text-xs text-blue-600 dark:text-blue-400">— quick practice</span>
                     </div>
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500" />
+                        <span className="text-xs font-bold text-amber-700 dark:text-amber-300">EXAM</span>
+                        <span className="text-xs text-amber-600 dark:text-amber-400">— formal, timed</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Real Stat Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 flex flex-col gap-1">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Completed</p>
+                    <p className="text-3xl font-black text-slate-800 dark:text-slate-100">{completedAssessments.length}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">of {(assessments || []).length} total</p>
+                </div>
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 flex flex-col gap-1">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Avg Score</p>
+                    <p className="text-3xl font-black text-slate-800 dark:text-slate-100">
+                        {avgScore !== null ? `${avgScore}%` : '—'}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {completedAssessments.length > 0 ? `across ${completedAssessments.length} attempt${completedAssessments.length !== 1 ? 's' : ''}` : 'No attempts yet'}
+                    </p>
+                </div>
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 flex flex-col gap-1">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Monthly Limit</p>
+                    <p className="text-3xl font-black text-slate-800 dark:text-slate-100">
+                        {usage.assessments_used}
+                        <span className="text-lg font-semibold text-slate-400"> / {usage.assessments_limit === Infinity ? '∞' : usage.assessments_limit}</span>
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {usage.assessments_limit !== Infinity ? `Resets in ${daysUntilReset} days` : 'Unlimited plan'}
+                    </p>
                 </div>
             </div>
 
@@ -487,37 +554,70 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                 </div>
             </div>
 
-            {/* Filters and Sorting */}
-            <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                <div className="flex gap-2">
+            {/* ── QUIZ vs EXAM prominent filter tabs ───────────────────────────────── */}
+            <div className="mb-6">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">Filter by type</p>
+                <div className="flex flex-wrap gap-2">
                     <button
-                        onClick={() => setFilterType('all')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filterType === 'all'
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
-                            }`}
+                        onClick={() => setFilterAssessmentType('all')}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${
+                            filterAssessmentType === 'all'
+                                ? 'border-indigo-500 bg-indigo-600 text-white shadow-lg shadow-indigo-500/25'
+                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-700'
+                        }`}
                     >
-                        All ({assessments.length})
+                        All ({(assessments || []).length})
                     </button>
                     <button
-                        onClick={() => setFilterType('pending')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filterType === 'pending'
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
-                            }`}
+                        onClick={() => setFilterAssessmentType('quiz')}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${
+                            filterAssessmentType === 'quiz'
+                                ? 'border-blue-500 bg-blue-600 text-white shadow-lg shadow-blue-500/25'
+                                : 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:border-blue-400 dark:hover:border-blue-600'
+                        }`}
                     >
-                        Pending ({assessments.filter(a => a.status !== 'completed').length})
+                        <span className="inline-block w-2 h-2 rounded-full bg-current opacity-80" />
+                        QUIZ ({quizCount})
+                        <span className="hidden sm:inline text-xs font-normal opacity-75">· practice</span>
                     </button>
                     <button
-                        onClick={() => setFilterType('completed')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filterType === 'completed'
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
-                            }`}
+                        onClick={() => setFilterAssessmentType('exam')}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${
+                            filterAssessmentType === 'exam'
+                                ? 'border-amber-500 bg-amber-500 text-white shadow-lg shadow-amber-500/25'
+                                : 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 hover:border-amber-400 dark:hover:border-amber-600'
+                        }`}
                     >
-                        Completed ({assessments.filter(a => a.status === 'completed').length})
+                        <span className="inline-block w-2 h-2 rounded-full bg-current opacity-80" />
+                        EXAM ({examCount})
+                        <span className="hidden sm:inline text-xs font-normal opacity-75">· formal, timed</span>
                     </button>
+                </div>
+            </div>
 
+            {/* ── Status + sort row ────────────────────────────────────────────────── */}
+            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                <div className="flex gap-2 flex-wrap">
+                    {(['all', 'pending', 'completed'] as const).map((f) => {
+                        const count = f === 'all'
+                            ? (assessments || []).length
+                            : f === 'completed'
+                                ? (assessments || []).filter(a => a.status === 'completed').length
+                                : (assessments || []).filter(a => a.status !== 'completed').length;
+                        return (
+                            <button
+                                key={f}
+                                onClick={() => setFilterType(f)}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
+                                    filterType === f
+                                        ? 'bg-indigo-600 text-white'
+                                        : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+                                }`}
+                            >
+                                {f} ({count})
+                            </button>
+                        );
+                    })}
                     {onBulkCreate && (
                         <button
                             onClick={onBulkCreate}
@@ -528,7 +628,6 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                         </button>
                     )}
                 </div>
-
                 <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value as any)}
@@ -540,7 +639,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                 </select>
             </div>
 
-            {/* Search and Advanced Filters */}
+            {/* ── Search and Advanced Filters ──────────────────────────────────────── */}
             <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700 mb-6">
                 <div className="flex flex-col sm:flex-row gap-3">
                     <input
@@ -550,15 +649,6 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
                     />
-                    <select
-                        value={filterAssessmentType}
-                        onChange={(e) => setFilterAssessmentType(e.target.value as 'all' | 'quiz' | 'exam')}
-                        className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    >
-                        <option value="all">All Types</option>
-                        <option value="quiz">Quizzes Only</option>
-                        <option value="exam">Exams Only</option>
-                    </select>
                     {uniqueSubjects.length > 0 && (
                         <select
                             value={filterSubject}
@@ -603,31 +693,46 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                 )}
             </div>
 
-            {/* Quiz vs Exam — short hint for users */}
-            <div className="flex flex-wrap items-center gap-4 mb-4 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400">
-                <span className="font-medium text-slate-700 dark:text-slate-300">Quick guide:</span>
-                <span><strong className="text-teal-600 dark:text-teal-400">Quiz</strong> — short, brisk check of knowledge and memory.</span>
-                <span><strong className="text-rose-600 dark:text-rose-400">Exam</strong> — more serious; for deeper thinking and mastery.</span>
-            </div>
-
             {/* Assessments Grid or Empty State */}
             {sortedAssessments.length === 0 ? (
                 <div className="text-center py-16 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                     <ClipboardCheckIcon className="w-16 h-16 text-slate-400 dark:text-slate-500 mx-auto mb-4" />
                     <h3 className="text-xl font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                        {filterType === 'all' ? 'No assessments yet' : `No ${filterType} assessments`}
+                        {filterAssessmentType === 'quiz'
+                            ? 'No quizzes found'
+                            : filterAssessmentType === 'exam'
+                                ? 'No exams found'
+                                : filterType !== 'all'
+                                    ? `No ${filterType} assessments`
+                                    : searchQuery
+                                        ? `No results for "${searchQuery}"`
+                                        : 'No assessments yet'}
                     </h3>
                     <p className="text-slate-500 dark:text-slate-400 mb-6 max-w-sm mx-auto">
-                        {filterType === 'all'
-                            ? 'Create your first assessment to test your knowledge, or try an AI-generated quiz.'
-                            : `You don't have any ${filterType} assessments. Try a different filter or create one.`}
+                        {filterAssessmentType === 'quiz'
+                            ? 'No quizzes match your filters. Quizzes are short, practice-focused assessments. Create one or adjust your filters.'
+                            : filterAssessmentType === 'exam'
+                                ? 'No exams match your filters. Exams are formal, timed assessments. Create one or adjust your filters.'
+                                : filterType !== 'all' || searchQuery
+                                    ? 'Try adjusting your filters or search query.'
+                                    : 'Create your first quiz or exam to test your knowledge, or try an AI-generated quiz.'}
                     </p>
-                    <button
-                        onClick={() => handleCreateNew('multiple_choice')}
-                        className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-                    >
-                        Create your first assessment
-                    </button>
+                    <div className="flex items-center justify-center gap-3 flex-wrap">
+                        <button
+                            onClick={() => handleCreateNew('multiple_choice')}
+                            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-bold flex items-center gap-2"
+                        >
+                            <span className="w-2 h-2 rounded-full bg-white" />
+                            Create a Quiz
+                        </button>
+                        <button
+                            onClick={() => handleCreateNew('essay')}
+                            className="px-6 py-3 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-bold flex items-center gap-2"
+                        >
+                            <span className="w-2 h-2 rounded-full bg-white" />
+                            Create an Exam
+                        </button>
+                    </div>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -645,13 +750,18 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                                         <div>
                                             <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">{exam.displayTitle}</h3>
                                             <div className="flex flex-wrap items-center gap-2 mt-1">
-                                                <span className={`px-2 py-0.5 text-xs rounded-full font-bold uppercase tracking-wide ${
-                                                    exam.assessment_type === 'exam'
-                                                        ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
-                                                        : 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300'
-                                                }`}>
-                                                    {exam.assessment_type === 'exam' ? 'Exam' : 'Quiz'}
-                                                </span>
+                                                {/* Prominent QUIZ / EXAM badge */}
+                                                {exam.assessment_type === 'exam' ? (
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold uppercase tracking-widest border-2 border-amber-400 bg-amber-100 text-amber-800 dark:border-amber-600 dark:bg-amber-900/40 dark:text-amber-200 shadow-sm">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400" />
+                                                        EXAM
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold uppercase tracking-widest border-2 border-blue-400 bg-blue-100 text-blue-800 dark:border-blue-600 dark:bg-blue-900/40 dark:text-blue-200 shadow-sm">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400" />
+                                                        QUIZ
+                                                    </span>
+                                                )}
                                                 {((exam as any).tags || []).includes('ai-generated') ? (
                                                     <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
                                                         AI Generated

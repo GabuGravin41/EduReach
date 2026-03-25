@@ -131,11 +131,13 @@ export const QuizView: React.FC<QuizViewProps> = ({
     timeLimitMinutes ? Math.max(0, Math.round(timeLimitMinutes * 60)) : null
   );
 
-  // After submit: when backend returns status 'submitted', user can click "Mark with AI"
+  // After submit: when backend returns status 'submitted', auto-poll; user can also manually check
   const [attemptStatusFromServer, setAttemptStatusFromServer] = useState<string | null>(null);
   const [serverAttempt, setServerAttempt] = useState<{ status?: string; score?: string | number; percentage?: number } | null>(null);
   const [isMarking, setIsMarking] = useState(false);
   const [markError, setMarkError] = useState('');
+  const [isPollingForResult, setIsPollingForResult] = useState(false);
+  const [pollAttemptsLeft, setPollAttemptsLeft] = useState(5);
 
   // State for individual AI grading of essays
   const [gradingResults, setGradingResults] = useState<Record<string, { score: number, feedback: string }>>({});
@@ -185,7 +187,14 @@ export const QuizView: React.FC<QuizViewProps> = ({
       await ensureAttemptStarted();
       const data = await assessmentService.submitAssessment(assessmentId, answers as Record<number, string>);
       setAttemptStatusFromServer(data?.status ?? null);
-      setServerAttempt(data?.status === 'graded' ? { status: data.status, score: data.score, percentage: data.percentage } : null);
+      if (data?.status === 'graded') {
+        setServerAttempt({ status: data.status, score: data.score, percentage: data.percentage });
+      } else if (data?.status === 'submitted') {
+        // AI grading did not complete synchronously; auto-poll up to 5 times (every 10 s)
+        setServerAttempt(null);
+        setPollAttemptsLeft(5);
+        setIsPollingForResult(true);
+      }
       setIsSubmitted(true);
       if (imageUploadGraceMinutes && imageUploadGraceMinutes > 0) {
         setImageUploadSecondsLeft(Math.max(0, Math.round(imageUploadGraceMinutes * 60)));
@@ -268,6 +277,52 @@ export const QuizView: React.FC<QuizViewProps> = ({
       }
     }).catch(() => {});
   }, [assessmentId]);
+
+  // Auto-poll for graded result when status is 'submitted' (AI grading still in progress)
+  useEffect(() => {
+    if (!isPollingForResult || !assessmentId || pollAttemptsLeft <= 0) {
+      if (pollAttemptsLeft <= 0) setIsPollingForResult(false);
+      return;
+    }
+    const timeout = setTimeout(async () => {
+      try {
+        const attempt = await assessmentService.getMyAttempt(assessmentId);
+        if (attempt?.status === 'graded') {
+          setServerAttempt({ status: attempt.status, score: attempt.score, percentage: attempt.percentage });
+          setAttemptStatusFromServer('graded');
+          setIsPollingForResult(false);
+        } else {
+          setPollAttemptsLeft(prev => prev - 1);
+        }
+      } catch {
+        setPollAttemptsLeft(prev => prev - 1);
+      }
+    }, 10000);
+    return () => clearTimeout(timeout);
+  }, [isPollingForResult, pollAttemptsLeft, assessmentId]);
+
+  const handleCheckForResults = async () => {
+    if (!assessmentId) return;
+    setIsPollingForResult(false);
+    setIsMarking(true);
+    setMarkError('');
+    try {
+      const attempt = await assessmentService.getMyAttempt(assessmentId);
+      if (attempt?.status === 'graded') {
+        setServerAttempt({ status: attempt.status, score: attempt.score, percentage: attempt.percentage });
+        setAttemptStatusFromServer('graded');
+      } else {
+        // Trigger background grading as a fallback then poll
+        await assessmentService.runGrading(assessmentId);
+        setPollAttemptsLeft(5);
+        setIsPollingForResult(true);
+      }
+    } catch (err: any) {
+      setMarkError(err?.response?.data?.detail || err?.message || 'Failed to check results.');
+    } finally {
+      setIsMarking(false);
+    }
+  };
 
   useEffect(() => {
     if (!timeLimitMinutes || isSubmitted) return;
@@ -544,7 +599,7 @@ Format: {"score": number, "feedback": "string"}`;
           </div>
         </div>
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          You can type answers directly (LaTeX supported). If you’re not comfortable typing math, you can upload an image instead.
+          You can type answers directly (LaTeX supported). If you're not comfortable typing math, you can upload an image instead.
           Typed answers can be graded instantly; image uploads are stored for manual review.
         </div>
         {imageUploadGraceMinutes && imageUploadGraceMinutes > 0 && (
@@ -566,24 +621,33 @@ Format: {"score": number, "feedback": "string"}`;
           </div>
         )}
         {isSubmitted && attemptStatusFromServer === 'submitted' && !serverAttempt && assessmentId && (
-          <div className="rounded-lg border border-indigo-200 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-700 px-4 py-3 text-sm text-indigo-900 dark:text-indigo-200 space-y-2">
-            <p className="font-medium">Solutions saved successfully.</p>
-            <p className="text-indigo-700 dark:text-indigo-300">
-              Multiple choice and true/false were marked instantly. Essay and long-answer questions need AI marking. Click below to start. Marking runs in the background and can take a few minutes for many or difficult questions—you can leave this page and return later to see your results.
+          <div className="rounded-lg border border-violet-200 bg-violet-50 dark:bg-violet-900/20 dark:border-violet-700 px-4 py-3 text-sm text-violet-900 dark:text-violet-200 space-y-2">
+            <div className="flex items-center gap-2">
+              <SparklesIcon className="w-4 h-4 text-violet-600 dark:text-violet-400 flex-shrink-0" />
+              <p className="font-semibold">Submitted! AI is reviewing your written answers.</p>
+            </div>
+            <p className="text-violet-700 dark:text-violet-300">
+              This usually takes 30-60 seconds. Your objective answers are already scored. We are checking automatically - you can also click below to refresh.
             </p>
+            {isPollingForResult && (
+              <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400 text-xs font-medium">
+                <div className="w-3 h-3 border-2 border-violet-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                Checking for results... ({pollAttemptsLeft} check{pollAttemptsLeft !== 1 ? 's' : ''} remaining)
+              </div>
+            )}
             <Button
-              onClick={handleMarkWithAI}
-              disabled={isMarking}
+              onClick={handleCheckForResults}
+              disabled={isMarking || isPollingForResult}
               className="mt-2"
             >
-              {isMarking ? 'Marking…' : 'Mark with AI'}
+              {isMarking ? 'Checking...' : 'Check for results'}
             </Button>
-            {isMarking && (
-              <p className="text-indigo-600 dark:text-indigo-400 text-xs font-medium mt-2">
-                Marking in progress. You can leave this page and come back to this assessment anytime to see your score when it’s ready.
+            {markError && <p className="text-rose-600 dark:text-rose-400 text-sm">{markError}</p>}
+            {!isPollingForResult && pollAttemptsLeft <= 0 && (
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Auto-checks complete. If grading is still pending, the instructor will finalise your score manually.
               </p>
             )}
-            {markError && <p className="text-rose-600 dark:text-rose-400 text-sm">{markError}</p>}
           </div>
         )}
       </div>

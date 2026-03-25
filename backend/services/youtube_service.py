@@ -5,7 +5,7 @@ YouTube Transcript and Metadata Extraction Service
 import os
 import re
 import requests
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 from urllib.parse import urlparse, parse_qs
 import json
 import time
@@ -16,18 +16,27 @@ from rest_framework.response import Response
 # with a try/except so that the entire service doesn't crash if it's
 # missing or has version issues.  Do NOT add a top-level import here.
 
+# Optional: path to a Netscape-format cookies.txt file exported from a browser
+# while logged in to YouTube. Set YOUTUBE_COOKIES_FILE env var on the server.
+# This dramatically improves reliability on datacenter IPs (Render, Railway, etc.)
+_COOKIES_PATH = os.environ.get('YOUTUBE_COOKIES_FILE', '').strip() or None
+
+
 class YouTubeTranscriptService:
     """
-    Service to extract transcripts and metadata from YouTube videos
+    Service to extract transcripts and metadata from YouTube videos.
+
+    Two extraction methods, in order:
+      1. youtube-transcript-api  (fast, free, uses YouTube's internal API)
+      2. yt-dlp                  (slower, but more robust; reads subtitle files)
+
+    Pass YOUTUBE_COOKIES_FILE env var pointing to a Netscape cookies.txt
+    exported from a logged-in YouTube session to bypass datacenter IP blocks.
     """
-    
+
     def __init__(self):
-        # YouTube API endpoints (no API key needed for transcripts)
-        self.transcript_api_base = "https://www.youtube.com/api/timedtext"
         self.video_info_base = "https://www.youtube.com/watch"
-        # Debug info: store last HTTP response captured when contacting YouTube
         self.last_response_info = None
-        # Headers to mimic a real browser and bypass bot detection
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -37,22 +46,20 @@ class YouTubeTranscriptService:
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
         }
-    
+        # Resolve cookies path once at init time
+        self.cookies_path = _COOKIES_PATH if (_COOKIES_PATH and os.path.isfile(_COOKIES_PATH)) else None
+        if _COOKIES_PATH and not self.cookies_path:
+            print(f"WARNING: YOUTUBE_COOKIES_FILE is set to '{_COOKIES_PATH}' but file does not exist. Transcripts may fail on server IPs.")
+
     def _make_request(self, url: str, max_retries: int = 3, timeout: int = 15) -> Optional[requests.Response]:
-        """
-        Make HTTP request with browser headers and retry logic for bot detection.
-        """
         for attempt in range(max_retries):
             try:
                 response = requests.get(url, headers=self.headers, timeout=timeout)
-                # Check for successful response
                 if response.status_code == 200:
                     return response
-                # If rate limited or blocked, wait and retry
                 elif response.status_code in (429, 403):
-                    wait_time = (2 ** attempt) + (attempt * 1)  # exponential backoff
                     if attempt < max_retries - 1:
-                        time.sleep(wait_time)
+                        time.sleep((2 ** attempt) + attempt)
                         continue
                     return response
                 else:
@@ -62,41 +69,33 @@ class YouTubeTranscriptService:
                     time.sleep((2 ** attempt) + 1)
                     continue
                 return None
-            except Exception as e:
+            except Exception:
                 if attempt < max_retries - 1:
                     time.sleep((2 ** attempt) + 1)
                     continue
                 return None
         return None
-        
+
     def extract_video_id(self, url: str) -> Optional[str]:
-        """
-        Extract video ID from various YouTube URL formats
-        """
-        if not url: return None
+        if not url:
+            return None
         url = url.strip()
         if re.match(r'^[0-9A-Za-z_-]{11}$', url):
             return url
-            
-        # Standard YouTube URLs, Shorts, and shortened youtu.be URLs
-        match = re.search(r'(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([0-9A-Za-z_-]{11})', url)
+        match = re.search(
+            r'(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([0-9A-Za-z_-]{11})',
+            url
+        )
         if match:
             return match.group(1)
-        
         return None
-    
+
     def get_video_metadata(self, video_id: str) -> Dict:
-        """
-        Get video metadata (title, description, duration, etc.)
-        """
         try:
-            # Use YouTube oEmbed API (no API key required)
             oembed_url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
             response = self._make_request(oembed_url)
-            # record response for debugging
             if response:
                 self._record_response(response, oembed_url)
-
             if response and response.status_code == 200:
                 data = response.json()
                 return {
@@ -110,39 +109,26 @@ class YouTubeTranscriptService:
                 }
         except Exception as e:
             print(f"Error fetching video metadata: {e}")
-        
         return {
             'video_id': video_id,
             'title': f'YouTube Video {video_id}',
             'extracted_at': datetime.now().isoformat()
         }
-    
+
     def get_available_transcripts(self, video_id: str) -> List[Dict]:
-        """
-        Get list of available transcript languages for a video
-        """
         try:
-            # Method 1: Try to get transcript list from video page
             video_url = f"https://www.youtube.com/watch?v={video_id}"
             response = self._make_request(video_url)
-            # record response for debugging
             if response:
                 self._record_response(response, video_url)
-
             if response and response.status_code == 200:
-                # Look for transcript data in the page
                 content = response.text
-                
-                # Extract captions data from the page
                 captions_pattern = r'"captions":.*?"playerCaptionsTracklistRenderer":\{"captionTracks":\[(.*?)\]'
                 match = re.search(captions_pattern, content)
-                
                 if match:
                     captions_data = match.group(1)
-                    # Parse available languages
                     lang_pattern = r'"languageCode":"([^"]+)".*?"name":\{"simpleText":"([^"]+)"'
                     languages = re.findall(lang_pattern, captions_data)
-                    
                     return [
                         {
                             'language_code': lang[0],
@@ -151,16 +137,14 @@ class YouTubeTranscriptService:
                         }
                         for lang in languages
                     ]
-        
         except Exception as e:
             print(f"Error getting available transcripts: {e}")
-        
-        # Default to English if we can't detect languages
         return [{'language_code': 'en', 'language_name': 'English', 'auto_generated': True}]
-    
+
     def extract_transcript(self, video_id: str, language_code: str = 'en') -> Dict:
         fallbacks = []
-        # Try youtube-transcript-api
+
+        # Method 1: youtube-transcript-api
         try:
             res = self._extract_with_transcript_api(video_id, language_code)
             fallbacks.append({'method': 'youtube_transcript_api', 'result': bool(res)})
@@ -170,27 +154,7 @@ class YouTubeTranscriptService:
         except Exception as e:
             fallbacks.append({'method': 'youtube_transcript_api', 'error': str(e)})
 
-        # Try direct API
-        try:
-            res = self._extract_with_direct_api(video_id, language_code)
-            fallbacks.append({'method': 'direct_api', 'result': bool(res)})
-            if res:
-                res['fallbacks'] = fallbacks
-                return res
-        except Exception as e:
-            fallbacks.append({'method': 'direct_api', 'error': str(e)})
-
-        # Try web scraping
-        try:
-            res = self._extract_with_web_scraping(video_id)
-            fallbacks.append({'method': 'web_scraping', 'result': bool(res)})
-            if res:
-                res['fallbacks'] = fallbacks
-                return res
-        except Exception as e:
-            fallbacks.append({'method': 'web_scraping', 'error': str(e)})
-
-        # Finally try yt_dlp (opt-in)
+        # Method 2: yt-dlp
         try:
             res = self._extract_with_yt_dlp(video_id, language_code)
             fallbacks.append({'method': 'yt_dlp', 'result': bool(res)})
@@ -200,34 +164,22 @@ class YouTubeTranscriptService:
         except Exception as e:
             fallbacks.append({'method': 'yt_dlp', 'error': str(e)})
 
-        # ULTIMATE Fallback: Whisper (Heavy)
-        try:
-            res = self._extract_with_whisper(video_id, language_code)
-            fallbacks.append({'method': 'whisper', 'result': bool(res)})
-            if res:
-                res['fallbacks'] = fallbacks
-                return res
-        except Exception as e:
-            fallbacks.append({'method': 'whisper', 'error': str(e)})
-
-        # Nothing found
         return {
             'success': False,
-            'error': 'Could not extract transcript from this video',
+            'error': 'Could not extract transcript. The video may have no captions, or YouTube is blocking server requests. Try adding a YOUTUBE_COOKIES_FILE.',
             'video_id': video_id,
-            'transcript': '', 
+            'transcript': '',
             'segments': [],
             'fallbacks': fallbacks
         }
-    
+
     def _extract_with_transcript_api(self, video_id: str, language_code: str) -> Optional[Dict]:
         """
-        Extract using youtube-transcript-api library (if installed).
-        Supports both v1.x (fetch/list instance methods) and v0.x (get_transcript class methods).
+        Extract using youtube-transcript-api. Passes cookies if YOUTUBE_COOKIES_FILE is set.
+        Supports both v1.x (instance methods) and v0.x (class methods).
         """
         try:
             from youtube_transcript_api import YouTubeTranscriptApi
-            # Import known error classes; names vary by version so wrap safely
             try:
                 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
             except ImportError:
@@ -235,39 +187,37 @@ class YouTubeTranscriptService:
 
             transcript_list = None
 
-            # Detect library version to pick the right API surface.
-            # v1.x removed get_transcript / list_transcripts and uses instance .fetch().
-            # Some v1.x builds still define get_transcript as a shim, so also check the
-            # package version when available.
+            # Detect v1.x vs v0.x
             _is_v1 = False
             try:
                 import importlib.metadata as _meta
                 _ver = _meta.version('youtube-transcript-api')
                 _is_v1 = int(_ver.split('.')[0]) >= 1
             except Exception:
-                # Fallback to attribute check
                 _is_v1 = hasattr(YouTubeTranscriptApi, 'fetch') and not hasattr(YouTubeTranscriptApi, 'get_transcript')
 
-            # ── v1.x API: instance methods .fetch() and .list() ──
+            # v1.x: instance-based API
             if _is_v1:
                 try:
-                    api = YouTubeTranscriptApi()
-                    try:
-                        transcript_list = api.fetch(video_id, languages=[language_code])
-                    except Exception:
+                    # Pass cookies if available — this is the key fix for server IPs
+                    api_kwargs = {}
+                    if self.cookies_path:
+                        api_kwargs['cookies'] = self.cookies_path
+                    api = YouTubeTranscriptApi(**api_kwargs)
+
+                    for langs in ([language_code], ['en'], []):
                         try:
-                            transcript_list = api.fetch(video_id, languages=['en'])
-                            language_code = 'en'
+                            transcript_list = api.fetch(video_id, languages=langs) if langs else api.fetch(video_id)
+                            if langs and langs != [language_code]:
+                                language_code = langs[0] if langs else language_code
+                            break
                         except Exception:
-                            try:
-                                transcript_list = api.fetch(video_id)
-                            except Exception:
-                                transcript_list = None
+                            continue
                 except Exception as e:
                     print(f"youtube-transcript-api v1.x fetch failed: {e}")
                     transcript_list = None
 
-            # ── v0.x API: static/class methods get_transcript() ──
+            # v0.x: class-method API
             if transcript_list is None and hasattr(YouTubeTranscriptApi, 'get_transcript'):
                 try:
                     transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[language_code])
@@ -281,74 +231,34 @@ class YouTubeTranscriptService:
                         except Exception:
                             transcript_list = None
 
-            # ── v0.x fallback: list_transcripts() ──
-            if transcript_list is None and hasattr(YouTubeTranscriptApi, 'list_transcripts'):
-                try:
-                    transcript_list_obj = YouTubeTranscriptApi.list_transcripts(video_id)
-                    try:
-                        fetched = transcript_list_obj.find_transcript([language_code]).fetch()
-                        transcript_list = fetched
-                    except Exception:
-                        try:
-                            fetched = transcript_list_obj.find_transcript(['en']).fetch()
-                            transcript_list = fetched
-                            language_code = 'en'
-                        except Exception:
-                            try:
-                                keys = list(getattr(transcript_list_obj, '_transcripts', {}).keys())
-                                if keys:
-                                    fetched = transcript_list_obj.find_transcript(keys).fetch()
-                                    transcript_list = fetched
-                            except Exception:
-                                transcript_list = None
-                except Exception:
-                    transcript_list = None
-
             if not transcript_list:
                 return None
 
-            # ── Normalize entries ──
-            # v1.x returns FetchedTranscript objects with .text/.start/.duration attributes
-            # v0.x returns list of dicts with 'text'/'start'/'duration' keys
-            if isinstance(transcript_list, dict):
-                entries = [transcript_list]
-            else:
-                entries = list(transcript_list)
-
-            # Normalize each entry to a dict
-            normalized_entries = []
+            # Normalize entries (v1.x objects vs v0.x dicts)
+            entries = list(transcript_list) if not isinstance(transcript_list, dict) else [transcript_list]
+            normalized = []
             for entry in entries:
                 if isinstance(entry, dict):
-                    normalized_entries.append(entry)
+                    normalized.append(entry)
                 else:
-                    # v1.x FetchedTranscriptSnippet — has .text, .start, .duration attrs
-                    normalized_entries.append({
+                    normalized.append({
                         'text': getattr(entry, 'text', str(entry)),
                         'start': float(getattr(entry, 'start', 0)),
                         'duration': float(getattr(entry, 'duration', 0)),
                     })
 
-            # Format transcript with better spacing
-            full_transcript = ' '.join([e.get('text', '').strip() for e in normalized_entries if e.get('text', '').strip()])
+            full_transcript = ' '.join(e.get('text', '').strip() for e in normalized if e.get('text', '').strip())
 
-            # Helper for timestamp formatting
             def format_ts(seconds):
                 s = int(seconds)
                 m, s = divmod(s, 60)
                 h, m = divmod(m, 60)
-                if h > 0:
-                    return f"[{h:02d}:{m:02d}:{s:02d}]"
-                return f"[{m:02d}:{s:02d}]"
+                return f"[{h:02d}:{m:02d}:{s:02d}]" if h > 0 else f"[{m:02d}:{s:02d}]"
 
-            # Create a version of the transcript with timestamps embedded every ~20 seconds or so
-            # or at the start of each segment for better accuracy
-            timestamped_parts = []
-            for e in normalized_entries:
-                t = e.get('text', '').strip()
-                if t:
-                    timestamped_parts.append(f"{format_ts(e.get('start', 0))} {t}")
-            
-            timestamped_transcript = ' '.join(timestamped_parts)
+            timestamped_parts = [
+                f"{format_ts(e.get('start', 0))} {e.get('text', '').strip()}"
+                for e in normalized if e.get('text', '').strip()
+            ]
 
             if not full_transcript:
                 return None
@@ -358,19 +268,19 @@ class YouTubeTranscriptService:
                 'video_id': video_id,
                 'language': language_code,
                 'transcript': full_transcript,
-                'timestamped_transcript': timestamped_transcript,
+                'timestamped_transcript': ' '.join(timestamped_parts),
                 'segments': [
                     {
                         'start': float(e.get('start', 0)),
                         'duration': float(e.get('duration', 0)),
                         'text': e.get('text', '').strip()
                     }
-                    for e in normalized_entries
-                    if e.get('text', '').strip()
+                    for e in normalized if e.get('text', '').strip()
                 ],
                 'word_count': len(full_transcript.split()),
                 'extracted_at': datetime.now().isoformat(),
-                'method': 'youtube_transcript_api'
+                'method': 'youtube_transcript_api',
+                'used_cookies': bool(self.cookies_path)
             }
 
         except ImportError:
@@ -379,163 +289,34 @@ class YouTubeTranscriptService:
         except Exception as e:
             print(f"youtube-transcript-api extraction failed: {e}")
             return None
-    
-    def _extract_with_direct_api(self, video_id: str, language_code: str) -> Optional[Dict]:
-        """
-        Extract using direct YouTube API calls
-        """
-        try:
-            # Try several timedtext endpoint variants to maximize chance of getting captions
-            candidates = [
-                f"{self.transcript_api_base}?lang={language_code}&v={video_id}",
-                f"{self.transcript_api_base}?v={video_id}",
-                f"{self.transcript_api_base}?tlang={language_code}&v={video_id}",
-                f"{self.transcript_api_base}?v={video_id}&fmt=json3",
-                f"{self.transcript_api_base}?v={video_id}&fmt=srv3",
-            ]
 
-            import xml.etree.ElementTree as ET
-
-            for transcript_url in candidates:
-                response = self._make_request(transcript_url)
-                # record response for debugging
-                if response:
-                    self._record_response(response, transcript_url)
-
-                if not response:
-                    continue
-
-                # If empty body or non-200, skip
-                content = response.content or b''
-                if response.status_code != 200 or not content.strip():
-                    # log a helpful debug line
-                    print(f"Direct API candidate failed: {transcript_url} status={response.status_code} len={len(content)}")
-                    continue
-
-                # Try parsing XML; if fails, log snippet for debugging
-                try:
-                    root = ET.fromstring(content)
-                except ET.ParseError as pe:
-                    snippet = ''
-                    try:
-                        snippet = content.decode('utf-8', errors='replace')[:500]
-                    except Exception:
-                        snippet = f'<binary {len(content)} bytes>'
-                    print(f"Direct API XML parse error for {transcript_url}: {pe}; snippet={snippet}")
-                    continue
-
-                segments = []
-                full_transcript = ""
-
-                for text_elem in root.findall('.//text'):
-                    start = float(text_elem.get('start', 0))
-                    duration = float(text_elem.get('dur', 0))
-                    text = text_elem.text or ""
-
-                    # Clean up text
-                    text = re.sub(r'&amp;', '&', text)
-                    text = re.sub(r'&lt;', '<', text)
-                    text = re.sub(r'&gt;', '>', text)
-
-                    segments.append({
-                        'start': start,
-                        'duration': duration,
-                        'text': text.strip()
-                    })
-
-                    full_transcript += text + " "
-
-                if not full_transcript.strip():
-                    # nothing useful found, try next candidate
-                    continue
-
-                return {
-                    'success': True,
-                    'video_id': video_id,
-                    'language': language_code,
-                    'transcript': full_transcript.strip(),
-                    'timestamped_transcript': ' '.join([f"[{int(s['start']//60):02d}:{int(s['start']%60):02d}] {s['text']}" for s in segments]),
-                    'segments': segments,
-                    'word_count': len(full_transcript.split()),
-                    'extracted_at': datetime.now().isoformat(),
-                    'method': 'direct_api',
-                    'used_url': transcript_url
-                }
-                
-        except Exception as e:
-            print(f"Direct API extraction failed: {e}")
-            return None
-    
-    def _extract_with_web_scraping(self, video_id: str) -> Optional[Dict]:
-        """
-        Fallback method using web scraping
-        """
-        try:
-            # This is a simplified version - in production you'd want more robust scraping
-            video_url = f"https://www.youtube.com/watch?v={video_id}"
-            response = self._make_request(video_url)
-            # record response for debugging
-            if response:
-                self._record_response(response, video_url)
-
-            if response and response.status_code == 200:
-                content = response.text
-                
-                # Look for transcript data in the page source
-                # This is a simplified pattern - real implementation would be more complex
-                transcript_pattern = r'"transcriptRenderer".*?"content":\{"runs":\[(.*?)\]'
-                match = re.search(transcript_pattern, content, re.DOTALL)
-                
-                if match:
-                    # Extract text from the matched content
-                    # This would need more sophisticated parsing in practice
-                    text_pattern = r'"text":"([^"]+)"'
-                    texts = re.findall(text_pattern, match.group(1))
-                    
-                    full_transcript = ' '.join(texts)
-                    
-                    return {
-                        'success': True,
-                        'video_id': video_id,
-                        'transcript': full_transcript,
-                        'segments': [],  # Web scraping doesn't easily provide timestamps
-                        'word_count': len(full_transcript.split()),
-                        'extracted_at': datetime.now().isoformat(),
-                        'method': 'web_scraping'
-                    }
-                    
-        except Exception as e:
-            print(f"Web scraping extraction failed: {e}")
-            return None
-        
     def _extract_with_yt_dlp(self, video_id: str, language_code: str = 'en') -> Optional[Dict]:
         """
-        Use yt_dlp to inspect available subtitles (manual + auto) and fetch the best subtitle file.
-        This is opt-in via YT_DLP_FALLBACK env var.
+        Use yt-dlp to fetch subtitles. Falls back to auto-captions if manual subs
+        are unavailable. Passes cookies file if configured.
         """
-        # Attempt to use yt_dlp if it's available (runs when package is installed).
         try:
             import yt_dlp
-            print('yt_dlp detected: attempting yt_dlp fallback')
-        except Exception:
-            # yt_dlp not present; skip this fallback
-            print('yt_dlp not available; skipping yt_dlp fallback')
+        except ImportError:
+            print('yt_dlp not installed; skipping yt_dlp fallback')
             return None
 
         video_url = f"https://www.youtube.com/watch?v={video_id}"
+
+        ydl_opts = {'skip_download': True, 'quiet': True}
+        if self.cookies_path:
+            ydl_opts['cookiefile'] = self.cookies_path
+
         try:
-            ydl_opts = {'skip_download': True, 'quiet': True}
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(video_url, download=False)
         except Exception as e:
             print(f"yt_dlp extract_info error: {e}")
             return None
 
-        # subtitles (manual) and automatic_captions (auto-generated)
         subs = info.get('subtitles') or {}
         auto = info.get('automatic_captions') or {}
 
-        # Helper selecting sources: prefer manual for requested language, then auto, then any language
         sources = []
         chosen_lang = language_code
 
@@ -543,19 +324,16 @@ class YouTubeTranscriptService:
             sources = subs[language_code]
         elif language_code in auto:
             sources = auto[language_code]
-        else:
-            if subs:
-                chosen_lang = next(iter(subs.keys()))
-                sources = subs[chosen_lang]
-            elif auto:
-                chosen_lang = next(iter(auto.keys()))
-                sources = auto[chosen_lang]
+        elif subs:
+            chosen_lang = next(iter(subs))
+            sources = subs[chosen_lang]
+        elif auto:
+            chosen_lang = next(iter(auto))
+            sources = auto[chosen_lang]
 
-        # If no subtitle sources, return None
         if not sources:
             return None
 
-        # Try available formats (prefer vtt/srt)
         for fmt in sources:
             url = fmt.get('url')
             ext = fmt.get('ext', '').lower()
@@ -570,40 +348,36 @@ class YouTubeTranscriptService:
                 print(f"yt_dlp subtitle fetch error for {url}: {e}")
                 continue
 
-            # Normalize common formats
             if ext in ('vtt', 'webvtt'):
-                # Remove WEBVTT header and cue timestamps, keep text lines
                 text = re.sub(r'WEBVTT.*?\n', '', text, flags=re.IGNORECASE | re.DOTALL)
-                # remove timestamps like 00:00:00.000 --> 00:00:02.000
                 text = re.sub(r'^\s*\d{2}:\d{2}:\d{2}\.\d{3}.*$', '', text, flags=re.MULTILINE)
-            elif ext in ('srt',):
-                # Remove numeric indices and timestamps
+            elif ext == 'srt':
                 text = re.sub(r'^\s*\d+\s*$', '', text, flags=re.MULTILINE)
                 text = re.sub(r'^\s*\d{2}:\d{2}:\d{2},\d{3}.*$', '', text, flags=re.MULTILINE)
             elif ext in ('json3', 'srv3', 'ttml', 'xml'):
-                # Try to parse XML and extract <text> nodes (best-effort)
                 try:
                     import xml.etree.ElementTree as ET
                     root = ET.fromstring(text)
-                    parts = []
-                    for elem in root.iter():
-                        if elem.text and elem.text.strip():
-                            parts.append(elem.text.strip())
+                    parts = [elem.text.strip() for elem in root.iter() if elem.text and elem.text.strip()]
                     text = ' '.join(parts)
                 except Exception:
-                    # fallback: strip timestamps and cues heuristically
                     text = re.sub(r'-->', '', text)
-            # Fallback normalization: drop empty lines and timestamps
+
             lines = []
             for line in text.splitlines():
                 line = line.strip()
                 if not line:
                     continue
-                if re.search(r'-->', line): continue
-                if re.match(r'^\d+$', line): continue
-                if re.match(r'^\d{2}:\d{2}:\d{2}', line): continue
-                if line.upper().startswith('WEBVTT'): continue
+                if re.search(r'-->', line):
+                    continue
+                if re.match(r'^\d+$', line):
+                    continue
+                if re.match(r'^\d{2}:\d{2}:\d{2}', line):
+                    continue
+                if line.upper().startswith('WEBVTT'):
+                    continue
                 lines.append(line)
+
             full_transcript = ' '.join(lines).strip()
             if full_transcript:
                 return {
@@ -611,145 +385,41 @@ class YouTubeTranscriptService:
                     'video_id': video_id,
                     'language': chosen_lang,
                     'transcript': full_transcript,
-                    'segments': [],  # you could attempt to reconstruct timestamps later
+                    'segments': [],
                     'word_count': len(full_transcript.split()),
                     'extracted_at': datetime.now().isoformat(),
                     'method': 'yt_dlp',
                     'yt_dlp_format': ext,
+                    'used_cookies': bool(self.cookies_path)
                 }
 
         return None
 
-    def _extract_with_whisper(self, video_id: str, language_code: str) -> Optional[Dict]:
-        """
-        ULTIMATE FALLBACK: Download audio via yt-dlp and transcribe using local Whisper.
-        Note: This is heavy and should ideally run in a background task.
-        """
-        try:
-            import whisper
-            import tempfile
-            from pathlib import Path
-            import yt_dlp
-        except ImportError:
-            print("Whisper or yt-dlp not installed for local extraction.")
-            return None
-
-        video_url = f"https://www.youtube.com/watch?v={video_id}"
-        temp_dir = Path(tempfile.gettempdir()) / "edureach_whisper"
-        temp_dir.mkdir(exist_ok=True)
-        
-        output_template = str(temp_dir / f"{video_id}.%(ext)s")
-        
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-            'outtmpl': output_template,
-            'quiet': True,
-            'no_warnings': True,
-        }
-
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([video_url])
-            
-            audio_path = temp_dir / f"{video_id}.mp3"
-            if not audio_path.exists():
-                return None
-
-            # Load model (tiny/base for speed/memory efficiency in dev/general use)
-            model = whisper.load_model("base")
-            result = model.transcribe(str(audio_path), language=language_code if language_code != 'auto' else None)
-            
-            full_text = result.get("text", "").strip()
-            segments = []
-            for seg in result.get("segments", []):
-                segments.append({
-                    'start': seg.get('start'),
-                    'duration': seg.get('end') - seg.get('start'),
-                    'text': seg.get('text', '').strip()
-                })
-
-            # Clean up audio file
-            if audio_path.exists():
-                audio_path.unlink()
-
-            if not full_text:
-                return None
-
-            return {
-                'success': True,
-                'video_id': video_id,
-                'language': language_code,
-                'transcript': full_text,
-                'timestamped_transcript': ' '.join([f"[{int(s['start']//60):02d}:{int(s['start']%60):02d}] {s['text']}" for s in segments]),
-                'segments': segments,
-                'word_count': len(full_text.split()),
-                'extracted_at': datetime.now().isoformat(),
-                'method': 'whisper_local'
-            }
-        except Exception as e:
-            print(f"Whisper extraction failed for {video_id}: {e}")
-            return None
-
     def get_video_chapters(self, video_id: str) -> List[Dict]:
-        """
-        Extract video chapters/timestamps if available
-        """
         try:
             video_url = f"https://www.youtube.com/watch?v={video_id}"
             response = self._make_request(video_url)
-            # record response for debugging
             if response:
                 self._record_response(response, video_url)
-
             if response and response.status_code == 200:
                 content = response.text
-                
-                # Look for chapters data
                 chapters_pattern = r'"macroMarkersListItemRenderer".*?"timeDescription":\{"simpleText":"([^"]+)".*?"title":\{"simpleText":"([^"]+)"'
                 chapters = re.findall(chapters_pattern, content)
-                
-                return [
-                    {
-                        'timestamp': chapter[0],
-                        'title': chapter[1]
-                    }
-                    for chapter in chapters
-                ]
-                
+                return [{'timestamp': c[0], 'title': c[1]} for c in chapters]
         except Exception as e:
             print(f"Error extracting chapters: {e}")
-        
         return []
-    
+
     def extract_complete_video_data(self, video_url: str, language_code: str = 'en') -> Dict:
-        """
-        Extract all available data from a YouTube video
-        """
         video_id = self.extract_video_id(video_url)
         if not video_id:
-            return {
-                'success': False,
-                'error': 'Invalid YouTube URL',
-                'url': video_url
-            }
-        
-        # Get metadata
+            return {'success': False, 'error': 'Invalid YouTube URL', 'url': video_url}
+
         metadata = self.get_video_metadata(video_id)
-        
-        # Get available transcripts
         available_transcripts = self.get_available_transcripts(video_id)
-        
-        # Extract transcript
         transcript_data = self.extract_transcript(video_id, language_code)
-        
-        # Get chapters
         chapters = self.get_video_chapters(video_id)
-        
+
         return {
             'success': transcript_data.get('success', False),
             'video_id': video_id,
@@ -763,21 +433,14 @@ class YouTubeTranscriptService:
         }
 
     def _record_response(self, response, url: str):
-        """
-        Record a small snapshot of a requests.Response for debugging.
-        """
         try:
             if response is None:
                 return
             snippet = ''
-            # Try to safely get a text snippet (limit to 1000 chars)
             try:
-                text = response.text or ''
-                # remove newlines for compactness
-                snippet = text.replace('\n', ' ')[:1000]
+                snippet = (response.text or '').replace('\n', ' ')[:1000]
             except Exception:
                 snippet = ''
-
             self.last_response_info = {
                 'url': url,
                 'status_code': getattr(response, 'status_code', None),
@@ -785,8 +448,8 @@ class YouTubeTranscriptService:
                 'snippet': snippet
             }
         except Exception:
-            # never raise from debugging helper
             self.last_response_info = None
+
 
 @api_view(['POST'])
 def extract_transcript(request):
@@ -803,27 +466,16 @@ def extract_transcript(request):
                 'transcript': result.get('transcript'),
                 'timestamped_transcript': result.get('timestamped_transcript'),
                 'segments': result.get('segments', []),
-                'language': result.get('language')
+                'language': result.get('language'),
+                'method': result.get('method'),
+                'used_cookies': result.get('used_cookies', False)
             })
         else:
             return Response({
                 'success': False,
                 'error': result.get('error', 'Could not extract transcript'),
                 'video_id': video_id,
+                'fallbacks': result.get('fallbacks', [])
             }, status=200)
     except Exception as e:
         return Response({'error': str(e)}, status=400)
-
-# Usage example:
-"""
-service = YouTubeTranscriptService()
-result = service.extract_complete_video_data('https://www.youtube.com/watch?v=dQw4w9WgXcQ')
-
-if result['success']:
-    transcript = result['transcript']['transcript']
-    metadata = result['metadata']
-    print(f"Video: {metadata['title']}")
-    print(f"Transcript: {transcript[:200]}...")
-else:
-    print(f"Error: {result.get('error', 'Unknown error')}")
-"""

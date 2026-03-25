@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <!-- Background gradient: blue to emerald -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+    <!-- Spark gradient: white to light-emerald -->
+    <linearGradient id="sparkGrad" x1="32" y1="12" x2="32" y2="34" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#6ee7b7"/>
+    </linearGradient>
+    <!-- Drop shadow filter -->
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#1e3a8a" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Rounded square container with gradient background -->
+  <rect width="64" height="64" rx="14" fill="url(#bgGrad)" filter="url(#shadow)"/>
+
+  <!-- Open book: left page -->
+  <path
+    d="M10 44 L10 26 Q10 23 13 22 L30 18 L30 42 Q20 43 13 46 Q10 47 10 44Z"
+    fill="white"
+    fill-opacity="0.22"
+    stroke="white"
+    stroke-width="1.5"
+    stroke-linejoin="round"
+  />
+  <!-- Open book: right page -->
+  <path
+    d="M54 44 L54 26 Q54 23 51 22 L34 18 L34 42 Q44 43 51 46 Q54 47 54 44Z"
+    fill="white"
+    fill-opacity="0.22"
+    stroke="white"
+    stroke-width="1.5"
+    stroke-linejoin="round"
+  />
+  <!-- Book spine / center line -->
+  <line x1="32" y1="18" x2="32" y2="42" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Spark / lightning bolt rising from the book -->
+  <!-- Main bolt shape -->
+  <path
+    d="M35 30 L28 22 L30.5 22 L27 14 L36 24 L33 24 Z"
+    fill="url(#sparkGrad)"
+    stroke="white"
+    stroke-width="0.6"
+    stroke-linejoin="round"
+  />
+
+  <!-- Small star dots around the spark to indicate AI/energy -->
+  <circle cx="38" cy="16" r="1.4" fill="white" fill-opacity="0.85"/>
+  <circle cx="24" cy="18" r="1" fill="white" fill-opacity="0.6"/>
+  <circle cx="40" cy="24" r="0.9" fill="white" fill-opacity="0.7"/>
+</svg>
