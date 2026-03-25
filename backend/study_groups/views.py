@@ -11,6 +11,7 @@ from .serializers import (
     StudyGroupChallengeSerializer,
     ChallengeParticipationSerializer,
 )
+from users.models import Notification
 
 
 class StudyGroupViewSet(viewsets.ModelViewSet):
@@ -302,7 +303,20 @@ class StudyGroupChallengeViewSet(viewsets.ModelViewSet):
         group = get_object_or_404(StudyGroup, id=group_id)
         if group.creator != self.request.user and not self.request.user.is_staff:
             raise permissions.PermissionDenied("Only group creators can create challenges.")
-        serializer.save(group=group)
+        challenge = serializer.save(group=group)
+
+        # Send notifications to all group members except the creator
+        assessment_title = challenge.assessment.title if challenge.assessment else 'Open Challenge'
+        for member in group.members.exclude(id=self.request.user.id):
+            Notification.objects.create(
+                recipient=member,
+                sender=self.request.user,
+                notif_type='challenge',
+                title=f'New Challenge: {challenge.title}',
+                message=f'{self.request.user.username} started a new challenge in {group.name}: {assessment_title}',
+                assessment_id=challenge.assessment_id,
+                share_token=challenge.assessment.share_token if challenge.assessment else '',
+            )
 
     @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def leaderboard(self, request, pk=None):

@@ -675,8 +675,13 @@ class LessonViewSet(viewsets.ModelViewSet):
     def mark_complete(self, request, pk=None):
         """
         Mark lesson as complete for the current user and update course progress.
+        Any authenticated user can record progress on any lesson — we bypass
+        the ViewSet queryset (which is ownership-scoped) and fetch directly.
         """
-        lesson = self.get_object()
+        try:
+            lesson = Lesson.objects.get(pk=pk)
+        except Lesson.DoesNotExist:
+            return Response({'error': 'Lesson not found.'}, status=status.HTTP_404_NOT_FOUND)
         progress, _ = UserProgress.objects.get_or_create(
             user=request.user,
             course=lesson.course
@@ -695,8 +700,12 @@ class LessonViewSet(viewsets.ModelViewSet):
     def unmark_complete(self, request, pk=None):
         """
         Unmark lesson as complete for the current user and update course progress.
+        Same direct-fetch approach as mark_complete.
         """
-        lesson = self.get_object()
+        try:
+            lesson = Lesson.objects.get(pk=pk)
+        except Lesson.DoesNotExist:
+            return Response({'error': 'Lesson not found.'}, status=status.HTTP_404_NOT_FOUND)
         progress, _ = UserProgress.objects.get_or_create(
             user=request.user,
             course=lesson.course

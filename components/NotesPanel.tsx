@@ -46,7 +46,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
       clearTimeout(saveTimeoutRef.current);
     }
 
-    saveTimeoutRef.current = setTimeout(async () => {
+    saveTimeoutRef.current = setTimeout(async () => { // 2-second debounce
       try {
         // Use lesson endpoint if available, otherwise fall back to YouTube notes endpoint
         if (lessonId) {
@@ -66,7 +66,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
         console.error('Failed to autosave notes', error);
         setSaveStatus('error');
       }
-    }, 1200);
+    }, 2000);
 
     return () => {
       if (saveTimeoutRef.current) {
@@ -160,15 +160,17 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
         )}
       </div>
 
-      {/* Character Count */}
-      <div className="px-4 py-2 border-t border-slate-200 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
-        <span>{notes.length} characters</span>
+      {/* Word Count & Auto-save Status */}
+      <div className="px-4 py-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center text-xs text-slate-400 dark:text-slate-500">
+        <span>{notes.trim() ? notes.trim().split(/\s+/).length : 0} words</span>
         {videoId && (
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1.5">
             {saveStatus === 'saving' && <span className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />}
             {saveStatus === 'saved' && <span className="h-2 w-2 rounded-full bg-emerald-500" />}
             {saveStatus === 'error' && <span className="h-2 w-2 rounded-full bg-rose-500" />}
-            <span className="capitalize">{saveStatus}</span>
+            <span>
+              {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Auto-saved' : saveStatus === 'error' ? 'Save failed' : ''}
+            </span>
           </span>
         )}
       </div>

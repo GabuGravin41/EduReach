@@ -13,11 +13,12 @@ interface StudyPanelProps {
   videoId?: string;
   lessonId?: number;
   transcriptRef?: React.Ref<HTMLDivElement>;
+  onSeekTo?: (seconds: number) => void;
 }
 
 type ActiveTab = 'transcript' | 'notes';
 
-export const StudyPanel: React.FC<StudyPanelProps> = ({ transcript, transcriptFetching, notes, onNotesChange, videoId, lessonId, transcriptRef }) => {
+export const StudyPanel: React.FC<StudyPanelProps> = ({ transcript, transcriptFetching, notes, onNotesChange, videoId, lessonId, transcriptRef, onSeekTo }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('transcript');
 
   const TabButton: React.FC<{
@@ -59,7 +60,7 @@ export const StudyPanel: React.FC<StudyPanelProps> = ({ transcript, transcriptFe
         {activeTab === 'transcript' && (
           transcript.trim() ? (
             <div className="absolute inset-0 overflow-y-auto custom-scrollbar">
-                <TranscriptPanel ref={transcriptRef} transcript={transcript} />
+                <TranscriptPanel ref={transcriptRef} transcript={transcript} onSeekTo={onSeekTo} />
             </div>
           ) : transcriptFetching ? (
             <div className="h-full flex flex-col items-center justify-center gap-3 text-slate-500 dark:text-slate-400">

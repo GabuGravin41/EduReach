@@ -142,42 +142,49 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                       )}
                     </div>
                     <div ref={chatContainerRef} className="flex-1 overflow-y-auto space-y-4 min-h-0">
-                    {messagesWithIds.map((msg) => (
-                        <div key={msg.id} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
-                        {(msg.role === 'model' || msg.role === 'assistant') && (
-                            <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                            <BotIcon className="w-5 h-5 text-slate-500 dark:text-slate-400" />
-                            </div>
-                        )}
-                        <div
-                            className={`p-3 rounded-md max-w-sm ${
-                            msg.role === 'user'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200'
-                            }`}
-                        >
-                            {(msg.role === 'model' || msg.role === 'assistant') && msg.content ? (
+                    {messagesWithIds.map((msg) => {
+                        const isAI = msg.role === 'model' || msg.role === 'assistant';
+                        const isTyping = isLoading && isAI && messagesWithIds[messagesWithIds.length - 1]?.id === msg.id && msg.content === '';
+                        return (
+                          <div key={msg.id} className={`flex items-end gap-2 ${isAI ? 'justify-start' : 'justify-end'}`}>
+                            {/* AI avatar */}
+                            {isAI && (
+                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center flex-shrink-0 shadow-sm mb-0.5">
+                                <SparklesIcon className="w-3.5 h-3.5 text-white" />
+                              </div>
+                            )}
+
+                            {/* Bubble */}
+                            <div
+                              className={`px-3.5 py-2.5 rounded-2xl max-w-[80%] shadow-sm ${
+                                isAI
+                                  ? 'rounded-bl-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600'
+                                  : 'rounded-br-sm bg-gradient-to-br from-blue-600 to-blue-700 text-white'
+                              }`}
+                            >
+                              {isAI && msg.content ? (
                                 <MarkdownRenderer content={msg.content} onTimestampClick={onSeekTo} />
-                            ) : (
-                                <span className={`${msg.role === 'user' ? 'whitespace-pre-wrap' : ''}`}>
-                                    {msg.content}
-                                </span>
-                            )}
-                            {isLoading && (msg.role === 'model' || msg.role === 'assistant') && messagesWithIds[messagesWithIds.length - 1]?.id === msg.id && msg.content === '' && (
-                                <div className="flex items-center space-x-1">
-                                    <span className="h-2 w-2 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                                    <span className="h-2 w-2 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                                    <span className="h-2 w-2 bg-slate-400 rounded-full animate-bounce"></span>
+                              ) : isTyping ? (
+                                /* Typing indicator */
+                                <div className="flex items-center gap-1 py-0.5 px-1">
+                                  <span className="h-2 w-2 bg-slate-400 dark:bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                  <span className="h-2 w-2 bg-slate-400 dark:bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                  <span className="h-2 w-2 bg-slate-400 dark:bg-slate-400 rounded-full animate-bounce" />
                                 </div>
-                            )}
-                        </div>
-                        {msg.role === 'user' && (
-                            <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                            <UserIcon className="w-5 h-5 text-slate-500 dark:text-slate-400" />
+                              ) : (
+                                <span className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</span>
+                              )}
                             </div>
-                        )}
-                        </div>
-                    ))}
+
+                            {/* User avatar */}
+                            {!isAI && (
+                              <div className="w-7 h-7 rounded-full bg-slate-300 dark:bg-slate-600 flex items-center justify-center flex-shrink-0 shadow-sm mb-0.5">
+                                <span className="text-xs font-bold text-slate-600 dark:text-slate-200 leading-none">You</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                    })}
                     <div ref={messagesEndRef} />
                     </div>
                 </div>

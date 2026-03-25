@@ -44,6 +44,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   const [playerHeight, setPlayerHeight] = useState<number | null>(null);
   const [isResizing, setIsResizing] = useState(false);
   const [startY, setStartY] = useState(0);
+  const [showCompletionBanner, setShowCompletionBanner] = useState(false);
 
   const videoRef = useRef<YouTubePlayerHandle | null>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -473,15 +474,28 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
     // 0 = ended
     if (event.data === 0 && !completedSent && currentLesson) {
       setCompletedSent(true);
-      apiClient.post(`/lessons/${currentLesson.id}/mark_complete/`, {}).catch((error) => {
-        console.error('Failed to mark lesson complete:', error);
-      });
+      apiClient.post(`/lessons/${currentLesson.id}/mark_complete/`, {})
+        .then(() => {
+          setShowCompletionBanner(true);
+          setTimeout(() => setShowCompletionBanner(false), 4000);
+        })
+        .catch((error) => {
+          console.error('Failed to mark lesson complete:', error);
+        });
       onUpdateLesson(courseId, currentLesson.id, { isCompleted: true });
     }
   };
 
   return (
     <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-4rem)] overflow-hidden relative p-4 sm:p-6 lg:p-0">
+      {/* ── Lesson completion celebration banner ── */}
+      {showCompletionBanner && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 animate-bounce pointer-events-none">
+          <span>🎉</span>
+          <span className="font-semibold">Lesson complete! XP earned.</span>
+        </div>
+      )}
+
       {/* Mobile Toggle Buttons */}
       <div className="lg:hidden flex justify-between mb-2 flex-shrink-0 gap-2">
         <Button variant="outline" size="sm" onClick={() => setIsStudyPanelOpen(prev => !prev)} className="flex-1">
@@ -495,6 +509,30 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
       {/* Video and Notes Section */}
       <div className={`flex flex-col gap-4 overflow-y-auto ${isAIPanelOpen ? 'lg:w-[70%]' : 'lg:w-full'
         } lg:h-full lg:min-h-0`}>
+
+        {/* ── Course progress mini-bar ── */}
+        {courseId > 0 && currentLesson && (
+          <div className="flex-shrink-0 flex items-center gap-3 px-1">
+            <a
+              href={`#course-${courseId}`}
+              className="text-xs text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium whitespace-nowrap transition-colors flex items-center gap-1"
+              onClick={(e) => { e.preventDefault(); window.history.back(); }}
+            >
+              <span aria-hidden="true">&#8592;</span>
+              Back to course
+            </a>
+            <div className="flex-1 h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 rounded-full transition-all duration-500"
+                style={{ width: currentLesson.isCompleted ? '100%' : completedSent ? '100%' : '50%' }}
+              />
+            </div>
+            <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+              {currentLesson.isCompleted || completedSent ? 'Completed' : 'In progress'}
+            </span>
+          </div>
+        )}
+
         {/* Video Player Container with Resize Handle */}
         <div
           ref={playerContainerRef}
@@ -543,6 +581,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
               onNotesChange={setNotes}
               videoId={videoId}
               lessonId={currentLesson?.id}
+              onSeekTo={handleSeekTo}
             />
           </div>
         )}

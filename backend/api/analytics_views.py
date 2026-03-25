@@ -11,7 +11,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
-from courses.models import Course, UserProgress, ContentPurchase, CreatorTip
+from courses.models import Course, Lesson, UserProgress, ContentPurchase, CreatorTip
 from assessments.models import Assessment, UserAttempt
 from users.models import User, XPTransaction
 

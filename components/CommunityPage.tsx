@@ -11,7 +11,319 @@ import { HashIcon } from './icons/HashIcon';
 import { TrendingIcon } from './icons/TrendingIcon';
 import { UserTier } from '../App';
 import { useCommunityLeaderboard, useCommunityTrendingTopics } from '../src/hooks/useCommunityAnalytics';
+import { usePosts, useCreatePost, useToggleLike, useAddComment, useDeletePost } from '../src/hooks/useCommunity';
 
+// ---------------------------------------------------------------------------
+// Time-ago helper
+// ---------------------------------------------------------------------------
+const timeAgo = (dateStr: string): string => {
+    const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+    if (seconds < 60) return 'just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+// ---------------------------------------------------------------------------
+// Avatar initials helper
+// ---------------------------------------------------------------------------
+const getInitials = (name: string): string => {
+    if (!name) return '?';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+};
+
+const AVATAR_GRADIENTS = [
+    'from-blue-500 to-indigo-600',
+    'from-emerald-500 to-teal-600',
+    'from-purple-500 to-pink-600',
+    'from-amber-500 to-orange-600',
+    'from-rose-500 to-red-600',
+    'from-cyan-500 to-blue-600',
+];
+
+const getAvatarGradient = (name: string): string => {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return AVATAR_GRADIENTS[Math.abs(hash) % AVATAR_GRADIENTS.length];
+};
+
+// ---------------------------------------------------------------------------
+// AvatarCircle
+// ---------------------------------------------------------------------------
+const AvatarCircle: React.FC<{ name: string; size?: 'sm' | 'md' | 'lg'; photoUrl?: string }> = ({
+    name,
+    size = 'md',
+    photoUrl,
+}) => {
+    const sizeClass = size === 'sm' ? 'w-8 h-8 text-xs' : size === 'lg' ? 'w-12 h-12 text-base' : 'w-10 h-10 text-sm';
+    if (photoUrl) {
+        return (
+            <img
+                src={photoUrl}
+                alt={name}
+                className={`${sizeClass} rounded-full object-cover flex-shrink-0 ring-2 ring-white dark:ring-slate-800`}
+            />
+        );
+    }
+    return (
+        <div
+            className={`${sizeClass} rounded-full bg-gradient-to-br ${getAvatarGradient(name)} flex items-center justify-center flex-shrink-0 ring-2 ring-white dark:ring-slate-800 font-semibold text-white`}
+        >
+            {getInitials(name)}
+        </div>
+    );
+};
+
+// ---------------------------------------------------------------------------
+// Heart SVG icon (inline, fills red when liked)
+// ---------------------------------------------------------------------------
+const HeartSVG: React.FC<{ filled: boolean; className?: string }> = ({ filled, className = 'w-5 h-5' }) => (
+    <svg
+        viewBox="0 0 24 24"
+        fill={filled ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        strokeWidth={filled ? 0 : 1.8}
+        className={className}
+        aria-hidden="true"
+    >
+        <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 20.364l-7.682-7.682a4.5 4.5 0 010-6.364z"
+        />
+    </svg>
+);
+
+// ---------------------------------------------------------------------------
+// ChatBubble SVG icon
+// ---------------------------------------------------------------------------
+const ChatBubbleSVG: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
+    <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        className={className}
+        aria-hidden="true"
+    >
+        <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+        />
+    </svg>
+);
+
+// ---------------------------------------------------------------------------
+// ExpandableText — caps at ~4 lines with "Show more" toggle
+// ---------------------------------------------------------------------------
+const ExpandableText: React.FC<{ text: string }> = ({ text }) => {
+    const [expanded, setExpanded] = useState(false);
+    const LIMIT = 280;
+    const isLong = text.length > LIMIT;
+    const display = !expanded && isLong ? text.slice(0, LIMIT) + '…' : text;
+    return (
+        <div>
+            <p className="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">{display}</p>
+            {isLong && (
+                <button
+                    onClick={() => setExpanded(v => !v)}
+                    className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline mt-1"
+                >
+                    {expanded ? 'Show less' : 'Show more'}
+                </button>
+            )}
+        </div>
+    );
+};
+
+// ---------------------------------------------------------------------------
+// PostCard
+// ---------------------------------------------------------------------------
+interface PostCardProps {
+    post: any;
+    username: string;
+    userTier: UserTier;
+    onToggleLike: (id: number) => void;
+    onDeletePost: (id: number) => void;
+    onAddComment: (postId: number, comment: string) => void;
+}
+
+const PostCard: React.FC<PostCardProps> = ({ post, username, userTier, onToggleLike, onDeletePost, onAddComment }) => {
+    const [commentsOpen, setCommentsOpen] = useState(false);
+    const [commentInput, setCommentInput] = useState('');
+    const [submittingComment, setSubmittingComment] = useState(false);
+
+    const authorName: string = post.author_username ?? post.author ?? 'Unknown';
+    const comments: any[] = post.comments ?? [];
+
+    const handleSubmitComment = async () => {
+        if (!commentInput.trim()) return;
+        setSubmittingComment(true);
+        try {
+            await onAddComment(post.id, commentInput.trim());
+            setCommentInput('');
+        } finally {
+            setSubmittingComment(false);
+        }
+    };
+
+    return (
+        <article className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden transition-shadow hover:shadow-md">
+            {/* Post header */}
+            <div className="flex items-start justify-between p-5 pb-3">
+                <div className="flex items-center gap-3">
+                    <AvatarCircle name={authorName} photoUrl={post.avatar} />
+                    <div>
+                        <p className="font-semibold text-slate-900 dark:text-slate-100 leading-tight">{authorName}</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                            {post.created_at ? timeAgo(post.created_at) : post.time ?? ''}
+                        </p>
+                    </div>
+                </div>
+                {(userTier === 'admin' || post.author_username === username) && (
+                    <button
+                        onClick={() => onDeletePost(post.id)}
+                        title="Delete post"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    >
+                        <TrashIcon className="w-4 h-4" />
+                    </button>
+                )}
+            </div>
+
+            {/* Post content */}
+            <div className="px-5 pb-3">
+                <ExpandableText text={post.content} />
+            </div>
+
+            {/* Action bar */}
+            <div className="flex items-center gap-5 px-5 py-3 border-t border-slate-100 dark:border-slate-700/60">
+                <button
+                    onClick={() => onToggleLike(post.id)}
+                    className={`flex items-center gap-1.5 text-sm font-medium transition-all duration-150 active:scale-125 ${
+                        post.liked || post.is_liked
+                            ? 'text-rose-500'
+                            : 'text-slate-500 dark:text-slate-400 hover:text-rose-500'
+                    }`}
+                    aria-label={post.liked || post.is_liked ? 'Unlike' : 'Like'}
+                >
+                    <HeartSVG filled={!!(post.liked || post.is_liked)} />
+                    <span>{post.likes ?? post.like_count ?? 0}</span>
+                </button>
+
+                <button
+                    onClick={() => setCommentsOpen(v => !v)}
+                    className="flex items-center gap-1.5 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                    aria-expanded={commentsOpen}
+                >
+                    <ChatBubbleSVG />
+                    <span>{post.comment_count ?? comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}</span>
+                </button>
+            </div>
+
+            {/* Collapsible comments */}
+            {commentsOpen && (
+                <div className="px-5 pb-4 space-y-3 border-t border-slate-100 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-900/20">
+                    {/* Existing comments */}
+                    {comments.length > 0 ? (
+                        <div className="space-y-3 pt-3">
+                            {comments.map((c: any, i: number) => (
+                                <div key={c.id ?? i} className="flex gap-2.5">
+                                    <AvatarCircle name={c.author ?? 'User'} size="sm" />
+                                    <div className="flex-1 bg-white dark:bg-slate-800 rounded-xl px-3 py-2 border border-slate-100 dark:border-slate-700">
+                                        <div className="flex items-baseline gap-2">
+                                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{c.author ?? 'User'}</span>
+                                            {c.created_at && (
+                                                <span className="text-xs text-slate-400">{timeAgo(c.created_at)}</span>
+                                            )}
+                                        </div>
+                                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">{c.content}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-xs text-slate-400 dark:text-slate-500 pt-3">No comments yet. Be the first!</p>
+                    )}
+
+                    {/* Comment input */}
+                    <div className="flex gap-2.5 pt-1">
+                        <AvatarCircle name={username} size="sm" />
+                        <div className="flex-1 flex gap-2">
+                            <input
+                                value={commentInput}
+                                onChange={e => setCommentInput(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmitComment(); } }}
+                                placeholder="Write a comment…"
+                                className="flex-1 text-sm px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-600 text-slate-800 dark:text-slate-200 placeholder-slate-400"
+                            />
+                            <button
+                                onClick={handleSubmitComment}
+                                disabled={!commentInput.trim() || submittingComment}
+                                className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
+                            >
+                                {submittingComment ? '…' : 'Reply'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </article>
+    );
+};
+
+// ---------------------------------------------------------------------------
+// PostComposer
+// ---------------------------------------------------------------------------
+const PostComposer: React.FC<{ username: string; onSubmit: (content: string) => void }> = ({ username, onSubmit }) => {
+    const [content, setContent] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+
+    const handlePost = async () => {
+        if (!content.trim() || submitting) return;
+        setSubmitting(true);
+        try {
+            await onSubmit(content.trim());
+            setContent('');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-4">
+            <div className="flex gap-3">
+                <AvatarCircle name={username} />
+                <div className="flex-1">
+                    <textarea
+                        value={content}
+                        onChange={e => setContent(e.target.value)}
+                        placeholder="Share something with the community..."
+                        rows={3}
+                        className="w-full text-sm px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-600 resize-none text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 transition-colors"
+                    />
+                    <div className="flex justify-end mt-2">
+                        <button
+                            onClick={handlePost}
+                            disabled={!content.trim() || submitting}
+                            className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
+                        >
+                            {submitting ? 'Posting…' : 'Post'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
 interface Post {
     id: number;
     author: string;
@@ -19,7 +331,7 @@ interface Post {
     time: string;
     content: string;
     likes: number;
-    comments: { author: string, content: string }[];
+    comments: { author: string; content: string }[];
     liked: boolean;
     channel?: string;
 }
@@ -35,19 +347,22 @@ interface CommunityPageProps {
     username: string;
 }
 
+// ---------------------------------------------------------------------------
+// CommunityPage
+// ---------------------------------------------------------------------------
 export const CommunityPage: React.FC<CommunityPageProps> = ({
-    posts,
+    posts: propPosts,
     onPostCreated,
     onToggleLike,
     onAddComment,
     userTier,
     onDeletePost,
     userScore,
-    username
+    username,
 }) => {
     const [newPostContent, setNewPostContent] = useState('');
 
-    // Community channel (standalone, not tied to any course) + course channels in sidebar
+    // Discussion channels
     const [communityChannel, setCommunityChannel] = useState<CourseChannel | null>(null);
     const [courseChannels, setCourseChannels] = useState<CourseChannel[]>([]);
     const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
@@ -61,11 +376,18 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
     const [composerLoading, setComposerLoading] = useState(false);
     const toast = useToast();
 
-    // Community analytics (leaderboard + trending topics)
+    // Real API hooks
+    const { data: apiPosts = [] } = usePosts();
+    const createPostMutation = useCreatePost();
+    const toggleLikeMutation = useToggleLike();
+    const addCommentMutation = useAddComment();
+    const deletePostMutation = useDeletePost();
+
+    // Community analytics
     const { data: leaderboardData } = useCommunityLeaderboard();
     const { data: apiTrendingTopics = [] } = useCommunityTrendingTopics();
 
-    // Load the community channel (creates it server-side if it doesn't exist yet)
+    // Load channels
     useEffect(() => {
         let mounted = true;
         (async () => {
@@ -76,7 +398,6 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
                 ]);
                 if (!mounted) return;
                 setCommunityChannel(community);
-                // Course channels = all channels except the community one
                 setCourseChannels(allChannels.filter(c => c.course !== null));
                 setSelectedChannelId(community.id);
             } catch (err) {
@@ -86,6 +407,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
         return () => { mounted = false; };
     }, []);
 
+    // Load threads when channel changes
     useEffect(() => {
         if (!selectedChannelId) return;
         let mounted = true;
@@ -106,13 +428,11 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
     }, [selectedChannelId]);
 
     const staticTrendingTopics = ['#NextJS14', '#RustLang', '#AI_Ethics', '#WebAssembly'];
-
     const leaderboard = leaderboardData?.top_users ?? [];
     const userRank = leaderboardData?.user_rank;
     const userStats = leaderboardData?.user_stats;
-
     const trendingTopics = apiTrendingTopics.length > 0
-        ? apiTrendingTopics.map(t => t.tag)
+        ? apiTrendingTopics.map((t: any) => t.tag)
         : staticTrendingTopics;
 
     const activeChannelName = (() => {
@@ -122,10 +442,50 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
         return ch?.display_name ?? ch?.course_title ?? 'Channel';
     })();
 
-    const handlePostSubmit = () => {
-        if (newPostContent.trim()) {
-            onPostCreated(newPostContent);
-            setNewPostContent('');
+    // Merge API posts with prop posts, prefer API posts if available
+    const displayPosts: any[] = apiPosts.length > 0 ? apiPosts : propPosts;
+
+    // Post stats this week
+    const postsThisWeek = apiPosts.filter((p: any) => {
+        if (!p.created_at) return false;
+        const diff = Date.now() - new Date(p.created_at).getTime();
+        return diff < 7 * 24 * 60 * 60 * 1000;
+    }).length;
+
+    const handleCreatePost = async (content: string) => {
+        if (!content.trim()) return;
+        try {
+            if (createPostMutation.mutateAsync) {
+                await createPostMutation.mutateAsync({ content });
+            } else {
+                onPostCreated(content);
+            }
+        } catch {
+            onPostCreated(content);
+        }
+    };
+
+    const handleToggleLike = (postId: number) => {
+        if (toggleLikeMutation.mutate) {
+            toggleLikeMutation.mutate(postId);
+        } else {
+            onToggleLike(postId);
+        }
+    };
+
+    const handleAddComment = async (postId: number, comment: string) => {
+        if (addCommentMutation.mutateAsync) {
+            await addCommentMutation.mutateAsync({ postId, data: { content: comment } });
+        } else {
+            onAddComment(postId, comment);
+        }
+    };
+
+    const handleDeletePost = (postId: number) => {
+        if (deletePostMutation.mutate) {
+            deletePostMutation.mutate(postId);
+        } else {
+            onDeletePost(postId);
         }
     };
 
@@ -156,28 +516,29 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
     return (
         <div className="h-full flex flex-col md:flex-row gap-6">
 
-            {/* Left Sidebar - Navigation */}
-            <div className="w-full md:w-64 flex-shrink-0 space-y-6">
-                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-4">
-                    <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3 px-2">
+            {/* ------------------------------------------------------------------ */}
+            {/* Left Sidebar — Channels                                             */}
+            {/* ------------------------------------------------------------------ */}
+            <div className="w-full md:w-64 flex-shrink-0 space-y-4">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-4">
+                    <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3 px-1">
                         Channels
                     </h3>
-                    <nav className="space-y-1">
-                        {/* Community channel always first */}
+                    <nav className="space-y-0.5">
                         {communityChannel && (
                             <button
                                 key={communityChannel.id}
                                 onClick={() => setSelectedChannelId(communityChannel.id)}
-                                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${selectedChannelId === communityChannel.id
-                                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
-                                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
-                                    }`}
+                                className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+                                    selectedChannelId === communityChannel.id
+                                        ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                                }`}
                             >
                                 <HashIcon className="w-4 h-4 opacity-50 shrink-0" />
                                 Community
                             </button>
                         )}
-                        {/* Course discussion channels */}
                         {courseChannels.length > 0 && (
                             <>
                                 <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 pt-3 pb-1">
@@ -187,10 +548,11 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
                                     <button
                                         key={ch.id}
                                         onClick={() => setSelectedChannelId(ch.id)}
-                                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${selectedChannelId === ch.id
-                                            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
-                                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
-                                            }`}
+                                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+                                            selectedChannelId === ch.id
+                                                ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                                                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                                        }`}
                                     >
                                         <HashIcon className="w-4 h-4 opacity-50 shrink-0" />
                                         <span className="truncate">{ch.display_name ?? ch.course_title ?? `Channel ${ch.id}`}</span>
@@ -199,23 +561,34 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
                             </>
                         )}
                         {!communityChannel && courseChannels.length === 0 && (
-                            <p className="px-3 py-2 text-sm text-slate-400">Loading channels…</p>
+                            <div className="space-y-1.5 px-2 py-3">
+                                {[1, 2, 3].map(i => (
+                                    <div key={i} className="h-8 bg-slate-100 dark:bg-slate-700 rounded-lg animate-pulse" />
+                                ))}
+                            </div>
                         )}
                     </nav>
                 </div>
             </div>
 
-            {/* Center - Feed */}
-            <div className="flex-1 min-w-0 space-y-6">
-                {/* Create Post */}
-                {/* Threads List (for selected channel) */}
-                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-4 border border-slate-200 dark:border-slate-700">
+            {/* ------------------------------------------------------------------ */}
+            {/* Main Feed (col-span-2 equivalent on desktop)                        */}
+            {/* ------------------------------------------------------------------ */}
+            <div className="flex-1 min-w-0 space-y-5">
+
+                {/* Post composer */}
+                <PostComposer username={username} onSubmit={handleCreatePost} />
+
+                {/* Threads section */}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-4">
                     <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-lg font-semibold">#{activeChannelName}</h3>
+                        <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">
+                            <span className="text-slate-400 dark:text-slate-500 font-normal">#</span>{activeChannelName}
+                        </h3>
                         {selectedChannelId && (
                             <button
                                 onClick={() => { setShowComposer(true); setComposerError(''); }}
-                                className="text-sm font-medium text-indigo-600 hover:text-indigo-800 dark:hover:text-indigo-400"
+                                className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
                             >
                                 + New Thread
                             </button>
@@ -223,59 +596,69 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
                     </div>
 
                     {showComposer && (
-                        <div className="mb-4 p-4 border border-indigo-100 dark:border-indigo-900 rounded-xl bg-slate-50 dark:bg-slate-900/40 space-y-3">
+                        <div className="mb-4 p-4 border border-indigo-100 dark:border-indigo-900/60 rounded-xl bg-slate-50 dark:bg-slate-900/40 space-y-3">
                             <input
                                 value={newThreadTitle}
-                                onChange={(e) => setNewThreadTitle(e.target.value)}
+                                onChange={e => setNewThreadTitle(e.target.value)}
                                 placeholder="Thread title"
-                                className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+                                className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                             />
                             <textarea
                                 value={newThreadContent}
-                                onChange={(e) => setNewThreadContent(e.target.value)}
+                                onChange={e => setNewThreadContent(e.target.value)}
                                 placeholder="Start the discussion…"
                                 rows={3}
-                                className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm resize-none"
+                                className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400"
                             />
-                            {composerError && (
-                                <p className="text-xs text-red-500">{composerError}</p>
-                            )}
+                            {composerError && <p className="text-xs text-red-500">{composerError}</p>}
                             <div className="flex gap-2 justify-end">
                                 <button
                                     onClick={() => { setShowComposer(false); setNewThreadTitle(''); setNewThreadContent(''); setComposerError(''); }}
-                                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-sm"
+                                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     onClick={handleCreateThread}
                                     disabled={composerLoading || !newThreadTitle.trim() || !newThreadContent.trim()}
-                                    className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium disabled:opacity-50"
+                                    className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium disabled:opacity-50 transition-colors"
                                 >
                                     {composerLoading ? 'Posting…' : 'Post Thread'}
                                 </button>
                             </div>
                         </div>
                     )}
-                    <div className="space-y-3">
+
+                    <div className="space-y-2">
                         {threadsLoading ? (
-                            <div className="flex items-center gap-2 text-slate-500 text-sm py-4">
-                                <span className="inline-block w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                                Loading threads…
+                            <div className="space-y-2">
+                                {[1, 2].map(i => (
+                                    <div key={i} className="h-16 bg-slate-100 dark:bg-slate-700 rounded-xl animate-pulse" />
+                                ))}
                             </div>
                         ) : threads.length === 0 ? (
-                            <p className="text-sm text-slate-500 py-4">No threads yet — be the first to start a discussion in this channel.</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 py-4 text-center">
+                                No threads yet — be the first to start a discussion.
+                            </p>
                         ) : (
                             threads.map(t => (
-                                <div key={t.id} onClick={() => setSelectedThread(t)} className="p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/40 cursor-pointer border border-transparent hover:border-slate-100 dark:hover:border-slate-700">
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <h4 className="font-semibold">{t.title}</h4>
-                                            <p className="text-sm text-slate-500">{t.author.username} • {new Date(t.created_at).toLocaleString()}</p>
+                                <div
+                                    key={t.id}
+                                    onClick={() => setSelectedThread(t)}
+                                    className="p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/40 cursor-pointer border border-transparent hover:border-slate-100 dark:hover:border-slate-700 transition-colors group"
+                                >
+                                    <div className="flex justify-between items-center gap-3">
+                                        <div className="min-w-0">
+                                            <h4 className="font-semibold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">
+                                                {t.title}
+                                            </h4>
+                                            <p className="text-xs text-slate-500 mt-0.5">
+                                                {t.author.username} · {timeAgo(t.created_at)}
+                                            </p>
                                         </div>
-                                        <div className="text-sm text-slate-500">
-                                            <span className="inline-block px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded-full">{t.reply_count} replies</span>
-                                        </div>
+                                        <span className="flex-shrink-0 text-xs text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-full whitespace-nowrap">
+                                            {t.reply_count} {t.reply_count === 1 ? 'reply' : 'replies'}
+                                        </span>
                                     </div>
                                 </div>
                             ))
@@ -283,84 +666,101 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
                     </div>
                 </div>
 
-                {/* Posts */}
-                <div className="space-y-4">
-                    {posts.map(post => (
-                        <div key={post.id} className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-5">
-                            <div className="flex items-start justify-between mb-4">
-                                <div className="flex items-center gap-3">
-                                    <post.avatar className="w-10 h-10 text-slate-400" />
-                                    <div>
-                                        <h4 className="font-semibold text-slate-900 dark:text-slate-100">{post.author}</h4>
-                                        <p className="text-xs text-slate-500">{post.time} • #{activeChannelName}</p>
-                                    </div>
-                                </div>
-                                {userTier === 'admin' && (
-                                    <button onClick={() => onDeletePost(post.id)} className="text-slate-400 hover:text-red-500 transition-colors">
-                                        <TrashIcon className="w-4 h-4" />
-                                    </button>
-                                )}
-                            </div>
-
-                            <p className="text-slate-700 dark:text-slate-300 mb-4 leading-relaxed">
-                                {post.content}
-                            </p>
-
-                            <div className="flex items-center gap-6 pt-4 border-t border-slate-100 dark:border-slate-700">
-                                <button
-                                    onClick={() => onToggleLike(post.id)}
-                                    className={`flex items-center gap-2 text-sm font-medium transition-colors ${post.liked ? 'text-red-500' : 'text-slate-500 hover:text-red-500'
-                                        }`}
-                                >
-                                    <HeartIcon className="w-5 h-5" fill={post.liked ? "currentColor" : "none"} />
-                                    {post.likes}
-                                </button>
-                                <button className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors">
-                                    <MessageSquareIcon className="w-5 h-5" />
-                                    {post.comments.length} Comments
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                {/* Social post feed */}
+                {displayPosts.length > 0 ? (
+                    <div className="space-y-4">
+                        {displayPosts.map((post: any) => (
+                            <PostCard
+                                key={post.id}
+                                post={post}
+                                username={username}
+                                userTier={userTier}
+                                onToggleLike={handleToggleLike}
+                                onDeletePost={handleDeletePost}
+                                onAddComment={handleAddComment}
+                            />
+                        ))}
+                    </div>
+                ) : (
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-10 text-center">
+                        <p className="text-slate-500 dark:text-slate-400 text-sm">No posts yet. Be the first to share something!</p>
+                    </div>
+                )}
             </div>
 
-            {/* Right Sidebar - Trending */}
-            <div className="w-full md:w-80 flex-shrink-0 space-y-6">
-                <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl shadow-lg p-6 text-white">
-                    <div className="flex items-center gap-3 mb-2">
-                        <TrophyIcon className="w-6 h-6 text-yellow-300" />
-                        <h3 className="font-bold text-lg">Global Leaderboard</h3>
+            {/* ------------------------------------------------------------------ */}
+            {/* Right Sidebar                                                       */}
+            {/* ------------------------------------------------------------------ */}
+            <div className="w-full md:w-72 flex-shrink-0 space-y-5">
+
+                {/* Stats card */}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-5">
+                    <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">
+                        Community Stats
+                    </h3>
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-600 dark:text-slate-300">Posts this week</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-100">{postsThisWeek}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-600 dark:text-slate-300">Total posts</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-100">{apiPosts.length}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-600 dark:text-slate-300">Discussion threads</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-100">{threads.length}</span>
+                        </div>
                     </div>
-                    <div className="flex items-start gap-2 mb-4 p-2.5 bg-white/10 rounded-lg border border-white/20">
+                </div>
+
+                {/* Global Leaderboard */}
+                <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl shadow-lg p-5 text-white">
+                    <div className="flex items-center gap-2.5 mb-2">
+                        <TrophyIcon className="w-5 h-5 text-yellow-300" />
+                        <h3 className="font-bold">Global Leaderboard</h3>
+                    </div>
+                    <div className="flex items-start gap-2 mb-4 p-2.5 bg-white/10 rounded-xl border border-white/20">
                         <LightbulbIcon className="w-4 h-4 text-yellow-300 flex-shrink-0 mt-0.5" />
                         <p className="text-xs text-indigo-100 leading-relaxed">
-                            <strong>Global XP:</strong> Points earned from all your study groups, quizzes, and activities combined!
+                            <strong>Global XP:</strong> Points earned from all study groups, quizzes, and activities.
                         </p>
                     </div>
-                    <div className="space-y-4">
-                        {leaderboard.map((u: any, i) => (
-                            <div key={u.username} className={`flex items-center gap-3 ${u.username === username ? 'bg-white/10 rounded-lg -mx-2 px-2 py-1' : ''}`}>
-                                <span className="font-bold opacity-70 w-4">{i + 1}</span>
-                                <div className="flex-1">
-                                    <p className="font-medium text-sm truncate max-w-[120px]">{u.username}</p>
-                                    <p className="text-xs opacity-70">Level {u.level}</p>
+                    <div className="space-y-2.5">
+                        {leaderboard.map((u: any, i: number) => (
+                            <div
+                                key={u.username}
+                                className={`flex items-center gap-3 rounded-xl transition-colors ${
+                                    u.username === username ? 'bg-white/15 px-2 py-1.5 -mx-2' : ''
+                                }`}
+                            >
+                                <span className="font-bold text-sm opacity-60 w-4 flex-shrink-0">{i + 1}</span>
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-sm truncate">{u.username}</p>
+                                    <p className="text-xs opacity-60">Level {u.level}</p>
                                 </div>
-                                <span className="font-bold text-sm bg-white/20 px-2 py-1 rounded">
-                                    {u.xp_points ?? u.points}
+                                <span className="font-bold text-xs bg-white/20 px-2 py-1 rounded-lg flex-shrink-0">
+                                    {(u.xp_points ?? u.points ?? 0).toLocaleString()}
                                 </span>
                             </div>
                         ))}
+                        {leaderboard.length === 0 && (
+                            <div className="space-y-2">
+                                {[1, 2, 3].map(i => (
+                                    <div key={i} className="h-9 bg-white/10 rounded-xl animate-pulse" />
+                                ))}
+                            </div>
+                        )}
                         {userRank && userRank > 10 && (
-                            <div className="pt-2 border-t border-white/20 mt-2">
-                                <div className="flex items-center gap-3 bg-white/20 rounded-lg -mx-2 px-2 py-2">
-                                    <span className="font-bold opacity-70 w-4">{userRank}</span>
+                            <div className="pt-2 border-t border-white/20">
+                                <div className="flex items-center gap-3 bg-white/20 rounded-xl px-2 py-2">
+                                    <span className="font-bold text-sm opacity-70 w-4">{userRank}</span>
                                     <div className="flex-1">
                                         <p className="font-medium text-sm">You</p>
-                                        <p className="text-xs opacity-70">Level {userStats?.level}</p>
+                                        <p className="text-xs opacity-60">Level {userStats?.level}</p>
                                     </div>
-                                    <span className="font-bold text-sm bg-white/30 px-2 py-1 rounded">
-                                        {userStats?.xp_points}
+                                    <span className="font-bold text-xs bg-white/30 px-2 py-1 rounded-lg">
+                                        {(userStats?.xp_points ?? 0).toLocaleString()}
                                     </span>
                                 </div>
                             </div>
@@ -368,20 +768,26 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
+                {/* Trending Topics */}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-5">
                     <div className="flex items-center gap-2 mb-4 text-slate-800 dark:text-slate-100">
-                        <TrendingIcon className="w-5 h-5 text-rose-500" />
-                        <h3 className="font-bold">Trending Topics</h3>
+                        <TrendingIcon className="w-4 h-4 text-rose-500" />
+                        <h3 className="font-bold text-sm">Trending Topics</h3>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                        {trendingTopics.map(topic => (
-                            <span key={topic} className="px-3 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-sm rounded-full cursor-pointer transition-colors">
+                        {trendingTopics.map((topic: string) => (
+                            <span
+                                key={topic}
+                                className="px-2.5 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs font-medium rounded-full cursor-pointer transition-colors"
+                            >
                                 {topic}
                             </span>
                         ))}
                     </div>
                 </div>
             </div>
+
+            {/* Thread Modal */}
             {selectedThread && (
                 <ThreadModal threadId={selectedThread.id} onClose={() => setSelectedThread(null)} />
             )}
