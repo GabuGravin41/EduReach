@@ -5,7 +5,6 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from services.youtube_service import extract_transcript
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -19,8 +18,7 @@ urlpatterns = [
     path('api/', include('ai_service.urls')),
     path('api/', include('notes.urls')),
     path('api/payments/', include('payments.urls')),
-    path('api/', include('api.urls')),  # YouTube and other API endpoints
-    path('api/youtube/extract-transcript/', extract_transcript),
+    path('api/', include('api.urls')),  # YouTube, analytics, and other API endpoints
 ]
 
 if settings.DEBUG or getattr(settings, 'SERVE_MEDIA_FILES', False):
