@@ -304,7 +304,11 @@ def generate_quiz(request):
     try:
         # Get request data
         transcript = (request.data.get('transcript', '') or '').strip()
-        num_questions = request.data.get('num_questions', 5)
+        try:
+            num_questions = int(request.data.get('num_questions', 5))
+        except (TypeError, ValueError):
+            num_questions = 5
+        num_questions = max(1, min(num_questions, 50))
         difficulty = request.data.get('difficulty', 'medium')
         uploaded_pdf = request.FILES.get('context_pdf')
         pdf_context = ''
@@ -364,11 +368,6 @@ def generate_quiz(request):
         # For large question sets or long contexts, generate in batches of 5.
         # Each batch gets a different slice of the context so all material is covered.
         BATCH_SIZE = 5
-        try:
-            num_questions = int(num_questions)
-        except (TypeError, ValueError):
-            num_questions = 5
-        num_questions = max(1, min(num_questions, 50))
 
         total_batches = max(1, (num_questions + BATCH_SIZE - 1) // BATCH_SIZE)
         context_len = len(combined_context)

@@ -131,7 +131,7 @@ export const authService = {
   },
 
   async getLeaderboard(): Promise<LeaderboardData> {
-    const response = await apiClient.get('/users/leaderboard/');
+    const response = await apiClient.get('users/leaderboard/');
     return response.data;
   },
 

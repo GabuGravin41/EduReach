@@ -66,26 +66,26 @@ export interface EnterpriseInquiryPayload {
 
 export const paymentService = {
   getPaymentMethods: async (): Promise<PaymentMethod[]> => {
-    const { data } = await apiClient.get('/payments/methods/');
+    const { data } = await apiClient.get('payments/methods/');
     if (Array.isArray(data)) return data;
     if (data && Array.isArray((data as any).results)) return (data as any).results;
     return [];
   },
 
   initiatePayment: async (payload: InitiatePaymentPayload): Promise<InitiatePaymentResponse> => {
-    const { data } = await apiClient.post('/payments/initiate/', payload);
+    const { data } = await apiClient.post('payments/initiate/', payload);
     return data;
   },
 
   confirmPaybill: async (paymentId: number, transactionCode: string): Promise<{ detail: string; payment: Payment }> => {
-    const { data } = await apiClient.post(`/payments/${paymentId}/confirm-paybill/`, {
+    const { data } = await apiClient.post(`payments/${paymentId}/confirm-paybill/`, {
       transaction_code: transactionCode.trim(),
     });
     return data;
   },
 
   getPaymentHistory: async (): Promise<Payment[]> => {
-    const { data } = await apiClient.get('/payments/history/');
+    const { data } = await apiClient.get('payments/history/');
     if (Array.isArray(data)) return data;
     if (data && Array.isArray((data as any).results)) return (data as any).results;
     return [];
@@ -93,7 +93,7 @@ export const paymentService = {
 
   getSubscription: async (): Promise<Subscription | null> => {
     try {
-      const { data } = await apiClient.get('/payments/subscription/');
+      const { data } = await apiClient.get('payments/subscription/');
       return data;
     } catch (error) {
       // "No active subscription" is expected for new/free users.
@@ -109,21 +109,21 @@ export const paymentService = {
     payment_id: number;
     duration_days?: number;
   }): Promise<Subscription> => {
-    const { data } = await apiClient.post('/payments/subscription/upgrade/', payload);
+    const { data } = await apiClient.post('payments/subscription/upgrade/', payload);
     return data;
   },
 
   cancelSubscription: async (): Promise<void> => {
-    await apiClient.post('/payments/subscription/cancel/', {});
+    await apiClient.post('payments/subscription/cancel/', {});
   },
 
   submitEnterpriseInquiry: async (payload: EnterpriseInquiryPayload): Promise<{ detail: string }> => {
-    const { data } = await apiClient.post('/payments/enterprise-inquiry/', payload);
+    const { data } = await apiClient.post('payments/enterprise-inquiry/', payload);
     return data;
   },
 
   paystackVerify: async (payload: { reference: string }): Promise<{ detail: string; payment: Payment }> => {
-    const { data } = await apiClient.post('/payments/paystack/verify/', payload);
+    const { data } = await apiClient.post('payments/paystack/verify/', payload);
     return data;
   },
 };

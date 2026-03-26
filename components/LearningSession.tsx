@@ -116,7 +116,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
       setTranscriptFetching(true);
       try {
         const url = `https://www.youtube.com/watch?v=${videoId}`;
-        const resp = await apiClient.post('/youtube/extract-transcript/', { url });
+        const resp = await apiClient.post('youtube/extract-transcript/', { url });
         const data = resp.data as any;
         if (data.success && (data.transcript?.timestamped_transcript || data.transcript?.transcript)) {
           setLiveTranscript(data.transcript.timestamped_transcript || data.transcript.transcript);
@@ -194,7 +194,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
 
     const loadNotes = async () => {
       try {
-        const response = await apiClient.get(`/lessons/${currentLesson.id}/get_notes/`);
+        const response = await apiClient.get(`lessons/${currentLesson.id}/get_notes/`);
         if (response.data.success && response.data.notes) {
           setNotes(response.data.notes.notes || '');
         }
@@ -474,7 +474,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
     // 0 = ended
     if (event.data === 0 && !completedSent && currentLesson) {
       setCompletedSent(true);
-      apiClient.post(`/lessons/${currentLesson.id}/mark_complete/`, {})
+      apiClient.post(`lessons/${currentLesson.id}/mark_complete/`, {})
         .then(() => {
           setShowCompletionBanner(true);
           setTimeout(() => setShowCompletionBanner(false), 4000);

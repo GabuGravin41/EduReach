@@ -61,42 +61,42 @@ export interface CreateStudyGroupPayload {
 
 export const studyGroupService = {
   async listGroups(params?: { course?: number }): Promise<StudyGroup[]> {
-    const { data } = await apiClient.get('/study-groups/groups/', { params });
+    const { data } = await apiClient.get('study-groups/groups/', { params });
     return Array.isArray(data) ? data : (data?.results ?? []);
   },
 
   async createGroup(payload: CreateStudyGroupPayload): Promise<StudyGroup> {
-    const { data } = await apiClient.post('/study-groups/groups/', payload);
+    const { data } = await apiClient.post('study-groups/groups/', payload);
     return data;
   },
 
   async updateGroup(id: number, payload: Partial<CreateStudyGroupPayload>): Promise<StudyGroup> {
-    const { data } = await apiClient.patch(`/study-groups/groups/${id}/`, payload);
+    const { data } = await apiClient.patch(`study-groups/groups/${id}/`, payload);
     return data;
   },
 
   async joinGroup(id: number): Promise<void> {
-    await apiClient.post(`/study-groups/groups/${id}/join/`);
+    await apiClient.post(`study-groups/groups/${id}/join/`);
   },
 
   async joinGroupByToken(token: string): Promise<{ detail: string; group_id: number }> {
-    const { data } = await apiClient.post('/study-groups/groups/join-by-token/', { token });
+    const { data } = await apiClient.post('study-groups/groups/join-by-token/', { token });
     return data;
   },
 
   async leaveGroup(id: number): Promise<void> {
-    await apiClient.post(`/study-groups/groups/${id}/leave/`);
+    await apiClient.post(`study-groups/groups/${id}/leave/`);
   },
 
   async listGroupPosts(groupId: number): Promise<StudyGroupPost[]> {
-    const { data } = await apiClient.get('/study-groups/group-posts/', {
+    const { data } = await apiClient.get('study-groups/group-posts/', {
       params: { group: groupId },
     });
     return Array.isArray(data) ? data : (data?.results ?? []);
   },
 
   async createGroupPost(groupId: number, content: string): Promise<StudyGroupPost> {
-    const { data } = await apiClient.post('/study-groups/group-posts/', {
+    const { data } = await apiClient.post('study-groups/group-posts/', {
       group: groupId,
       content,
     });
@@ -104,25 +104,25 @@ export const studyGroupService = {
   },
 
   async updateGroupPost(postId: number, content: string): Promise<StudyGroupPost> {
-    const { data } = await apiClient.patch(`/study-groups/group-posts/${postId}/`, { content });
+    const { data } = await apiClient.patch(`study-groups/group-posts/${postId}/`, { content });
     return data;
   },
 
   async deleteGroupPost(postId: number): Promise<void> {
-    await apiClient.delete(`/study-groups/group-posts/${postId}/`);
+    await apiClient.delete(`study-groups/group-posts/${postId}/`);
   },
 
   async getMembers(groupId: number): Promise<{ id: number; username: string }[]> {
-    const { data } = await apiClient.get(`/study-groups/groups/${groupId}/members/`);
+    const { data } = await apiClient.get(`study-groups/groups/${groupId}/members/`);
     return data;
   },
 
   async inviteMember(groupId: number, email: string): Promise<void> {
-    await apiClient.post(`/study-groups/groups/${groupId}/invite/`, { email });
+    await apiClient.post(`study-groups/groups/${groupId}/invite/`, { email });
   },
 
   async getChallenges(groupId: number) {
-    const { data } = await apiClient.get('/study-groups/challenges/', { params: { group: groupId } });
+    const { data } = await apiClient.get('study-groups/challenges/', { params: { group: groupId } });
     return Array.isArray(data) ? data : (data?.results ?? []);
   },
 
@@ -134,22 +134,22 @@ export const studyGroupService = {
     start_date?: string;
     end_date?: string | null;
   }) {
-    const { data } = await apiClient.post('/study-groups/challenges/', payload);
+    const { data } = await apiClient.post('study-groups/challenges/', payload);
     return data;
   },
 
   async participateChallenge(challengeId: number, payload: { score?: number; completed?: boolean }) {
-    const { data } = await apiClient.post(`/study-groups/challenges/${challengeId}/participate/`, payload);
+    const { data } = await apiClient.post(`study-groups/challenges/${challengeId}/participate/`, payload);
     return data;
   },
 
   async getChallengeLeaderboard(challengeId: number) {
-    const { data } = await apiClient.get(`/study-groups/challenges/${challengeId}/leaderboard/`);
+    const { data } = await apiClient.get(`study-groups/challenges/${challengeId}/leaderboard/`);
     return data;
   },
 
   async getGroupAssessmentPerformance(groupId: number) {
-    const { data } = await apiClient.get(`/study-groups/groups/${groupId}/assessment-performance/`);
+    const { data } = await apiClient.get(`study-groups/groups/${groupId}/assessment-performance/`);
     return data;
   },
 };

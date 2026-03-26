@@ -574,7 +574,7 @@ export const AnalyticsDashboard: React.FC<Props> = ({ userTier, currentUserId })
     setLearnerLoading(true);
     setLearnerError(null);
     try {
-      const res = await apiClient.get('/analytics/learner/');
+      const res = await apiClient.get('analytics/learner/');
       setLearnerData(normalizeLearner(res.data));
     } catch (err: any) {
       setLearnerError(err?.response?.data?.detail ?? err?.message ?? 'Unknown error');
@@ -587,7 +587,7 @@ export const AnalyticsDashboard: React.FC<Props> = ({ userTier, currentUserId })
     setInstructorLoading(true);
     setInstructorError(null);
     try {
-      const res = await apiClient.get('/analytics/instructor/');
+      const res = await apiClient.get('analytics/instructor/');
       const normalized = normalizeInstructor(res.data);
       setInstructorData(normalized);
       setHasInstructorData(normalized.assessments_created > 0 || normalized.total_students > 0);
@@ -608,7 +608,7 @@ export const AnalyticsDashboard: React.FC<Props> = ({ userTier, currentUserId })
     setAdminLoading(true);
     setAdminError(null);
     try {
-      const res = await apiClient.get('/analytics/admin/');
+      const res = await apiClient.get('analytics/admin/');
       setAdminData(normalizeAdmin(res.data));
     } catch (err: any) {
       setAdminError(err?.response?.data?.detail ?? err?.message ?? 'Unknown error');

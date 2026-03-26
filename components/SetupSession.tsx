@@ -111,7 +111,7 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
       }
 
       try {
-        const response = await apiClient.post('/youtube/extract-transcript/', { url, language: lang });
+        const response = await apiClient.post('youtube/extract-transcript/', { url, language: lang });
         const data = response.data as any;
 
         if (data.success) {
@@ -193,7 +193,7 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
     try {
       const courseId = selectedCourseId !== 'none' ? Number(selectedCourseId) : undefined;
 
-      const response = await apiClient.post('/courses/start_session/', {
+      const response = await apiClient.post('courses/start_session/', {
         title: sessionTitle || 'Learning Session',
         video_id: vid,
         video_url: youtubeUrl,
@@ -232,7 +232,7 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
     setIsLoading(true);
     try {
       const courseId = selectedCourseId !== 'none' ? Number(selectedCourseId) : undefined;
-      const response = await apiClient.post('/courses/start_session/', {
+      const response = await apiClient.post('courses/start_session/', {
         title: sessionTitle || 'Learning Session',
         video_id: vid,
         video_url: youtubeUrl,

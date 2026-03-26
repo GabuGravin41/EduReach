@@ -65,7 +65,7 @@ export const youtubeService = {
    * Get video info (metadata and transcript availability)
    */
   async getVideoInfo(url: string): Promise<VideoInfo> {
-    const response = await apiClient.get('/youtube/video-info/', {
+    const response = await apiClient.get('youtube/video-info/', {
       params: { url }
     });
     return response.data;
@@ -95,7 +95,7 @@ export const youtubeService = {
     }
 
     try {
-      const { data } = await apiClient.post('/youtube/extract-transcript/', {
+      const { data } = await apiClient.post('youtube/extract-transcript/', {
         url: resolvedUrl,
         language
       });
@@ -138,7 +138,7 @@ export const youtubeService = {
     }
 
     try {
-      const { data } = await apiClient.get('/youtube/video-info/', {
+      const { data } = await apiClient.get('youtube/video-info/', {
         params: { url: resolvedUrl }
       });
 
@@ -163,7 +163,7 @@ export const youtubeService = {
    * Fetch transcript for a lesson
    */
   async fetchLessonTranscript(lessonId: number, language: string = 'en', forceRefresh: boolean = false): Promise<any> {
-    const response = await apiClient.post(`/lessons/${lessonId}/fetch_transcript/`, {
+    const response = await apiClient.post(`lessons/${lessonId}/fetch_transcript/`, {
       language,
       force_refresh: forceRefresh
     });
@@ -174,7 +174,7 @@ export const youtubeService = {
    * Update manual transcript for a lesson
    */
   async updateManualTranscript(lessonId: number, transcript: string): Promise<any> {
-    const response = await apiClient.post(`/lessons/${lessonId}/update_manual_transcript/`, {
+    const response = await apiClient.post(`lessons/${lessonId}/update_manual_transcript/`, {
       manual_transcript: transcript
     });
     return response.data;
@@ -184,7 +184,7 @@ export const youtubeService = {
    * Get transcript for a lesson
    */
   async getLessonTranscript(lessonId: number): Promise<any> {
-    const response = await apiClient.get(`/lessons/${lessonId}/get_transcript/`);
+    const response = await apiClient.get(`lessons/${lessonId}/get_transcript/`);
     return response.data;
   },
 
@@ -192,7 +192,7 @@ export const youtubeService = {
    * Generate quiz from lesson transcript
    */
   async generateQuizFromLesson(lessonId: number, numQuestions: number = 5, difficulty: string = 'medium'): Promise<any> {
-    const response = await apiClient.post(`/lessons/${lessonId}/generate_quiz/`, {
+    const response = await apiClient.post(`lessons/${lessonId}/generate_quiz/`, {
       num_questions: numQuestions,
       difficulty
     });
@@ -208,7 +208,7 @@ export const youtubeService = {
     time_limit_minutes?: number;
     is_public?: boolean;
   }): Promise<any> {
-    const response = await apiClient.post(`/lessons/${lessonId}/save_quiz_as_assessment/`, data);
+    const response = await apiClient.post(`lessons/${lessonId}/save_quiz_as_assessment/`, data);
     return response.data;
   }
   ,

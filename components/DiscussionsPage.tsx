@@ -90,7 +90,7 @@ export const DiscussionsPage: React.FC<DiscussionsPageProps> = ({
       setError(null);
 
       // Get threads directly for this course
-      const response = await apiClient.get(`/threads/?course_id=${courseId}`);
+      const response = await apiClient.get(`threads/?course_id=${courseId}`);
       setThreads(response.data.results || []);
     } catch (error: any) {
       console.error('Failed to load threads:', error);
@@ -108,7 +108,7 @@ export const DiscussionsPage: React.FC<DiscussionsPageProps> = ({
       setError(null);
 
       // Create the thread directly with course_id
-      const response = await apiClient.post('/threads/', {
+      const response = await apiClient.post('threads/', {
         course_id: courseId,
         title,
         content
@@ -131,7 +131,7 @@ export const DiscussionsPage: React.FC<DiscussionsPageProps> = ({
       setError(null);
 
       // Get full thread details with replies
-      const response = await apiClient.get(`/threads/${threadId}/`);
+      const response = await apiClient.get(`threads/${threadId}/`);
       setSelectedThread(response.data);
       setView('thread');
     } catch (error: any) {
@@ -151,7 +151,7 @@ export const DiscussionsPage: React.FC<DiscussionsPageProps> = ({
       setError(null);
 
       // Create the reply
-      const response = await apiClient.post('/replies/', {
+      const response = await apiClient.post('replies/', {
         thread: selectedThread.id,
         content
       });
@@ -174,7 +174,7 @@ export const DiscussionsPage: React.FC<DiscussionsPageProps> = ({
     if (!selectedThread) return;
 
     try {
-      const response = await apiClient.post(`/replies/${replyId}/vote/`, {
+      const response = await apiClient.post(`replies/${replyId}/vote/`, {
         vote_type: voteType
       });
 
@@ -203,7 +203,7 @@ export const DiscussionsPage: React.FC<DiscussionsPageProps> = ({
     if (!selectedThread) return;
 
     try {
-      const response = await apiClient.post(`/replies/${replyId}/mark_as_accepted/`);
+      const response = await apiClient.post(`replies/${replyId}/mark_as_accepted/`);
 
       // Update the reply in the thread
       setSelectedThread(prev => prev ? {

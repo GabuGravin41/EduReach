@@ -50,12 +50,12 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
       try {
         // Use lesson endpoint if available, otherwise fall back to YouTube notes endpoint
         if (lessonId) {
-          await apiClient.post(`/lessons/${lessonId}/save_notes/`, {
+          await apiClient.post(`lessons/${lessonId}/save_notes/`, {
             notes,
             timestamps: [],
           });
         } else {
-          await apiClient.post('/youtube/save-notes/', {
+          await apiClient.post('youtube/save-notes/', {
             video_id: videoId,
             notes,
             timestamps: [],

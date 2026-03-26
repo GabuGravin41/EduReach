@@ -259,7 +259,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartSession, onSelectCo
   const analyticsQuery = useQuery<LearnerAnalytics>({
     queryKey: ['learner-analytics'],
     queryFn: async () => {
-      const res = await apiClient.get('/analytics/learner/');
+      const res = await apiClient.get('analytics/learner/');
       return res.data;
     },
     retry: 1,
