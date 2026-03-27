@@ -4,7 +4,7 @@ import { XIcon } from './icons/XIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { aiClient } from '../src/services/api';
-import { assessmentService } from '../src/services/assessmentService';
+import { assessmentService, type QuestionResult } from '../src/services/assessmentService';
 import type {
   Question,
   QuizQuestion,
@@ -133,7 +133,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
 
   // After submit: when backend returns status 'submitted', auto-poll; user can also manually check
   const [attemptStatusFromServer, setAttemptStatusFromServer] = useState<string | null>(null);
-  const [serverAttempt, setServerAttempt] = useState<{ status?: string; score?: string | number; percentage?: number } | null>(null);
+  const [serverAttempt, setServerAttempt] = useState<{ status?: string; score?: string | number; percentage?: number; question_results?: Record<string, QuestionResult> } | null>(null);
   const [isMarking, setIsMarking] = useState(false);
   const [markError, setMarkError] = useState('');
   const [isPollingForResult, setIsPollingForResult] = useState(false);
@@ -188,7 +188,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
       const data = await assessmentService.submitAssessment(assessmentId, answers as Record<number, string>);
       setAttemptStatusFromServer(data?.status ?? null);
       if (data?.status === 'graded') {
-        setServerAttempt({ status: data.status, score: data.score, percentage: data.percentage });
+        setServerAttempt({ status: data.status, score: data.score, percentage: data.percentage, question_results: data.question_results });
       } else if (data?.status === 'submitted') {
         // AI grading did not complete synchronously; auto-poll up to 5 times (every 10 s)
         setServerAttempt(null);
@@ -219,7 +219,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
       const poll = async (): Promise<void> => {
         const attempt = await assessmentService.getMyAttempt(assessmentId);
         if (attempt?.status === 'graded') {
-          setServerAttempt({ status: attempt.status, score: attempt.score, percentage: attempt.percentage });
+          setServerAttempt({ status: attempt.status, score: attempt.score, percentage: attempt.percentage, question_results: attempt.question_results });
           setIsMarking(false);
           return;
         }
@@ -252,7 +252,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
     assessmentService.getMyAttempt(assessmentId).then((attempt) => {
       if (!attempt) return;
       if (attempt.status === 'graded') {
-        setServerAttempt({ status: attempt.status, score: attempt.score, percentage: attempt.percentage });
+        setServerAttempt({ status: attempt.status, score: attempt.score, percentage: attempt.percentage, question_results: attempt.question_results });
         setIsSubmitted(true);
         return;
       }
@@ -267,7 +267,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
           polls++;
           assessmentService.getMyAttempt(assessmentId!).then((a) => {
             if (a?.status === 'graded') {
-              setServerAttempt({ status: a.status, score: a.score, percentage: a.percentage });
+              setServerAttempt({ status: a.status, score: a.score, percentage: a.percentage, question_results: a.question_results });
               return;
             }
             setTimeout(poll, 2000);
@@ -288,7 +288,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
       try {
         const attempt = await assessmentService.getMyAttempt(assessmentId);
         if (attempt?.status === 'graded') {
-          setServerAttempt({ status: attempt.status, score: attempt.score, percentage: attempt.percentage });
+          setServerAttempt({ status: attempt.status, score: attempt.score, percentage: attempt.percentage, question_results: attempt.question_results });
           setAttemptStatusFromServer('graded');
           setIsPollingForResult(false);
         } else {
@@ -309,7 +309,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
     try {
       const attempt = await assessmentService.getMyAttempt(assessmentId);
       if (attempt?.status === 'graded') {
-        setServerAttempt({ status: attempt.status, score: attempt.score, percentage: attempt.percentage });
+        setServerAttempt({ status: attempt.status, score: attempt.score, percentage: attempt.percentage, question_results: attempt.question_results });
         setAttemptStatusFromServer('graded');
       } else {
         // Trigger background grading as a fallback then poll
@@ -668,9 +668,22 @@ Format: {"score": number, "feedback": "string"}`;
                       <MarkdownRenderer content={q.type === 'essay' ? (q as EssayQuestion).question_text : (q as any).question_text} />
                     </div>
                   )}
-                  <span className="text-xs text-slate-500 uppercase tracking-wide font-semibold mt-1 block">
-                    {q.type ? q.type.replace('_', ' ') : 'Question'} • {q.points} pts
-                  </span>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className="text-xs text-slate-500 uppercase tracking-wide font-semibold">
+                      {q.type ? q.type.replace('_', ' ') : 'Question'} • {q.points} pts
+                    </span>
+                    {serverAttempt?.status === 'graded' && serverAttempt.question_results?.[String(q.id)] && (() => {
+                      const qr = serverAttempt.question_results![String(q.id)];
+                      const pct = qr.max_score > 0 ? Math.round((qr.score / qr.max_score) * 100) : 0;
+                      const color = pct >= 70 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : pct >= 40 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300';
+                      return (
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${color}`}>
+                          {qr.ai_graded && <SparklesIcon className="w-3 h-3" />}
+                          {qr.score}/{qr.max_score} pts
+                        </span>
+                      );
+                    })()}
+                  </div>
                 </div>
               </div>
             )}
@@ -843,7 +856,7 @@ Format: {"score": number, "feedback": "string"}`;
                           AI Feedback
                         </h5>
                         <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-full font-bold text-sm">
-                          {gradingResults[q.id].score} / 100
+                          {Math.round((gradingResults[q.id].score / 100) * q.points)} / {q.points} pts
                         </span>
                       </div>
                       <div className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">

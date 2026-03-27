@@ -4,7 +4,13 @@ from .models import User
 
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for User model."""
-    
+    tier = serializers.SerializerMethodField()
+
+    def get_tier(self, obj):
+        if obj.is_superuser:
+            return 'admin'
+        return obj.tier
+
     class Meta:
         model = User
         fields = [
@@ -35,6 +41,12 @@ class UserProfileSerializer(serializers.ModelSerializer):
     """Detailed serializer for user profile."""
     profile_cover = serializers.ImageField(required=False, allow_null=True)
     avatar = serializers.ImageField(required=False, allow_null=True)
+    tier = serializers.SerializerMethodField()
+
+    def get_tier(self, obj):
+        if obj.is_superuser:
+            return 'admin'
+        return obj.tier
 
     class Meta:
         model = User

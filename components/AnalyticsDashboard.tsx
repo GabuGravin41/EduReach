@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { UserTier } from '../App';
-import apiClient from '../src/services/apiClient';
+import apiClient from '../src/services/api';
 import { BarChart } from './charts/BarChart';
 import { LineChart } from './charts/LineChart';
 import { DonutChart } from './charts/DonutChart';

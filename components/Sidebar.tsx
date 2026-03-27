@@ -118,12 +118,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
       
       {/* Sidebar */}
       <aside className={`
-        fixed lg:static inset-y-0 left-0 z-50
-        h-full bg-gradient-to-b from-white to-blue-50/30 dark:from-slate-900 dark:to-slate-800 
-        px-3 py-4 flex flex-col 
-        border-r border-blue-100/60 dark:border-slate-800 
+        fixed lg:sticky lg:top-0 inset-y-0 left-0 z-50
+        h-full lg:h-screen bg-gradient-to-b from-white to-blue-50/30 dark:from-slate-900 dark:to-slate-800
+        px-3 py-4 flex flex-col
+        border-r border-blue-100/60 dark:border-slate-800
         transition-all duration-300 shadow-lg
-        overflow-y-auto
+        overflow-y-auto flex-shrink-0
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         ${isCollapsed ? 'w-20' : 'w-64'}
       `}>

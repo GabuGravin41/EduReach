@@ -248,11 +248,11 @@ class UserAttemptSerializer(serializers.ModelSerializer):
             'id', 'user', 'user_username', 'assessment',
             'assessment_title', 'assessment_type', 'has_ai_graded_questions',
             'status', 'score', 'percentage',
-            'answers', 'answer_images', 'is_public_result',
+            'answers', 'question_results', 'answer_images', 'is_public_result',
             'started_at', 'submitted_at', 'time_taken_minutes', 'time_taken_seconds'
         ]
         read_only_fields = [
-            'id', 'user', 'score', 'percentage',
+            'id', 'user', 'score', 'percentage', 'question_results',
             'started_at', 'submitted_at', 'time_taken_minutes', 'time_taken_seconds'
         ]
 

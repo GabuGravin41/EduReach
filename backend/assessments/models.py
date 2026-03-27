@@ -144,6 +144,11 @@ class UserAttempt(models.Model):
     score = models.CharField(max_length=20, default='0/0')
     percentage = models.FloatField(default=0.0)
     answers = models.JSONField(default=dict)
+    question_results = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Per-question grading results: {question_id: {score, max_score, is_correct, ai_graded}}'
+    )
     is_public_result = models.BooleanField(
         default=False,
         help_text='Whether this attempt result is visible to other students.'
@@ -190,6 +195,7 @@ class UserAttempt(models.Model):
         total_points = 0
         earned_points = 0
         total_xp = 0
+        per_question = {}
 
         for question in self.assessment.questions.all():
             total_points += question.points
@@ -203,10 +209,17 @@ class UserAttempt(models.Model):
             if q_type in ['mcq', 'true_false']:
                 if user_answer_raw.lower() == str(question.correct_answer).lower():
                     is_correct = True
+                per_question[str(question.id)] = {
+                    'score': question.points if is_correct else 0,
+                    'max_score': question.points,
+                    'is_correct': is_correct,
+                    'ai_graded': False,
+                }
             elif q_type == 'short_answer':
                 ref = (getattr(question, 'explanation', None) or '').strip()
                 # Passage-style / long text with model solution: AI-grade (counts toward quota)
                 if ref and len(user_answer) > 80:
+                    pts = 0
                     try:
                         from ai_service.essay_grading import grade_essay_answer
                         pts = grade_essay_answer(ref, user_answer_raw, question.points, user=self.user)
@@ -214,11 +227,24 @@ class UserAttempt(models.Model):
                         total_xp += int((pts / question.points) * xp_weight) if question.points else 0
                     except Exception:
                         pass
+                    per_question[str(question.id)] = {
+                        'score': pts,
+                        'max_score': question.points,
+                        'is_correct': pts >= question.points,
+                        'ai_graded': True,
+                    }
                     continue
                 if user_answer.lower() == str(question.correct_answer).lower().strip():
                     is_correct = True
+                per_question[str(question.id)] = {
+                    'score': question.points if is_correct else 0,
+                    'max_score': question.points,
+                    'is_correct': is_correct,
+                    'ai_graded': False,
+                }
             elif q_type == 'essay':
                 ref = getattr(question, 'explanation', None) or ''
+                pts = 0
                 if ref.strip():
                     try:
                         from ai_service.essay_grading import grade_essay_answer
@@ -227,11 +253,19 @@ class UserAttempt(models.Model):
                         total_xp += int((pts / question.points) * xp_weight) if question.points else 0
                     except Exception:
                         pass
+                per_question[str(question.id)] = {
+                    'score': pts,
+                    'max_score': question.points,
+                    'is_correct': pts >= question.points,
+                    'ai_graded': True,
+                }
                 continue
 
             if is_correct:
                 earned_points += question.points
                 total_xp += xp_weight
+
+        self.question_results = per_question
 
         self.score = f"{earned_points}/{total_points}"
         self.percentage = (earned_points / total_points * 100) if total_points > 0 else 0

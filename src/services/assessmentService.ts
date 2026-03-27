@@ -58,6 +58,13 @@ export interface CreateAssessmentData {
   source_lesson?: number;
 }
 
+export interface QuestionResult {
+  score: number;
+  max_score: number;
+  is_correct: boolean;
+  ai_graded: boolean;
+}
+
 export interface AssessmentAttempt {
   id: number;
   assessment: number | Assessment;
@@ -69,6 +76,7 @@ export interface AssessmentAttempt {
   started_at: string;
   submitted_at?: string;
   answers: Record<number | string, string>; // question_id -> answer
+  question_results?: Record<string, QuestionResult>; // question_id -> per-question grading
   score?: number | string;
   max_score?: number;
   time_taken_seconds?: number;
