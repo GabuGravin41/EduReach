@@ -167,10 +167,8 @@ export const LoginScreen: React.FC = () => {
 
       {/* Landing */}
       <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-lg w-full">
-        {/* Logo */}
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-xl shadow-indigo-500/30 flex items-center justify-center mb-6">
-          <SparklesIcon className="w-9 h-9 text-white" />
-        </div>
+        {/* Logo mark */}
+        <img src="/logo-no-name.jpeg" className="h-24 sm:h-28 object-contain mb-4 drop-shadow-lg" alt="EduReach" />
 
         <h1 className="text-5xl sm:text-6xl font-black text-slate-900 dark:text-white tracking-tight mb-3">
           Edu<span className="bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">Reach</span>
@@ -234,8 +232,8 @@ export const LoginScreen: React.FC = () => {
 
               {/* Header */}
               <div className="mb-7">
-                <div className="flex items-center mb-1">
-                  <img src="/logo.jpeg" className="h-9 object-contain" alt="EduReach" />
+                <div className="flex items-center mb-3">
+                  <img src="/logo.jpeg" className="h-12 object-contain" alt="EduReach" />
                 </div>
                 <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
                   {isLogin ? 'Welcome back' : signupStep === 1 ? 'Create your account' : 'Tell us about yourself'}

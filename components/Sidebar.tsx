@@ -133,8 +133,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
         <div className="flex items-center justify-between mb-4 lg:mb-6">
           <div className={`flex items-center gap-2 ${isCollapsed ? 'justify-center px-0' : 'px-3'}`}>
             {isCollapsed
-              ? <img src="/logo-no-name.png" className="w-7 h-7 flex-shrink-0 object-contain" alt="EduReach" />
-              : <img src="/logo.jpeg" className="h-8 object-contain" alt="EduReach" />
+              ? <img src="/logo-no-name.jpeg" className="w-9 h-9 flex-shrink-0 object-contain" alt="EduReach" />
+              : <img src="/logo.jpeg" className="h-10 object-contain" alt="EduReach" />
             }
           </div>
           {/* Mobile close button */}
