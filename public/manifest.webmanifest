@@ -23,9 +23,9 @@
       "purpose": "any maskable"
     },
     {
-      "src": "/logo.svg",
+      "src": "/logo-no-name.png",
       "sizes": "any",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ],

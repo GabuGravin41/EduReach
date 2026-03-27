@@ -6,7 +6,10 @@ type CachedEntry = {
   cachedAt: number;
 };
 
-const CACHE_PREFIX = 'edureach:api-cache:v1:';
+// In-memory cache — avoids localStorage quota issues and is sufficient
+// for deduplicating requests within a single page session.
+const memoryCache = new Map<string, CachedEntry>();
+
 const DEFAULT_TTL_MS = 5 * 60 * 1000;
 
 const AUTH_EXCLUDED_PATHS = [
@@ -15,8 +18,6 @@ const AUTH_EXCLUDED_PATHS = [
   '/auth/logout/',
   '/auth/token/refresh/',
 ];
-
-const canUseStorage = () => typeof window !== 'undefined' && typeof localStorage !== 'undefined';
 
 const stableStringify = (value: unknown): string => {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
@@ -32,7 +33,7 @@ export const buildRequestCacheKey = (config: InternalAxiosRequestConfig): string
   const params = config.params ? stableStringify(config.params) : '';
   const token = typeof localStorage !== 'undefined' ? (localStorage.getItem('access_token') || '') : '';
   const tokenSuffix = token ? token.slice(-12) : 'anon';
-  return `${CACHE_PREFIX}${method}:${url}?${params}:u:${tokenSuffix}`;
+  return `${method}:${url}?${params}:u:${tokenSuffix}`;
 };
 
 export const shouldCacheRequest = (config: InternalAxiosRequestConfig): boolean => {
@@ -46,38 +47,25 @@ export const writeCachedResponse = (
   key: string,
   payload: { data: unknown; status: number }
 ): void => {
-  if (!canUseStorage()) return;
-  try {
-    const entry: CachedEntry = {
-      data: payload.data,
-      status: payload.status,
-      cachedAt: Date.now(),
-    };
-    localStorage.setItem(key, JSON.stringify(entry));
-  } catch {
-    // Ignore quota/storage errors.
-  }
+  memoryCache.set(key, {
+    data: payload.data,
+    status: payload.status,
+    cachedAt: Date.now(),
+  });
 };
 
 export const readCachedResponse = (
   key: string,
   maxAgeMs: number = DEFAULT_TTL_MS
 ): { data: unknown; status: number; stale: boolean } | null => {
-  if (!canUseStorage()) return null;
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as CachedEntry;
-    if (!parsed || typeof parsed.cachedAt !== 'number') return null;
-    const age = Date.now() - parsed.cachedAt;
-    return {
-      data: parsed.data,
-      status: parsed.status || 200,
-      stale: age > maxAgeMs,
-    };
-  } catch {
-    return null;
-  }
+  const entry = memoryCache.get(key);
+  if (!entry) return null;
+  const age = Date.now() - entry.cachedAt;
+  return {
+    data: entry.data,
+    status: entry.status || 200,
+    stale: age > maxAgeMs,
+  };
 };
 
 export const isLikelyNetworkError = (error: { response?: unknown; code?: string; message?: string }): boolean => {

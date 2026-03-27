@@ -58,6 +58,36 @@ export interface ChallengeableUser {
 
 const CACHED_USER_KEY = 'cached_user';
 
+// Evict any stale API cache entries written by the old localStorage-based
+// requestCache (prefix 'edureach:api-cache:v1:') to free quota space.
+const evictOldApiCache = () => {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('edureach:api-cache:v1:')) keysToRemove.push(k);
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    // ignore
+  }
+};
+
+const safeSetItem = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'QuotaExceededError') {
+      evictOldApiCache();
+      try {
+        localStorage.setItem(key, value);
+      } catch {
+        // If still failing after eviction, skip caching silently.
+      }
+    }
+  }
+};
+
 export const authService = {
   async login(credentials: LoginCredentials) {
     const response = await apiClient.post(API_ENDPOINTS.LOGIN, credentials);
@@ -100,7 +130,7 @@ export const authService = {
   async getCurrentUser(): Promise<User> {
     const response = await apiClient.get(API_ENDPOINTS.USER_ME);
     const user = response.data as User;
-    localStorage.setItem(CACHED_USER_KEY, JSON.stringify(user));
+    safeSetItem(CACHED_USER_KEY, JSON.stringify(user));
     return user;
   },
 
@@ -119,14 +149,14 @@ export const authService = {
         : {};
     const response = await apiClient.patch(API_ENDPOINTS.USER_ME, data, config);
     const user = response.data as User;
-    localStorage.setItem(CACHED_USER_KEY, JSON.stringify(user));
+    safeSetItem(CACHED_USER_KEY, JSON.stringify(user));
     return user;
   },
 
   async upgradeTier(tier: UserTier): Promise<User> {
     const response = await apiClient.post(API_ENDPOINTS.UPGRADE_TIER, { tier });
     const user = response.data as User;
-    localStorage.setItem(CACHED_USER_KEY, JSON.stringify(user));
+    safeSetItem(CACHED_USER_KEY, JSON.stringify(user));
     return user;
   },
 
@@ -154,7 +184,7 @@ export const authService = {
   },
 
   cacheUser(user: User): void {
-    localStorage.setItem(CACHED_USER_KEY, JSON.stringify(user));
+    safeSetItem(CACHED_USER_KEY, JSON.stringify(user));
   },
 
   clearCachedUser(): void {
