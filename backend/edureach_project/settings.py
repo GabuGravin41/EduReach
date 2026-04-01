@@ -426,6 +426,17 @@ PAYSTACK_SECRET_KEY = os.environ.get('PAYSTACK_SECRET_KEY', '')
 # Frontend URL for email links (study reminders, etc.)
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://edureach.app')
 
+# CSRF trusted origins — must include every frontend domain that POSTs to the API
+# Reuse the same origins already validated for CORS.
+CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(
+    valid_origins + [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+    ]
+))
+
 # Security settings for production
 if not DEBUG:
     # Railway handles SSL, don't redirect
