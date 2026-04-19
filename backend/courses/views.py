@@ -119,9 +119,14 @@ class CourseViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def my_courses(self, request):
-        """Get courses owned by the current user."""
-        courses = Course.objects.filter(owner=request.user)
-        serializer = CourseListSerializer(courses, many=True)
+        """Get courses owned by or enrolled in by the current user."""
+        enrolled_course_ids = UserProgress.objects.filter(
+            user=request.user
+        ).values_list('course_id', flat=True)
+        courses = Course.objects.filter(
+            models.Q(owner=request.user) | models.Q(id__in=enrolled_course_ids)
+        ).distinct().select_related('owner').prefetch_related('lessons')
+        serializer = CourseListSerializer(courses, many=True, context={'request': request})
         return Response(serializer.data)
 
     def _extract_video_id(self, video_id: str = None, video_url: str = None):

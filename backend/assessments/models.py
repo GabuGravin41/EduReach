@@ -63,7 +63,17 @@ class Assessment(models.Model):
     )
 
     share_token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
-    
+
+    # Proctoring — optional monitoring mode for official exams
+    is_proctored = models.BooleanField(
+        default=False,
+        help_text='When enabled, learners must have camera on and cannot switch tabs freely.',
+    )
+    proctor_tab_limit = models.PositiveIntegerField(
+        default=3,
+        help_text='Number of tab-switch violations allowed before the attempt is auto-submitted.',
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

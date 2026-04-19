@@ -247,7 +247,6 @@ def save_video_notes(request):
             defaults={
                 'notes': notes,
                 'timestamps': timestamps,
-                'updated_at': timezone.now()
             }
         )
         
