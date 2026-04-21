@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python manage.py seed_kenyan_users)",
+      "Bash(python3 manage.py seed_kenyan_users)",
+      "Bash(python3 manage.py migrate)",
+      "Bash(python3 manage.py seed_kenyan_users --reset)",
+      "Bash(python3 manage.py seed_community_data)",
+      "Bash(python3 manage.py seed_analytics_data)",
+      "Bash(python3 manage.py makemigrations assessments)"
+    ]
+  }
+}

@@ -23,6 +23,7 @@ import { CommunityPage } from './components/CommunityPage';
 import { CourseDetailPage } from './components/CourseDetailPage';
 import { ExamDetailPage } from './components/ExamDetailPage';
 import { BillingPage } from './components/BillingPage';
+import { TrialBanner } from './components/TrialBanner';
 import { UserCircleIcon } from './components/icons/UserCircleIcon';
 import { MenuIcon } from './components/icons/MenuIcon';
 import { SparklesIcon } from './components/icons/SparklesIcon';
@@ -272,6 +273,7 @@ const AppContent: React.FC = () => {
     const [updateCountdown, setUpdateCountdown] = useState(30);
     const updateCountdownRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
     const [courseCreationToast, setCourseCreationToast] = useState<CourseCreationToast>(null);
+    const [trialBannerDismissed, setTrialBannerDismissed] = useState(false);
     const [recentlyCreatedCourseId, setRecentlyCreatedCourseId] = useState<number | null>(null);
     const [cachedCourses, setCachedCourses] = useState<Course[]>(() => {
       if (typeof window === 'undefined') return [];
@@ -882,7 +884,7 @@ const AppContent: React.FC = () => {
            </header>
            <main className={`flex-1 overflow-y-auto ${currentView === 'learning_session' ? 'p-0 sm:p-4 lg:p-8' : 'p-4 sm:p-6 lg:p-8'}`}>
               {showInstallPrompt && installEvent && (
-                <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-900 flex items-center justify-between gap-3">
+                <div className="mb-4 rounded-lg border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-2 text-xs font-medium text-indigo-900 dark:text-indigo-100 flex items-center justify-between gap-3">
                   <span>Install EduReach for faster access and better offline support.</span>
                   <div className="flex items-center gap-2">
                     <button
@@ -893,20 +895,29 @@ const AppContent: React.FC = () => {
                     </button>
                     <button
                       onClick={() => setShowInstallPrompt(false)}
-                      className="rounded border border-indigo-300 px-2.5 py-1 hover:bg-indigo-100"
+                      className="rounded border border-indigo-300 dark:border-indigo-500 text-indigo-700 dark:text-indigo-200 px-2.5 py-1 hover:bg-indigo-100 dark:hover:bg-indigo-800/40"
                     >
                       Not now
                     </button>
                   </div>
                 </div>
               )}
+              {/* Trial banner — shown to users on active trial, dismissible per session */}
+              {!trialBannerDismissed && user?.is_trial_active && user.trial_days_remaining != null && currentView !== 'learning_session' && (
+                <TrialBanner
+                  daysRemaining={user.trial_days_remaining}
+                  onUpgradeClick={() => navigate(ROUTES.billing)}
+                  onDismiss={() => setTrialBannerDismissed(true)}
+                />
+              )}
+
               {isOffline && (
                 <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
                   Offline mode: using cached data. Some actions need backend connection.
                 </div>
               )}
               {updateToastVisible && (
-                <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900 flex items-center justify-between gap-3 shadow-md">
+                <div className="mb-4 rounded-lg border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 px-4 py-3 text-sm font-medium text-emerald-900 dark:text-emerald-100 flex items-center justify-between gap-3 shadow-md">
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-600 text-white text-xs font-bold flex-shrink-0">
                       {updateCountdown}
@@ -925,7 +936,7 @@ const AppContent: React.FC = () => {
                         if (updateCountdownRef.current) clearInterval(updateCountdownRef.current);
                         setUpdateToastVisible(false);
                       }}
-                      className="rounded border border-emerald-300 px-3 py-1.5 text-xs hover:bg-emerald-100"
+                      className="rounded border border-emerald-300 dark:border-emerald-500 text-emerald-700 dark:text-emerald-200 px-3 py-1.5 text-xs hover:bg-emerald-100 dark:hover:bg-emerald-800/40"
                     >
                       Later
                     </button>
@@ -951,8 +962,8 @@ const AppContent: React.FC = () => {
               )}
               {currentView !== 'learning_session' && (
                 <div className="mb-4 flex items-center justify-end gap-3">
-                  {/* Notification bell */}
-                  <div className="relative" data-notif-panel="1">
+                  {/* Notification bell — desktop only (mobile header has its own) */}
+                  <div className="relative hidden lg:block" data-notif-panel="1">
                     <button
                       onClick={() => setNotifOpen(prev => !prev)}
                       aria-label="Notifications"

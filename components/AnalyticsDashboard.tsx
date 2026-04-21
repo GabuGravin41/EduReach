@@ -67,8 +67,65 @@ interface AdminData {
 type TabId = 'learning' | 'instructor' | 'platform';
 
 // ─────────────────────────────────────────────────────────────────────────────
+// localStorage cache helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CACHE_KEYS = {
+  learner: 'edureach:analytics:learner:v2',
+  instructor: 'edureach:analytics:instructor:v2',
+  admin: 'edureach:analytics:admin:v2',
+};
+
+function readCache<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache<T>(key: string, data: T): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch {
+    // ignore quota errors
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Skeleton helpers
 // ─────────────────────────────────────────────────────────────────────────────
+
+const CachedBanner: React.FC<{ onRetry: () => void }> = ({ onRetry }) => (
+  <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+    <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200 text-xs font-medium">
+      <span>📶</span>
+      <span>Showing cached data from your last visit — server is currently unreachable.</span>
+    </div>
+    <button
+      type="button"
+      onClick={onRetry}
+      className="flex-shrink-0 text-xs font-bold text-amber-700 dark:text-amber-300 hover:underline"
+    >
+      Retry
+    </button>
+  </div>
+);
+
+const SkeletonAnalytics: React.FC = () => (
+  <div className="space-y-6 animate-pulse">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {Array.from({ length: 4 }).map((_, i) => <SkeletonBox key={i} className="h-28" />)}
+    </div>
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      <SkeletonBox className="h-64 lg:col-span-3" />
+      <SkeletonBox className="h-64 lg:col-span-2" />
+    </div>
+    <SkeletonBox className="h-56" />
+    <SkeletonBox className="h-40" />
+  </div>
+);
 
 const SkeletonBox: React.FC<{ className?: string }> = ({ className = '' }) => (
   <div className={`bg-slate-200 dark:bg-slate-700 rounded-lg animate-pulse ${className}`} />
@@ -558,15 +615,18 @@ export const AnalyticsDashboard: React.FC<Props> = ({ userTier, currentUserId })
   const [learnerData, setLearnerData] = useState<LearnerData | null>(null);
   const [learnerLoading, setLearnerLoading] = useState(false);
   const [learnerError, setLearnerError] = useState<string | null>(null);
+  const [learnerCached, setLearnerCached] = useState(false);
 
   const [instructorData, setInstructorData] = useState<InstructorData | null>(null);
   const [instructorLoading, setInstructorLoading] = useState(false);
   const [instructorError, setInstructorError] = useState<string | null>(null);
+  const [instructorCached, setInstructorCached] = useState(false);
   const [hasInstructorData, setHasInstructorData] = useState(false);
 
   const [adminData, setAdminData] = useState<AdminData | null>(null);
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminError, setAdminError] = useState<string | null>(null);
+  const [adminCached, setAdminCached] = useState(false);
 
   // ── fetch helpers ──────────────────────────────────────────────────────────
 
@@ -575,9 +635,20 @@ export const AnalyticsDashboard: React.FC<Props> = ({ userTier, currentUserId })
     setLearnerError(null);
     try {
       const res = await apiClient.get('analytics/learner/');
-      setLearnerData(normalizeLearner(res.data));
+      const data = normalizeLearner(res.data);
+      setLearnerData(data);
+      setLearnerCached(false);
+      writeCache(CACHE_KEYS.learner, data);
     } catch (err: any) {
-      setLearnerError(err?.response?.data?.detail ?? err?.message ?? 'Unknown error');
+      const cached = readCache<LearnerData>(CACHE_KEYS.learner);
+      if (cached) {
+        setLearnerData(cached);
+        setLearnerCached(true);
+      }
+      // Only surface error when there's no cached fallback
+      if (!cached) {
+        setLearnerError(err?.response?.data?.detail ?? err?.message ?? 'Could not reach server');
+      }
     } finally {
       setLearnerLoading(false);
     }
@@ -590,13 +661,22 @@ export const AnalyticsDashboard: React.FC<Props> = ({ userTier, currentUserId })
       const res = await apiClient.get('analytics/instructor/');
       const normalized = normalizeInstructor(res.data);
       setInstructorData(normalized);
+      setInstructorCached(false);
       setHasInstructorData(normalized.assessments_created > 0 || normalized.total_students > 0);
+      writeCache(CACHE_KEYS.instructor, normalized);
     } catch (err: any) {
       if (err?.response?.status === 403 || err?.response?.status === 404) {
         setHasInstructorData(false);
       } else {
-        setInstructorError(err?.response?.data?.detail ?? err?.message ?? 'Unknown error');
-        setHasInstructorData(false);
+        const cached = readCache<InstructorData>(CACHE_KEYS.instructor);
+        if (cached) {
+          setInstructorData(cached);
+          setInstructorCached(true);
+          setHasInstructorData(cached.assessments_created > 0 || cached.total_students > 0);
+        } else {
+          setInstructorError(err?.response?.data?.detail ?? err?.message ?? 'Could not reach server');
+          setHasInstructorData(false);
+        }
       }
     } finally {
       setInstructorLoading(false);
@@ -609,9 +689,18 @@ export const AnalyticsDashboard: React.FC<Props> = ({ userTier, currentUserId })
     setAdminError(null);
     try {
       const res = await apiClient.get('analytics/admin/');
-      setAdminData(normalizeAdmin(res.data));
+      const data = normalizeAdmin(res.data);
+      setAdminData(data);
+      setAdminCached(false);
+      writeCache(CACHE_KEYS.admin, data);
     } catch (err: any) {
-      setAdminError(err?.response?.data?.detail ?? err?.message ?? 'Unknown error');
+      const cached = readCache<AdminData>(CACHE_KEYS.admin);
+      if (cached) {
+        setAdminData(cached);
+        setAdminCached(true);
+      } else {
+        setAdminError(err?.response?.data?.detail ?? err?.message ?? 'Could not reach server');
+      }
     } finally {
       setAdminLoading(false);
     }
@@ -648,67 +737,31 @@ export const AnalyticsDashboard: React.FC<Props> = ({ userTier, currentUserId })
 
       {/* Tab content */}
       {activeTab === 'learning' && (
-        <>
-          {learnerLoading && (
-            <div className="space-y-6">
-              <SkeletonStatCards />
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-                <SkeletonChart height="h-64 lg:col-span-3" />
-                <SkeletonChart height="h-64 lg:col-span-2" />
-              </div>
-              <SkeletonChart height="h-56" />
-              <SkeletonChart height="h-40" />
-            </div>
-          )}
-          {!learnerLoading && learnerError && (
-            <ErrorState message={learnerError} onRetry={fetchLearner} />
-          )}
-          {!learnerLoading && !learnerError && learnerData && (
-            <MyLearningTab data={learnerData} />
-          )}
-        </>
+        <div className="space-y-4">
+          {learnerCached && <CachedBanner onRetry={fetchLearner} />}
+          {learnerLoading && <SkeletonAnalytics />}
+          {/* No data + no loading = unreachable with no cache → show skeleton gracefully */}
+          {!learnerLoading && !learnerData && <SkeletonAnalytics />}
+          {!learnerLoading && learnerData && <MyLearningTab data={learnerData} />}
+        </div>
       )}
 
       {activeTab === 'instructor' && (
-        <>
-          {instructorLoading && (
-            <div className="space-y-6">
-              <SkeletonStatCards />
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-                <SkeletonChart height="h-64 lg:col-span-3" />
-                <SkeletonChart height="h-64 lg:col-span-2" />
-              </div>
-              <SkeletonChart height="h-56" />
-            </div>
-          )}
-          {!instructorLoading && instructorError && (
-            <ErrorState message={instructorError} onRetry={fetchInstructor} />
-          )}
-          {!instructorLoading && !instructorError && instructorData && (
-            <InstructorTab data={instructorData} />
-          )}
-        </>
+        <div className="space-y-4">
+          {instructorCached && <CachedBanner onRetry={fetchInstructor} />}
+          {instructorLoading && <SkeletonAnalytics />}
+          {!instructorLoading && !instructorData && <SkeletonAnalytics />}
+          {!instructorLoading && instructorData && <InstructorTab data={instructorData} />}
+        </div>
       )}
 
       {activeTab === 'platform' && isAdmin && (
-        <>
-          {adminLoading && (
-            <div className="space-y-6">
-              <SkeletonStatCards />
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-                <SkeletonChart height="h-64 lg:col-span-3" />
-                <SkeletonChart height="h-64 lg:col-span-2" />
-              </div>
-              <SkeletonChart height="h-56" />
-            </div>
-          )}
-          {!adminLoading && adminError && (
-            <ErrorState message={adminError} onRetry={fetchAdmin} />
-          )}
-          {!adminLoading && !adminError && adminData && (
-            <PlatformTab data={adminData} />
-          )}
-        </>
+        <div className="space-y-4">
+          {adminCached && <CachedBanner onRetry={fetchAdmin} />}
+          {adminLoading && <SkeletonAnalytics />}
+          {!adminLoading && !adminData && <SkeletonAnalytics />}
+          {!adminLoading && adminData && <PlatformTab data={adminData} />}
+        </div>
       )}
     </div>
   );

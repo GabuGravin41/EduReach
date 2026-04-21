@@ -1,4 +1,6 @@
 import React, { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../src/routes';
 import { useQuery } from '@tanstack/react-query';
 import { PlusCircleIcon } from './icons/PlusCircleIcon';
 import { PlayCircleIcon } from './icons/PlayCircleIcon';
@@ -251,6 +253,7 @@ const DiscoverCard: React.FC<{ course: any; onSelect: (id: number) => void }> = 
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────
 export const Dashboard: React.FC<DashboardProps> = ({ onStartSession, onSelectCourse, userTier, username }) => {
+  const navigate = useNavigate();
   const { data: apiCourses, isLoading: coursesLoading } = useCourses();
   const { data: myCourses, isLoading: myCoursesLoading } = useMyCourses();
   const { data: myAssessments, isLoading: assessmentsLoading } = useMyAssessments();
@@ -433,7 +436,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartSession, onSelectCo
                 Explore the courses below and hit <strong>Enroll</strong> to begin learning.
               </p>
               <button
-                onClick={onStartSession}
+                onClick={() => navigate(ROUTES.courses)}
                 className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-colors"
               >
                 Browse Courses

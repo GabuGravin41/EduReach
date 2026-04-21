@@ -53,7 +53,7 @@ export const StudyGroupsPage: React.FC = () => {
 
   // State for detailed group view
   const [activeGroup, setActiveGroup] = useState<StudyGroup | null>(null);
-  const [groupTab, setGroupTab] = useState<'overview' | 'discussions' | 'members' | 'leaderboard' | 'events' | 'invites'>('overview');
+  const [groupTab, setGroupTab] = useState<'overview' | 'members' | 'leaderboard' | 'events' | 'invites'>('overview');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteStatus, setInviteStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [challengeTitle, setChallengeTitle] = useState('');
@@ -65,6 +65,20 @@ export const StudyGroupsPage: React.FC = () => {
   const [newPostContent, setNewPostContent] = useState('');
   const [editingPostId, setEditingPostId] = useState<number | null>(null);
   const [editingContent, setEditingContent] = useState('');
+  type PostTab = { id: number; content: string; author: string; created_at: string };
+  const [openPostTabs, setOpenPostTabs] = useState<PostTab[]>([]);
+  const [activeRightPanel, setActiveRightPanel] = useState<'session' | number>('session');
+
+  const openPostInPanel = (post: { id: number; content: string; author?: { username?: string }; created_at: string }) => {
+    const tab: PostTab = { id: post.id, content: post.content, author: (post.author as any)?.username ?? 'Someone', created_at: post.created_at };
+    setOpenPostTabs(prev => prev.find(t => t.id === post.id) ? prev : [...prev, tab]);
+    setActiveRightPanel(post.id);
+  };
+
+  const closePostTab = (postId: number) => {
+    setOpenPostTabs(prev => prev.filter(t => t.id !== postId));
+    setActiveRightPanel(prev => prev === postId ? 'session' : prev);
+  };
 
   const createPostMutation = useCreateStudyGroupPost();
   const updatePostMutation = useUpdateStudyGroupPost();
@@ -423,7 +437,7 @@ export const StudyGroupsPage: React.FC = () => {
           {/* Navigation */}
           <div className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-6">
             <div className="flex gap-6">
-              {['overview', 'discussions', 'members', 'leaderboard', 'events', 'invites'].map((tab) => (
+              {(['overview', 'members', 'leaderboard', 'events', 'invites'] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => { setGroupTab(tab as any); setInviteStatus(null); }}
@@ -441,19 +455,22 @@ export const StudyGroupsPage: React.FC = () => {
           {/* Content Area */}
           <div className="p-6 flex-1 overflow-y-auto bg-slate-50/50 dark:bg-slate-900/30">
             {groupTab === 'overview' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 lg:gap-6 h-full">
+                {/* ── LEFT: Discussion board ── */}
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden">
+                  <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex-shrink-0">
                     <SparklesIcon className="w-5 h-5 text-yellow-500" />
-                    Discussion Board
-                  </h3>
-                  {/* Inline composer */}
-                  <div className="mb-4">
+                    <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Discussion Board</h3>
+                    <span className="ml-auto text-xs text-slate-400">{normalizedPosts.length} post{normalizedPosts.length !== 1 ? 's' : ''}</span>
+                  </div>
+
+                  {/* Composer */}
+                  <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 flex-shrink-0">
                     <textarea
                       value={newPostContent}
                       onChange={(e) => setNewPostContent(e.target.value)}
-                      placeholder="Start a new discussion..."
-                      rows={3}
+                      placeholder="Start a new discussion…"
+                      rows={2}
                       className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
                     />
                     <Button
@@ -471,73 +488,56 @@ export const StudyGroupsPage: React.FC = () => {
                       {createPostMutation.isPending ? 'Posting...' : 'Post'}
                     </Button>
                   </div>
-                  <div className="space-y-3 max-h-[320px] overflow-y-auto">
+
+                  {/* Post list */}
+                  <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
                     {postsLoading ? (
-                      <p className="text-sm text-slate-500">Loading discussions...</p>
+                      <p className="text-sm text-slate-500 p-4">Loading discussions...</p>
                     ) : normalizedPosts.length === 0 ? (
-                      <p className="text-sm text-slate-500">No posts yet. Start the first discussion for this group.</p>
+                      <p className="text-sm text-slate-500 p-4">No posts yet. Start the first discussion.</p>
                     ) : (
                       normalizedPosts.map((post: { id: number; content: string; author?: { id?: number; username?: string }; created_at: string }) => (
-                        <div key={post.id} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                        <div key={post.id} className="group relative">
                           {editingPostId === post.id ? (
-                            <>
+                            <div className="p-3">
                               <textarea
                                 value={editingContent}
                                 onChange={(e) => setEditingContent(e.target.value)}
-                                rows={2}
+                                rows={3}
                                 className="w-full px-2 py-1 text-sm rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700"
                               />
                               <div className="flex gap-2 mt-2">
-                                <Button
-                                  size="sm"
-                                  variant="primary"
+                                <Button size="sm" variant="primary"
                                   onClick={async () => {
                                     if (!editingContent.trim()) return;
                                     await updatePostMutation.mutateAsync({ postId: post.id, content: editingContent.trim() });
-                                    setEditingPostId(null);
-                                    setEditingContent('');
+                                    setEditingPostId(null); setEditingContent('');
                                   }}
                                   disabled={updatePostMutation.isPending}
-                                >
-                                  Save
-                                </Button>
-                                <Button size="sm" variant="secondary" onClick={() => { setEditingPostId(null); setEditingContent(''); }}>
-                                  Cancel
-                                </Button>
+                                >Save</Button>
+                                <Button size="sm" variant="secondary" onClick={() => { setEditingPostId(null); setEditingContent(''); }}>Cancel</Button>
                               </div>
-                            </>
+                            </div>
                           ) : (
-                            <>
-                              <p className="font-semibold text-sm text-slate-800 dark:text-slate-200">{post.content}</p>
-                              <div className="flex items-center justify-between mt-1">
-                                <p className="text-xs text-slate-500">
-                                  {(post.author && (post.author as any).username) ?? 'Someone'} • {new Date(post.created_at).toLocaleString()}
+                            <button
+                              type="button"
+                              className="w-full text-left px-4 py-3 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-colors cursor-pointer"
+                              onClick={() => openPostInPanel(post)}
+                            >
+                              <p className="text-sm text-slate-800 dark:text-slate-200 line-clamp-2 font-medium">{post.content}</p>
+                              <div className="flex items-center justify-between mt-1.5">
+                                <p className="text-xs text-slate-400">
+                                  {(post.author as any)?.username ?? 'Someone'} · {new Date(post.created_at).toLocaleDateString()}
                                 </p>
                                 {user && post.author && (post.author as any).id === user.id && (
-                                  <div className="flex gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => { setEditingPostId(post.id); setEditingContent(post.content); }}
-                                      className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-                                    >
-                                      Edit
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={async () => {
-                                        if (window.confirm('Delete this post?')) {
-                                          await deletePostMutation.mutateAsync({ postId: post.id, groupId: activeGroup.id });
-                                        }
-                                      }}
-                                      className="text-xs text-red-600 dark:text-red-400 hover:underline"
-                                      disabled={deletePostMutation.isPending}
-                                    >
-                                      Delete
-                                    </button>
+                                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                                    <button type="button" onClick={() => { setEditingPostId(post.id); setEditingContent(post.content); }} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">Edit</button>
+                                    <button type="button" onClick={async () => { if (window.confirm('Delete this post?')) await deletePostMutation.mutateAsync({ postId: post.id, groupId: activeGroup.id }); }} className="text-xs text-rose-600 hover:underline" disabled={deletePostMutation.isPending}>Delete</button>
                                   </div>
                                 )}
                               </div>
-                            </>
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-300 dark:text-indigo-700 opacity-0 group-hover:opacity-100 text-xs transition-opacity">Open →</span>
+                            </button>
                           )}
                         </div>
                       ))
@@ -545,115 +545,85 @@ export const StudyGroupsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                    <CalendarIcon className="w-5 h-5 text-green-500" />
-                    Next Session
-                  </h3>
-                  <p className="text-sm text-slate-500">No upcoming sessions yet. Once events are scheduled for this group, they will show up here.</p>
-                </div>
-              </div>
-            )}
-
-            {groupTab === 'discussions' && (
-              <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 max-w-2xl">
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <SparklesIcon className="w-5 h-5 text-yellow-500" />
-                  Discussion Board
-                </h3>
-                <div className="mb-4">
-                  <textarea
-                    value={newPostContent}
-                    onChange={(e) => setNewPostContent(e.target.value)}
-                    placeholder="Start a new discussion..."
-                    rows={3}
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                  />
-                  <Button
-                    onClick={async () => {
-                      const content = newPostContent.trim();
-                      if (!content) return;
-                      await createPostMutation.mutateAsync({ groupId: activeGroup.id, content });
-                      setNewPostContent('');
-                    }}
-                    disabled={!newPostContent.trim() || createPostMutation.isPending}
-                    variant="primary"
-                    size="sm"
-                    className="mt-2"
-                  >
-                    {createPostMutation.isPending ? 'Posting...' : 'Post'}
-                  </Button>
-                </div>
-                <div className="space-y-3 max-h-[420px] overflow-y-auto">
-                  {postsLoading ? (
-                    <p className="text-sm text-slate-500">Loading discussions...</p>
-                  ) : normalizedPosts.length === 0 ? (
-                    <p className="text-sm text-slate-500">No posts yet. Start the first discussion for this group.</p>
-                  ) : (
-                    normalizedPosts.map((post: { id: number; content: string; author?: { id?: number; username?: string }; created_at: string }) => (
-                      <div key={post.id} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                        {editingPostId === post.id ? (
-                          <>
-                            <textarea
-                              value={editingContent}
-                              onChange={(e) => setEditingContent(e.target.value)}
-                              rows={2}
-                              className="w-full px-2 py-1 text-sm rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700"
-                            />
-                            <div className="flex gap-2 mt-2">
-                              <Button
-                                size="sm"
-                                variant="primary"
-                                onClick={async () => {
-                                  if (!editingContent.trim()) return;
-                                  await updatePostMutation.mutateAsync({ postId: post.id, content: editingContent.trim() });
-                                  setEditingPostId(null);
-                                  setEditingContent('');
-                                }}
-                                disabled={updatePostMutation.isPending}
-                              >
-                                Save
-                              </Button>
-                              <Button size="sm" variant="secondary" onClick={() => { setEditingPostId(null); setEditingContent(''); }}>
-                                Cancel
-                              </Button>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <p className="font-semibold text-sm text-slate-800 dark:text-slate-200">{post.content}</p>
-                            <div className="flex items-center justify-between mt-1">
-                              <p className="text-xs text-slate-500">
-                                {(post.author && (post.author as any).username) ?? 'Someone'} • {new Date(post.created_at).toLocaleString()}
-                              </p>
-                              {user && post.author && (post.author as any).id === user.id && (
-                                <div className="flex gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => { setEditingPostId(post.id); setEditingContent(post.content); }}
-                                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      if (window.confirm('Delete this post?')) {
-                                        await deletePostMutation.mutateAsync({ postId: post.id, groupId: activeGroup.id });
-                                      }
-                                    }}
-                                    className="text-xs text-red-600 dark:text-red-400 hover:underline"
-                                    disabled={deletePostMutation.isPending}
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </>
-                        )}
+                {/* ── RIGHT: Tabbed panel ── */}
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden mt-4 lg:mt-0">
+                  {/* Tab bar */}
+                  <div className="flex items-center gap-0 border-b border-slate-200 dark:border-slate-700 overflow-x-auto flex-shrink-0 bg-slate-50 dark:bg-slate-900/40">
+                    {/* Fixed: Next Session tab */}
+                    <button
+                      type="button"
+                      onClick={() => setActiveRightPanel('session')}
+                      className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-3 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                        activeRightPanel === 'session'
+                          ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-800'
+                          : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                      }`}
+                    >
+                      <CalendarIcon className="w-3.5 h-3.5" />
+                      Next Session
+                    </button>
+                    {/* Dynamic post tabs */}
+                    {openPostTabs.map(tab => (
+                      <div key={tab.id} className={`flex-shrink-0 flex items-center gap-1 pl-3 pr-1 py-3 border-b-2 transition-colors ${
+                        activeRightPanel === tab.id
+                          ? 'border-indigo-500 bg-white dark:bg-slate-800'
+                          : 'border-transparent hover:bg-slate-100 dark:hover:bg-slate-700/50'
+                      }`}>
+                        <button
+                          type="button"
+                          onClick={() => setActiveRightPanel(tab.id)}
+                          className={`text-xs font-medium max-w-[120px] truncate ${activeRightPanel === tab.id ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}
+                          title={tab.content}
+                        >
+                          {tab.author}: {tab.content.slice(0, 20)}{tab.content.length > 20 ? '…' : ''}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => closePostTab(tab.id)}
+                          className="ml-1 w-4 h-4 flex items-center justify-center rounded hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors flex-shrink-0"
+                        >
+                          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
                       </div>
-                    ))
+                    ))}
+                  </div>
+
+                  {/* Panel content */}
+                  <div className="flex-1 overflow-y-auto p-5">
+                    {activeRightPanel === 'session' ? (
+                      <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-center">
+                        <CalendarIcon className="w-10 h-10 text-slate-300 dark:text-slate-600 mb-3" />
+                        <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">No upcoming sessions</p>
+                        <p className="text-xs text-slate-400 mt-1">Once events are scheduled, they will appear here.</p>
+                      </div>
+                    ) : (
+                      (() => {
+                        const post = openPostTabs.find(t => t.id === activeRightPanel);
+                        if (!post) return null;
+                        return (
+                          <div>
+                            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100 dark:border-slate-700">
+                              <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                                {post.author.substring(0, 2).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">{post.author}</p>
+                                <p className="text-[10px] text-slate-400">{new Date(post.created_at).toLocaleString()}</p>
+                              </div>
+                            </div>
+                            <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">{post.content}</p>
+                          </div>
+                        );
+                      })()
+                    )}
+                  </div>
+
+                  {openPostTabs.length === 0 && activeRightPanel === 'session' && (
+                    <div className="px-5 pb-4 text-xs text-slate-400 text-center">
+                      Click any post on the left to open it here
+                    </div>
                   )}
                 </div>
               </div>

@@ -4,6 +4,7 @@ import { AIAssistant } from './AIAssistant';
 import { StudyPanel } from './StudyPanel';
 import { ChatMessage, QuizQuestion, Assessment, Lesson } from '../types';
 import apiClient, { aiClient } from '../src/services/api';
+import { useAuth } from '../src/contexts/useAuth';
 import { Button } from './ui/Button';
 import { PanelLeftIcon } from './icons/PanelLeftIcon';
 import { PanelRightIcon } from './icons/PanelRightIcon';
@@ -45,6 +46,14 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   const [isResizing, setIsResizing] = useState(false);
   const [startY, setStartY] = useState(0);
   const [showCompletionBanner, setShowCompletionBanner] = useState(false);
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [isTranscriptEditorOpen, setIsTranscriptEditorOpen] = useState(false);
+  const [transcriptDraft, setTranscriptDraft] = useState('');
+  const [transcriptSaving, setTranscriptSaving] = useState(false);
+  const [transcriptSaveMsg, setTranscriptSaveMsg] = useState<string | null>(null);
+
+  const { user } = useAuth();
+  const isAdmin = user?.tier === 'admin';
 
   const videoRef = useRef<YouTubePlayerHandle | null>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -252,6 +261,21 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
     return () => clearTimeout(timeoutId);
   }, [notes, messages, courseId, currentLesson?.id]);
 
+
+  // Pause video when AI modal opens; let user resume manually on close
+  useEffect(() => {
+    if (isAIModalOpen) {
+      videoRef.current?.pause();
+    }
+  }, [isAIModalOpen]);
+
+  // Escape key closes the AI modal
+  useEffect(() => {
+    if (!isAIModalOpen) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsAIModalOpen(false); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [isAIModalOpen]);
 
   function chunkTranscript(text: string, maxChunkSize: number = 3000): string[] {
     if (!text || text.trim().length === 0) return ['No transcript available'];
@@ -486,6 +510,24 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
     }
   };
 
+  const handleSaveManualTranscript = async () => {
+    if (!currentLesson?.id || !transcriptDraft.trim()) return;
+    setTranscriptSaving(true);
+    setTranscriptSaveMsg(null);
+    try {
+      await apiClient.post(`lessons/${currentLesson.id}/update_manual_transcript/`, {
+        manual_transcript: transcriptDraft.trim(),
+      });
+      setLiveTranscript(transcriptDraft.trim());
+      setTranscriptSaveMsg('Transcript saved.');
+      setTimeout(() => { setIsTranscriptEditorOpen(false); setTranscriptSaveMsg(null); }, 1200);
+    } catch {
+      setTranscriptSaveMsg('Save failed — check that you own this course.');
+    } finally {
+      setTranscriptSaving(false);
+    }
+  };
+
   return (
     <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-4rem)] overflow-hidden relative p-4 sm:p-6 lg:p-0">
       {/* ── Lesson completion celebration banner ── */}
@@ -530,6 +572,23 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
             <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
               {currentLesson.isCompleted || completedSent ? 'Completed' : 'In progress'}
             </span>
+          </div>
+        )}
+
+        {/* Admin transcript editor trigger */}
+        {isAdmin && currentLesson?.id && (
+          <div className="flex-shrink-0 flex justify-end px-1">
+            <button
+              type="button"
+              onClick={() => { setTranscriptDraft(liveTranscript || ''); setIsTranscriptEditorOpen(true); }}
+              className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+              title="Admin: Edit manual transcript"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit Transcript
+            </button>
           </div>
         )}
 
@@ -587,8 +646,8 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
         )}
       </div>
 
-      {/* AI Assistant Panel - Mobile: Scrollable with proper height, Desktop: Side panel */}
-      {isAIPanelOpen && (
+      {/* AI Assistant Panel - sidebar (hidden when modal is open) */}
+      {isAIPanelOpen && !isAIModalOpen && (
         <div
           className={`
             flex flex-col
@@ -600,26 +659,178 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
             }
           `}
         >
-          <div className="h-full w-full overflow-y-auto flex flex-col">
-            {quizError && (
-              <div className="px-3 py-2 text-xs text-rose-800 bg-rose-50 border-b border-rose-200">
-                {quizError}
+          {/* Wrapper with expand button overlaid on top-right of panel */}
+          <div className="relative h-full w-full flex flex-col">
+            {/* Expand / Focus Mode button */}
+            <button
+              type="button"
+              onClick={() => setIsAIModalOpen(true)}
+              title="Focus Mode — expand AI workspace"
+              className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors shadow-sm border border-slate-200 dark:border-slate-600"
+            >
+              {/* Arrows-pointing-outward icon (expand) */}
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+              </svg>
+            </button>
+
+            <div className="h-full w-full overflow-y-auto flex flex-col">
+              {quizError && (
+                <div className="px-3 py-2 text-xs text-rose-800 bg-rose-50 border-b border-rose-200">
+                  {quizError}
+                </div>
+              )}
+              <AIAssistant
+                messages={messages}
+                isLoading={isLoading}
+                onGenerateQuiz={handleGenerateQuiz}
+                onSendMessage={handleSendMessage}
+                onRegenerate={handleRegenerate}
+                canRegenerate={!!lastPrompt}
+                quiz={quiz}
+                onUpdateQuiz={setQuiz}
+                onSaveQuiz={handleSaveQuiz}
+                isSavingQuiz={isSavingQuiz}
+                quizSaved={quizSaved}
+                onSeekTo={handleSeekTo}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Admin Transcript Editor Modal ──────────────────────────────────── */}
+      {isAdmin && isTranscriptEditorOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsTranscriptEditorOpen(false)} />
+          <div className="relative z-10 w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-amber-200 dark:border-amber-700 overflow-hidden flex flex-col" style={{ maxHeight: '85vh' }}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-amber-100 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-amber-600 dark:text-amber-400 text-base">✏️</span>
+                <div>
+                  <p className="text-sm font-bold text-amber-800 dark:text-amber-300">Admin: Manual Transcript Editor</p>
+                  {currentLesson?.title && <p className="text-xs text-amber-600/70 dark:text-amber-500/70 truncate">{currentLesson.title}</p>}
+                </div>
               </div>
-            )}
-            <AIAssistant
-              messages={messages}
-              isLoading={isLoading}
-              onGenerateQuiz={handleGenerateQuiz}
-              onSendMessage={handleSendMessage}
-              onRegenerate={handleRegenerate}
-              canRegenerate={!!lastPrompt}
-              quiz={quiz}
-              onUpdateQuiz={setQuiz}
-              onSaveQuiz={handleSaveQuiz}
-              isSavingQuiz={isSavingQuiz}
-              quizSaved={quizSaved}
-              onSeekTo={handleSeekTo}
+              <button
+                type="button"
+                onClick={() => setIsTranscriptEditorOpen(false)}
+                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-amber-100 dark:hover:bg-amber-800 text-amber-500 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+              Go to YouTube → open the video → click <strong>Show transcript</strong> → copy all text → paste below. Leave timestamps in if present; Edu can parse them.
+            </div>
+            <textarea
+              value={transcriptDraft}
+              onChange={(e) => setTranscriptDraft(e.target.value)}
+              placeholder="Paste transcript here…"
+              className="flex-1 min-h-[300px] p-4 text-sm font-mono text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 resize-none focus:outline-none border-0"
             />
+            <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
+              {transcriptSaveMsg ? (
+                <span className={`text-xs font-semibold ${transcriptSaveMsg.startsWith('Save failed') ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  {transcriptSaveMsg}
+                </span>
+              ) : (
+                <span className="text-xs text-slate-400">{transcriptDraft.length.toLocaleString()} characters</span>
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsTranscriptEditorOpen(false)}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveManualTranscript}
+                  disabled={transcriptSaving || !transcriptDraft.trim()}
+                  className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white transition-colors"
+                >
+                  {transcriptSaving ? 'Saving…' : 'Save Transcript'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── AI Focus Mode Modal ─────────────────────────────────────────────── */}
+      {isAIModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-6">
+          {/* Glassmorphism backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-md"
+            onClick={() => setIsAIModalOpen(false)}
+          />
+
+          {/* Modal panel */}
+          <div className="relative z-10 flex flex-col w-full max-w-4xl h-[92vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 flex-shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                {/* Edu icon */}
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-100 leading-none">AI Focus Mode</p>
+                  {currentLesson?.title && (
+                    <p className="text-xs text-slate-400 dark:text-slate-500 truncate mt-0.5">{currentLesson.title}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-[10px] font-mono text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-800">
+                  Esc
+                </kbd>
+                <button
+                  type="button"
+                  onClick={() => setIsAIModalOpen(false)}
+                  title="Close focus mode"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* AIAssistant fills the rest of the modal */}
+            <div className="flex-1 min-h-0 overflow-hidden">
+              {quizError && (
+                <div className="px-3 py-2 text-xs text-rose-800 bg-rose-50 border-b border-rose-200">
+                  {quizError}
+                </div>
+              )}
+              <div className="h-full flex flex-col">
+                <AIAssistant
+                  messages={messages}
+                  isLoading={isLoading}
+                  onGenerateQuiz={handleGenerateQuiz}
+                  onSendMessage={handleSendMessage}
+                  onRegenerate={handleRegenerate}
+                  canRegenerate={!!lastPrompt}
+                  quiz={quiz}
+                  onUpdateQuiz={setQuiz}
+                  onSaveQuiz={handleSaveQuiz}
+                  isSavingQuiz={isSavingQuiz}
+                  quizSaved={quizSaved}
+                  onSeekTo={handleSeekTo}
+                />
+              </div>
+            </div>
           </div>
         </div>
       )}

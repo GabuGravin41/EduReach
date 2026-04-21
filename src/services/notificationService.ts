@@ -1,8 +1,20 @@
 import apiClient from './api';
 
+export type NotifType =
+  | 'challenge'
+  | 'system'
+  | 'trial_started'
+  | 'trial_expiring'
+  | 'trial_expired'
+  | 'payment_success'
+  | 'payment_failed'
+  | 'level_up'
+  | 'study_reminder'
+  | 'assessment_graded';
+
 export interface AppNotification {
   id: number;
-  notif_type: 'challenge' | 'system';
+  notif_type: NotifType;
   title: string;
   message: string;
   assessment_id: number | null;

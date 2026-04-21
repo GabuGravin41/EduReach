@@ -244,6 +244,17 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
   const [enterpriseMessage, setEnterpriseMessage] = useState('');
   const [enterpriseFormMessage, setEnterpriseFormMessage] = useState('');
   const [showComparison, setShowComparison] = useState(false);
+  const [showMoreMethods, setShowMoreMethods] = useState(false);
+
+  // ── Payment modal state ─────────────────────────────────────────────────
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentModalTier, setPaymentModalTier] = useState<'learner' | 'pro' | 'pro_plus' | null>(null);
+  const [stkPushPending, setStkPushPending] = useState(false);
+  const [stkSuccess, setStkSuccess] = useState(false);
+  const [stkPushPaymentId, setStkPushPaymentId] = useState<number | null>(null);
+  const [modalPaymentMessage, setModalPaymentMessage] = useState('');
+  const [modalMpesaPhone, setModalMpesaPhone] = useState('');
+  const [activatedTier, setActivatedTier] = useState<'learner' | 'pro' | 'pro_plus' | null>(null);
 
   const selectedPrice = tiers[selectedTier].monthlyPrice[currency];
 
@@ -384,6 +395,11 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     return methods.find((method) => method.id === selectedMethodId) ?? null;
   }, [methodsQuery.data, selectedMethodId]);
 
+  const mpesaMethod = useMemo(() => {
+    const methods = Array.isArray(methodsQuery.data) ? methodsQuery.data : [];
+    return methods.find((m) => m.name === 'mpesa') ?? null;
+  }, [methodsQuery.data]);
+
   const handleStartPayment = () => {
     if (!selectedMethodId) {
       setPaymentMessage('Select a payment method first.');
@@ -416,6 +432,48 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
 
   const handleCancelSubscription = () => cancelSubscriptionMutation.mutate();
 
+  const openPaymentModal = (tier: 'learner' | 'pro' | 'pro_plus') => {
+    setPaymentModalTier(tier);
+    setPaymentModalOpen(true);
+    setStkPushPending(false);
+    setStkSuccess(false);
+    setStkPushPaymentId(null);
+    setModalPaymentMessage('');
+    setActivatedTier(null);
+  };
+
+  const closePaymentModal = () => {
+    setPaymentModalOpen(false);
+    setPaymentModalTier(null);
+    setStkPushPending(false);
+    setStkSuccess(false);
+    setStkPushPaymentId(null);
+    setModalPaymentMessage('');
+  };
+
+  const handleSendStkPush = async () => {
+    if (!mpesaMethod) { setModalPaymentMessage('M-Pesa is not currently available. Please try again later.'); return; }
+    if (!paymentModalTier) return;
+    const phone = modalMpesaPhone.trim();
+    if (!phone) { setModalPaymentMessage('Please enter your M-Pesa phone number.'); return; }
+    setModalPaymentMessage('');
+    try {
+      const response = await initiatePaymentMutation.mutateAsync({
+        payment_method_id: mpesaMethod.id,
+        amount: tiers[paymentModalTier].monthlyPrice.KES,
+        currency: 'KES',
+        phone_number: phone,
+        metadata: { tier: paymentModalTier, display_currency: 'KES' },
+      } as any);
+      if (!response.paybill_number && !response.paystack_url) {
+        setStkPushPending(true);
+        setStkPushPaymentId(response.payment.id);
+      }
+    } catch {
+      setModalPaymentMessage('Failed to send STK push. Please check your number and try again.');
+    }
+  };
+
   const handleSubmitEnterpriseInquiry = (e: React.FormEvent) => {
     e.preventDefault();
     setEnterpriseFormMessage('');
@@ -434,6 +492,33 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
   useEffect(() => {
     if (typeof window !== 'undefined') localStorage.setItem(CURRENCY_STORAGE_KEY, currency);
   }, [currency]);
+
+  // ── STK push polling ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!stkPushPending) return;
+    const interval = setInterval(() => { historyQuery.refetch(); }, 5000);
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+      setStkPushPending(false);
+      setModalPaymentMessage('Payment confirmation timed out. If you paid, please contact support.');
+    }, 120000);
+    return () => { clearInterval(interval); clearTimeout(timeout); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stkPushPending]);
+
+  useEffect(() => {
+    if (!stkPushPaymentId || !historyQuery.data) return;
+    const payment = historyQuery.data.find((p) => p.id === stkPushPaymentId);
+    if (payment?.status === 'completed') {
+      setStkPushPending(false);
+      setStkSuccess(true);
+      setStkPushPaymentId(null);
+      if (paymentModalTier) {
+        upgradeMutation.mutate({ tier: paymentModalTier, payment_id: payment.id });
+        setActivatedTier(paymentModalTier);
+      }
+    }
+  }, [historyQuery.data, stkPushPaymentId, paymentModalTier, upgradeMutation]);
 
   // ── Subscription status helpers ──────────────────────────────────────────
   const sub = subscriptionQuery.data;
@@ -701,16 +786,25 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                     </ul>
                   </div>
 
-                  <div className="mt-auto">
-                    <div className={`w-full py-2.5 rounded-xl text-center text-sm font-bold transition-colors ${
+                  <div className="mt-auto space-y-2">
+                    <div className={`w-full py-2 rounded-xl text-center text-xs font-semibold transition-colors ${
                       isSelected && !isCurrent
-                        ? 'bg-indigo-600 text-white shadow-md'
+                        ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
                         : isCurrent
                         ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30'
-                        : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                        : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
                     }`}>
                       {isCurrent ? 'Current Plan' : isSelected ? 'Selected' : 'Select Plan'}
                     </div>
+                    {!isCurrent && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); openPaymentModal(tierKey); }}
+                        className="w-full py-2.5 rounded-xl text-center text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-colors"
+                      >
+                        Subscribe Now →
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -718,15 +812,13 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
           </div>
         </div>
 
-        {/* Payment panel — 1/3 */}
+        {/* Summary + history panel — 1/3 */}
         <div className="space-y-6">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Payment Details</h2>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Order Summary</h2>
 
           <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm space-y-5 sticky top-6">
-
-            {/* Order summary */}
             <div className="pb-4 border-b border-slate-100 dark:border-slate-700">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Order Summary</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Selected Plan</p>
               <div className="flex justify-between items-center">
                 <span className="font-bold text-lg text-slate-800 dark:text-slate-100">{tiers[selectedTier].name}</span>
                 <div className="text-right">
@@ -740,243 +832,73 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
               </div>
             </div>
 
-            {/* Method selector */}
+            {/* Payment method badges */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Payment Method</label>
-              {methodsQuery.isLoading ? (
-                <div className="animate-pulse h-10 bg-slate-100 dark:bg-slate-700 rounded-lg" />
-              ) : methodsQuery.isError ? (
-                <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-sm">
-                  Unable to load payment methods. Please refresh.
-                </div>
-              ) : (
-                <select
-                  className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-200"
-                  value={selectedMethodId ?? ''}
-                  onChange={(e) => setSelectedMethodId(Number(e.target.value))}
-                >
-                  <option value="">Select a payment method</option>
-                  {Array.isArray(methodsQuery.data) && methodsQuery.data.length > 0 ? (
-                    methodsQuery.data.map((method) => (
-                      <option key={method.id} value={method.id}>{method.display_name}</option>
-                    ))
-                  ) : (
-                    <option value="" disabled>No payment methods available</option>
-                  )}
-                </select>
-              )}
-            </div>
-
-            {/* M-Pesa STK push */}
-            {selectedMethod?.name === 'mpesa' && (
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Payment Methods</p>
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">M-Pesa Number</label>
-                <input
-                  type="tel"
-                  value={mpesaPhone}
-                  onChange={(e) => setMpesaPhone(e.target.value)}
-                  placeholder="2547XXXXXXXX"
-                  className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  You will receive an STK push on your phone. Enter your M-Pesa PIN to confirm.
-                </p>
-                {currency !== 'KES' && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400">
-                    M-Pesa charges in KES — amount will be KES {tiers[selectedTier].monthlyPrice.KES.toLocaleString()}.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* M-Pesa Paybill instructions */}
-            {selectedMethod?.name === 'mpesa_paybill' && !paybillPending && (
-              <div className="p-4 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 space-y-2">
-                <p className="text-sm font-semibold text-green-800 dark:text-green-200">How M-Pesa Paybill works</p>
-                <ol className="list-decimal list-inside text-xs text-green-700 dark:text-green-300 space-y-1">
-                  <li>Click "Pay" below — we'll show you the Paybill number, account, and amount</li>
-                  <li>On your phone: go to <strong>M-Pesa &rarr; Pay Bill</strong></li>
-                  <li>Enter the Paybill number, account number, and exact amount</li>
-                  <li>Enter your PIN and confirm</li>
-                  <li>Enter the transaction code (e.g. <em>QFG7XXXXX</em>) here to verify</li>
-                </ol>
-                <p className="text-[11px] text-green-600 dark:text-green-400 mt-1">
-                  Amount will be in KES: <strong>KES {tiers[selectedTier].monthlyPrice.KES.toLocaleString()}</strong>
-                </p>
-              </div>
-            )}
-
-            {/* PayPal info */}
-            {selectedMethod?.name === 'paypal' && (
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400">
-                Pay in USD or your currency. After clicking Pay, you will receive a reference number.
-                Your plan activates once we confirm receipt.
-              </div>
-            )}
-
-            {/* Paystack info */}
-            {selectedMethod?.name === 'paystack' && (
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400">
-                Pay securely with Paystack — card, bank transfer, or USSD. Supports NGN, USD, GHS, ZAR.
-              </div>
-            )}
-
-            {/* Card */}
-            {selectedMethod?.name === 'card' && (
-              <div className="space-y-1.5">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Card (test mode)</label>
-                <input
-                  type="text"
-                  value={cardToken}
-                  onChange={(e) => setCardToken(e.target.value)}
-                  placeholder="tok_visa or test token"
-                  className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-                <p className="text-xs text-slate-400">Test payments only. Live card processing enabled at launch.</p>
-              </div>
-            )}
-
-            {/* ── Paybill pending — improved UX ── */}
-            {paybillPending && (
-              <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-300 dark:border-emerald-700 overflow-hidden">
-                <div className="px-5 py-3 bg-emerald-500 text-white">
-                  <p className="text-sm font-bold flex items-center gap-2">
+                {/* M-Pesa — active (always visible) */}
+                <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                  <div className="flex items-center gap-2.5">
                     <span className="text-lg">📱</span>
-                    Pay with M-Pesa Paybill
-                  </p>
-                  <p className="text-xs text-emerald-100 mt-0.5">Enter the details below in your M-Pesa app</p>
+                    <span className="text-sm font-semibold text-green-800 dark:text-green-200">M-Pesa</span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-600 text-white">Active</span>
                 </div>
 
-                <div className="p-5 space-y-4">
-                  {/* Step-by-step */}
-                  <div className="space-y-1.5">
+                {/* Expand / collapse toggle */}
+                <button
+                  type="button"
+                  onClick={() => setShowMoreMethods((v) => !v)}
+                  className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                >
+                  <span>{showMoreMethods ? 'Hide other methods' : 'More payment methods'}</span>
+                  <svg
+                    className={`w-4 h-4 transition-transform duration-200 ${showMoreMethods ? 'rotate-180' : ''}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {/* Coming Soon methods — collapsible */}
+                {showMoreMethods && (
+                  <div className="space-y-2">
                     {[
-                      'Go to M-Pesa on your phone',
-                      'Select "Pay Bill"',
-                      'Enter the Business Number below',
-                      'Enter the Account Number below',
-                      'Enter the exact Amount shown',
-                      'Confirm with your M-Pesa PIN',
-                    ].map((step, i) => (
-                      <div key={i} className="flex items-start gap-2.5 text-xs text-emerald-800 dark:text-emerald-200">
-                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 flex items-center justify-center font-bold text-[10px]">
-                          {i + 1}
-                        </span>
-                        {step}
+                      { icon: '💳', label: 'Paystack' },
+                      { icon: '🏦', label: 'Bank Transfer' },
+                      { icon: '🅿️', label: 'PayPal' },
+                      { icon: '💳', label: 'Card' },
+                    ].map(({ icon, label }) => (
+                      <div key={label} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 opacity-60">
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-lg">{icon}</span>
+                          <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{label}</span>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400">Coming Soon</span>
                       </div>
                     ))}
                   </div>
-
-                  <div className="space-y-3 pt-2">
-                    <CopyField label="Business Number (Paybill)" value={paybillPending.paybillNumber} />
-                    <CopyField label="Account Number" value={paybillPending.account} />
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Amount to Pay</p>
-                      <div className="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2.5">
-                        <span className="font-mono font-extrabold text-slate-900 dark:text-slate-100 text-xl">
-                          {paybillPending.amount} {paybillPending.currency}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Transaction code entry */}
-                  <div className="space-y-2 pt-2 border-t border-emerald-200 dark:border-emerald-700">
-                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      After paying, enter your M-Pesa transaction code:
-                    </p>
-                    <input
-                      type="text"
-                      value={paybillTransactionCode}
-                      onChange={(e) => setPaybillTransactionCode(e.target.value.toUpperCase())}
-                      placeholder="e.g. QFG7XXXXXX"
-                      className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-emerald-500 font-mono tracking-widest uppercase"
-                    />
-                    <Button
-                      onClick={() => {
-                        if (!paybillTransactionCode.trim()) {
-                          setPaymentMessage('Enter the M-Pesa transaction code from your confirmation SMS.');
-                          return;
-                        }
-                        confirmPaybillMutation.mutate({ paymentId: paybillPending.paymentId, code: paybillTransactionCode });
-                      }}
-                      isLoading={confirmPaybillMutation.isPending}
-                      className="w-full justify-center bg-emerald-600 hover:bg-emerald-700"
-                    >
-                      I've paid — Submit Code
-                    </Button>
-                  </div>
-
-                  {/* Pending badge */}
-                  <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2">
-                    <ClockIcon className="w-4 h-4 flex-shrink-0 animate-spin" />
-                    <span>Waiting for payment confirmation</span>
-                  </div>
-                </div>
+                )}
               </div>
-            )}
-
-            {/* Paystack pending */}
-            {paystackPending && (
-              <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 space-y-3">
-                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Complete Paystack Payment</p>
-                <a
-                  href={paystackPending.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block w-full text-center py-2.5 px-4 bg-[#0ba4db] hover:bg-[#0993c4] text-white rounded-xl font-semibold text-sm transition-colors"
-                >
-                  Pay with Paystack →
-                </a>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-500">Reference:</span>
-                  <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{paystackPending.reference}</span>
-                </div>
-                <p className="text-xs text-slate-600 dark:text-slate-400">After paying, click Verify to confirm.</p>
-                <Button
-                  onClick={() => verifyPaystackMutation.mutate({ reference: paystackPending.reference })}
-                  isLoading={verifyPaystackMutation.isPending}
-                  className="w-full justify-center"
-                >
-                  Verify Payment
-                </Button>
-              </div>
-            )}
-
-            {/* Pay button */}
-            <div className="pt-2 space-y-3">
-              <Button
-                onClick={handleStartPayment}
-                isLoading={initiatePaymentMutation.isPending}
-                className="w-full justify-center"
-                disabled={safeCurrentTier === selectedTier}
-              >
-                {safeCurrentTier === selectedTier
-                  ? 'Current Plan Active'
-                  : `Pay ${formatAmount(currency, selectedPrice)}`}
-              </Button>
-
-              {latestPayment && (
-                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
-                  <ClockIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  <span>
-                    Payment received and under review. We will activate your subscription within 24 hours.
-                    You'll receive a confirmation once it's active.
-                  </span>
-                </div>
-              )}
             </div>
 
-            {/* Message banner */}
-            {paymentMessage && (
-              <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm flex items-start gap-2">
-                <ClockIcon className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <span className="flex-1">{paymentMessage}</span>
-                <button onClick={() => setPaymentMessage('')} className="text-blue-500 hover:text-blue-700">
-                  <XIcon className="w-4 h-4" />
-                </button>
+            {safeCurrentTier !== selectedTier ? (
+              <button
+                type="button"
+                onClick={() => openPaymentModal(selectedTier)}
+                className="w-full py-3 rounded-xl text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-colors"
+              >
+                Subscribe — {formatAmount('KES', tiers[selectedTier].monthlyPrice.KES)} / mo
+              </button>
+            ) : (
+              <div className="w-full py-3 rounded-xl text-center text-sm font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">
+                ✓ Current Plan Active
               </div>
             )}
+
+            <p className="text-xs text-center text-slate-400 dark:text-slate-500">
+              Billed monthly · Cancel anytime
+            </p>
           </div>
 
           {/* ── Payment history ── */}
@@ -1023,6 +945,187 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
           </div>
         </div>
       </div>
+
+      {/* ── Payment Modal ─────────────────────────────────────────────────── */}
+      {paymentModalOpen && paymentModalTier && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-md overflow-hidden">
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white">
+              <div>
+                <h2 className="text-lg font-extrabold">Subscribe to {tiers[paymentModalTier].name}</h2>
+                <p className="text-indigo-100 text-sm mt-0.5">
+                  KES {tiers[paymentModalTier].monthlyPrice.KES.toLocaleString()} &nbsp;·&nbsp; ${tiers[paymentModalTier].monthlyPrice.USD} USD / month
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closePaymentModal}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                aria-label="Close"
+              >
+                <XIcon className="w-5 h-5 text-white" />
+              </button>
+            </div>
+
+            {/* Payment method tabs */}
+            <div className="flex border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+              {/* M-Pesa — active */}
+              <button
+                type="button"
+                className="flex-1 py-3 text-sm font-bold border-b-2 border-green-500 text-green-700 dark:text-green-400 bg-white dark:bg-slate-900 flex flex-col items-center gap-0.5"
+              >
+                <span>📱</span>
+                <span>M-Pesa</span>
+              </button>
+              {/* Coming soon tabs */}
+              {[
+                { label: 'Paystack', icon: '💳' },
+                { label: 'Card', icon: '🏦' },
+                { label: 'PayPal', icon: '🅿️' },
+              ].map(({ label, icon }) => (
+                <div
+                  key={label}
+                  className="flex-1 py-3 text-center cursor-not-allowed flex flex-col items-center gap-0.5 opacity-50"
+                  title="Coming soon"
+                >
+                  <span className="text-sm">{icon}</span>
+                  <span className="text-xs text-slate-400">{label}</span>
+                  <span className="text-[9px] text-slate-300 dark:text-slate-600 font-semibold uppercase tracking-wide">Soon</span>
+                </div>
+              ))}
+            </div>
+
+            {/* M-Pesa body */}
+            <div className="p-6">
+              {/* Success state */}
+              {stkSuccess && (
+                <div className="text-center space-y-4 py-4">
+                  <div className="w-16 h-16 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center text-3xl">
+                    ✅
+                  </div>
+                  <div>
+                    <p className="text-xl font-extrabold text-emerald-700 dark:text-emerald-400">Payment Confirmed!</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                      {activatedTier
+                        ? `Your ${tiers[activatedTier].name} subscription is now active.`
+                        : 'Activating your subscription...'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closePaymentModal}
+                    className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-colors"
+                  >
+                    Done
+                  </button>
+                </div>
+              )}
+
+              {/* STK push pending state */}
+              {stkPushPending && !stkSuccess && (
+                <div className="text-center space-y-5 py-4">
+                  <div className="w-20 h-20 mx-auto rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center animate-pulse">
+                    <span className="text-4xl">📱</span>
+                  </div>
+                  <div>
+                    <p className="text-lg font-extrabold text-slate-800 dark:text-white">Check your phone</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                      An M-Pesa payment prompt was sent to<br />
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{modalMpesaPhone}</span>
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-sm text-green-800 dark:text-green-200">
+                    <p className="font-semibold mb-1">Steps:</p>
+                    <ol className="list-decimal list-inside space-y-1 text-left">
+                      <li>Open M-Pesa on your phone</li>
+                      <li>You'll see a payment request for <strong>KES {tiers[paymentModalTier].monthlyPrice.KES.toLocaleString()}</strong></li>
+                      <li>Enter your M-Pesa PIN to confirm</li>
+                    </ol>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+                    <ClockIcon className="w-4 h-4 animate-spin" />
+                    <span>Waiting for confirmation...</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setStkPushPending(false); setStkPushPaymentId(null); }}
+                    className="text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline transition-colors"
+                  >
+                    Cancel — I didn't get a prompt
+                  </button>
+                </div>
+              )}
+
+              {/* Phone input state (default) */}
+              {!stkPushPending && !stkSuccess && (
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3 p-3.5 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                    <span className="text-2xl flex-shrink-0">📲</span>
+                    <p className="text-sm text-green-800 dark:text-green-200">
+                      Enter your M-Pesa number below. You'll receive an STK push — enter your PIN to complete the payment.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                      M-Pesa Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={modalMpesaPhone}
+                      onChange={(e) => setModalMpesaPhone(e.target.value)}
+                      placeholder="2547XXXXXXXX or 07XXXXXXXX"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-green-500 text-slate-900 dark:text-slate-100 text-base font-mono tracking-wide"
+                      autoFocus
+                    />
+                    <p className="text-xs text-slate-400 mt-1">Format: 2547XXXXXXXX or 07XXXXXXXX</p>
+                  </div>
+
+                  {/* Amount reminder */}
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <span className="text-sm text-slate-600 dark:text-slate-400">You will be charged</span>
+                    <span className="font-extrabold text-lg text-slate-900 dark:text-slate-100">
+                      KES {tiers[paymentModalTier].monthlyPrice.KES.toLocaleString()}
+                    </span>
+                  </div>
+
+                  {modalPaymentMessage && (
+                    <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-sm text-rose-700 dark:text-rose-300 flex items-start gap-2">
+                      <span>⚠️</span>
+                      <span>{modalPaymentMessage}</span>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleSendStkPush}
+                    disabled={initiatePaymentMutation.isPending}
+                    className="w-full py-3.5 rounded-xl bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold text-base shadow-md transition-colors flex items-center justify-center gap-2"
+                  >
+                    {initiatePaymentMutation.isPending ? (
+                      <>
+                        <ClockIcon className="w-5 h-5 animate-spin" />
+                        <span>Sending...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>📱</span>
+                        <span>Send STK Push — KES {tiers[paymentModalTier].monthlyPrice.KES.toLocaleString()}</span>
+                      </>
+                    )}
+                  </button>
+
+                  <p className="text-xs text-center text-slate-400 dark:text-slate-500">
+                    Secured by Safaricom M-Pesa · Billed monthly · Cancel anytime
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Enterprise modal ──────────────────────────────────────────────── */}
       {isEnterpriseModalOpen && (

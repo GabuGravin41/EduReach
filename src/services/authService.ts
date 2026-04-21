@@ -38,6 +38,10 @@ export interface User {
   interests?: string;
   profile_cover?: string;
   created_at: string;
+  // Trial fields
+  is_trial_active?: boolean;
+  trial_ends_at?: string | null;
+  trial_days_remaining?: number | null;
 }
 
 export interface LeaderboardData {

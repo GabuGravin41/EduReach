@@ -1,4 +1,6 @@
 import React from 'react';
+import { useAuth } from '../src/contexts/useAuth';
+import { authService } from '../src/services/authService';
 import { DashboardIcon } from './icons/DashboardIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
 import { ClipboardCheckIcon } from './icons/ClipboardCheckIcon';
@@ -67,6 +69,9 @@ const RoleSwitcher: React.FC<{ currentTier: UserTier; onTierChange: (tier: UserT
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout, onNewSession, isCollapsed, setIsCollapsed, userTier, onTierChange, isMobileOpen, setIsMobileOpen, isDark, onToggleDark }) => {
+  const { user } = useAuth();
+  const avatarUrl = user?.avatar ? authService.getMediaUrl(user.avatar) : null;
+
   // Only show admin-specific UI elements to admin users
   const safeTier: UserTier = userTier in tierNames ? userTier : 'free';
   const isAdmin = safeTier === 'admin';
@@ -222,12 +227,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
             }}
             className={`w-full flex items-center gap-2 rounded-md hover:bg-blue-50 dark:hover:bg-slate-700 transition-all duration-200 min-h-[44px] ${isCollapsed ? 'justify-center p-2' : 'px-3 py-2.5'}`}
           >
-            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-200 to-emerald-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 shadow-sm">
-              <UserCircleIcon className="w-6 h-6 text-blue-700 dark:text-gray-300" />
+            <div className="w-10 h-10 rounded-full flex-shrink-0 shadow-sm overflow-hidden bg-gradient-to-r from-blue-200 to-emerald-200 dark:bg-gray-700 flex items-center justify-center">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <UserCircleIcon className="w-6 h-6 text-blue-700 dark:text-gray-300" />
+              )}
             </div>
             {!isCollapsed && (
               <div className="flex-1 min-w-0 text-left">
-                <p className="font-semibold text-sm truncate text-gray-700 dark:text-white">Profile</p>
+                <p className="font-semibold text-sm truncate text-gray-700 dark:text-white">
+                  {user?.first_name ? `${user.first_name} ${user.last_name}`.trim() : 'Profile'}
+                </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{tierNames[safeTier]}</p>
               </div>
             )}

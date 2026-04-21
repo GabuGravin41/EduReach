@@ -22,6 +22,7 @@ interface QuizViewProps {
   timeLimitMinutes?: number;
   assessmentId?: number;
   imageUploadGraceMinutes?: number;
+  forceSubmit?: boolean;
 }
 
 export const QuizView: React.FC<QuizViewProps> = ({
@@ -29,6 +30,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
   timeLimitMinutes,
   assessmentId,
   imageUploadGraceMinutes,
+  forceSubmit,
 }) => {
   // Normalize input to standard Question[] format
   const questions: Question[] = useMemo(() => {
@@ -148,6 +150,15 @@ export const QuizView: React.FC<QuizViewProps> = ({
   const [isSubmittingAttempt, setIsSubmittingAttempt] = useState(false);
   const [submitError, setSubmitError] = useState<string>('');
   const [imageUploadSecondsLeft, setImageUploadSecondsLeft] = useState<number | null>(null);
+
+  // Auto-submit when the proctor forces it (tab limit exceeded)
+  useEffect(() => {
+    if (forceSubmit && !isSubmitted && !isSubmittingAttempt) {
+      submitAttempt();
+    }
+  // submitAttempt is defined below; ESLint would warn — intentional
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forceSubmit]);
 
   const ensureAttemptStarted = async () => {
     if (!assessmentId || attemptReady) return;

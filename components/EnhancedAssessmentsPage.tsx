@@ -308,8 +308,10 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
         }
         if (sortBy === 'score') {
             if (a.status === 'completed' && b.status === 'completed') {
-                const aScore = parseFloat(a.score.split('/')[0]) / parseFloat(a.score.split('/')[1]) || 0;
-                const bScore = parseFloat(b.score.split('/')[0]) / parseFloat(b.score.split('/')[1]) || 0;
+                const aParts = (a.score ?? '0/0').split('/');
+                const bParts = (b.score ?? '0/0').split('/');
+                const aScore = (parseFloat(aParts[0]) || 0) / (parseFloat(aParts[1]) || 1);
+                const bScore = (parseFloat(bParts[0]) || 0) / (parseFloat(bParts[1]) || 1);
                 return bScore - aScore;
             }
             return 0;
