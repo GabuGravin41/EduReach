@@ -420,6 +420,20 @@ AI_REQUEST_DEADLINE_SECONDS = int(os.environ.get('AI_REQUEST_DEADLINE_SECONDS', 
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@edureach.app')
 ENTERPRISE_INQUIRY_EMAIL = os.environ.get('ENTERPRISE_INQUIRY_EMAIL', 'hello@edureach.app')
 
+# ── Email backend ────────────────────────────────────────────────────────────
+# Set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend in .env
+# and configure the SMTP_* vars below to enable real email delivery.
+# Until then, emails are printed to the console (safe default for development).
+EMAIL_BACKEND = os.environ.get(
+    'EMAIL_BACKEND',
+    'django.core.mail.backends.console.EmailBackend',
+)
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.sendgrid.net')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'true').lower() == 'true'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'apikey')  # SendGrid uses 'apikey'
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')  # SendGrid API key
+
 # Paystack payment integration
 PAYSTACK_SECRET_KEY = os.environ.get('PAYSTACK_SECRET_KEY', '')
 

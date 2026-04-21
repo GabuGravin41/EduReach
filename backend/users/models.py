@@ -74,28 +74,102 @@ class User(AbstractUser):
         )
         return usage
     
+    TRIAL_DAYS = 7
+
+    @property
+    def trial_days_remaining(self):
+        """Returns days left in trial, or None if no active trial."""
+        if self.is_trial_active and self.trial_ends_at:
+            delta = self.trial_ends_at - timezone.now()
+            return max(0, delta.days)
+        return None
+
     def start_free_trial(self):
-        """Start a 1-month free Pro trial for new users."""
+        """Start a 7-day free Pro trial for new users."""
         if not self.trial_started_at:  # Only if never had a trial before
             self.original_tier = self.tier
             self.tier = self.Tier.PRO
             self.trial_started_at = timezone.now()
-            self.trial_ends_at = timezone.now() + timedelta(days=30)
+            self.trial_ends_at = timezone.now() + timedelta(days=self.TRIAL_DAYS)
             self.is_trial_active = True
             self.save()
+            # In-app notification
+            Notification.objects.create(
+                recipient=self,
+                notif_type=Notification.NotifType.TRIAL_STARTED,
+                title='🎉 7 days of Pro — free!',
+                message=(
+                    f'Welcome to EduReach Pro! You have {self.TRIAL_DAYS} days to explore '
+                    'all premium features at no cost. Upgrade before your trial ends to keep access.'
+                ),
+            )
+            # Welcome email (fail silently — email may not be configured yet)
+            self._send_trial_email(
+                subject=f'🎓 Your {self.TRIAL_DAYS}-day EduReach Pro trial has started!',
+                body=(
+                    'Hi {name},\n\n'
+                    f'Your free {self.TRIAL_DAYS}-day Pro trial on EduReach has started!\n\n'
+                    'With Pro you get:\n'
+                    '  • Unlimited AI tutor conversations\n'
+                    '  • Advanced assessments and proctoring\n'
+                    '  • Priority access to all courses\n'
+                    '  • Detailed analytics and leaderboards\n\n'
+                    f'Your trial ends in {self.TRIAL_DAYS} days. Log in and explore:\n'
+                    '{{url}}\n\n'
+                    '— The EduReach Team'
+                ),
+            )
             return True
         return False
-    
+
     def check_trial_status(self):
-        """Check if trial has expired and revert tier if needed."""
+        """Check if trial has expired and revert tier if needed. Returns True if still active."""
         if self.is_trial_active and self.trial_ends_at:
             if timezone.now() > self.trial_ends_at:
-                self.tier = self.original_tier
+                self.tier = self.original_tier or self.Tier.FREE
                 self.is_trial_active = False
                 self.save()
+                # In-app notification
+                Notification.objects.create(
+                    recipient=self,
+                    notif_type=Notification.NotifType.TRIAL_EXPIRED,
+                    title='Your free trial has ended',
+                    message='Your 7-day Pro trial is over. Upgrade now to keep all Pro features and continue your learning without limits.',
+                )
+                # Expiry email
+                self._send_trial_email(
+                    subject='Your EduReach Pro trial has ended',
+                    body=(
+                        'Hi {name},\n\n'
+                        'Your 7-day EduReach Pro trial has ended.\n\n'
+                        'To keep enjoying unlimited AI tutoring, advanced assessments, and premium courses, '
+                        'upgrade to a paid plan:\n{{url}}/billing\n\n'
+                        'Thank you for trying EduReach Pro!\n\n'
+                        '— The EduReach Team'
+                    ),
+                )
                 return False  # Trial expired
             return True  # Trial still active
         return False
+
+    def _send_trial_email(self, subject: str, body: str):
+        """Send a trial-related email to this user. Fails silently."""
+        if not self.email:
+            return
+        try:
+            from django.core.mail import send_mail
+            from django.conf import settings
+            app_url = getattr(settings, 'FRONTEND_URL', 'https://edureach.app')
+            name = self.first_name or self.username
+            send_mail(
+                subject=subject,
+                message=body.format(name=name, url=app_url).replace('{{url}}', app_url),
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@edureach.app'),
+                recipient_list=[self.email],
+                fail_silently=True,
+            )
+        except Exception:
+            pass
     
     def get_effective_tier(self):
         """Get the current effective tier (considering trial status)."""
@@ -223,6 +297,14 @@ class Notification(models.Model):
     class NotifType(models.TextChoices):
         CHALLENGE = 'challenge', 'Challenge'
         SYSTEM = 'system', 'System'
+        TRIAL_STARTED = 'trial_started', 'Trial Started'
+        TRIAL_EXPIRING = 'trial_expiring', 'Trial Expiring'
+        TRIAL_EXPIRED = 'trial_expired', 'Trial Expired'
+        PAYMENT_SUCCESS = 'payment_success', 'Payment Successful'
+        PAYMENT_FAILED = 'payment_failed', 'Payment Failed'
+        LEVEL_UP = 'level_up', 'Level Up'
+        STUDY_REMINDER = 'study_reminder', 'Study Reminder'
+        ASSESSMENT_GRADED = 'assessment_graded', 'Assessment Graded'
 
     recipient = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name='notifications'

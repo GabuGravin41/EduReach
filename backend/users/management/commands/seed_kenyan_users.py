@@ -228,22 +228,58 @@ SAMPLE_COURSES = [
     {
         "title": "KCSE Mathematics Mastery",
         "description": "Comprehensive preparation for KCSE Mathematics Paper 1 & 2. Covers algebra, geometry, calculus, statistics, and probability with past paper analysis and exam techniques.",
+        "lessons": [
+            # title, youtube_video_id, duration, order
+            ("Introduction & Overview",      "kpCJyQ2usJ4", "9:12",  1),  # Khan Academy — The Beauty of Algebra
+            ("Core Concepts Deep Dive",      "IWigvJcCAJ0", "9:45",  2),  # Khan Academy — Quadratic Equations
+            ("Worked Examples & Practice",   "Jsiy4TxgIME", "15:30", 3),  # Khan Academy — Basic Trigonometry
+            ("Advanced Topics",              "N2PpRnFqnqY", "8:20",  4),  # Khan Academy — Derivatives (Calculus)
+            ("Exam Strategy & Revision",     "sxQaBpKfDRk", "11:15", 5),  # Crash Course — What Is Statistics #1
+        ],
     },
     {
         "title": "Introduction to Python Programming",
         "description": "Learn Python from scratch — variables, loops, functions, OOP, and real-world projects. Perfect for students and professionals entering the tech industry.",
+        "lessons": [
+            ("Introduction & Overview",      "kqtD5dpn9C8", "60:00", 1),  # Programming with Mosh — Python for Beginners
+            ("Core Concepts Deep Dive",      "rfscVS0vtbw", "50:00", 2),  # freeCodeCamp — Learn Python Full Course
+            ("Worked Examples & Practice",   "9Os0o3wzS_I", "24:10", 3),  # Corey Schafer — Python Functions
+            ("Advanced Topics",              "pTB0EiLXUC8", "7:10",  4),  # Programming with Mosh — OOP in 7 Minutes
+            ("Exam Strategy & Revision",     "8ext9G7xspg", "45:00", 5),  # freeCodeCamp — 12 Beginner Python Projects
+        ],
     },
     {
         "title": "KCSE Biology & Chemistry Combined",
         "description": "Science preparation for Form 3 & 4. Detailed notes, diagrams, and practice questions for KCSE Biology and Chemistry. Includes practical lab guidance.",
+        "lessons": [
+            ("Introduction & Overview",      "Hmwvj9X4GNY", "12:00", 1),  # Khan Academy — Parts of a Cell
+            ("Core Concepts Deep Dive",      "WMgJtmjWHYg", "12:15", 2),  # Crash Course Biology — Photosynthesis
+            ("Worked Examples & Practice",   "QXT4OVM4vXI", "10:30", 3),  # Crash Course Chemistry — Chemical Bonds #22
+            ("Advanced Topics",              "CBezq1fFUEA", "11:20", 4),  # Crash Course Biology — Heredity #9
+            ("Exam Strategy & Revision",     "izRvPaAWgyw", "11:45", 5),  # Crash Course Biology — Ecology #40
+        ],
     },
     {
         "title": "English Language & Communication Skills",
         "description": "Improve your written and spoken English for academic, professional, and everyday use. Covers grammar, essay writing, comprehension, and oral skills.",
+        "lessons": [
+            ("Introduction & Overview",      "jul2urONzOQ", "10:00", 1),  # English Grammar — Sentence Structure
+            ("Core Concepts Deep Dive",      "UuOWNNvupik", "4:15",  2),  # Scribbr — How to Write an Essay
+            ("Worked Examples & Practice",   "o9aVjBHEEbU", "7:30",  3),  # British Council — Essay Paraphrasing
+            ("Advanced Topics",              "K0pxo-dS9Hc", "20:00", 4),  # TEDx — 110 Techniques of Public Speaking
+            ("Exam Strategy & Revision",     "tAmgEa1B1vI", "12:00", 5),  # How to Write a Good Argumentative Essay
+        ],
     },
     {
         "title": "Business Studies & Economics for KCSE",
         "description": "Master Business Studies and Economics for KCSE. Understand financial management, entrepreneurship, market forces, and national economic policy.",
+        "lessons": [
+            ("Introduction & Overview",      "deUqLLiu_CI", "8:15",  1),  # ACDC Econ — Scarcity & Choice (Macro 1.1)
+            ("Core Concepts Deep Dive",      "sLkUlcsBy0g", "8:30",  2),  # ACDC Econ — Supply and Demand (Micro 2.2)
+            ("Worked Examples & Practice",   "KALZ-7KWN6M", "15:00", 3),  # Khan Academy — Entrepreneurship Series
+            ("Advanced Topics",              "jhvCc5tKAno", "7:30",  4),  # Khan Academy — Saving and Investing
+            ("Exam Strategy & Revision",     "MKO1icFVtDc", "29:00", 5),  # ACDC Econ — Macroeconomics: Everything You Need to Know
+        ],
     },
 ]
 
@@ -315,6 +351,26 @@ SAMPLE_ASSESSMENTS = [
     },
 ]
 
+# Maps each user (by username) to the specific courses they should be enrolled in,
+# chosen to reflect their academic profile, interests, and goals.
+USER_COURSE_MAP = {
+    "wanjiku_mwangi":    ["KCSE Mathematics Mastery", "KCSE Biology & Chemistry Combined"],           # Form 4, Actuarial Science dreamer — heavy on STEM
+    "otieno_odhiambo":   ["Introduction to Python Programming", "KCSE Mathematics Mastery"],           # CS student at JKUAT, building apps
+    "aisha_farah":       ["English Language & Communication Skills", "Business Studies & Economics for KCSE"],  # Law student, tutoring business
+    "kipchoge_rotich":   ["KCSE Mathematics Mastery", "KCSE Biology & Chemistry Combined", "English Language & Communication Skills"],  # Math teacher, creating resources
+    "njeri_kamau":       ["KCSE Biology & Chemistry Combined", "KCSE Mathematics Mastery"],            # Form 3, aspiring doctor — sciences first
+    "hassan_abdi":       ["Introduction to Python Programming", "Business Studies & Economics for KCSE"],  # Dev at iHub upskilling in data science
+    "zawadi_mutua":      ["KCSE Biology & Chemistry Combined"],                                        # Nursing student at KMTC — biology focus
+    "baraka_omondi":     ["KCSE Mathematics Mastery"],                                                 # Form 2, aerospace engineering goal
+    "amina_waweru":      ["English Language & Communication Skills", "Business Studies & Economics for KCSE"],  # HR professional, CHRP prep
+    "silas_kiprotich":   ["KCSE Mathematics Mastery", "Introduction to Python Programming"],           # Electrical engineering at Moi Uni
+    "faith_adhiambo":    ["Business Studies & Economics for KCSE", "KCSE Mathematics Mastery", "English Language & Communication Skills"],  # Finance at USIU, future CFO
+    "jabali_ndungu":     ["Introduction to Python Programming"],                                       # Full-stack dev, self-taught coder
+    "zipporah_chebet":   ["KCSE Mathematics Mastery", "Introduction to Python Programming"],           # County math champion, competitive programming
+    "emmanuel_makokha":  ["English Language & Communication Skills", "KCSE Biology & Chemistry Combined"],  # Headmaster, digital literacy advocate
+    "lydia_nyambura":    ["English Language & Communication Skills", "Business Studies & Economics for KCSE"],  # Journalism student, data journalism
+}
+
 
 class Command(BaseCommand):
     help = 'Seeds 15 realistic Kenyan user profiles for investor demo with full activity data'
@@ -358,38 +414,35 @@ class Command(BaseCommand):
                 owner.set_password('Admin@EduReach2025')
                 owner.save()
 
-            # Step 2: Create sample courses if fewer than 3 exist
-            courses = list(Course.objects.all()[:5])
-            if len(courses) < 3:
-                self.stdout.write('  Creating sample courses...')
-                for c_data in SAMPLE_COURSES:
-                    course, created = Course.objects.get_or_create(
-                        title=c_data['title'],
-                        owner=owner,
-                        defaults={'description': c_data['description'], 'is_public': True}
+            # Step 2: Create/update sample courses with real educational videos
+            self.stdout.write('  Syncing sample courses and lessons...')
+            for c_data in SAMPLE_COURSES:
+                course, created = Course.objects.get_or_create(
+                    title=c_data['title'],
+                    defaults={'owner': owner, 'description': c_data['description'], 'is_public': True}
+                )
+                if not created and not course.owner_id:
+                    course.owner = owner
+                    course.save(update_fields=['owner'])
+
+                # Always update_or_create lessons so bad video IDs get replaced
+                for lesson_title, vid_id, duration, order in c_data['lessons']:
+                    lesson, _ = Lesson.objects.update_or_create(
+                        course=course,
+                        order=order,
+                        defaults={
+                            'title': lesson_title,
+                            'video_id': vid_id,
+                            'video_url': f'https://www.youtube.com/watch?v={vid_id}',
+                            'duration': duration,
+                        }
                     )
-                    if created:
-                        # Add a few placeholder lessons
-                        lesson_titles = [
-                            ('Introduction & Overview', 'dQw4w9WgXcQ', '14:23', 1),
-                            ('Core Concepts Deep Dive', 'jNQXAC9IVRw', '22:11', 2),
-                            ('Worked Examples & Practice', 'FzRH3iTQPrk', '31:05', 3),
-                            ('Advanced Topics', 'M7lc1UVf-VE', '19:47', 4),
-                            ('Exam Strategy & Revision', '9bZkp7q19f0', '25:30', 5),
-                        ]
-                        for title, vid_id, duration, order in lesson_titles:
-                            Lesson.objects.get_or_create(
-                                course=course,
-                                order=order,
-                                defaults={
-                                    'title': title,
-                                    'video_id': vid_id,
-                                    'video_url': f'https://www.youtube.com/watch?v={vid_id}',
-                                    'duration': duration,
-                                }
-                            )
-                        self.stdout.write(f'    + Course: {course.title}')
-                courses = list(Course.objects.all()[:5])
+                action = 'Created' if created else 'Updated'
+                self.stdout.write(f'    {action}: {course.title}')
+
+            courses = list(Course.objects.filter(
+                title__in=[c['title'] for c in SAMPLE_COURSES]
+            )[:5])
 
             # Step 3: Create sample assessments if fewer than 3 exist
             assessments = list(Assessment.objects.all()[:5])
@@ -547,9 +600,11 @@ class Command(BaseCommand):
                 user.level = (final_xp // 1000) + 1
                 user.save(update_fields=['xp_points', 'level'])
 
-                # -- Course Progress --
-                num_courses = random.randint(1, min(len(courses), 4))
-                user_courses = random.sample(courses, num_courses)
+                # -- Course Progress (interest-aligned, not random) --
+                preferred_titles = USER_COURSE_MAP.get(u_data['username'], [])
+                user_courses = [c for c in courses if c.title in preferred_titles]
+                if not user_courses:
+                    user_courses = courses[:1]  # Fallback: at least one course
                 for course in user_courses:
                     lessons = list(course.lessons.order_by('order'))
                     if not lessons:

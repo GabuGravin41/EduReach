@@ -5,11 +5,15 @@ from .models import User
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for User model."""
     tier = serializers.SerializerMethodField()
+    trial_days_remaining = serializers.SerializerMethodField()
 
     def get_tier(self, obj):
         if obj.is_superuser:
             return 'admin'
         return obj.tier
+
+    def get_trial_days_remaining(self, obj):
+        return obj.trial_days_remaining
 
     class Meta:
         model = User
@@ -18,9 +22,10 @@ class UserSerializer(serializers.ModelSerializer):
             'tier', 'bio', 'avatar', 'profile_cover', 'xp_points', 'level',
             'total_time_spent_seconds', 'show_xp_publicly',
             'learning_goal', 'learner_type', 'interests',
+            'is_trial_active', 'trial_ends_at', 'trial_days_remaining',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'xp_points', 'level', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'xp_points', 'level', 'is_trial_active', 'trial_ends_at', 'created_at', 'updated_at']
 
 
 class ChallengeableUserSerializer(serializers.ModelSerializer):
@@ -42,11 +47,15 @@ class UserProfileSerializer(serializers.ModelSerializer):
     profile_cover = serializers.ImageField(required=False, allow_null=True)
     avatar = serializers.ImageField(required=False, allow_null=True)
     tier = serializers.SerializerMethodField()
+    trial_days_remaining = serializers.SerializerMethodField()
 
     def get_tier(self, obj):
         if obj.is_superuser:
             return 'admin'
         return obj.tier
+
+    def get_trial_days_remaining(self, obj):
+        return obj.trial_days_remaining
 
     class Meta:
         model = User
@@ -55,10 +64,12 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'tier', 'bio', 'avatar', 'profile_cover', 'xp_points', 'level',
             'total_time_spent_seconds', 'show_xp_publicly',
             'learning_goal', 'learner_type', 'interests',
+            'is_trial_active', 'trial_ends_at', 'trial_days_remaining',
             'date_joined', 'created_at', 'updated_at'
         ]
         read_only_fields = [
             'id', 'username', 'xp_points', 'level',
+            'is_trial_active', 'trial_ends_at',
             'date_joined', 'created_at', 'updated_at'
         ]
 

@@ -13,6 +13,31 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 
 from .models import PaymentMethod, Payment, Subscription
+
+
+def _send_payment_confirmation_email(user, tier_label: str):
+    """Send a payment confirmation email. Fails silently."""
+    if not user.email:
+        return
+    try:
+        app_url = getattr(settings, 'FRONTEND_URL', 'https://edureach.app')
+        name = user.first_name or user.username
+        send_mail(
+            subject=f'✅ Payment confirmed — welcome to EduReach {tier_label}!',
+            message=(
+                f'Hi {name},\n\n'
+                f'Your payment was successful and your account has been upgraded to EduReach {tier_label}.\n\n'
+                'You now have access to all premium features. Log in to get started:\n'
+                f'{app_url}\n\n'
+                'If you have any questions about your subscription, reply to this email.\n\n'
+                '— The EduReach Team'
+            ),
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@edureach.app'),
+            recipient_list=[user.email],
+            fail_silently=True,
+        )
+    except Exception:
+        pass
 from .serializers import (
     PaymentMethodSerializer,
     PaymentSerializer,
@@ -386,6 +411,25 @@ class SubscriptionUpgradeView(APIView):
             if hasattr(user, 'tier'):
                 user.tier = tier
                 user.save(update_fields=['tier'])
+
+            # In-app notification for successful payment / tier upgrade
+            try:
+                from users.models import Notification
+                tier_labels = {'learner': 'Learner', 'pro': 'Pro', 'pro_plus': 'Pro Plus'}
+                tier_label = tier_labels.get(tier, tier.title())
+                Notification.objects.create(
+                    recipient=user,
+                    notif_type=Notification.NotifType.PAYMENT_SUCCESS,
+                    title=f'🎉 Welcome to EduReach {tier_label}!',
+                    message=(
+                        f'Your payment was successful and your account has been upgraded to {tier_label}. '
+                        'Enjoy all your new features!'
+                    ),
+                )
+                # Payment confirmation email
+                _send_payment_confirmation_email(user, tier_label)
+            except Exception:
+                pass
 
         serializer = SubscriptionSerializer(subscription)
         return Response(serializer.data, status=status.HTTP_200_OK)
