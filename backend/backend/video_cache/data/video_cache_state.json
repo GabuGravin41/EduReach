@@ -1,0 +1,79 @@
+{
+  "topics": [
+    {
+      "name": "linear algebra",
+      "limit": 5,
+      "processed": 0
+    }
+  ],
+  "results": {
+    "linear algebra": [
+      {
+        "video_id": "JnTa9XtvmfI",
+        "url": "https://www.youtube.com/watch?v=JnTa9XtvmfI",
+        "title": "Linear Algebra - Full College Course",
+        "channel_name": "freeCodeCamp.org",
+        "view_count": 2536328,
+        "duration": 41985.0,
+        "thumbnail_url": "https://i.ytimg.com/vi/JnTa9XtvmfI/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDzIucHpKpbNgbM4SpP2Wj5PALImw",
+        "transcript": "",
+        "transcript_json": null,
+        "topic": "linear algebra",
+        "fetched_at": 1777207279.4209845
+      },
+      {
+        "video_id": "p48uw2vFWQs",
+        "url": "https://www.youtube.com/watch?v=p48uw2vFWQs",
+        "title": "Linear Algebra - Matrix Operations",
+        "channel_name": "Postcard Professor",
+        "view_count": 844996,
+        "duration": 428.0,
+        "thumbnail_url": "https://i.ytimg.com/vi/p48uw2vFWQs/hqdefault.jpg?sqp=-oaymwEcCOADEI4CSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCNn2sT0Vz8cmr2dqeGIRubt1ntog",
+        "transcript": "",
+        "transcript_json": null,
+        "topic": "linear algebra",
+        "fetched_at": 1777207294.072919
+      },
+      {
+        "video_id": "rSjt1E9WHaQ",
+        "url": "https://www.youtube.com/watch?v=rSjt1E9WHaQ",
+        "title": "Linear Algebra Course – Mathematics for Machine Learning and Generative AI",
+        "channel_name": "freeCodeCamp.org",
+        "view_count": 359875,
+        "duration": 21912.0,
+        "thumbnail_url": "https://i.ytimg.com/vi/rSjt1E9WHaQ/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLB6IiHJ9zQOAVC3hgB6siBKwywueA",
+        "transcript": "",
+        "transcript_json": null,
+        "topic": "linear algebra",
+        "fetched_at": 1777207310.9313185
+      },
+      {
+        "video_id": "bydeAhoctdU",
+        "url": "https://www.youtube.com/watch?v=bydeAhoctdU",
+        "title": "What is Linear Algebra?",
+        "channel_name": "John Paul Cook",
+        "view_count": 166701,
+        "duration": 487.0,
+        "thumbnail_url": "https://i.ytimg.com/vi/bydeAhoctdU/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAGCCk1crM5kLQSR33I17C3a5_cBA",
+        "transcript": "",
+        "transcript_json": null,
+        "topic": "linear algebra",
+        "fetched_at": 1777207325.015344
+      },
+      {
+        "video_id": "MieZJ0bxv7k",
+        "url": "https://www.youtube.com/watch?v=MieZJ0bxv7k",
+        "title": "Linear Algebra 1: Systems of linear equations - Oxford Mathematics 1st Year Student Lecture",
+        "channel_name": "Oxford Mathematics",
+        "view_count": 63869,
+        "duration": 3096.0,
+        "thumbnail_url": "https://i.ytimg.com/vi/MieZJ0bxv7k/hq720.jpg?sqp=-oaymwE2COgCEMoBSFXyq4qpAygIARUAAIhCGAFwAcABBvABAfgB_gmAAtAFigIMCAAQARhhIGUoVDAP&rs=AOn4CLCjTOyo05WbLEXeBE-hzLvnhz8Qgw",
+        "transcript": "",
+        "transcript_json": null,
+        "topic": "linear algebra",
+        "fetched_at": 1777207340.1798468
+      }
+    ]
+  },
+  "current_topic_index": 1
+}

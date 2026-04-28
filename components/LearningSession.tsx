@@ -9,6 +9,7 @@ import { Button } from './ui/Button';
 import { PanelLeftIcon } from './icons/PanelLeftIcon';
 import { PanelRightIcon } from './icons/PanelRightIcon';
 import type { YouTubeEvent } from 'react-youtube';
+import VideoLibrarySearch from './VideoLibrarySearch';
 
 const PLAYER_HEIGHT_STORAGE_KEY = 'edureach_player_height';
 const CHAT_STORAGE_KEY_PREFIX = 'edureach:chat:';
@@ -148,6 +149,24 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
 
   // Use liveTranscript (with background-fetched data) wherever transcript is needed
   const effectiveTranscript = liveTranscript || transcript;
+
+  const handleSelectLibraryVideo = (video: { video_id: string; url: string; title?: string; transcript?: string; thumbnail_url?: string }) => {
+    if (!currentLesson?.id) return;
+    try {
+      // Update lesson via parent callback so player can change videoId
+      onUpdateLesson(courseId, currentLesson.id, {
+        videoId: video.video_id,
+        transcript: video.transcript || '',
+        thumbnail: video.thumbnail_url || currentLesson.thumbnail,
+      });
+
+      // Also update local live transcript so UI updates immediately
+      setLiveTranscript(video.transcript || '');
+      setMessages(prev => [...prev, { role: 'model', content: `Loaded "${video.title || video.video_id}" from library.` }]);
+    } catch (err) {
+      console.error('Failed to load library video into session:', err);
+    }
+  };
 
   // Handle resize start
   const handleResizeStart = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -627,6 +646,8 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
         </div>
 
         {/* Notes Panel - Mobile: Scrollable with proper height, Desktop: Fixed height */}
+        {/* Video library search - shows cached videos and allows loading into current session */}
+        <VideoLibrarySearch courseId={courseId} lessonId={currentLesson?.id} onSelect={handleSelectLibraryVideo} />
         {isStudyPanelOpen && (
           <div className={`lg:flex-none lg:h-48 xl:h-56 lg:min-h-0 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 ${
             // Mobile: Give substantial height when open, allow scrolling within panel

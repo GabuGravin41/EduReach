@@ -1,5 +1,6 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from .models import User, Notification
 from .serializers import UserSerializer, UserProfileSerializer, ChallengeableUserSerializer
@@ -12,6 +13,8 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
+    # MultiPartParser + FormParser allow profile photo uploads via PATCH /me/
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):
         """Users can only see their own profile unless they are staff."""

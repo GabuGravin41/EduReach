@@ -18,6 +18,8 @@ protobuf>=4.25.0
 
 # YouTube transcript extraction
 youtube-transcript-api==1.2.3
+# yt-dlp for searching and subtitle fallbacks
+yt-dlp>=2024.11.0
 # HTTP requests
 requests==2.31.0
 

@@ -25,16 +25,17 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.RunSQL(
-            sql="""
-                INSERT OR IGNORE INTO payments_paymentmethod (name, display_name, is_active, config, created_at, updated_at)
+            sql="""\
+                INSERT INTO payments_paymentmethod (name, display_name, is_active, config, created_at, updated_at)
                 VALUES (
                     'paystack',
                     'Paystack (Card / Bank)',
-                    1,
+                    TRUE,
                     '{"currencies": ["NGN", "USD", "GHS", "ZAR"]}',
                     CURRENT_TIMESTAMP,
                     CURRENT_TIMESTAMP
-                );
+                )
+                ON CONFLICT (name) DO NOTHING;
             """,
             reverse_sql="DELETE FROM payments_paymentmethod WHERE name = 'paystack';",
         ),

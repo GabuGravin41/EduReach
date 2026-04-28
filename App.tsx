@@ -18,7 +18,6 @@ import { Dashboard } from './components/Dashboard';
 import { LearningSession } from './components/LearningSession';
 import { SetupSession } from './components/SetupSession';
 import { MyCoursesPage } from './components/MyCoursesPage';
-import { AssessmentsPage } from './components/AssessmentsPage';
 import { CommunityPage } from './components/CommunityPage';
 import { CourseDetailPage } from './components/CourseDetailPage';
 import { ExamDetailPage } from './components/ExamDetailPage';
@@ -39,7 +38,6 @@ const GenerateAIQuizPage = lazy(() => import('./components/GenerateAIQuizPage').
 const AdminDashboard = lazy(() => import('./components/AdminDashboard').then(module => ({ default: module.AdminDashboard })));
 const UserProfilePage = lazy(() => import('./components/UserProfilePage').then(module => ({ default: module.UserProfilePage })));
 const EnhancedAssessmentsPage = lazy(() => import('./components/EnhancedAssessmentsPage').then(module => ({ default: module.EnhancedAssessmentsPage })));
-const EnhancedCreateExamPage = lazy(() => import('./components/EnhancedCreateExamPage').then(module => ({ default: module.EnhancedCreateExamPage })));
 const StudyGroupsPage = lazy(() => import('./components/StudyGroupsPage').then(module => ({ default: module.StudyGroupsPage })));
 const BulkCreateExamPage = lazy(() => import('./components/BulkCreateExamPage').then(module => ({ default: module.BulkCreateExamPage })));
 const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard').then(module => ({ default: module.AnalyticsDashboard })));
@@ -287,7 +285,7 @@ const AppContent: React.FC = () => {
     
     // Fetch courses and usage from backend
     const { data: coursesData = [] } = useCourses();
-    const { data: assessmentsData = [] } = useAssessments();
+    const { data: assessmentsData = [], isLoading: assessmentsLoading } = useAssessments();
     const { data: usageData } = useUsage(!!user);
     const createAssessmentMutation = useCreateAssessment();
     const createCourseMutation = useCreateCourse();
@@ -716,7 +714,19 @@ const AppContent: React.FC = () => {
               </div>
            );
         case 'assessments':
-           return <EnhancedAssessmentsPage assessments={assessments} onSelectExam={(id) => setView('exam_detail', { examId: id })} setView={setView} onBulkCreate={() => setView('bulk_create_exam')} userTier={userTier} tierUsage={usageData ?? { assessments_used: 0, assessments_limit: userTier === 'free' ? 2 : Infinity, resets_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }} />;
+           return <EnhancedAssessmentsPage
+             assessments={assessments}
+             onSelectExam={(id) => setView('exam_detail', { examId: id })}
+             setView={setView}
+             onBulkCreate={() => setView('bulk_create_exam')}
+             userTier={userTier}
+             isLoading={assessmentsLoading}
+             tierUsage={usageData ?? {
+               assessments_used: 0,
+               assessments_limit: userTier === 'free' ? 5 : Infinity,
+               resets_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+             }}
+           />;
         case 'create_exam':
            return (
              <CreateExamPage

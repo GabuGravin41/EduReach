@@ -13,6 +13,8 @@ import hashlib
 import json
 
 from services.youtube_service import YouTubeTranscriptService
+from video_cache.models import VideoCache
+from django.db.models import Q
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -412,3 +414,44 @@ TIMESTAMPED NOTES:
             'success': False,
             'error': f'Server error: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def search_videos(request):
+    """
+    Search cached videos in VideoCache.
+
+    GET /api/videos/search/?q=keyword&limit=20
+    Returns: { results: [{url, title, video_id, transcript, thumbnail_url, channel_name}], total }
+    """
+    try:
+        q = (request.GET.get('q') or '').strip()
+        limit = int(request.GET.get('limit', 20))
+        if limit <= 0 or limit > 100:
+            limit = 20
+
+        if not q:
+            return Response({'results': [], 'total': 0})
+
+        # Simple search across title, channel_name, and topic_tags
+        qs = VideoCache.objects.filter(
+            Q(title__icontains=q) | Q(channel_name__icontains=q) | Q(topic_tags__contains=[q])
+        ).order_by('-fetched_at')[:limit]
+
+        results = []
+        for v in qs:
+            vid = v.video_id
+            thumb = f'https://i.ytimg.com/vi/{vid}/hqdefault.jpg' if vid else None
+            results.append({
+                'url': v.url,
+                'title': v.title,
+                'video_id': v.video_id,
+                'transcript': v.transcript_json or v.transcript,
+                'thumbnail_url': thumb,
+                'channel_name': v.channel_name,
+            })
+
+        return Response({'results': results, 'total': len(results)})
+    except Exception as e:
+        return Response({'error': f'Server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

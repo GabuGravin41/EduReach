@@ -13,6 +13,8 @@ urlpatterns = [
     path('youtube/save-notes/', youtube_views.save_video_notes, name='save_video_notes'),
     path('youtube/notes/', youtube_views.get_user_video_notes, name='get_user_video_notes'),
     path('youtube/download-notes/<int:notes_id>/', youtube_views.download_notes, name='download_notes'),
+    # Video cache search
+    path('videos/search/', youtube_views.search_videos, name='video_search'),
 
     # Analytics endpoints
     path('analytics/learner/', analytics_views.learner_analytics, name='learner_analytics'),

@@ -93,6 +93,8 @@ INSTALLED_APPS = [
     'notes.apps.NotesConfig',
     'payments.apps.PaymentsConfig',
     'study_groups.apps.StudyGroupsConfig',
+    # Video cache for pre-fetched YouTube transcripts
+    'video_cache.apps.VideoCacheConfig',
 ]
 
 MIDDLEWARE = [
