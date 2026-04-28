@@ -126,6 +126,11 @@ export const paymentService = {
     const { data } = await apiClient.post('payments/paystack/verify/', payload);
     return data;
   },
+
+  startTrial: async (tier: string): Promise<{ detail: string; trial_ends_at: string; subscription: Subscription }> => {
+    const { data } = await apiClient.post('payments/subscription/start-trial/', { tier });
+    return data;
+  },
 };
 
 export default paymentService;

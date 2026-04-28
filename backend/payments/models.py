@@ -139,6 +139,8 @@ class Subscription(TimeStampedModel):
         blank=True,
         related_name='subscriptions'
     )
+    is_trial = models.BooleanField(default=False)
+    trial_ends_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-expires_at']

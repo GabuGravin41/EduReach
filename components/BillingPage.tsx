@@ -79,13 +79,13 @@ const tiers: Record<'learner' | 'pro' | 'pro_plus', TierInfo> = {
 type FeatureRow = { feature: string; free: string | boolean; learner: string | boolean; pro: string | boolean; pro_plus: string | boolean };
 
 const featureRows: FeatureRow[] = [
-  { feature: 'AI Queries / month',       free: '20',           learner: 'Unlimited',  pro: 'Unlimited',  pro_plus: 'Unlimited'  },
-  { feature: 'Create courses',           free: '1',            learner: '5',          pro: 'Unlimited',  pro_plus: 'Unlimited'  },
-  { feature: 'Create assessments',       free: '3',            learner: '10',         pro: '50',         pro_plus: 'Unlimited'  },
-  { feature: 'Community access',         free: true,           learner: true,         pro: true,         pro_plus: true         },
-  { feature: 'Study groups',             free: false,          learner: false,        pro: true,         pro_plus: true         },
-  { feature: 'Analytics dashboard',      free: false,          learner: false,        pro: true,         pro_plus: true         },
-  { feature: 'Priority support',         free: false,          learner: false,        pro: false,        pro_plus: true         },
+  { feature: 'AI Queries / month', free: '20', learner: 'Unlimited', pro: 'Unlimited', pro_plus: 'Unlimited' },
+  { feature: 'Create courses', free: '1', learner: '5', pro: 'Unlimited', pro_plus: 'Unlimited' },
+  { feature: 'Create assessments', free: '3', learner: '10', pro: '50', pro_plus: 'Unlimited' },
+  { feature: 'Community access', free: true, learner: true, pro: true, pro_plus: true },
+  { feature: 'Study groups', free: false, learner: false, pro: true, pro_plus: true },
+  { feature: 'Analytics dashboard', free: false, learner: false, pro: true, pro_plus: true },
+  { feature: 'Priority support', free: false, learner: false, pro: false, pro_plus: true },
 ];
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -164,11 +164,10 @@ const CopyField: React.FC<{ label: string; value: string }> = ({ label, value })
         <button
           type="button"
           onClick={handleCopy}
-          className={`flex-shrink-0 px-3 py-2.5 rounded-lg text-xs font-bold transition-colors ${
-            copied
+          className={`flex-shrink-0 px-3 py-2.5 rounded-lg text-xs font-bold transition-colors ${copied
               ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
               : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-indigo-100 hover:text-indigo-700'
-          }`}
+            }`}
         >
           {copied ? 'Copied!' : 'Copy'}
         </button>
@@ -181,8 +180,8 @@ const CopyField: React.FC<{ label: string; value: string }> = ({ label, value })
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const map: Record<string, { label: string; cls: string; icon: string }> = {
     completed: { label: 'Completed', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', icon: '✓' },
-    pending:   { label: 'Pending',   cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',     icon: '⏳' },
-    failed:    { label: 'Failed',    cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',         icon: '✗' },
+    pending: { label: 'Pending', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', icon: '⏳' },
+    failed: { label: 'Failed', cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400', icon: '✗' },
   };
   const cfg = map[status] ?? { label: status, cls: 'bg-slate-100 text-slate-600', icon: '·' };
   return (
@@ -295,9 +294,9 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
         setPaystackPending(null);
         setPaymentMessage(
           response.message ||
-            (response.payment.status === 'pending'
-              ? 'Payment initiated. Complete the payment on your device, then click Activate Subscription.'
-              : 'Payment completed! Activate your subscription below.')
+          (response.payment.status === 'pending'
+            ? 'Payment initiated. Complete the payment on your device, then click Activate Subscription.'
+            : 'Payment completed! Activate your subscription below.')
         );
       }
       historyQuery.refetch();
@@ -342,6 +341,17 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
       historyQuery.refetch();
       if (onSubscriptionActivated) {
         onSubscriptionActivated(selectedTier);
+      }
+    },
+  });
+
+  const startTrialMutation = useMutation({
+    mutationFn: (tier: string) => paymentService.startTrial(tier),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['subscription'] });
+      historyQuery.refetch();
+      if (onSubscriptionActivated) {
+        onSubscriptionActivated(data.subscription.tier as 'learner' | 'pro' | 'pro_plus');
       }
     },
   });
@@ -469,8 +479,13 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
         setStkPushPending(true);
         setStkPushPaymentId(response.payment.id);
       }
-    } catch {
-      setModalPaymentMessage('Failed to send STK push. Please check your number and try again.');
+    } catch (err: any) {
+      const detail =
+        err?.response?.data?.detail ||
+        err?.response?.data?.error ||
+        err?.message ||
+        'Failed to send STK push. Please check your number and try again.';
+      setModalPaymentMessage(`Error: ${detail}`);
     }
   };
 
@@ -503,7 +518,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
       setModalPaymentMessage('Payment confirmation timed out. If you paid, please contact support.');
     }, 120000);
     return () => { clearInterval(interval); clearTimeout(timeout); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stkPushPending]);
 
   useEffect(() => {
@@ -543,13 +558,12 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
       </div>
 
       {/* ── Current subscription status ─────────────────────────────────── */}
-      <div className={`rounded-2xl p-6 border shadow-sm ${
-        safeCurrentTier === 'free'
+      <div className={`rounded-2xl p-6 border shadow-sm ${safeCurrentTier === 'free'
           ? 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700'
           : isTrial
-          ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
-          : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700'
-      }`}>
+            ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
+            : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700'
+        }`}>
         <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Current Subscription</p>
 
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -649,11 +663,10 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                   return (
                     <th
                       key={tk}
-                      className={`px-4 py-3 text-center font-bold ${
-                        isActive
+                      className={`px-4 py-3 text-center font-bold ${isActive
                           ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
                           : 'text-slate-700 dark:text-slate-200'
-                      }`}
+                        }`}
                     >
                       <div>{tierLabel}</div>
                       <div className="text-[11px] font-normal text-slate-400 mt-0.5">{price}</div>
@@ -714,11 +727,10 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                   key={code}
                   type="button"
                   onClick={() => setCurrency(code)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                    currency === code
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${currency === code
                       ? 'bg-indigo-600 text-white'
                       : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                  }`}
+                    }`}
                 >
                   {code}
                 </button>
@@ -742,13 +754,12 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                 <div
                   key={tierKey}
                   onClick={() => !isCurrent && setSelectedTier(tierKey)}
-                  className={`relative rounded-2xl border-2 p-5 cursor-pointer transition-all duration-200 flex flex-col h-full ${
-                    isSelected
+                  className={`relative rounded-2xl border-2 p-5 cursor-pointer transition-all duration-200 flex flex-col h-full ${isSelected
                       ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-500 ring-1 ring-indigo-600 shadow-lg scale-[1.02]'
                       : isCurrent
-                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/10 cursor-default opacity-80'
-                      : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800'
-                  }`}
+                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/10 cursor-default opacity-80'
+                        : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800'
+                    }`}
                 >
                   {tier.isPopular && !isCurrent && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-indigo-600 text-white text-[10px] font-bold rounded-full shadow-sm tracking-wider">
@@ -787,23 +798,34 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                   </div>
 
                   <div className="mt-auto space-y-2">
-                    <div className={`w-full py-2 rounded-xl text-center text-xs font-semibold transition-colors ${
-                      isSelected && !isCurrent
+                    <div className={`w-full py-2 rounded-xl text-center text-xs font-semibold transition-colors ${isSelected && !isCurrent
                         ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
                         : isCurrent
-                        ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30'
-                        : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
-                    }`}>
+                          ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30'
+                          : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                      }`}>
                       {isCurrent ? 'Current Plan' : isSelected ? 'Selected' : 'Select Plan'}
                     </div>
                     {!isCurrent && (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); openPaymentModal(tierKey); }}
-                        className="w-full py-2.5 rounded-xl text-center text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-colors"
-                      >
-                        Subscribe Now →
-                      </button>
+                      <>
+                        {safeCurrentTier === 'free' && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); startTrialMutation.mutate(tierKey); }}
+                            disabled={startTrialMutation.isPending}
+                            className="w-full py-2.5 rounded-xl text-center text-sm font-semibold border-2 border-indigo-500 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors disabled:opacity-60"
+                          >
+                            {startTrialMutation.isPending ? 'Starting trial...' : '🎁 Start 14-Day Free Trial'}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); openPaymentModal(tierKey); }}
+                          className="w-full py-2.5 rounded-xl text-center text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-colors"
+                        >
+                          Subscribe Now →
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -1076,11 +1098,11 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                       type="tel"
                       value={modalMpesaPhone}
                       onChange={(e) => setModalMpesaPhone(e.target.value)}
-                      placeholder="2547XXXXXXXX or 07XXXXXXXX"
+                      placeholder="e.g. 2547XXXXXXXX"
                       className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-green-500 text-slate-900 dark:text-slate-100 text-base font-mono tracking-wide"
                       autoFocus
                     />
-                    <p className="text-xs text-slate-400 mt-1">Format: 2547XXXXXXXX or 07XXXXXXXX</p>
+                    <p className="text-xs text-slate-400 mt-1">Format: 2547XXXXXXXX</p>
                   </div>
 
                   {/* Amount reminder */}

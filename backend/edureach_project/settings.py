@@ -307,9 +307,11 @@ REST_AUTH = {
     'USER_DETAILS_SERIALIZER': 'users.serializers.UserSerializer',
 }
 
-ACCOUNT_EMAIL_REQUIRED = False
-ACCOUNT_AUTHENTICATION_METHOD = 'username'
-ACCOUNT_EMAIL_VERIFICATION = 'none'
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_AUTHENTICATION_METHOD = 'username_email'
+ACCOUNT_EMAIL_VERIFICATION = os.environ.get('ACCOUNT_EMAIL_VERIFICATION', 'mandatory')
+ACCOUNT_CONFIRM_EMAIL_ON_GET = True
+ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3
 
 # Logging Configuration
 LOGGING = {
@@ -419,22 +421,23 @@ OPENROUTER_READ_TIMEOUT_LONG_SECONDS = float(os.environ.get('OPENROUTER_READ_TIM
 AI_REQUEST_DEADLINE_SECONDS = int(os.environ.get('AI_REQUEST_DEADLINE_SECONDS', '100'))
 
 # Enterprise inquiry email routing
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@edureach.app')
-ENTERPRISE_INQUIRY_EMAIL = os.environ.get('ENTERPRISE_INQUIRY_EMAIL', 'hello@edureach.app')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'EduReach <edu.reach.co@gmail.com>')
+ENTERPRISE_INQUIRY_EMAIL = os.environ.get('ENTERPRISE_INQUIRY_EMAIL', 'edu.reach.co@gmail.com')
 
-# ── Email backend ────────────────────────────────────────────────────────────
-# Set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend in .env
-# and configure the SMTP_* vars below to enable real email delivery.
-# Until then, emails are printed to the console (safe default for development).
+# ── Email backend (Gmail SMTP) ────────────────────────────────────────────────
+# Uses Gmail SMTP with an App Password (not your regular Gmail password).
+# To generate an App Password: Google Account → Security → 2-Step Verification → App passwords
+# Set EMAIL_BACKEND in .env to override (e.g. console backend for local dev).
 EMAIL_BACKEND = os.environ.get(
     'EMAIL_BACKEND',
-    'django.core.mail.backends.console.EmailBackend',
+    'django.core.mail.backends.smtp.EmailBackend' if ENVIRONMENT == 'production'
+    else 'django.core.mail.backends.console.EmailBackend',
 )
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.sendgrid.net')
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'true').lower() == 'true'
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'apikey')  # SendGrid uses 'apikey'
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')  # SendGrid API key
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'edu.reach.co@gmail.com')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')  # Gmail App Password
 
 # Paystack payment integration
 PAYSTACK_SECRET_KEY = os.environ.get('PAYSTACK_SECRET_KEY', '')

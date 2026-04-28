@@ -48,6 +48,8 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             'last_payment',
             'price',
             'currency',
+            'is_trial',
+            'trial_ends_at',
             'created_at',
             'updated_at',
         ]
@@ -60,6 +62,8 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             'last_payment',
             'price',
             'currency',
+            'is_trial',
+            'trial_ends_at',
             'created_at',
             'updated_at',
         ]

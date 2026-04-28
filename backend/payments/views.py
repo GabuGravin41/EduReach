@@ -450,6 +450,114 @@ class SubscriptionCancelView(APIView):
         return Response({'detail': 'Subscription will remain active until the current period ends.'})
 
 
+class StartTrialView(APIView):
+    """
+    Starts a 14-day free trial for the authenticated user.
+    Rules:
+      - One trial per user, ever.
+      - Cannot start a trial if the user already has an active paid subscription.
+      - Trial tier defaults to 'pro' unless a valid tier is supplied.
+    POST /api/payments/subscription/start-trial/
+    Body: { "tier": "learner" | "pro" | "pro_plus" }   (optional, defaults to "pro")
+    """
+
+    TRIAL_DAYS = 14
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        tier = request.data.get('tier', 'pro')
+        valid_tiers = {'learner', 'pro', 'pro_plus'}
+        if tier not in valid_tiers:
+            return Response(
+                {'detail': f'tier must be one of: {", ".join(sorted(valid_tiers))}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        existing = Subscription.objects.filter(user=user).first()
+        if existing:
+            if existing.is_trial and existing.status == Subscription.Status.ACTIVE:
+                return Response(
+                    {'detail': 'You already have an active free trial.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if not existing.is_trial and existing.status == Subscription.Status.ACTIVE:
+                return Response(
+                    {'detail': 'You already have an active paid subscription.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            # Check if they've ever had a trial (even expired/cancelled)
+            if Subscription.objects.filter(user=user, is_trial=True).exists():
+                return Response(
+                    {'detail': 'You have already used your free trial.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        now = timezone.now()
+        trial_end = now + timedelta(days=self.TRIAL_DAYS)
+
+        with transaction.atomic():
+            subscription, _ = Subscription.objects.get_or_create(
+                user=user,
+                defaults={
+                    'tier': tier,
+                    'status': Subscription.Status.ACTIVE,
+                    'started_at': now,
+                    'expires_at': trial_end,
+                    'is_trial': True,
+                    'trial_ends_at': trial_end,
+                    'price': 0,
+                    'currency': 'KES',
+                    'auto_renew': False,
+                },
+            )
+            if not _:
+                # Edge case: row existed but trial check above passed; update it.
+                subscription.tier = tier
+                subscription.status = Subscription.Status.ACTIVE
+                subscription.started_at = now
+                subscription.expires_at = trial_end
+                subscription.is_trial = True
+                subscription.trial_ends_at = trial_end
+                subscription.price = 0
+                subscription.auto_renew = False
+                subscription.save(update_fields=[
+                    'tier', 'status', 'started_at', 'expires_at',
+                    'is_trial', 'trial_ends_at', 'price', 'auto_renew', 'updated_at',
+                ])
+
+            # Update user tier
+            if hasattr(user, 'tier'):
+                user.tier = tier
+                user.save(update_fields=['tier'])
+
+            # In-app notification
+            try:
+                from users.models import Notification
+                tier_labels = {'learner': 'Learner', 'pro': 'Pro', 'pro_plus': 'Pro Plus'}
+                tier_label = tier_labels.get(tier, tier.title())
+                Notification.objects.create(
+                    recipient=user,
+                    notif_type=Notification.NotifType.PAYMENT_SUCCESS,
+                    title=f'🎉 Your 14-day free trial has started!',
+                    message=(
+                        f'Welcome to EduReach {tier_label}! Your free trial runs until '
+                        f'{trial_end.strftime("%B %d, %Y")}. No payment needed yet.'
+                    ),
+                )
+            except Exception:
+                pass
+
+        serializer = SubscriptionSerializer(subscription)
+        return Response({
+            'detail': f'Your 14-day free trial has started! Enjoy EduReach {tier.replace("_", " ").title()}.',
+            'trial_ends_at': trial_end.isoformat(),
+            'subscription': serializer.data,
+        }, status=status.HTTP_201_CREATED)
+
+
+
+
 class EnterpriseInquiryView(APIView):
     """
     Accepts enterprise/institution inquiries and forwards them to sales email.
