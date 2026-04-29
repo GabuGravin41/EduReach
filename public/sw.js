@@ -174,3 +174,53 @@ self.addEventListener('fetch', (event) => {
     );
   }
 });
+
+// ─── Push Notifications ───────────────────────────────────────────────────────
+// Fired when the backend sends a Web Push message (even if the app tab is closed).
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: 'EduReach', body: event.data ? event.data.text() : 'You have a new notification.' };
+  }
+
+  const title = data.title || 'EduReach';
+  const options = {
+    body: data.body || '',
+    icon: data.icon || '/logo.svg',
+    badge: data.badge || '/logo-no-name.jpeg',
+    tag: data.tag || 'edureach-notification',
+    data: { url: data.url || '/' },
+    // Keep notification visible until user interacts
+    requireInteraction: false,
+    // Vibration pattern for mobile (ms on, ms off, ms on)
+    vibrate: [200, 100, 200],
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// ─── Notification Click ───────────────────────────────────────────────────────
+// When the user taps a push notification, open/focus the app at the right URL.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // If the app is already open in a tab, focus it and navigate
+      for (const client of windowClients) {
+        if ('focus' in client) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+      // Otherwise open a new window
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
+  );
+});

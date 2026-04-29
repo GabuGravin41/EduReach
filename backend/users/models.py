@@ -326,3 +326,36 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"[{self.notif_type}] {self.recipient.username}: {self.title}"
+
+
+class PushSubscription(models.Model):
+    """
+    Stores a Web Push subscription for one browser/device.
+
+    Created when the user grants push-notification permission in the PWA.
+    Each user may have multiple active subscriptions (one per device/browser).
+    Stale subscriptions (410 response from push provider) are marked is_active=False.
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="push_subscriptions",
+    )
+    # The push service endpoint URL (unique per subscription)
+    endpoint = models.TextField(unique=True)
+    # VAPID P-256 DH public key (base64url-encoded)
+    p256dh = models.TextField()
+    # VAPID auth secret (base64url-encoded)
+    auth = models.TextField()
+    # UA info for debugging (e.g. "Chrome 124 / Android")
+    user_agent = models.CharField(max_length=300, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"PushSub({self.user.username}) — {'active' if self.is_active else 'inactive'}"

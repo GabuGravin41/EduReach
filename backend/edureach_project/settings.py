@@ -309,7 +309,7 @@ REST_AUTH = {
 
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_AUTHENTICATION_METHOD = 'username_email'
-ACCOUNT_EMAIL_VERIFICATION = os.environ.get('ACCOUNT_EMAIL_VERIFICATION', 'mandatory')
+ACCOUNT_EMAIL_VERIFICATION = os.environ.get('ACCOUNT_EMAIL_VERIFICATION', 'optional')
 ACCOUNT_CONFIRM_EMAIL_ON_GET = True
 ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3
 
@@ -444,6 +444,22 @@ PAYSTACK_SECRET_KEY = os.environ.get('PAYSTACK_SECRET_KEY', '')
 
 # Frontend URL for email links (study reminders, etc.)
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://edureach.app')
+
+# ── Web Push (VAPID) ─────────────────────────────────────────────────────────
+# Generate keys once with: python3 -c "from py_vapid import Vapid; ..."
+# See backend/users/push_notifications.py for usage.
+# VAPID_PUBLIC_KEY  — URL-safe base64 uncompressed P-256 public key
+# VAPID_PRIVATE_KEY — PEM-encoded EC private key (keep this secret!)
+# VAPID_ADMIN_EMAIL — contact email sent in VAPID JWT claims
+VAPID_PUBLIC_KEY = os.environ.get(
+    'VAPID_PUBLIC_KEY',
+    'BHIAem5RQZQl2hGO2-1F4xHPBhO0ePyKJaifjzJsuUK5MNnVqic-RlcixpFHjlOweA3PY8w6Q_kxL5J9qqcsrxA',
+)
+VAPID_PRIVATE_KEY = os.environ.get(
+    'VAPID_PRIVATE_KEY',
+    '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgMjgCFwj8WL2aLa2w\nRyXqDTgIYQvqB/jSIlzzUNAtVRihRANCAARyAHpuUUGUJdoRjtvtReMRzwYTtHj8\niiWon48ybLlCuTDZ1aonPkZXIsaRR45TsHgNz2PMOkP5MS+SfaqnLK8Q\n-----END PRIVATE KEY-----',
+)
+VAPID_ADMIN_EMAIL = os.environ.get('VAPID_ADMIN_EMAIL', 'admin@edureach.app')
 
 # CSRF trusted origins — must include every frontend domain that POSTs to the API
 # Reuse the same origins already validated for CORS.

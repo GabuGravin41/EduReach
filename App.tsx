@@ -23,6 +23,7 @@ import { CourseDetailPage } from './components/CourseDetailPage';
 import { ExamDetailPage } from './components/ExamDetailPage';
 import { BillingPage } from './components/BillingPage';
 import { TrialBanner } from './components/TrialBanner';
+import { PushNotificationPrompt } from './components/PushNotificationPrompt';
 import { UserCircleIcon } from './components/icons/UserCircleIcon';
 import { MenuIcon } from './components/icons/MenuIcon';
 import { SparklesIcon } from './components/icons/SparklesIcon';
@@ -272,6 +273,9 @@ const AppContent: React.FC = () => {
     const updateCountdownRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
     const [courseCreationToast, setCourseCreationToast] = useState<CourseCreationToast>(null);
     const [trialBannerDismissed, setTrialBannerDismissed] = useState(false);
+    const [pushPromptDismissed, setPushPromptDismissed] = useState(() => {
+      try { return sessionStorage.getItem('edureach:push-prompt-dismissed') === '1'; } catch { return false; }
+    });
     const [recentlyCreatedCourseId, setRecentlyCreatedCourseId] = useState<number | null>(null);
     const [cachedCourses, setCachedCourses] = useState<Course[]>(() => {
       if (typeof window === 'undefined') return [];
@@ -743,7 +747,7 @@ const AppContent: React.FC = () => {
            );
         case 'generate_ai_quiz':
            return <GenerateAIQuizPage onQuizCreated={handleExamCreated} onCancel={() => setView('assessments')} courses={courses} />;
-        case 'exam_detail': {
+         case 'exam_detail': {
            if (!selectedExamId) {
              return (
                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-10 text-center">
@@ -754,7 +758,9 @@ const AppContent: React.FC = () => {
            }
            const examFromList = assessments.find(a => a.id === selectedExamId);
            const detailData = assessmentDetailQuery.data;
-           const exam = examFromList ?? (detailData ? mapApiAssessmentToUi(detailData) : null);
+           // Prefer fresh detail data (has questions); fall back to list item while loading
+           const exam = detailData ? mapApiAssessmentToUi(detailData) : (examFromList ?? null);
+           // Still loading and we have nothing at all — show spinner
            if (!exam && (assessmentDetailQuery.isLoading || assessmentDetailQuery.isFetching)) {
              return (
                <div className="flex justify-center items-center py-20">
@@ -765,6 +771,8 @@ const AppContent: React.FC = () => {
                </div>
              );
            }
+           // Pass both the list-item fallback (for title/meta) and the detail query state
+           // ExamDetailPage handles its own detail fetch + error/retry UI internally
            return exam ? (
              <ExamDetailPage exam={exam} setView={setView} />
            ) : (
@@ -918,6 +926,15 @@ const AppContent: React.FC = () => {
                   daysRemaining={user.trial_days_remaining}
                   onUpgradeClick={() => navigate(ROUTES.billing)}
                   onDismiss={() => setTrialBannerDismissed(true)}
+                />
+              )}
+              {/* Push notification opt-in prompt */}
+              {!pushPromptDismissed && user && currentView !== 'learning_session' && (
+                <PushNotificationPrompt
+                  onDismiss={() => {
+                    setPushPromptDismissed(true);
+                    try { sessionStorage.setItem('edureach:push-prompt-dismissed', '1'); } catch {}
+                  }}
                 />
               )}
 

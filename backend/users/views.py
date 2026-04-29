@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from .models import User, Notification
 from .serializers import UserSerializer, UserProfileSerializer, ChallengeableUserSerializer
 from courses.models import Course
@@ -161,3 +162,69 @@ class NotificationViewSet(viewsets.ViewSet):
         """Mark all notifications as read."""
         Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True)
         return Response({'detail': 'All notifications marked as read.'})
+
+
+class PushSubscriptionView(APIView):
+    """
+    Register or unregister a Web Push subscription for the current user/device.
+
+    POST  /api/notifications/push/subscribe/    — save or refresh a subscription
+    DELETE /api/notifications/push/subscribe/   — unsubscribe (mark inactive)
+    GET   /api/notifications/push/vapid-key/    — return VAPID public key for browser
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from .models import PushSubscription  # noqa: PLC0415
+
+        endpoint = (request.data.get('endpoint') or '').strip()
+        keys = request.data.get('keys') or {}
+        p256dh = (keys.get('p256dh') or '').strip()
+        auth = (keys.get('auth') or '').strip()
+
+        if not endpoint or not p256dh or not auth:
+            return Response(
+                {'detail': 'endpoint, keys.p256dh, and keys.auth are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ua = request.META.get('HTTP_USER_AGENT', '')[:300]
+
+        # Upsert: update existing if endpoint already known, else create
+        sub, created = PushSubscription.objects.update_or_create(
+            endpoint=endpoint,
+            defaults={
+                'user': request.user,
+                'p256dh': p256dh,
+                'auth': auth,
+                'user_agent': ua,
+                'is_active': True,
+            },
+        )
+        return Response(
+            {'detail': 'Subscription saved.', 'created': created},
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    def delete(self, request):
+        from .models import PushSubscription  # noqa: PLC0415
+
+        endpoint = (request.data.get('endpoint') or '').strip()
+        if not endpoint:
+            return Response({'detail': 'endpoint is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        PushSubscription.objects.filter(endpoint=endpoint, user=request.user).update(is_active=False)
+        return Response({'detail': 'Unsubscribed.'})
+
+
+class VapidPublicKeyView(APIView):
+    """Return the VAPID public key for the frontend to subscribe with."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        from django.conf import settings as django_settings  # noqa: PLC0415
+        key = getattr(django_settings, 'VAPID_PUBLIC_KEY', '')
+        if not key:
+            return Response({'detail': 'Push notifications not configured.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return Response({'vapid_public_key': key})

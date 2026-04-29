@@ -46,6 +46,7 @@ class Command(BaseCommand):
         from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@edureach.app')
         now = timezone.now()
         Notification = _notif_model()
+        from users.push_notifications import push_to_user  # noqa: PLC0415
 
         if not send:
             self.stdout.write(self.style.WARNING(
@@ -114,6 +115,14 @@ class Command(BaseCommand):
                         logger.info('Trial expiry reminder sent to user %s', user.id)
                     except Exception as exc:
                         logger.error('Failed to email %s: %s', user.email, exc)
+                # Web Push
+                push_to_user(
+                    user,
+                    title=f'⏰ {days_left} day{"s" if days_left != 1 else ""} left on your Pro trial',
+                    body='Upgrade now to keep unlimited AI tutoring, advanced assessments, and more.',
+                    url='/billing',
+                    tag='trial-expiring',
+                )
             else:
                 self.stdout.write(
                     f'  [DRY] Would notify {user.username} ({user.email}) — {days_left}d left'
@@ -169,6 +178,14 @@ class Command(BaseCommand):
                         total_notified += 1
                     except Exception as exc:
                         logger.error('Failed to email %s: %s', user.email, exc)
+                # Web Push — last-chance nudge
+                push_to_user(
+                    user,
+                    title='🚨 Your Pro trial ends today!',
+                    body='Upgrade now to keep all Pro features without interruption.',
+                    url='/billing',
+                    tag='trial-ending-today',
+                )
             else:
                 self.stdout.write(f'  [DRY] Would notify {user.username} — ends today')
 

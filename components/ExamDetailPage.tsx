@@ -29,6 +29,7 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
             : '';
 
     const [isLoadingDetail, setIsLoadingDetail] = React.useState(true);
+    const [detailError, setDetailError] = React.useState<string | null>(null);
     const [hasStarted, setHasStarted] = React.useState(false);
     const [attempts, setAttempts] = React.useState<AssessmentAttempt[]>([]);
     const [isLoadingAttempts, setIsLoadingAttempts] = React.useState(false);
@@ -59,16 +60,32 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
     React.useEffect(() => {
         const load = async () => {
             setIsLoadingDetail(true);
+            setDetailError(null);
             try {
                 const detail = await assessmentService.getAssessment(exam.id);
                 setLiveExam(detail as any);
-            } catch {
-                // keep fallback exam object from props for offline mode
+            } catch (err: any) {
+                const msg = err?.response?.data?.detail || err?.message || 'Failed to load assessment details.';
+                setDetailError(msg);
+                // keep fallback exam object from props — questions may be missing but at least title shows
             } finally {
                 setIsLoadingDetail(false);
             }
         };
         load();
+    }, [exam.id]);
+
+    // Retry handler for when the detail fetch fails
+    const retryLoadDetail = React.useCallback(() => {
+        setIsLoadingDetail(true);
+        setDetailError(null);
+        assessmentService.getAssessment(exam.id)
+            .then((detail) => setLiveExam(detail as any))
+            .catch((err: any) => {
+                const msg = err?.response?.data?.detail || err?.message || 'Failed to load assessment details.';
+                setDetailError(msg);
+            })
+            .finally(() => setIsLoadingDetail(false));
     }, [exam.id]);
 
     React.useEffect(() => {
@@ -463,6 +480,21 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                             <div className="h-full flex flex-col items-center justify-center gap-3 text-slate-500">
                                 <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                                 <p className="text-sm font-medium">Loading assessment...</p>
+                            </div>
+                        ) : detailError ? (
+                            /* Server error — show retry, don't blank the screen */
+                            <div className="h-full flex flex-col items-center justify-center gap-4 p-8 text-center">
+                                <span className="text-4xl">⚠️</span>
+                                <div>
+                                    <h3 className="text-base font-bold text-slate-700 dark:text-slate-200 mb-1">Couldn't load questions</h3>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 max-w-xs">{detailError}</p>
+                                    <button
+                                        onClick={retryLoadDetail}
+                                        className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold transition-colors shadow"
+                                    >
+                                        🔄 Retry
+                                    </button>
+                                </div>
                             </div>
                         ) : quizData.length > 0 && !hasStarted ? (
                             <div className="h-full flex flex-col items-center justify-center gap-6 p-8">
