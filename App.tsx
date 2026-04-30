@@ -42,6 +42,8 @@ const EnhancedAssessmentsPage = lazy(() => import('./components/EnhancedAssessme
 const StudyGroupsPage = lazy(() => import('./components/StudyGroupsPage').then(module => ({ default: module.StudyGroupsPage })));
 const BulkCreateExamPage = lazy(() => import('./components/BulkCreateExamPage').then(module => ({ default: module.BulkCreateExamPage })));
 const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard').then(module => ({ default: module.AnalyticsDashboard })));
+const TermsOfServicePage = lazy(() => import('./components/TermsOfServicePage').then(module => ({ default: module.TermsOfServicePage })));
+const PrivacyPolicyPage = lazy(() => import('./components/PrivacyPolicyPage').then(module => ({ default: module.PrivacyPolicyPage })));
 
   
 export type UserTier = 'free' | 'learner' | 'pro' | 'pro_plus' | 'admin';
@@ -840,6 +842,10 @@ const AppContent: React.FC = () => {
               </div>
            );
         }
+        case 'terms':
+           return <TermsOfServicePage />;
+        case 'privacy':
+           return <PrivacyPolicyPage />;
         default:
           return (
             <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-10 text-center">
@@ -928,15 +934,7 @@ const AppContent: React.FC = () => {
                   onDismiss={() => setTrialBannerDismissed(true)}
                 />
               )}
-              {/* Push notification opt-in prompt */}
-              {!pushPromptDismissed && user && currentView !== 'learning_session' && (
-                <PushNotificationPrompt
-                  onDismiss={() => {
-                    setPushPromptDismissed(true);
-                    try { sessionStorage.setItem('edureach:push-prompt-dismissed', '1'); } catch {}
-                  }}
-                />
-              )}
+              {/* Push notification prompt moved to settings/profile to reduce top banner clutter */}
 
               {isOffline && (
                 <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">

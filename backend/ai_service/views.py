@@ -411,10 +411,17 @@ IMPORTANT: Return ONLY valid JSON with exactly {batch_count} questions.{avoid_cl
 Use LaTeX ($...$ for inline, $$...$$ for block math) for any formulas:
 {{"questions": [
   {{
-    "question": "Sample question text?",
+    "question": "Sample multiple choice question?",
     "type": "mcq",
-    "options": ["Option A", "Option B", "Option C", "Option D"],
-    "correct_answer": "Option A",
+    "options": ["Correct Option", "Wrong Option 1", "Wrong Option 2", "Wrong Option 3"],
+    "correct_answer": "Correct Option",
+    "explanation": "Why this is correct"
+  }},
+  {{
+    "question": "Sample true/false question?",
+    "type": "true_false",
+    "options": ["True", "False"],
+    "correct_answer": "True",
     "explanation": "Why this is correct"
   }}
 ]}}
@@ -422,11 +429,11 @@ Use LaTeX ($...$ for inline, $$...$$ for block math) for any formulas:
 Requirements:
 - Generate exactly {batch_count} questions
 - Mix question types: multiple choice, true/false, short answer
-- CRITICAL for multiple choice: you MUST always include an "options" array with exactly 4 non-empty string values. The "correct_answer" must be the FULL TEXT of one of those options (not just a letter like A/B/C/D). Never omit or leave the options array empty.
-- For true/false: set correct_answer to "True" or "False"
-- For short answer: provide the expected answer
-- Include detailed explanations for all questions
-- Questions should test key concepts from the content"""
+- CRITICAL for 'mcq' type: you MUST ALWAYS provide the 'options' array with exactly 4 strings. DO NOT OMIT 'options'.
+- CRITICAL for 'true_false' type: provide 'options': ["True", "False"].
+- The 'correct_answer' must perfectly match one of the items in the 'options' array.
+- For short answer: provide the expected answer in 'correct_answer' and omit 'options'.
+- Include detailed explanations for all questions."""
 
             try:
                 response_text = call_ai(
@@ -435,13 +442,34 @@ Requirements:
                     prefer_openrouter=True,
                     openrouter_read_timeout=long_read,
                 )
-                batch_data = safe_json_loads(response_text)
+                
+                # Clean markdown blocks if present
+                cleaned_text = response_text.strip()
+                if cleaned_text.startswith("```json"): cleaned_text = cleaned_text[7:]
+                if cleaned_text.endswith("```"): cleaned_text = cleaned_text[:-3]
+                
+                import json
+                batch_data = json.loads(cleaned_text.strip())
+                
                 if batch_data and isinstance(batch_data, dict):
                     batch_questions = batch_data.get('questions', [])
-                    if isinstance(batch_questions, list):
-                        all_questions.extend(batch_questions)
                 elif batch_data and isinstance(batch_data, list):
-                    all_questions.extend(batch_data)
+                    batch_questions = batch_data
+                else:
+                    batch_questions = []
+
+                # Post-processing to enforce validity
+                valid_questions = []
+                for q in batch_questions:
+                    q_type = q.get('type', 'mcq')
+                    options = q.get('options', [])
+                    if q_type == 'mcq' and (not isinstance(options, list) or len(options) < 2):
+                        continue # Drop invalid MCQ
+                    if q_type == 'true_false' and not options:
+                        q['options'] = ['True', 'False']
+                    valid_questions.append(q)
+
+                all_questions.extend(valid_questions)
             except Exception as batch_err:
                 logger.warning("Quiz batch %d/%d failed: %s", batch_idx + 1, total_batches, batch_err)
                 batch_errors.append(f"Batch {batch_idx + 1}: {str(batch_err)[:100]}")

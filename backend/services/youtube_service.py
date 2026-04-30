@@ -457,6 +457,19 @@ def extract_transcript(request):
     if not video_id:
         return Response({'error': 'Missing videoId'}, status=400)
     try:
+        from video_cache.models import VideoCache
+        db_cache = VideoCache.objects.filter(video_id=video_id, is_processed=True).first()
+        if db_cache:
+            return Response({
+                'success': True,
+                'video_id': video_id,
+                'transcript': db_cache.transcript,
+                'concepts': db_cache.concepts,
+                'relationships': db_cache.relationships,
+                'quizzes': db_cache.quizzes,
+                'source': 'database'
+            })
+
         service = YouTubeTranscriptService()
         result = service.extract_transcript(video_id)
         if result and result.get('success'):

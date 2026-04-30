@@ -52,6 +52,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   const [transcriptDraft, setTranscriptDraft] = useState('');
   const [transcriptSaving, setTranscriptSaving] = useState(false);
   const [transcriptSaveMsg, setTranscriptSaveMsg] = useState<string | null>(null);
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
 
   const { user } = useAuth();
   const isAdmin = user?.tier === 'admin';
@@ -634,6 +635,20 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
             </button>
           </div>
 
+          {/* Support Creator Button */}
+          <div className="absolute top-4 left-4 z-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <button
+              onClick={() => setIsSupportModalOpen(true)}
+              className="bg-black/60 hover:bg-black/80 text-white/90 text-xs px-3 py-1.5 rounded-full backdrop-blur-sm transition-all shadow-lg border border-white/10 flex items-center gap-1.5"
+              title="Support Creator"
+            >
+              <svg className="w-3.5 h-3.5 text-rose-500" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+              </svg>
+              Support Creator
+            </button>
+          </div>
+
           {/* Resize Handle - Bottom Border - LARGER and EASIER TO GRAB */}
           <div
             onMouseDown={handleResizeStart}
@@ -851,6 +866,42 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
                   onSeekTo={handleSeekTo}
                 />
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Support Creator Modal ─────────────────────────────────────────────── */}
+      {isSupportModalOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsSupportModalOpen(false)} />
+          <div className="relative z-10 w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-rose-100 dark:border-rose-900/50 overflow-hidden flex flex-col p-6 text-center animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-500 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">Support the Creator</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
+              If you find this video helpful, please consider liking and subscribing on YouTube. It helps the creator out!
+            </p>
+            <div className="flex flex-col gap-3">
+              <a
+                href={`https://www.youtube.com/watch?v=${videoId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setIsSupportModalOpen(false)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-medium transition-colors shadow-sm"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
+                Like & Subscribe on YouTube
+              </a>
+              <button
+                onClick={() => setIsSupportModalOpen(false)}
+                className="w-full py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-sm font-medium"
+              >
+                Maybe Later
+              </button>
             </div>
           </div>
         </div>

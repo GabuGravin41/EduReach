@@ -7,10 +7,10 @@ from .models import VideoCache
 
 @admin.register(VideoCache)
 class VideoCacheAdmin(admin.ModelAdmin):
-    list_display = ('video_id', 'title', 'channel_name', 'fetched_at')
+    list_display = ('video_id', 'title', 'channel_name', 'is_processed', 'fetched_at')
     search_fields = ('video_id', 'title', 'channel_name')
-    list_filter = ('fetched_at',)
-    actions = ['export_selected_as_json']
+    list_filter = ('is_processed', 'fetched_at',)
+    actions = ['export_selected_as_json', 'extract_knowledge_action']
 
     def export_selected_as_json(self, request, queryset):
         data = []
@@ -33,3 +33,18 @@ class VideoCacheAdmin(admin.ModelAdmin):
         return resp
 
     export_selected_as_json.short_description = 'Export selected videos as JSON'
+
+    def extract_knowledge_action(self, request, queryset):
+        from .services import extract_knowledge_for_video
+        success_count = 0
+        failure_count = 0
+        
+        for obj in queryset:
+            if extract_knowledge_for_video(obj):
+                success_count += 1
+            else:
+                failure_count += 1
+                
+        self.message_user(request, f"Knowledge extraction complete: {success_count} succeeded, {failure_count} failed.")
+
+    extract_knowledge_action.short_description = 'Extract Knowledge with AI (Gemini)'

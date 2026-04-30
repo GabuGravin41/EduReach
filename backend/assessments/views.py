@@ -29,9 +29,12 @@ class AssessmentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """Filter assessments based on user permissions."""
-        if self.request.user.is_authenticated:
+        user = self.request.user
+        if user.is_authenticated:
+            if user.is_superuser or getattr(user, 'tier', '') == 'admin':
+                return Assessment.objects.all().select_related('creator').prefetch_related('questions')
             return Assessment.objects.filter(
-                models.Q(is_public=True) | models.Q(creator=self.request.user)
+                models.Q(is_public=True) | models.Q(creator=user)
             ).select_related('creator').prefetch_related('questions')
         return Assessment.objects.filter(is_public=True).select_related('creator').prefetch_related('questions')
 

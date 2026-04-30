@@ -3,6 +3,10 @@ from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+from django.conf import settings
 from .models import User, Notification
 from .serializers import UserSerializer, UserProfileSerializer, ChallengeableUserSerializer
 from courses.models import Course
@@ -228,3 +232,63 @@ class VapidPublicKeyView(APIView):
         if not key:
             return Response({'detail': 'Push notifications not configured.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         return Response({'vapid_public_key': key})
+
+
+class GoogleLoginView(APIView):
+    """
+    Endpoint to verify Google ID token and return JWT tokens.
+    POST /api/users/google-login/
+    {
+        "token": "..."
+    }
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        token = request.data.get('token')
+        if not token:
+            return Response({'error': 'Token is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Verify the token with Google
+            client_id = getattr(settings, 'GOOGLE_CLIENT_ID', None)
+            if not client_id:
+                return Response({'error': 'Google authentication is not configured on the server'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            
+            idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), client_id)
+            
+            email = idinfo.get('email')
+            first_name = idinfo.get('given_name', '')
+            last_name = idinfo.get('family_name', '')
+            
+            if not email:
+                return Response({'error': 'Google token did not provide an email address'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Get or create user
+            user, created = User.objects.get_or_create(
+                email=email,
+                defaults={
+                    'username': email.split('@')[0],
+                    'first_name': first_name,
+                    'last_name': last_name,
+                }
+            )
+            
+            # If user existed but without first/last name (from another signup method), update them
+            if not created and (not user.first_name or not user.last_name):
+                user.first_name = user.first_name or first_name
+                user.last_name = user.last_name or last_name
+                user.save(update_fields=['first_name', 'last_name'])
+
+            # Generate tokens
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'user': UserSerializer(user).data,
+                'is_new_user': created
+            })
+
+        except ValueError as e:
+            return Response({'error': f'Invalid token: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)

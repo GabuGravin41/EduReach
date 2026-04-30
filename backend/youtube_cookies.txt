@@ -1,0 +1,3 @@
+# Paste your exported YouTube cookies here in Netscape format.
+# Example:
+# .youtube.com	TRUE	/	TRUE	1745422894	LOGIN_INFO	AFmmF2s...

@@ -407,78 +407,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                 </div>
             </div>
 
-            {/* Join a challenge — paste a link to open an assessment and join its challenge */}
-            <div className="mb-8 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-gradient-to-r from-indigo-50 to-slate-50 dark:from-indigo-950/30 dark:to-slate-800/50 p-4 sm:p-5">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Join a challenge</label>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Have a challenge link? Paste it below to open the assessment and join. You can then take the assessment and compare results with others.</p>
-                        <input
-                            type="text"
-                            value={challengeLinkInput}
-                            onChange={(e) => { setChallengeLinkInput(e.target.value); setChallengeLinkError(''); }}
-                            placeholder="https://.../assessments/123?share_token=..."
-                            className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        />
-                        {challengeLinkError && <p className="mt-1.5 text-sm text-rose-600 dark:text-rose-400">{challengeLinkError}</p>}
-                    </div>
-                    <button
-                        type="button"
-                        onClick={handleJoinChallengeByLink}
-                        className="flex-shrink-0 px-5 py-2.5 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors flex items-center gap-2"
-                    >
-                        <SwordsIcon className="w-5 h-5" />
-                        Open & join
-                    </button>
-                </div>
-            </div>
 
-            {/* Public challenges — discoverable by everyone on the platform */}
-            <div className="mb-8">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-3 flex items-center gap-2">
-                    <SwordsIcon className="w-6 h-6 text-amber-500" />
-                    Public challenges
-                </h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Challenges from others on the platform. Join any to take the assessment and compare results.</p>
-                {publicChallengesLoading ? (
-                    <div className="flex items-center gap-2 text-slate-500 py-4">
-                        <span className="inline-block w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-                        Loading…
-                    </div>
-                ) : publicChallenges.length === 0 ? (
-                    <p className="text-sm text-slate-500 dark:text-slate-400 py-4">No public challenges right now. Create one by opening an assessment and choosing Challenge → Public challenge.</p>
-                ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {publicChallenges.map((ch) => (
-                            <div
-                                key={ch.id}
-                                className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex flex-col"
-                            >
-                                <h3 className="font-semibold text-slate-800 dark:text-slate-100 line-clamp-2">{ch.title}</h3>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                    {ch.creator_username && <span>by {ch.creator_username}</span>}
-                                    {ch.creator_username && ch.topic && ' · '}
-                                    {ch.topic}
-                                </p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                    {ch.question_count} questions · {ch.time_limit_minutes} min
-                                </p>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        const qs = ch.share_token ? `?share_token=${ch.share_token}` : '';
-                                        navigate(`/assessments/${ch.id}${qs}`);
-                                    }}
-                                    className="mt-3 w-full py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm flex items-center justify-center gap-2"
-                                >
-                                    <SwordsIcon className="w-4 h-4" />
-                                    Join challenge
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
 
             {/* Create New Section */}
             <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-slate-800 dark:to-slate-700 rounded-xl p-6 mb-8">

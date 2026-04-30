@@ -10,6 +10,10 @@ class VideoCache(models.Model):
     transcript_json = models.JSONField(null=True, blank=True)
     topic_tags = models.JSONField(default=list, blank=True)
     metadata = models.JSONField(default=dict, blank=True)
+    concepts = models.JSONField(default=list, blank=True)
+    relationships = models.JSONField(default=list, blank=True)
+    quizzes = models.JSONField(default=list, blank=True)
+    is_processed = models.BooleanField(default=False)
     fetched_at = models.DateTimeField(auto_now_add=True)
     last_accessed = models.DateTimeField(null=True, blank=True)
 

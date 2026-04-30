@@ -37,7 +37,27 @@ def extract_youtube_transcript(request):
                 'error': 'YouTube URL is required'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Check cache first
+        # Check database for pre-processed knowledge first
+        from services.youtube_service import YouTubeTranscriptService
+        service = YouTubeTranscriptService()
+        video_id = service.extract_video_id(url)
+        
+        if video_id:
+            db_cache = VideoCache.objects.filter(video_id=video_id, is_processed=True).first()
+            if db_cache:
+                return Response({
+                    'success': True,
+                    'cached': True,
+                    'video_id': video_id,
+                    'metadata': db_cache.metadata,
+                    'transcript': db_cache.transcript,
+                    'concepts': db_cache.concepts,
+                    'relationships': db_cache.relationships,
+                    'quizzes': db_cache.quizzes,
+                    'source': 'database'
+                })
+
+        # Check Redis cache
         cache_key = f"youtube_transcript:{hashlib.md5(f'{url}:{language}'.encode()).hexdigest()}"
         cached_result = cache.get(cache_key)
         
@@ -176,7 +196,7 @@ def test_transcripts(request):
     if not urls or not isinstance(urls, list):
         return Response({'error': 'Provide a list of URLs in the "urls" field'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if len(urls) > 20:
+    if len(urls) > 20:https://edureach-backend.onrender.com/api
         return Response({'error': 'Maximum 20 URLs per request'}, status=status.HTTP_400_BAD_REQUEST)
 
     service = YouTubeTranscriptService()
