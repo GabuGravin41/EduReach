@@ -271,9 +271,15 @@ const AppContent: React.FC = () => {
     const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
     const [showInstallPrompt, setShowInstallPrompt] = useState(false);
     const [updateToastVisible, setUpdateToastVisible] = useState(false);
-    const [updateCountdown, setUpdateCountdown] = useState(30);
-    const updateCountdownRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
-    const [courseCreationToast, setCourseCreationToast] = useState<CourseCreationToast>(null);
+    const updateCountdownRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+    
+    const toast = useToast();
+    const setCourseCreationToast = (params: { type: 'success' | 'error', message: string } | null) => {
+      if (!params) return;
+      if (params.type === 'success') toast.success(params.message);
+      else toast.error(params.message);
+    };
+
     const [trialBannerDismissed, setTrialBannerDismissed] = useState(false);
     const [pushPromptDismissed, setPushPromptDismissed] = useState(() => {
       try { return sessionStorage.getItem('edureach:push-prompt-dismissed') === '1'; } catch { return false; }
@@ -412,39 +418,17 @@ const AppContent: React.FC = () => {
     useEffect(() => {
       const onSwUpdateAvailable = () => {
         setUpdateToastVisible(true);
-        setUpdateCountdown(30);
+        // Auto-refresh after 30 seconds if user ignores the banner
+        updateCountdownRef.current = setTimeout(() => {
+          handleRefreshToUpdate();
+        }, 30000);
       };
       window.addEventListener('sw:update-available', onSwUpdateAvailable as EventListener);
       return () => {
         window.removeEventListener('sw:update-available', onSwUpdateAvailable as EventListener);
       };
-    }, []);
-
-    // Auto-refresh countdown
-    useEffect(() => {
-      if (!updateToastVisible) {
-        if (updateCountdownRef.current) clearInterval(updateCountdownRef.current);
-        return;
-      }
-      updateCountdownRef.current = setInterval(() => {
-        setUpdateCountdown(prev => {
-          if (prev <= 1) {
-            clearInterval(updateCountdownRef.current!);
-            handleRefreshToUpdate();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      return () => { if (updateCountdownRef.current) clearInterval(updateCountdownRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [updateToastVisible]);
-
-    useEffect(() => {
-      if (!courseCreationToast) return;
-      const timeout = window.setTimeout(() => setCourseCreationToast(null), 4000);
-      return () => window.clearTimeout(timeout);
-    }, [courseCreationToast]);
+    }, []);
 
     useEffect(() => {
       if (!recentlyCreatedCourseId) return;
@@ -727,6 +711,7 @@ const AppContent: React.FC = () => {
              onBulkCreate={() => setView('bulk_create_exam')}
              userTier={userTier}
              isLoading={assessmentsLoading}
+             userProfile={user || undefined}
              tierUsage={usageData ?? {
                assessments_used: 0,
                assessments_limit: userTier === 'free' ? 5 : Infinity,
@@ -874,7 +859,14 @@ const AppContent: React.FC = () => {
         />
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
            <header className="lg:hidden p-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <span className="font-bold text-lg">EduReach</span>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-lg">EduReach</span>
+                {isOffline && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                    Offline
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-1">
                 {/* Mobile notification bell */}
                 <button
@@ -934,55 +926,31 @@ const AppContent: React.FC = () => {
                   onDismiss={() => setTrialBannerDismissed(true)}
                 />
               )}
-              {/* Push notification prompt moved to settings/profile to reduce top banner clutter */}
-
-              {isOffline && (
-                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-                  Offline mode: using cached data. Some actions need backend connection.
-                </div>
-              )}
+              {/* SW update banner — kept as it requires user action */}
               {updateToastVisible && (
-                <div className="mb-4 rounded-lg border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 px-4 py-3 text-sm font-medium text-emerald-900 dark:text-emerald-100 flex items-center justify-between gap-3 shadow-md">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-600 text-white text-xs font-bold flex-shrink-0">
-                      {updateCountdown}
-                    </span>
-                    <span>New version available — refreshing in <strong>{updateCountdown}s</strong></span>
-                  </div>
-                  <div className="flex items-center gap-2">
+                <div className="mb-3 rounded-lg border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-2 text-xs font-medium text-emerald-900 dark:text-emerald-100 flex items-center justify-between gap-3">
+                  <span>A new version of EduReach is ready.</span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <button
-                      onClick={() => { setUpdateToastVisible(false); handleRefreshToUpdate(); }}
-                      className="rounded bg-emerald-600 text-white px-3 py-1.5 text-xs hover:bg-emerald-700 font-semibold"
+                      onClick={() => {
+                        if (updateCountdownRef.current) clearTimeout(updateCountdownRef.current);
+                        setUpdateToastVisible(false);
+                        handleRefreshToUpdate();
+                      }}
+                      className="rounded bg-emerald-600 text-white px-2.5 py-1 hover:bg-emerald-700 font-semibold"
                     >
-                      Refresh Now
+                      Refresh
                     </button>
                     <button
                       onClick={() => {
-                        if (updateCountdownRef.current) clearInterval(updateCountdownRef.current);
+                        if (updateCountdownRef.current) clearTimeout(updateCountdownRef.current);
                         setUpdateToastVisible(false);
                       }}
-                      className="rounded border border-emerald-300 dark:border-emerald-500 text-emerald-700 dark:text-emerald-200 px-3 py-1.5 text-xs hover:bg-emerald-100 dark:hover:bg-emerald-800/40"
+                      className="text-emerald-700 dark:text-emerald-300 hover:underline"
                     >
                       Later
                     </button>
                   </div>
-                </div>
-              )}
-              {courseCreationToast && (
-                <div
-                  className={`mb-4 rounded-lg border px-3 py-2 text-xs font-medium flex items-center justify-between gap-3 ${
-                    courseCreationToast.type === 'success'
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                      : 'border-rose-200 bg-rose-50 text-rose-900'
-                  }`}
-                >
-                  <span>{courseCreationToast.message}</span>
-                  <button
-                    onClick={() => setCourseCreationToast(null)}
-                    className="rounded border px-2 py-1 hover:bg-black/5"
-                  >
-                    Dismiss
-                  </button>
                 </div>
               )}
               {currentView !== 'learning_session' && (
@@ -1059,6 +1027,11 @@ const AppContent: React.FC = () => {
                       <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" /></svg>Dark mode</>
                     )}
                   </button>
+                  {isOffline && (
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full border bg-amber-50 border-amber-200 text-amber-700">
+                      Offline
+                    </span>
+                  )}
                   <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
                     aiStatus === 'up'
                       ? 'bg-emerald-50 border-emerald-200 text-emerald-700'

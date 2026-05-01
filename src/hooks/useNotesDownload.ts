@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 
 interface UseNotesDownloadOptions {
   courseName?: string;
@@ -7,6 +7,7 @@ interface UseNotesDownloadOptions {
 
 export const useNotesDownload = () => {
   const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const downloadAsText = (content: string, filename: string) => {
     const element = document.createElement('a');
@@ -38,12 +39,11 @@ ${options?.lessonName ? `**Lesson:** ${options.lessonName}\n` : ''}
 
   const downloadAsPDF = async (content: string, filename: string, options?: UseNotesDownloadOptions) => {
     setIsDownloading(true);
+    setDownloadError(null);
     try {
-      // For now, use a simple approach: create HTML and print to PDF
-      // In production, use jsPDF or similar library
       const printWindow = window.open('', '_blank');
       if (!printWindow) {
-        alert('Please allow pop-ups to download PDF');
+        setDownloadError('Pop-ups are blocked. Please allow pop-ups to download PDF.');
         setIsDownloading(false);
         return;
       }
@@ -81,16 +81,20 @@ ${options?.lessonName ? `**Lesson:** ${options.lessonName}\n` : ''}
       printWindow.document.close();
     } catch (error) {
       console.error('Error downloading PDF:', error);
-      alert('Failed to download PDF');
+      setDownloadError('Failed to download PDF. Please try again.');
     } finally {
       setIsDownloading(false);
     }
   };
 
+  const clearDownloadError = useCallback(() => setDownloadError(null), []);
+
   return {
     downloadAsText,
     downloadAsMarkdown,
     downloadAsPDF,
-    isDownloading
+    isDownloading,
+    downloadError,
+    clearDownloadError,
   };
 };

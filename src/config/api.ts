@@ -36,6 +36,9 @@ export const API_ENDPOINTS = {
   REGISTER: 'auth/registration/',
   LOGOUT: 'auth/logout/',
   REFRESH_TOKEN: 'auth/token/refresh/',
+  PASSWORD_RESET: 'auth/password/reset/',
+  PASSWORD_RESET_CONFIRM: 'auth/password/reset/confirm/',
+  GOOGLE_LOGIN: 'users/google-login/',
   
   // Users
   USER_ME: 'users/me/',
@@ -88,4 +91,16 @@ export const API_ENDPOINTS = {
   LESSON_UPDATE_MANUAL_TRANSCRIPT: (id: number) => `lessons/${id}/update_manual_transcript/`,
   LESSON_GET_TRANSCRIPT: (id: number) => `lessons/${id}/get_transcript/`,
   LESSON_GENERATE_QUIZ: (id: number) => `lessons/${id}/generate_quiz/`,
+
+  // Payments
+  PAYMENT_METHODS: 'payments/methods/',
+  PAYMENT_HISTORY: 'payments/history/',
+  PAYMENT_INITIATE: 'payments/initiate/',
+  PAYMENT_SUBSCRIPTION: 'payments/subscription/',
+  PAYMENT_SUBSCRIPTION_CANCEL: 'payments/subscription/cancel/',
+  PAYMENT_SUBSCRIPTION_UPGRADE: 'payments/subscription/upgrade/',
+  PAYMENT_TRIAL_START: 'payments/trial/start/',
+  PAYMENT_PAYBILL_CONFIRM: (id: number) => `payments/${id}/confirm-paybill/`,
+  PAYMENT_PAYSTACK_VERIFY: 'payments/paystack/verify/',
+  PAYMENT_ENTERPRISE_INQUIRY: 'payments/enterprise-inquiry/',
 };

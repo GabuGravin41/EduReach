@@ -83,6 +83,7 @@ INSTALLED_APPS = [
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
     
     # Local apps
     'users.apps.UsersConfig',
@@ -307,12 +308,25 @@ REST_AUTH = {
     'USER_DETAILS_SERIALIZER': 'users.serializers.UserSerializer',
 }
 
-ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_EMAIL_REQUIRED = False
 ACCOUNT_AUTHENTICATION_METHOD = 'username_email'
-ACCOUNT_EMAIL_VERIFICATION = os.environ.get('ACCOUNT_EMAIL_VERIFICATION', 'optional')
-ACCOUNT_CONFIRM_EMAIL_ON_GET = True
+ACCOUNT_EMAIL_VERIFICATION = 'none'
+ACCOUNT_CONFIRM_EMAIL_ON_GET = False
 ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3
 
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'SCOPE': [
+            'profile',
+            'email',
+        ],
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+        },
+        'OAUTH_PKCE_ENABLED': True,
+        'FETCH_USERINFO': True,
+    }
+}
 # Logging Configuration
 LOGGING = {
     'version': 1,
@@ -409,6 +423,17 @@ if not OPENROUTER_API_KEY:
 # Gemini API Configuration (OPTIONAL - for future use with paid plan)
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', None)
 GEMINI_MODEL_NAME = os.environ.get('GEMINI_MODEL_NAME', 'gemini-2.5-flash')
+
+# ── Vertex AI Configuration (PRIMARY when VERTEX_AI_PROJECT is set) ──────────
+# Set VERTEX_AI_PROJECT to your Google Cloud project ID to enable Vertex AI.
+# Authenticate via GOOGLE_APPLICATION_CREDENTIALS (path to service account JSON)
+# or via Application Default Credentials (gcloud auth application-default login).
+VERTEX_AI_PROJECT = os.environ.get('VERTEX_AI_PROJECT', None)
+VERTEX_AI_LOCATION = os.environ.get('VERTEX_AI_LOCATION', 'us-central1')
+# Model to use via Vertex AI — Gemini 2.0 Flash is free under $300 credit
+VERTEX_AI_MODEL = os.environ.get('VERTEX_AI_MODEL', 'gemini-2.0-flash-001')
+VERTEX_AI_CONNECT_TIMEOUT_SECONDS = float(os.environ.get('VERTEX_AI_CONNECT_TIMEOUT_SECONDS', '10'))
+VERTEX_AI_READ_TIMEOUT_SECONDS = float(os.environ.get('VERTEX_AI_READ_TIMEOUT_SECONDS', '60'))
 
 # AI pipeline timeouts (keep under Gunicorn --timeout 120)
 # Per-provider timeouts so we fail fast and can try fallback

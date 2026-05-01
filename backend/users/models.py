@@ -4,6 +4,16 @@ from django.utils import timezone
 from datetime import datetime, timedelta
 
 
+class Institution(models.Model):
+    """Model representing a school or organization for bulk billing and management."""
+    name = models.CharField(max_length=200)
+    domain = models.CharField(max_length=100, blank=True, help_text="e.g. harvard.edu")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+
 class User(AbstractUser):
     """Custom User model with subscription tiers."""
     
@@ -45,6 +55,20 @@ class User(AbstractUser):
         help_text="Tier to revert to after trial ends"
     )
     # High-level onboarding preferences captured at signup/onboarding
+    institution = models.ForeignKey(Institution, on_delete=models.SET_NULL, null=True, blank=True, related_name='members')
+    
+    class InstitutionRole(models.TextChoices):
+        STUDENT = 'student', 'Student'
+        TEACHER = 'teacher', 'Teacher'
+        ADMIN = 'admin', 'Institution Admin'
+        
+    institution_role = models.CharField(
+        max_length=20, 
+        choices=InstitutionRole.choices, 
+        default=InstitutionRole.STUDENT,
+        blank=True
+    )
+    
     learning_goal = models.CharField(
         max_length=32,
         blank=True,

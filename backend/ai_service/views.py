@@ -19,6 +19,18 @@ try:
 except ImportError:
     genai = None
 
+try:
+    import vertexai
+    from vertexai.generative_models import GenerativeModel, GenerationConfig
+    _vertexai_available = True
+except ImportError:
+    vertexai = None
+    GenerativeModel = None
+    GenerationConfig = None
+    _vertexai_available = False
+
+_vertex_initialized = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,6 +43,77 @@ class AIProviderUnavailableError(RuntimeError):
         if self.details:
             message = f"{message} " + " | ".join(self.details)
         super().__init__(message)
+
+
+def _init_vertex():
+    """Initialize Vertex AI once per process. Returns True if ready."""
+    global _vertex_initialized
+    if _vertex_initialized:
+        return True
+    if not _vertexai_available:
+        return False
+    project = getattr(settings, 'VERTEX_AI_PROJECT', None)
+    if not project:
+        return False
+    try:
+        location = getattr(settings, 'VERTEX_AI_LOCATION', 'us-central1')
+        vertexai.init(project=project, location=location)
+        _vertex_initialized = True
+        logger.info("Vertex AI initialized: project=%s location=%s", project, location)
+        return True
+    except Exception as e:
+        logger.warning("Vertex AI init failed: %s", e)
+        return False
+
+
+def call_vertex_ai(
+    prompt: str,
+    max_tokens: int = 400,
+    read_timeout_override: float | None = None,
+):
+    """Call Gemini via Vertex AI (uses Google Cloud credits)."""
+    if not _init_vertex():
+        raise RuntimeError('Vertex AI not configured or unavailable')
+
+    model_name = getattr(settings, 'VERTEX_AI_MODEL', 'gemini-2.0-flash-001')
+    read_timeout = (
+        read_timeout_override
+        if read_timeout_override is not None
+        else getattr(settings, 'VERTEX_AI_READ_TIMEOUT_SECONDS', 60)
+    )
+
+    model = GenerativeModel(model_name)
+    generation_config = GenerationConfig(max_output_tokens=max_tokens)
+
+    # Vertex AI Python SDK is synchronous; wrap in a basic timeout check
+    import threading
+    result_holder = [None]
+    error_holder = [None]
+
+    def _call():
+        try:
+            response = model.generate_content(
+                prompt,
+                generation_config=generation_config,
+            )
+            result_holder[0] = response.text
+        except Exception as e:
+            error_holder[0] = e
+
+    t = threading.Thread(target=_call, daemon=True)
+    t.start()
+    t.join(timeout=read_timeout)
+
+    if t.is_alive():
+        raise RuntimeError(f'Vertex AI request timed out after {read_timeout}s')
+    if error_holder[0]:
+        raise error_holder[0]
+
+    class _R:
+        def __init__(self, text):
+            self.text = text
+
+    return _R(result_holder[0] or '')
 
 
 def call_openrouter(
@@ -132,11 +215,13 @@ def call_ai(
     prefer_openrouter: bool | None = None,
     openrouter_read_timeout: float | None = None,
 ):
-    """Unified AI entry point using OpenRouter only (Gemini 2.0 Flash by default).
+    """Unified AI entry point.
 
-    All calls go through OpenRouter with the model defined in OPENROUTER_MODEL
-    (default: google/gemini-2.0-flash-001). prefer_openrouter is accepted for
-    backwards compatibility but no longer changes behaviour.
+    Provider priority:
+      1. Vertex AI — when VERTEX_AI_PROJECT is set in settings (uses Google Cloud credits)
+      2. OpenRouter — always available as fallback (OPENROUTER_API_KEY required)
+
+    prefer_openrouter=True forces OpenRouter directly (skips Vertex AI).
     """
     provider_failures = []
 
@@ -144,12 +229,29 @@ def call_ai(
         text = str(error).replace('\n', ' ').strip()
         return text[:max_chars] + ('...' if len(text) > max_chars else '')
 
+    vertex_project = getattr(settings, 'VERTEX_AI_PROJECT', None)
+    use_vertex_first = vertex_project and not prefer_openrouter
+
+    if use_vertex_first:
+        try:
+            resp = call_vertex_ai(
+                prompt,
+                max_tokens=max_tokens,
+                read_timeout_override=openrouter_read_timeout,
+            )
+            logger.debug("AI call served by Vertex AI")
+            return resp.text
+        except Exception as e:
+            logger.warning("Vertex AI call failed, falling back to OpenRouter: %s", e)
+            provider_failures.append(f'Vertex AI error: {_short_error_text(e)}')
+
     try:
         resp = call_openrouter(
             prompt,
             max_tokens=max_tokens,
             read_timeout_override=openrouter_read_timeout,
         )
+        logger.debug("AI call served by OpenRouter")
         return resp.text
     except Exception as e:
         logger.error("OpenRouter call failed: %s", e, exc_info=True)
@@ -165,6 +267,30 @@ def _check_ai_usage_quota(user):
     except Exception:
         logger.warning("AI usage quota check failed; allowing request", exc_info=True)
         return True, None
+
+
+def _safe_parse_quiz_json(text: str):
+    """Parse quiz JSON from AI response, handling markdown wrappers and stray text."""
+    cleaned = text.strip()
+    # Strip markdown code fences
+    for fence in ("```json", "```"):
+        if cleaned.startswith(fence):
+            cleaned = cleaned[len(fence):]
+            break
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+    cleaned = cleaned.strip()
+    try:
+        return json.loads(cleaned)
+    except (json.JSONDecodeError, ValueError):
+        # Find the first complete {...} or [...] block in case of preamble text
+        match = re.search(r'(\{[\s\S]*\}|\[[\s\S]*\])', cleaned)
+        if match:
+            try:
+                return json.loads(match.group(1))
+            except (json.JSONDecodeError, ValueError):
+                pass
+    return None
 
 
 def _increment_ai_usage(user):
@@ -443,17 +569,13 @@ Requirements:
                     openrouter_read_timeout=long_read,
                 )
                 
-                # Clean markdown blocks if present
-                cleaned_text = response_text.strip()
-                if cleaned_text.startswith("```json"): cleaned_text = cleaned_text[7:]
-                if cleaned_text.endswith("```"): cleaned_text = cleaned_text[:-3]
-                
-                import json
-                batch_data = json.loads(cleaned_text.strip())
-                
-                if batch_data and isinstance(batch_data, dict):
+                batch_data = _safe_parse_quiz_json(response_text)
+                if batch_data is None:
+                    raise ValueError("AI returned non-JSON content")
+
+                if isinstance(batch_data, dict):
                     batch_questions = batch_data.get('questions', [])
-                elif batch_data and isinstance(batch_data, list):
+                elif isinstance(batch_data, list):
                     batch_questions = batch_data
                 else:
                     batch_questions = []
@@ -463,8 +585,16 @@ Requirements:
                 for q in batch_questions:
                     q_type = q.get('type', 'mcq')
                     options = q.get('options', [])
+                    
                     if q_type == 'mcq' and (not isinstance(options, list) or len(options) < 2):
-                        continue # Drop invalid MCQ
+                        # Fix missing choices instead of dropping the question
+                        ans = q.get('correct_answer', 'Correct Answer')
+                        q['options'] = [
+                            ans,
+                            "None of the above",
+                            "All of the above",
+                            "Not enough information"
+                        ]
                     if q_type == 'true_false' and not options:
                         q['options'] = ['True', 'False']
                     valid_questions.append(q)

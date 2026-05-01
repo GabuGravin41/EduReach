@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useToast } from '../src/contexts/ToastContext';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { PlayIcon } from './icons/PlayIcon';
@@ -83,6 +84,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     assessments = [],
     onSelectExam
 }) => {
+    const toast = useToast();
     const [activeTab, setActiveTab] = useState<'lessons' | 'discussions' | 'notes' | 'manage'>('lessons');
     const [isEditingCourse, setIsEditingCourse] = useState(false);
     const [lessonsWithNotes, setLessonsWithNotes] = useState<Lesson[]>([]);
@@ -263,7 +265,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
             await onDeleteCourse(course.id);
         } catch (error) {
             console.error('Failed to delete course:', error);
-            alert('Failed to delete course. Please try again.');
+            toast.error('Failed to delete course. Please try again.');
         } finally {
             setIsDeletingCourse(false);
         }
@@ -286,7 +288,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
         } catch (error: any) {
             console.error('Failed to mark lesson complete:', error);
             const msg = error?.response?.data?.detail || error?.response?.data?.error || 'Failed to update progress. Please try again.';
-            alert(msg);
+            toast.error(msg);
         } finally {
             setCompletingLessonId(null);
         }
@@ -312,7 +314,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
         } catch (error: any) {
             console.error('Failed to unmark lesson complete:', error);
             const msg = error?.response?.data?.detail || error?.response?.data?.error || 'Failed to update progress. Please try again.';
-            alert(msg);
+            toast.error(msg);
         } finally {
             setCompletingLessonId(null);
         }
@@ -385,7 +387,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
 
     const handleSaveLessonEdit = async (lessonId: number) => {
         if (!editingLessonTitle.trim()) {
-            alert('Lesson title cannot be empty');
+            toast.error('Lesson title cannot be empty');
             return;
         }
 
@@ -401,7 +403,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
             setEditingLessonId(null);
         } catch (error) {
             console.error('Failed to update lesson:', error);
-            alert('Failed to update lesson. Please try again.');
+            toast.error('Failed to update lesson. Please try again.');
         } finally {
             setIsSavingEdit(false);
         }
@@ -417,7 +419,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
             }
         } catch (error) {
             console.error('Failed to delete lesson:', error);
-            alert('Failed to delete lesson. Please try again.');
+            toast.error('Failed to delete lesson. Please try again.');
         }
     };
 

@@ -4,6 +4,43 @@ from django.utils import timezone
 from django.utils.crypto import get_random_string
 
 
+class StudyGroupMembership(models.Model):
+    """Through model for StudyGroup ↔ User with per-group roles."""
+
+    class Role(models.TextChoices):
+        STUDENT = 'student', 'Student'
+        TEACHER = 'teacher', 'Teacher'
+        ADMIN = 'admin', 'Group Admin'
+
+    group = models.ForeignKey(
+        'StudyGroup',
+        on_delete=models.CASCADE,
+        related_name='memberships',
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='study_group_memberships',
+    )
+    role = models.CharField(
+        max_length=10,
+        choices=Role.choices,
+        default=Role.STUDENT,
+    )
+    is_temp_account = models.BooleanField(
+        default=False,
+        help_text='True for bulk-created temporary contest accounts.',
+    )
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['group', 'user']
+        ordering = ['joined_at']
+
+    def __str__(self):
+        return f"{self.user.username} ({self.role}) in {self.group.name}"
+
+
 class StudyGroup(models.Model):
     """
     Collaborative learning group, optionally tied to a specific course.
@@ -27,6 +64,7 @@ class StudyGroup(models.Model):
     max_members = models.PositiveIntegerField(default=50)
     members = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
+        through='StudyGroupMembership',
         related_name='study_groups',
         blank=True,
     )
@@ -37,6 +75,14 @@ class StudyGroup(models.Model):
         default=True,
         help_text='If False, invite links for this group are disabled.',
     )
+    
+    # Bulk billing fields
+    bulk_payment_active = models.BooleanField(
+        default=False,
+        help_text='If True, all members of this group inherit premium access.',
+    )
+    bulk_payment_expires_at = models.DateTimeField(null=True, blank=True)
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

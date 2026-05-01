@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
-from django.db import models
+from django.db import models, IntegrityError
 from django.utils import timezone
 from datetime import timedelta
 from .models import Assessment, Question, UserAttempt, AssessmentAnswerImage
@@ -69,7 +69,13 @@ class AssessmentViewSet(viewsets.ModelViewSet):
                     n += 1
                 serializer.validated_data['title'] = f'{base_title} ({n})'
 
-        serializer.save(creator=self.request.user)
+        try:
+            serializer.save(creator=self.request.user)
+        except IntegrityError:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError(
+                {'title': 'An assessment with this title already exists. Please choose a different name.'}
+            )
         try:
             usage = self.request.user.get_current_usage()
             usage.assessments_created += 1
@@ -640,6 +646,52 @@ class AssessmentViewSet(viewsets.ModelViewSet):
 
         serializer.save(attempt=attempt)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='toggle-student-results',
+            permission_classes=[permissions.IsAuthenticated])
+    def toggle_student_results(self, request, pk=None):
+        """Creator: toggle whether students can see their own results."""
+        assessment = self.get_object()
+        if assessment.creator != request.user and not request.user.is_superuser:
+            return Response({'detail': 'Only the creator can control result visibility.'}, status=status.HTTP_403_FORBIDDEN)
+        assessment.allow_students_see_results = not assessment.allow_students_see_results
+        assessment.save(update_fields=['allow_students_see_results', 'updated_at'])
+        return Response({
+            'allow_students_see_results': assessment.allow_students_see_results,
+            'detail': f"Students {'can' if assessment.allow_students_see_results else 'cannot'} now see their results.",
+        })
+
+    @action(detail=True, methods=['post'], url_path='ai-grade-all',
+            permission_classes=[permissions.IsAuthenticated])
+    def ai_grade_all(self, request, pk=None):
+        """Creator: trigger AI grading for all SUBMITTED attempts in background."""
+        import threading
+
+        assessment = self.get_object()
+        if assessment.creator != request.user and not request.user.is_superuser:
+            return Response({'detail': 'Only the creator can trigger bulk AI grading.'}, status=status.HTTP_403_FORBIDDEN)
+
+        submitted = list(
+            UserAttempt.objects.filter(assessment=assessment, status=UserAttempt.Status.SUBMITTED)
+        )
+        if not submitted:
+            return Response({'detail': 'No submitted attempts to grade.', 'count': 0})
+
+        def _grade_all():
+            for attempt in submitted:
+                try:
+                    attempt.refresh_from_db()
+                    if attempt.status == UserAttempt.Status.SUBMITTED:
+                        attempt.calculate_score()
+                except Exception:
+                    pass
+
+        t = threading.Thread(target=_grade_all, daemon=True)
+        t.start()
+        return Response({
+            'detail': f'AI grading started for {len(submitted)} attempt(s). Results will appear shortly.',
+            'count': len(submitted),
+        }, status=status.HTTP_202_ACCEPTED)
 
     @action(detail=False, methods=['get'])
     def my_assessments(self, request):

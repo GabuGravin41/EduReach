@@ -1,5 +1,6 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
+import { useToast } from '../src/contexts/ToastContext';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import { View } from '../App';
 import type { Assessment, Question } from '../types';
@@ -18,6 +19,7 @@ interface ExamDetailPageProps {
 
 export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView }) => {
     const { user } = useAuth();
+    const toast = useToast();
     const location = useLocation();
     const [liveExam, setLiveExam] = React.useState<any>(exam);
     const tokenFromUrl = React.useMemo(() => new URLSearchParams(location.search || '').get('share_token'), [location.search]);
@@ -191,9 +193,9 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
     const handleJoinChallenge = async () => {
         try {
             await assessmentService.joinChallenge(liveExam.id);
-            alert('Joined challenge successfully!');
+            toast.success('Joined challenge successfully!');
         } catch (error: any) {
-            alert(error.response?.data?.detail || 'Failed to join challenge');
+            toast.error(error.response?.data?.detail || 'Failed to join challenge');
         }
     };
 
@@ -420,7 +422,7 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                                         setView('assessments');
                                     } catch (e) {
                                         console.error(e);
-                                        alert('Failed to delete. You may not have permission.');
+                                        toast.error('Failed to delete. You may not have permission.');
                                     }
                                 }}
                                 className="px-3 py-1.5 text-sm font-medium rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/50"

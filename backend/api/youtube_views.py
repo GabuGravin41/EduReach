@@ -196,7 +196,7 @@ def test_transcripts(request):
     if not urls or not isinstance(urls, list):
         return Response({'error': 'Provide a list of URLs in the "urls" field'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if len(urls) > 20:https://edureach-backend.onrender.com/api
+    if len(urls) > 20:
         return Response({'error': 'Maximum 20 URLs per request'}, status=status.HTTP_400_BAD_REQUEST)
 
     service = YouTubeTranscriptService()

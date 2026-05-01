@@ -40,6 +40,11 @@ interface EnhancedAssessmentsPageProps {
     onBulkCreate?: () => void;
     userTier: UserTier;
     tierUsage: TierUsage;
+    userProfile?: {
+        learning_goal?: string;
+        learner_type?: string;
+        interests?: string;
+    };
     isLoading?: boolean;
 }
 
@@ -162,6 +167,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
     onBulkCreate,
     userTier,
     tierUsage,
+    userProfile,
     isLoading = false,
 }) => {
     const navigate = useNavigate();
@@ -173,7 +179,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
     const [publicChallengesLoading, setPublicChallengesLoading] = useState(false);
     const [filterType, setFilterType] = useState<'all' | 'completed' | 'pending'>('all');
     const [searchQuery, setSearchQuery] = useState('');
-    const [filterAssessmentType, setFilterAssessmentType] = useState<'all' | 'quiz' | 'exam'>('all');
+    const [filterAssessmentType, setFilterAssessmentType] = useState<'all' | 'quiz' | 'exam' | 'recommended'>('all');
     const [filterSubject, setFilterSubject] = useState<string>('all');
     const [filterTag, setFilterTag] = useState<string>('all');
 
@@ -231,22 +237,20 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
 
     const handleCreateNew = (examType: 'multiple_choice' | 'essay' | 'passage' | 'ai_generated') => {
         if (!canCreateMore) {
-            alert(`You've reached your monthly limit of ${tierUsage.assessments_limit} assessments. Resets in ${daysUntilReset} days.`);
             setView('billing');
             return;
         }
-
-        // All question types route to create_exam page which supports them all
         if (examType === 'ai_generated') {
             if (!features.can_use_ai) {
-                alert('AI-generated quizzes are available for Learner, Pro, and Pro Plus users. Please upgrade to access this feature.');
                 setView('billing');
                 return;
             }
             setView('generate_ai_quiz');
+        } else if (examType === 'essay' && !features.can_create_essay) {
+            setView('billing');
+        } else if (examType === 'passage' && !features.can_create_passage) {
+            setView('billing');
         } else {
-            // Essay, Passage, Multiple Choice all go to the same create page
-            // The create page already has UI for all question types
             setView('create_exam');
         }
     };
@@ -286,7 +290,27 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                 ? exam.status === 'completed'
                 : exam.status !== 'completed';
 
-        const matchesAssessmentType = filterAssessmentType === 'all' || exam.assessment_type === filterAssessmentType;
+        const isRecommended = () => {
+            if (!userProfile) return false;
+            // interests may be a comma-joined string or an array serialised as string
+            const rawInterests = userProfile.interests || '';
+            const interestList = rawInterests.split(/[,\s]+/).map(s => s.toLowerCase()).filter(Boolean);
+            const topic = (exam.topic || '').toLowerCase();
+            const title = (exam.displayTitle || '').toLowerCase();
+            const desc = (exam.description || '').toLowerCase();
+            const topicMatchesInterest = interestList.some(i => topic.includes(i) || title.includes(i));
+            const goalMatch = (userProfile.learning_goal || '').toLowerCase();
+            const typeMatch = (userProfile.learner_type || '').toLowerCase();
+            return (
+                topicMatchesInterest ||
+                (goalMatch && desc.includes(goalMatch)) ||
+                (typeMatch === 'university' && desc.includes('university')) ||
+                (typeMatch === 'high_school' && (desc.includes('high school') || desc.includes('secondary')))
+            );
+        };
+
+        const matchesAssessmentType = filterAssessmentType === 'all' 
+            || (filterAssessmentType === 'recommended' ? isRecommended() : exam.assessment_type === filterAssessmentType);
 
         const matchesSubject = filterSubject === 'all' || exam.topic === filterSubject;
 
@@ -418,12 +442,12 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                             Current Plan: <span className="font-semibold text-indigo-600 dark:text-indigo-400">{features.name}</span> - {features.price}
                         </p>
                     </div>
-                    {safeTier === 'free' && (
+                    {(safeTier === 'free' || safeTier === 'learner') && (
                         <button
                             onClick={() => setView('billing')}
-                            className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-colors font-medium"
+                            className="hidden sm:block px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-colors font-medium text-sm"
                         >
-                            Upgrade for AI & Community Access
+                            {safeTier === 'free' ? 'Upgrade for AI & More' : 'Upgrade to Pro'}
                         </button>
                     )}
                 </div>
@@ -449,7 +473,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                         <DocumentTextIcon className="w-8 h-8 text-green-600 dark:text-green-400 mb-3 group-hover:scale-110 transition-transform" />
                         <h3 className="font-semibold text-slate-800 dark:text-slate-100">Essay Exams</h3>
                         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                            {features.can_create_essay ? 'Long-form responses' : 'Pro+ feature'}
+                            {features.can_create_essay ? 'Long-form responses' : 'Learner+ feature'}
                         </p>
                     </button>
 
@@ -464,7 +488,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                         <BookOpenIcon className="w-8 h-8 text-purple-600 dark:text-purple-400 mb-3 group-hover:scale-110 transition-transform" />
                         <h3 className="font-semibold text-slate-800 dark:text-slate-100">Passage-Based</h3>
                         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                            {features.can_create_passage ? 'Reading comprehension' : 'Learner+ feature'}
+                            {features.can_create_passage ? 'Reading comprehension' : 'Pro+ feature'}
                         </p>
                     </button>
 
@@ -523,89 +547,88 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                         EXAM ({examCount})
                         <span className="hidden sm:inline text-xs font-normal opacity-75">· formal, timed</span>
                     </button>
-                </div>
-            </div>
-
-            {/* ── Status + sort row ────────────────────────────────────────────────── */}
-            <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                <div className="flex gap-2 flex-wrap">
-                    {(['all', 'pending', 'completed'] as const).map((f) => {
-                        const count = f === 'all'
-                            ? (assessments || []).length
-                            : f === 'completed'
-                                ? (assessments || []).filter(a => a.status === 'completed').length
-                                : (assessments || []).filter(a => a.status !== 'completed').length;
-                        return (
-                            <button
-                                key={f}
-                                onClick={() => setFilterType(f)}
-                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
-                                    filterType === f
-                                        ? 'bg-indigo-600 text-white'
-                                        : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
-                                }`}
-                            >
-                                {f} ({count})
-                            </button>
-                        );
-                    })}
-                    {onBulkCreate && (
+                    {userProfile && (userProfile.learning_goal || userProfile.interests) && (
                         <button
-                            onClick={onBulkCreate}
-                            className="px-4 py-2 rounded-lg text-sm font-bold bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:opacity-90 transition-opacity flex items-center gap-2 shadow-lg shadow-indigo-500/20"
+                            onClick={() => setFilterAssessmentType('recommended')}
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${
+                                filterAssessmentType === 'recommended'
+                                    ? 'border-emerald-500 bg-emerald-500 text-white shadow-lg shadow-emerald-500/25'
+                                    : 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:border-emerald-400 dark:hover:border-emerald-600'
+                            }`}
                         >
-                            <SparklesIcon className="w-4 h-4 text-white" />
-                            Bulk Creator
+                            <SparklesIcon className="w-4 h-4" />
+                            RECOMMENDED
                         </button>
                     )}
                 </div>
-                <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as any)}
-                    className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                >
-                    <option value="recent">Sort by Recent</option>
-                    <option value="difficulty">Sort by Difficulty</option>
-                    <option value="score">Sort by Score</option>
-                </select>
             </div>
 
-            {/* ── Search and Advanced Filters ──────────────────────────────────────── */}
-            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700 mb-6">
-                <div className="flex flex-col sm:flex-row gap-3">
+            {/* ── Search, filters and sort — single compact row ─────────────────── */}
+            <div className="mb-6 space-y-3">
+                <div className="flex flex-col sm:flex-row gap-2">
                     <input
                         type="text"
-                        placeholder="Search assessments by title, topic, or description..."
+                        placeholder="Search by title, topic, or description…"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                        className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
                     />
-                    {uniqueSubjects.length > 0 && (
+                    <div className="flex gap-2 flex-shrink-0">
                         <select
-                            value={filterSubject}
-                            onChange={(e) => setFilterSubject(e.target.value)}
-                            className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            value={filterType}
+                            onChange={(e) => setFilterType(e.target.value as any)}
+                            className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                         >
-                            <option value="all">All Subjects</option>
-                            {uniqueSubjects.map(subject => (
-                                <option key={subject} value={subject}>{subject}</option>
-                            ))}
+                            <option value="all">All status</option>
+                            <option value="pending">Pending</option>
+                            <option value="completed">Completed</option>
                         </select>
-                    )}
+                        {uniqueSubjects.length > 0 && (
+                            <select
+                                value={filterSubject}
+                                onChange={(e) => setFilterSubject(e.target.value)}
+                                className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                            >
+                                <option value="all">All subjects</option>
+                                {uniqueSubjects.map(subject => (
+                                    <option key={subject} value={subject}>{subject}</option>
+                                ))}
+                            </select>
+                        )}
+                        <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value as any)}
+                            className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                        >
+                            <option value="recent">Recent</option>
+                            <option value="difficulty">Difficulty</option>
+                            <option value="score">Score</option>
+                        </select>
+                        {onBulkCreate && (
+                            <button
+                                onClick={onBulkCreate}
+                                className="px-3 py-2 rounded-lg text-sm font-bold bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:opacity-90 transition-opacity flex items-center gap-1.5"
+                                title="Bulk Creator"
+                            >
+                                <SparklesIcon className="w-4 h-4" />
+                                <span className="hidden sm:inline">Bulk</span>
+                            </button>
+                        )}
+                    </div>
                 </div>
-                {/* Tag filter chips */}
+
+                {/* Tag filter chips — only shown if tags exist */}
                 {uniqueTags.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
-                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 self-center">Tags:</span>
+                    <div className="flex flex-wrap gap-2">
                         <button
                             onClick={() => setFilterTag('all')}
                             className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
                                 filterTag === 'all'
                                     ? 'bg-indigo-600 text-white'
-                                    : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
                             }`}
                         >
-                            All
+                            All tags
                         </button>
                         {uniqueTags.map(tag => (
                             <button
@@ -614,7 +637,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                                 className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
                                     filterTag === tag
                                         ? 'bg-indigo-600 text-white'
-                                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+                                        : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
                                 }`}
                             >
                                 {tag}

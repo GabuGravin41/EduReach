@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useToast } from '../src/contexts/ToastContext';
 import { PlusCircleIcon } from './icons/PlusCircleIcon';
 import { ClipboardCheckIcon } from './icons/ClipboardCheckIcon';
 import { PencilIcon as DocumentTextIcon } from './icons/PencilIcon';
@@ -77,6 +78,7 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
     courses
 }) => {
     const location = useLocation();
+    const toast = useToast();
     const editExamId = (location.state as { editExamId?: number } | null)?.editExamId;
 
     const [title, setTitle] = useState('');
@@ -193,7 +195,7 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
 
     const addQuestion = (type: QuestionType) => {
         if (typeof features.max_questions === 'number' && questions.length >= features.max_questions) {
-            alert(`You can only create ${features.max_questions} questions with your current plan.`);
+            toast.error(`You can only create ${features.max_questions} questions with your current plan.`);
             return;
         }
 
@@ -208,7 +210,7 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
             : imported.length;
         const toAdd = imported.slice(0, available);
         if (toAdd.length < imported.length) {
-            alert(`Your plan allows ${features.max_questions} questions. Only ${toAdd.length} of ${imported.length} questions were added.`);
+            toast.info(`Plan limit: only ${toAdd.length} of ${imported.length} questions were added. Upgrade to add more.`);
         }
         setQuestions(prev => [...prev, ...toAdd]);
         // Pre-fill topic and time if not already set
@@ -227,12 +229,12 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
 
     const handleSubmit = async () => {
         if (!title.trim()) {
-            alert('Please enter an exam title');
+            toast.error('Please enter an exam title');
             return;
         }
 
         if (questions.length === 0) {
-            alert('Please add at least one question');
+            toast.error('Please add at least one question');
             return;
         }
 
@@ -242,7 +244,7 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
         });
 
         if (invalidQuestions.length > 0) {
-            alert('Please complete all questions before saving');
+            toast.error('Please complete all questions before saving');
             return;
         }
 
@@ -265,7 +267,7 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
                 onExamUpdated(updated);
             } catch (err) {
                 console.error(err);
-                alert('Failed to save changes. You may not have permission to edit this assessment.');
+                toast.error('Failed to save changes. You may not have permission to edit this assessment.');
             }
             return;
         }

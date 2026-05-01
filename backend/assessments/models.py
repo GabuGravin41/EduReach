@@ -46,6 +46,31 @@ class Assessment(models.Model):
         help_text='Controls whether student results are visible publicly.'
     )
     
+    # ── Institutional metadata (for past papers & admin uploads) ────────────
+    institution = models.ForeignKey(
+        'users.Institution',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assessments',
+        help_text='School or organisation this paper comes from.',
+    )
+    source_year = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text='Year the original exam was sat (e.g. 2023).',
+    )
+    source_attribution = models.CharField(
+        max_length=300,
+        blank=True,
+        help_text='Human-readable credit line, e.g. "Kenyatta University — Engineering, 2023 Final".',
+    )
+    tags = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='List of searchable tag strings, e.g. ["calculus","engineering","KU"].',
+    )
+
     # Video linking - for quizzes generated from or associated with videos
     source_lesson = models.ForeignKey(
         'courses.Lesson',
@@ -63,6 +88,12 @@ class Assessment(models.Model):
     )
 
     share_token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+
+    # ── Teacher / contest controls ───────────────────────────────────────────
+    allow_students_see_results = models.BooleanField(
+        default=True,
+        help_text='When False, only the creator can see student results (useful for contests).',
+    )
 
     # Proctoring — optional monitoring mode for official exams
     is_proctored = models.BooleanField(
@@ -82,6 +113,7 @@ class Assessment(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        unique_together = ['creator', 'title']
     
     def get_all_related_lessons(self):
         """Get all related lessons (source + tagged)."""

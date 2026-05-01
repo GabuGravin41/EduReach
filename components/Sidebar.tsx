@@ -278,10 +278,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
               Logout
             </button>
           </div>
-          </div>
         </div>
         {!isCollapsed && (
-          <div className="mt-4 text-center text-[11px] text-slate-500 dark:text-slate-400 flex flex-col gap-1 pb-1">
+          <div className="mt-3 text-center text-[11px] text-slate-500 dark:text-slate-400 flex flex-col gap-1 pb-2">
             <div className="flex justify-center gap-3">
               <button onClick={() => { setView('terms'); setIsMobileOpen(false); }} className="hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline">Terms</button>
               <button onClick={() => { setView('privacy'); setIsMobileOpen(false); }} className="hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline">Privacy</button>

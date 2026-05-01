@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNotesDownload } from '../src/hooks/useNotesDownload';
+import { useToast } from '../src/contexts/ToastContext';
 import { DownloadIcon } from './icons/DownloadIcon';
 import apiClient from '../src/services/api';
 import { MarkdownRenderer } from './MarkdownRenderer';
@@ -23,9 +24,17 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
   lessonId,
   onAutoSaveStatusChange,
 }) => {
+  const toast = useToast();
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [isPreview, setIsPreview] = useState(false);
-  const { downloadAsText, downloadAsMarkdown, downloadAsPDF, isDownloading } = useNotesDownload();
+  const { downloadAsText, downloadAsMarkdown, downloadAsPDF, isDownloading, downloadError, clearDownloadError } = useNotesDownload();
+
+  useEffect(() => {
+    if (downloadError) {
+      toast.error(downloadError);
+      clearDownloadError();
+    }
+  }, [downloadError, clearDownloadError, toast]);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleNotesChange = (value: string) => {
@@ -81,7 +90,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
 
   const handleDownload = async (format: 'txt' | 'md' | 'pdf') => {
     if (!notes.trim()) {
-      alert('No notes to download');
+      toast.info('No notes to download yet.');
       return;
     }
 

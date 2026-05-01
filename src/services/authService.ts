@@ -174,6 +174,18 @@ export const authService = {
     return response.data;
   },
 
+  async passwordReset(email: string): Promise<void> {
+    await apiClient.post(API_ENDPOINTS.PASSWORD_RESET, { email });
+  },
+
+  async googleLogin(idToken: string): Promise<{ access: string; refresh: string; user: User }> {
+    const response = await apiClient.post(API_ENDPOINTS.GOOGLE_LOGIN, { token: idToken });
+    const { access, refresh } = response.data;
+    if (access) localStorage.setItem('access_token', access);
+    if (refresh) localStorage.setItem('refresh_token', refresh);
+    return response.data;
+  },
+
   isAuthenticated(): boolean {
     return !!localStorage.getItem('access_token');
   },

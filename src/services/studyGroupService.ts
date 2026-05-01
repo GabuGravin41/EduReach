@@ -23,6 +23,8 @@ export interface StudyGroup {
   is_member: boolean;
   invite_token?: string;
   invite_enabled?: boolean;
+  bulk_payment_active?: boolean;
+  bulk_payment_expires_at?: string | null;
   created_at: string;
 }
 

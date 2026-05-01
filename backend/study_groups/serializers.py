@@ -35,6 +35,8 @@ class StudyGroupSerializer(serializers.ModelSerializer):
             'max_members',
             'member_count',
             'is_member',
+            'bulk_payment_active',
+            'bulk_payment_expires_at',
             'created_at',
             'updated_at',
         ]
@@ -43,6 +45,8 @@ class StudyGroupSerializer(serializers.ModelSerializer):
             'creator',
             'member_count',
             'is_member',
+            'bulk_payment_active',
+            'bulk_payment_expires_at',
             'created_at',
             'updated_at',
             'invite_token',

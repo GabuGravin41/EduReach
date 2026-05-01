@@ -714,6 +714,48 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
         </div>
       </div>
 
+      {/* ── Group & Team Billing ──────────────────────────────────────────── */}
+      <div className="rounded-xl border border-violet-200 dark:border-violet-900/40 bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/10 p-5">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg">👥</span>
+              <p className="text-xs font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">Group & Team Billing</p>
+            </div>
+            <p className="text-sm text-slate-700 dark:text-slate-200 mb-3">
+              Upgrade an entire study group or classroom with a single payment — no individual subscriptions required.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { icon: '💰', label: 'One payment', desc: 'Covers all members' },
+                { icon: '📉', label: 'Volume savings', desc: 'Lower per-seat cost' },
+                { icon: '📊', label: 'Group dashboard', desc: 'Track progress together' },
+                { icon: '🔑', label: 'Instant access', desc: 'Premium for everyone' },
+              ].map(({ icon, label, desc }) => (
+                <div key={label} className="bg-white/60 dark:bg-slate-800/40 rounded-lg p-2.5">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="text-sm">{icon}</span>
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{label}</p>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">{desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 md:min-w-[180px]">
+            <a
+              href="mailto:edu.reach.co@gmail.com?subject=Group%20Billing%20Inquiry&body=Hi%2C%20I%27d%20like%20to%20upgrade%20my%20study%20group%20to%20bulk%20billing."
+              className="inline-flex items-center justify-center rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700 transition-colors whitespace-nowrap"
+            >
+              Get Group Pricing
+            </a>
+            <p className="text-[11px] text-center text-slate-400 dark:text-slate-500">
+              Available for 5+ members · Custom quotes
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* ── Plans + payment ───────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 

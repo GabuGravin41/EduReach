@@ -370,7 +370,7 @@ class SubscriptionUpgradeView(APIView):
         expires_at = timezone.now() + timedelta(days=duration_days)
 
         with transaction.atomic():
-            subscription, _ = Subscription.objects.get_or_create(
+            subscription, created = Subscription.objects.get_or_create(
                 user=user,
                 defaults={
                     'tier': tier,
@@ -384,7 +384,7 @@ class SubscriptionUpgradeView(APIView):
                 }
             )
 
-            if not _:
+            if not created:
                 subscription.tier = tier
                 subscription.status = Subscription.Status.ACTIVE
                 subscription.started_at = timezone.now()
@@ -497,7 +497,7 @@ class StartTrialView(APIView):
         trial_end = now + timedelta(days=self.TRIAL_DAYS)
 
         with transaction.atomic():
-            subscription, _ = Subscription.objects.get_or_create(
+            subscription, created = Subscription.objects.get_or_create(
                 user=user,
                 defaults={
                     'tier': tier,
@@ -511,7 +511,7 @@ class StartTrialView(APIView):
                     'auto_renew': False,
                 },
             )
-            if not _:
+            if not created:
                 # Edge case: row existed but trial check above passed; update it.
                 subscription.tier = tier
                 subscription.status = Subscription.Status.ACTIVE

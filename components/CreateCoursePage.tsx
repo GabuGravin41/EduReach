@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useToast } from '../src/contexts/ToastContext';
 import { PlusCircleIcon } from './icons/PlusCircleIcon';
 import { TrashIcon } from './icons/TrashIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
@@ -34,6 +35,7 @@ interface Lesson {
 }
 
 export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCreated, onCancel, lessonLimit, setView }) => {
+  const toast = useToast();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(true);
@@ -44,7 +46,7 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
 
   const handleAddLesson = () => {
     if (lessons.length >= lessonLimit) {
-        alert(`You have reached the maximum of ${lessonLimit} lessons per course on your current plan. Please upgrade to add more.`);
+        toast.error(`You've reached the ${lessonLimit}-lesson limit for your plan. Upgrade to add more.`);
         setView('billing');
         return;
     }
@@ -142,7 +144,7 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
 
     const stillInvalid = lessons.some((lesson) => !extractVideoId(lesson.videoId));
     if (stillInvalid) {
-      alert('Please validate all video URLs before creating the course.');
+      toast.error('Please validate all video URLs before creating the course.');
       return;
     }
     

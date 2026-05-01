@@ -35,9 +35,11 @@ import { TrophyIcon } from './icons/TrophyIcon';
 import { LightbulbIcon } from './icons/LightbulbIcon';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ROUTES } from '../src/routes';
+import { useToast } from '../src/contexts/ToastContext';
 
 export const StudyGroupsPage: React.FC = () => {
   const navigate = useNavigate();
+  const toast = useToast();
   const location = useLocation();
   const { user } = useAuth();
   const { data: groupsData, isLoading } = useStudyGroups();
@@ -192,7 +194,7 @@ export const StudyGroupsPage: React.FC = () => {
       });
     } catch (err) {
       console.error('Failed to update group visibility', err);
-      alert('Could not update group visibility. Please try again.');
+      toast.error('Could not update group visibility. Please try again.');
     }
   };
 
@@ -925,7 +927,7 @@ export const StudyGroupsPage: React.FC = () => {
                       type="button"
                       onClick={async () => {
                         if (!activeGroup.invite_token) {
-                          alert('Invite token not available. Please refresh the page.');
+                          toast.error('Invite token not available. Please refresh the page.');
                           return;
                         }
                         const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -933,7 +935,7 @@ export const StudyGroupsPage: React.FC = () => {
                         try {
                           if (navigator.clipboard && window.isSecureContext) {
                             await navigator.clipboard.writeText(url);
-                            alert('Invite link copied!');
+                            toast.success('Invite link copied!');
                           } else {
                             const textarea = document.createElement('textarea');
                             textarea.value = url;
@@ -944,10 +946,11 @@ export const StudyGroupsPage: React.FC = () => {
                             textarea.select();
                             const ok = document.execCommand('copy');
                             document.body.removeChild(textarea);
-                            alert(ok ? 'Invite link copied!' : 'Copy failed, please copy manually.');
+                            if (ok) toast.success('Invite link copied!');
+                            else toast.error('Copy failed — please copy the link manually.');
                           }
                         } catch {
-                          alert('Copy failed, please copy manually.');
+                          toast.error('Copy failed — please copy the link manually.');
                         }
                       }}
                     >
@@ -997,6 +1000,67 @@ export const StudyGroupsPage: React.FC = () => {
                     This does not send an external email yet. It simply adds an existing EduReach user (matched by email) into this group.
                   </p>
                 </div>
+
+                {/* ── Group Billing section (creator only) ─────────────────── */}
+                {user && activeGroup.creator && user.id === activeGroup.creator.id && (
+                  <div className="border-t border-slate-100 dark:border-slate-700 pt-6 mt-6">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-lg">💳</span>
+                      <h4 className="text-base font-bold text-slate-800 dark:text-slate-100">Group Billing</h4>
+                    </div>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                      Upgrade all members of this group to premium access in one payment — no individual subscriptions needed.
+                    </p>
+
+                    {activeGroup.bulk_payment_active ? (
+                      <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 p-4 space-y-2">
+                        <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-semibold text-sm">
+                          <span>✓</span>
+                          <span>Bulk billing is active for this group</span>
+                        </div>
+                        {activeGroup.bulk_payment_expires_at && (
+                          <p className="text-xs text-emerald-600 dark:text-emerald-500">
+                            All {activeGroup.member_count} members have premium access until{' '}
+                            {new Date(activeGroup.bulk_payment_expires_at).toLocaleDateString('en-US', {
+                              year: 'numeric', month: 'long', day: 'numeric',
+                            })}
+                          </p>
+                        )}
+                        <p className="text-xs text-slate-500 dark:text-slate-400 pt-1">
+                          Contact <a href="mailto:edu.reach.co@gmail.com" className="text-indigo-600 dark:text-indigo-400 underline">edu.reach.co@gmail.com</a> to renew or adjust seats.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 p-4 space-y-3">
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          {[
+                            { icon: '👥', label: 'Whole group upgrade', desc: 'One payment covers all members' },
+                            { icon: '💰', label: 'Volume discounts', desc: 'Lower cost per seat at scale' },
+                            { icon: '📊', label: 'Admin dashboard', desc: 'Track usage across your group' },
+                            { icon: '🎓', label: 'Institution support', desc: 'Works for schools and academies' },
+                          ].map(({ icon, label, desc }) => (
+                            <div key={label} className="flex items-start gap-2">
+                              <span className="flex-shrink-0">{icon}</span>
+                              <div>
+                                <p className="font-semibold text-slate-700 dark:text-slate-200 text-xs">{label}</p>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400">{desc}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <a
+                          href="mailto:edu.reach.co@gmail.com?subject=Group%20Billing%20Inquiry%20-%20EduReach&body=Hi%2C%20I%27d%20like%20to%20upgrade%20my%20study%20group%20to%20bulk%20billing.%0A%0AGroup%20name%3A%20"
+                          className="block w-full text-center py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold transition-colors mt-2"
+                        >
+                          Contact Us for Group Pricing
+                        </a>
+                        <p className="text-[11px] text-center text-slate-400 dark:text-slate-500">
+                          We'll respond within 24 hours with a tailored quote.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
