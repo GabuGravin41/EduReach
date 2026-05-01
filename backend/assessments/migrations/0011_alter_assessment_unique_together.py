@@ -3,6 +3,28 @@
 from django.conf import settings
 from django.db import migrations
 
+def deduplicate_assessments(apps, schema_editor):
+    Assessment = apps.get_model('assessments', 'Assessment')
+    from django.db.models import Count
+    
+    duplicates = (
+        Assessment.objects.values('creator', 'title')
+        .annotate(title_count=Count('id'))
+        .filter(title_count__gt=1)
+    )
+    
+    for duplicate in duplicates:
+        records = Assessment.objects.filter(
+            creator=duplicate['creator'],
+            title=duplicate['title']
+        ).order_by('id')
+        
+        for i, record in enumerate(list(records)[1:], start=1):
+            record.title = f"{record.title[:180]} (Duplicate {i})"
+            record.save(update_fields=['title'])
+
+def reverse_deduplicate(apps, schema_editor):
+    pass
 
 class Migration(migrations.Migration):
 
@@ -12,6 +34,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RunPython(deduplicate_assessments, reverse_deduplicate),
         migrations.AlterUniqueTogether(
             name='assessment',
             unique_together={('creator', 'title')},
