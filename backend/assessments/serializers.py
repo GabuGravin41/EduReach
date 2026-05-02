@@ -1,29 +1,46 @@
 from rest_framework import serializers
-from .models import Assessment, Question, UserAttempt, AssessmentAnswerImage
+from .models import Assessment, Question, QuestionImage, UserAttempt, AssessmentAnswerImage
 from users.serializers import UserSerializer
 from courses.models import Lesson
 
 
+class QuestionImageSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = QuestionImage
+        fields = ['id', 'filename', 'image_url']
+
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return obj.image.url if obj.image else None
+
+
 class QuestionSerializer(serializers.ModelSerializer):
     """Serializer for Question model."""
-    
+    images = QuestionImageSerializer(many=True, read_only=True)
+
     class Meta:
         model = Question
         fields = [
             'id', 'assessment', 'question_text', 'question_type',
-            'options', 'correct_answer', 'points', 'order', 'explanation', 'source_url'
+            'options', 'correct_answer', 'points', 'order', 'explanation', 'source_url',
+            'images',
         ]
         read_only_fields = ['id']
 
 
 class QuestionWithoutAnswerSerializer(serializers.ModelSerializer):
     """Serializer for Question model without correct answer (for students)."""
-    
+    images = QuestionImageSerializer(many=True, read_only=True)
+
     class Meta:
         model = Question
         fields = [
             'id', 'question_text', 'question_type',
-            'options', 'points', 'order'
+            'options', 'points', 'order', 'images',
         ]
 
 
@@ -48,6 +65,7 @@ class AssessmentSerializer(serializers.ModelSerializer):
             'is_public', 'results_visibility', 'allow_students_see_results',
             'is_proctored', 'proctor_tab_limit',
             'institution', 'source_year', 'source_attribution', 'source_url', 'tags',
+            'competition_country', 'competition_name', 'competition_language',
             'questions', 'questions_data', 'share_token',
             'question_count', 'source_lesson', 'created_at', 'updated_at'
         ]
@@ -205,6 +223,7 @@ class AssessmentListSerializer(serializers.ModelSerializer):
             'image_upload_grace_minutes',
             'assessment_type', 'is_proctored', 'proctor_tab_limit',
             'institution', 'source_year', 'source_attribution', 'source_url', 'tags',
+            'competition_country', 'competition_name', 'competition_language',
             'source_lesson', 'question_count', 'related_lessons', 'created_at'
         ]
 

@@ -98,7 +98,7 @@ export default function JoinExamPage() {
       answers: Object.fromEntries(Object.entries(answers).map(([k, v]) => [k, v])),
     };
     try {
-      const res = await apiClient.post('/api/assessments/exam-sessions/submit/', payload);
+      const res = await apiClient.post('assessments/exam-sessions/submit/', payload);
       setResults(res.data);
       setStage('submitted');
     } catch (err: any) {

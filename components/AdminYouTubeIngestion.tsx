@@ -43,7 +43,7 @@ export const AdminYouTubeIngestion: React.FC = () => {
   const { data: listData, isLoading: listLoading } = useQuery({
     queryKey: [...INGEST_KEY, search],
     queryFn: async () => {
-      const resp = await apiClient.get('/api/admin/youtube/ingested/', { params: { q: search, limit: 30 } });
+      const resp = await apiClient.get('admin/youtube/ingested/', { params: { q: search, limit: 30 } });
       return resp.data as { results: IngestedVideo[]; total: number };
     },
     staleTime: 30000,
@@ -51,7 +51,7 @@ export const AdminYouTubeIngestion: React.FC = () => {
 
   const ingestMutation = useMutation({
     mutationFn: async (payload: { url: string; tags: string[] }) => {
-      const resp = await apiClient.post('/api/admin/youtube/ingest/', payload);
+      const resp = await apiClient.post('admin/youtube/ingest/', payload);
       return resp.data as IngestResult;
     },
     onSuccess: (data) => {

@@ -120,7 +120,7 @@ export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username }) 
     }));
 
     try {
-      const resp = await apiClient.post('/api/ai/chat/', {
+      const resp = await apiClient.post('ai/chat/', {
         message: text,
         context: `You are EduReach's AI learning assistant. Help the user with their studies, explain concepts clearly, and suggest resources on the platform.${contextNote} Keep answers concise and educational.`,
         history: historyPayload,

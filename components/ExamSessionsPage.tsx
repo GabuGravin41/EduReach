@@ -56,7 +56,7 @@ function CreateSessionModal({ assessments, onClose, onCreated }: {
   const [expiresIn, setExpiresIn] = useState('');
 
   const mutation = useMutation({
-    mutationFn: (data: object) => apiClient.post('/api/assessments/exam-sessions/create/', data).then(r => r.data),
+    mutationFn: (data: object) => apiClient.post('assessments/exam-sessions/create/', data).then(r => r.data),
     onSuccess: (data) => onCreated(data),
   });
 
@@ -184,7 +184,7 @@ export default function ExamSessionsPage({ userAssessments }: { userAssessments?
 
   const { data: sessions = [], isLoading } = useQuery<SessionSummary[]>({
     queryKey: ['exam-sessions'],
-    queryFn: () => apiClient.get('/api/assessments/exam-sessions/mine/').then(r => r.data),
+    queryFn: () => apiClient.get('assessments/exam-sessions/mine/').then(r => r.data),
   });
 
   const toggleMutation = useMutation({

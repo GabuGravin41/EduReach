@@ -27,7 +27,11 @@ interface Assessment {
     share_token?: string;
     source_attribution?: string;
     source_year?: number | null;
+    source_url?: string;
     tags?: string[];
+    competition_country?: string;
+    competition_name?: string;
+    competition_language?: string;
 }
 
 interface TierUsage {
@@ -735,6 +739,10 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                         const sourceYear: number | null = (exam as any).source_year ?? exam.source_year ?? null;
                         const sourceUrl: string = (exam as any).source_url || exam.source_url || '';
                         const questionTypes: string[] = exam.question_types || [];
+                        const competitionCountry: string = (exam as any).competition_country || exam.competition_country || '';
+                        const competitionName: string = (exam as any).competition_name || exam.competition_name || '';
+                        const competitionLanguage: string = (exam as any).competition_language || exam.competition_language || '';
+                        const isOlympiad = examTags.includes('olympiad') || !!competitionCountry;
 
                         return (
                         <div
@@ -760,6 +768,11 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                                                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold uppercase tracking-widest border-2 border-blue-400 bg-blue-100 text-blue-800 dark:border-blue-600 dark:bg-blue-900/40 dark:text-blue-200 shadow-sm">
                                                         <span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400" />
                                                         QUIZ
+                                                    </span>
+                                                )}
+                                                {isOlympiad && (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                                        ★ OLYMPIAD
                                                     </span>
                                                 )}
                                                 {isAIGenerated ? (
@@ -828,8 +841,31 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                                 )}
 
                                 {/* Hover detail panel — expands to show more context */}
-                                <div className="max-h-0 group-hover:max-h-40 overflow-hidden transition-[max-height] duration-300 ease-in-out">
+                                <div className={`max-h-0 overflow-hidden transition-[max-height] duration-300 ease-in-out ${isOlympiad ? 'group-hover:max-h-56' : 'group-hover:max-h-40'}`}>
                                     <div className="border-t border-slate-100 dark:border-slate-700 pt-3 pb-1 space-y-2">
+                                        {/* Olympiad / competition metadata */}
+                                        {isOlympiad && (
+                                            <div className="flex flex-wrap gap-x-4 gap-y-1">
+                                                {competitionCountry && (
+                                                    <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">Body:</span>
+                                                        <span>{competitionCountry}</span>
+                                                    </div>
+                                                )}
+                                                {competitionLanguage && (
+                                                    <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">Language:</span>
+                                                        <span>{competitionLanguage}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        {competitionName && (
+                                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                                                <span className="font-semibold text-slate-700 dark:text-slate-300">Competition: </span>
+                                                {competitionName}
+                                            </div>
+                                        )}
                                         {questionTypes.length > 0 && (
                                             <div className="text-xs text-slate-500 dark:text-slate-400">
                                                 <span className="font-semibold text-slate-700 dark:text-slate-300">Question types: </span>
@@ -867,7 +903,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                                                 ))}
                                             </div>
                                         )}
-                                        {!sourceAttr && !sourceYear && questionTypes.length === 0 && examTags.length <= 4 && (
+                                        {!sourceAttr && !sourceYear && !competitionCountry && questionTypes.length === 0 && examTags.length <= 4 && (
                                             <div className="text-xs text-slate-400 dark:text-slate-500 italic">
                                                 {exam.assessment_type === 'exam'
                                                     ? `A timed ${exam.time}-min exam covering ${exam.topic}`

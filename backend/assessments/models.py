@@ -109,6 +109,23 @@ class Assessment(models.Model):
         help_text='Number of tab-switch violations allowed before the attempt is auto-submitted.',
     )
 
+    # ── Competition / Olympiad metadata ─────────────────────────────────────
+    competition_country = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text='Competition body or country (e.g. "IMO", "APMO", "Kenya").',
+    )
+    competition_name = models.CharField(
+        max_length=400,
+        blank=True,
+        help_text='Full name of the specific competition event.',
+    )
+    competition_language = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text='Language the original paper was written in.',
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -166,6 +183,27 @@ class Question(models.Model):
 
     class Meta:
         ordering = ['order']
+
+
+class QuestionImage(models.Model):
+    """An image embedded in a question or its solution (e.g. geometry diagrams)."""
+    question = models.ForeignKey(
+        Question,
+        on_delete=models.CASCADE,
+        related_name='images',
+    )
+    filename = models.CharField(
+        max_length=200,
+        help_text='Original filename referenced in markdown (e.g. attached_image_1.png).',
+    )
+    image = models.ImageField(upload_to='question_images/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['filename']
+
+    def __str__(self):
+        return f"Q{self.question_id} — {self.filename}"
 
 
 class UserAttempt(models.Model):

@@ -52,7 +52,7 @@ export const AdminAssessmentUpload: React.FC = () => {
   const { data: institutions = [] } = useQuery<Institution[]>({
     queryKey: ['institutions'],
     queryFn: async () => {
-      const r = await apiClient.get('/api/users/institutions/');
+      const r = await apiClient.get('users/institutions/');
       return r.data;
     },
     staleTime: 60000,
@@ -60,7 +60,7 @@ export const AdminAssessmentUpload: React.FC = () => {
 
   const createInstMutation = useMutation({
     mutationFn: async (name: string) => {
-      const r = await apiClient.post('/api/users/institutions/', { name });
+      const r = await apiClient.post('users/institutions/', { name });
       return r.data as Institution;
     },
     onSuccess: (inst) => {
@@ -73,7 +73,7 @@ export const AdminAssessmentUpload: React.FC = () => {
 
   const uploadMutation = useMutation({
     mutationFn: async (payload: any) => {
-      const r = await apiClient.post('/api/assessments/assessments/', payload);
+      const r = await apiClient.post('assessments/assessments/', payload);
       return r.data;
     },
     onSuccess: (data) => {
@@ -103,7 +103,7 @@ export const AdminAssessmentUpload: React.FC = () => {
     if (!rawText.trim()) { toast.error('Paste some question text first.'); return; }
     setIsParsing(true);
     try {
-      const r = await apiClient.post('/api/ai/parse-questions/', { text: rawText });
+      const r = await apiClient.post('ai/parse-questions/', { text: rawText });
       const questions: ParsedQuestion[] = (r.data?.questions || []).map((q: any) => ({
         type: q.type || q.question_type || 'short_answer',
         question_text: q.question_text || q.question || '',

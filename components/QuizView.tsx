@@ -3,6 +3,7 @@ import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { XIcon } from './icons/XIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import MathMarkdown from './MathMarkdown';
 import { aiClient } from '../src/services/api';
 import { assessmentService, type QuestionResult } from '../src/services/assessmentService';
 import type {
@@ -676,8 +677,14 @@ Format: {"score": number, "feedback": "string"}`;
                 </span>
                 <div className="flex-1 min-w-0 overflow-visible">
                   {q.type !== 'cloze' && (
-                    <div className="text-lg font-medium text-slate-800 dark:text-slate-100 overflow-visible break-words">
-                      <MarkdownRenderer content={q.type === 'essay' ? (q as EssayQuestion).question_text : (q as any).question_text} />
+                    <div className="text-base font-medium text-slate-800 dark:text-slate-100 overflow-visible break-words">
+                      {(q as any).images?.length > 0 ? (
+                        <MathMarkdown images={(q as any).images}>
+                          {q.type === 'essay' ? (q as EssayQuestion).question_text : (q as any).question_text}
+                        </MathMarkdown>
+                      ) : (
+                        <MarkdownRenderer content={q.type === 'essay' ? (q as EssayQuestion).question_text : (q as any).question_text} />
+                      )}
                     </div>
                   )}
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -931,10 +938,19 @@ Format: {"score": number, "feedback": "string"}`;
               )}
             </div>
 
-            {/* Explanation / Feedback */}
+            {/* Explanation / Solution */}
             {isSubmitted && (q as any).explanation && (
-              <div className="mt-4 ml-11 p-3 bg-slate-100 dark:bg-slate-700 rounded-lg text-sm text-slate-700 dark:text-slate-300">
-                <strong>Explanation:</strong> <MarkdownRenderer content={(q as any).explanation} />
+              <div className="mt-4 ml-11 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300">
+                <div className="font-semibold text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">
+                  {q.type === 'essay' ? 'Model Solution' : 'Explanation'}
+                </div>
+                {(q as any).images?.length > 0 ? (
+                  <MathMarkdown images={(q as any).images}>
+                    {(q as any).explanation}
+                  </MathMarkdown>
+                ) : (
+                  <MarkdownRenderer content={(q as any).explanation} />
+                )}
               </div>
             )}
             {/* Source attribution link */}

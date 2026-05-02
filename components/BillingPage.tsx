@@ -348,7 +348,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
 
   const mpesaQueryMutation = useMutation({
     mutationFn: (paymentId: number) =>
-      apiClient.post('/api/payments/mpesa/query/', { payment_id: paymentId }).then(r => r.data),
+      apiClient.post('payments/mpesa/query/', { payment_id: paymentId }).then(r => r.data),
     onSuccess: (data) => {
       if (data.status === 'completed') {
         setStkPushPending(false);
