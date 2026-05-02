@@ -440,10 +440,10 @@ TIMESTAMPED NOTES:
 @permission_classes([IsAuthenticated])
 def search_videos(request):
     """
-    Search cached videos in VideoCache.
+    Search YouTube videos — our cache first (instant + full AI), then live YouTube.
 
     GET /api/videos/search/?q=keyword&limit=20
-    Returns: { results: [{url, title, video_id, transcript, thumbnail_url, channel_name}], total }
+    Returns: { results: [{url, title, video_id, thumbnail_url, channel_name, cached}], total }
     """
     try:
         q = (request.GET.get('q') or '').strip()
@@ -454,23 +454,67 @@ def search_videos(request):
         if not q:
             return Response({'results': [], 'total': 0})
 
-        # Simple search across title, channel_name, and topic_tags
-        qs = VideoCache.objects.filter(
+        # ── 1. Our cache first ────────────────────────────────────────────────
+        cached_qs = VideoCache.objects.filter(
             Q(title__icontains=q) | Q(channel_name__icontains=q) | Q(topic_tags__contains=[q])
         ).order_by('-fetched_at')[:limit]
 
+        cached_ids = set()
         results = []
-        for v in qs:
+        for v in cached_qs:
             vid = v.video_id
             thumb = f'https://i.ytimg.com/vi/{vid}/hqdefault.jpg' if vid else None
             results.append({
                 'url': v.url,
                 'title': v.title,
-                'video_id': v.video_id,
-                'transcript': v.transcript_json or v.transcript,
+                'video_id': vid,
                 'thumbnail_url': thumb,
                 'channel_name': v.channel_name,
+                'cached': True,   # loads instantly with full AI support
             })
+            if vid:
+                cached_ids.add(vid)
+
+        # ── 2. Live YouTube search via yt-dlp ────────────────────────────────
+        # Only run if we have room for more results
+        if len(results) < limit:
+            try:
+                import yt_dlp, re as _re
+                ydl_opts = {
+                    'quiet': True,
+                    'no_warnings': True,
+                    'extract_flat': True,
+                    'skip_download': True,
+                    'playlist_items': f'1:{limit}',
+                }
+                search_url = f'ytsearch{limit}:{q}'
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(search_url, download=False)
+                entries = info.get('entries', []) if info else []
+                for entry in entries:
+                    vid = entry.get('id') or entry.get('url', '')
+                    if not vid or vid in cached_ids:
+                        continue
+                    # Normalise video id
+                    m = _re.search(r'[?&]v=([0-9A-Za-z_-]{11})', vid)
+                    if m:
+                        vid = m.group(1)
+                    elif len(vid) == 11:
+                        pass  # already bare ID
+                    else:
+                        continue
+                    results.append({
+                        'url': f'https://www.youtube.com/watch?v={vid}',
+                        'title': entry.get('title') or 'YouTube Video',
+                        'video_id': vid,
+                        'thumbnail_url': f'https://i.ytimg.com/vi/{vid}/hqdefault.jpg',
+                        'channel_name': entry.get('uploader') or entry.get('channel') or '',
+                        'cached': False,  # will be fetched fresh
+                    })
+                    if len(results) >= limit:
+                        break
+            except Exception:
+                pass  # YouTube search failing should never break the response
 
         return Response({'results': results, 'total': len(results)})
     except Exception as e:

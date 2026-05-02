@@ -3,7 +3,14 @@ import type { ChatMessage, QuizQuestion } from '../types';
 import { BotIcon } from './icons/BotIcon';
 import { UserIcon } from './icons/UserIcon';
 import { LightbulbIcon } from './icons/LightbulbIcon';
-import { SparklesIcon } from './icons/SparklesIcon';
+// 5-pointed star — matches the FloatingAIAssistant bubble icon for consistency
+function StarIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
+    </svg>
+  );
+}
 import { QuizView } from './QuizView';
 import { ClipboardCheckIcon } from './icons/ClipboardCheckIcon';
 import { MarkdownRenderer } from './MarkdownRenderer';
@@ -111,7 +118,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   return (
     <div className="bg-white dark:bg-slate-800 rounded-md shadow-lg shadow-slate-900/5 h-full flex flex-col border border-slate-200 dark:border-slate-700">
         <div className="flex border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
-            <TabButton label="AI Assistant" icon={<SparklesIcon className="w-5 h-5"/>} isActive={activeTab === 'chat'} onClick={() => setActiveTab('chat')} />
+            <TabButton label="AI Assistant" icon={<StarIcon className="w-5 h-5"/>} isActive={activeTab === 'chat'} onClick={() => setActiveTab('chat')} />
             <TabButton label="Knowledge Check" icon={<ClipboardCheckIcon className="w-5 h-5"/>} isActive={activeTab === 'quiz'} onClick={() => setActiveTab('quiz')} />
         </div>
 
@@ -150,7 +157,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                             {/* AI avatar */}
                             {isAI && (
                               <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center flex-shrink-0 shadow-sm mb-0.5">
-                                <SparklesIcon className="w-3.5 h-3.5 text-white" />
+                                <StarIcon className="w-3.5 h-3.5 text-white" />
                               </div>
                             )}
 

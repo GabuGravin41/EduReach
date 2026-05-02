@@ -200,12 +200,8 @@ const FeatureCell: React.FC<{ value: string | boolean; isActive: boolean }> = ({
 export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', onSubscriptionActivated }) => {
   const queryClient = useQueryClient();
   const [selectedTier, setSelectedTier] = useState<'learner' | 'pro'>('learner');
-  const [currency, setCurrency] = useState<CurrencyCode>(() => {
-    if (typeof window === 'undefined') return 'USD';
-    const saved = localStorage.getItem(CURRENCY_STORAGE_KEY);
-    if (saved === 'USD' || saved === 'KES') return saved;
-    return detectKenyaUser() ? 'KES' : 'USD';
-  });
+  // KES/M-Pesa only for now — USD payment will be enabled when card payments are added
+  const [currency] = useState<CurrencyCode>('KES');
 
   const [selectedMethodId, setSelectedMethodId] = useState<number | null>(null);
   const [latestPayment, setLatestPayment] = useState<Payment | null>(null);
@@ -657,7 +653,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-x-auto">
           <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700">
             <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Plan Comparison</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">All prices shown in both USD and KES.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">All prices in KES. Pay with M-Pesa.</p>
           </div>
           <table className="w-full text-sm min-w-[500px]">
             <thead>
@@ -769,21 +765,9 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
         <div className="lg:col-span-2 space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Select a Plan</h2>
-            <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-600 p-1 bg-white dark:bg-slate-800">
-              {(['USD', 'KES'] as CurrencyCode[]).map((code) => (
-                <button
-                  key={code}
-                  type="button"
-                  onClick={() => setCurrency(code)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${currency === code
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                    }`}
-                >
-                  {code}
-                </button>
-              ))}
-            </div>
+            <span className="text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg">
+              Prices in KES · Pay via M-Pesa
+            </span>
           </div>
 
           {/* Kenya hint */}
@@ -1026,7 +1010,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
               <div>
                 <h2 className="text-lg font-extrabold">Subscribe to {tiers[paymentModalTier].name}</h2>
                 <p className="text-indigo-100 text-sm mt-0.5">
-                  KES {tiers[paymentModalTier].monthlyPrice.KES.toLocaleString()} &nbsp;·&nbsp; ${tiers[paymentModalTier].monthlyPrice.USD} USD / month
+                  KES {tiers[paymentModalTier].monthlyPrice.KES.toLocaleString()} / month
                 </p>
               </div>
               <button

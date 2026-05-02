@@ -1075,8 +1075,10 @@ const AppContent: React.FC = () => {
            </main>
         </div>
       </div>
-      {/* Floating AI assistant — persists across all pages */}
-      <FloatingAIAssistant currentView={currentView} username={user?.username} />
+      {/* Floating AI assistant — hidden on learn page (AI is integrated into the video player there) */}
+      {currentView !== 'learning_session' && (
+        <FloatingAIAssistant currentView={currentView} username={user?.username} />
+      )}
       </>
     );
   };
