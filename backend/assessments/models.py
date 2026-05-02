@@ -109,6 +109,21 @@ class Assessment(models.Model):
         help_text='Number of tab-switch violations allowed before the attempt is auto-submitted.',
     )
 
+    # ── Difficulty / recommendation engine ──────────────────────────────────
+    class DifficultyLevel(models.TextChoices):
+        CEE      = 'cee',     'CEE / School'
+        COMP_OE  = 'comp_oe', 'Competition (Open-Ended)'
+        COMP_TP  = 'comp_tp', 'Competition (Proof)'
+        IMO      = 'imo',     'IMO Level'
+
+    difficulty_level = models.CharField(
+        max_length=20,
+        choices=DifficultyLevel.choices,
+        blank=True,
+        default='',
+        help_text='Difficulty tier used by the recommendation engine.',
+    )
+
     # ── Competition / Olympiad metadata ─────────────────────────────────────
     competition_country = models.CharField(
         max_length=200,
@@ -383,6 +398,13 @@ class UserAttempt(models.Model):
             )
         
         self.save()
+
+        # Update the user's per-topic mastery profile for the recommendation engine
+        try:
+            from .recommendation import update_topic_mastery
+            update_topic_mastery(self.user, self.assessment, self.percentage)
+        except Exception:
+            pass  # Never let mastery update break the grading flow
 
 
 class AssessmentAnswerImage(models.Model):

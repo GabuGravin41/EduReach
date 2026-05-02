@@ -65,6 +65,7 @@ class AssessmentSerializer(serializers.ModelSerializer):
             'is_public', 'results_visibility', 'allow_students_see_results',
             'is_proctored', 'proctor_tab_limit',
             'institution', 'source_year', 'source_attribution', 'source_url', 'tags',
+            'difficulty_level',
             'competition_country', 'competition_name', 'competition_language',
             'questions', 'questions_data', 'share_token',
             'question_count', 'source_lesson', 'created_at', 'updated_at'
@@ -223,6 +224,7 @@ class AssessmentListSerializer(serializers.ModelSerializer):
             'image_upload_grace_minutes',
             'assessment_type', 'is_proctored', 'proctor_tab_limit',
             'institution', 'source_year', 'source_attribution', 'source_url', 'tags',
+            'difficulty_level',
             'competition_country', 'competition_name', 'competition_language',
             'source_lesson', 'question_count', 'related_lessons', 'created_at'
         ]

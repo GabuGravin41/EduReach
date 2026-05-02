@@ -83,7 +83,17 @@ class User(AbstractUser):
         blank=True,
         help_text='Comma-separated list of interest tags (e.g. math, programming, languages, exams).',
     )
-    
+
+    # ── Personalisation / recommendation engine ──────────────────────────────
+    topic_mastery = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            'Per-topic performance profile keyed by "Topic_difficulty". '
+            'e.g. {"Geometry_comp_oe": {"attempts":5,"avg_score":0.42,"last_seen":"..."}}'
+        ),
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

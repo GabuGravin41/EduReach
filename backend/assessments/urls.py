@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import AssessmentViewSet, QuestionViewSet, UserAttemptViewSet
+from .views import AssessmentViewSet, QuestionViewSet, UserAttemptViewSet, recommend_assessments_view
 from . import exam_session_views
 
 router = DefaultRouter()
@@ -18,4 +18,6 @@ urlpatterns = [
     # PIN session — student (public)
     path('exam-sessions/join/', exam_session_views.join_exam_session, name='join_exam_session'),
     path('exam-sessions/submit/', exam_session_views.submit_guest_attempt, name='submit_guest_attempt'),
+    # Personalised recommendations
+    path('recommend/', recommend_assessments_view, name='recommend_assessments'),
 ]

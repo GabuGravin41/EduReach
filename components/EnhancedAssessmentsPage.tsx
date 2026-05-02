@@ -32,6 +32,20 @@ interface Assessment {
     competition_country?: string;
     competition_name?: string;
     competition_language?: string;
+    difficulty_level?: string;
+}
+
+interface RecommendedItem extends Assessment {
+    rec_reason: string;
+    rec_topic: string;
+    rec_difficulty: string;
+    rec_mastery_pct: number;
+}
+
+interface MasteryEntry {
+    attempts: number;
+    avg_score: number;
+    last_seen: string | null;
 }
 
 interface TierUsage {
@@ -200,6 +214,26 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
         return () => { mounted = false; };
     }, []);
     const [sortBy, setSortBy] = useState<'recent' | 'difficulty' | 'score'>('recent');
+
+    // ── Personalised recommendations ────────────────────────────────────────
+    const [recommendations, setRecommendations] = useState<RecommendedItem[]>([]);
+    const [mastery, setMastery] = useState<Record<string, MasteryEntry>>({});
+    const [recsLoading, setRecsLoading] = useState(true);
+
+    useEffect(() => {
+        let mounted = true;
+        import('../src/services/apiClient').then(({ default: apiClient }) => {
+            apiClient.get('assessments/recommend/?limit=6')
+                .then(r => {
+                    if (!mounted) return;
+                    setRecommendations(r.data?.recommended ?? []);
+                    setMastery(r.data?.mastery ?? {});
+                })
+                .catch(() => { /* silently ignore if not logged in */ })
+                .finally(() => { if (mounted) setRecsLoading(false); });
+        });
+        return () => { mounted = false; };
+    }, []);
 
     const safeTier: UserTier = userTier in TIER_FEATURES ? userTier : 'free';
     const features = TIER_FEATURES[safeTier];
@@ -585,6 +619,103 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                     )}
                 </div>
             </div>
+
+            {/* ── Personalised Recommendations ──────────────────────────────────── */}
+            {(recsLoading || recommendations.length > 0) && (
+                <div className="mb-8">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                            <span className="text-lg">🎯</span>
+                            <h2 className="font-bold text-slate-800 dark:text-slate-100 text-base">
+                                Recommended for you
+                            </h2>
+                        </div>
+                        {/* Mini mastery overview */}
+                        {Object.keys(mastery).length > 0 && (
+                            <div className="hidden sm:flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+                                {['Geometry', 'Algebra', 'Combinatorics', 'Number Theory'].map(topic => {
+                                    const best = (['comp_oe','comp_tp','imo'] as const)
+                                        .map(d => mastery[`${topic}_${d}`])
+                                        .filter(Boolean)
+                                        .sort((a, b) => b.avg_score - a.avg_score)[0];
+                                    if (!best) return null;
+                                    const pct = Math.round(best.avg_score * 100);
+                                    const color = pct >= 70 ? 'bg-emerald-500' : pct >= 40 ? 'bg-amber-400' : 'bg-rose-400';
+                                    return (
+                                        <div key={topic} className="flex items-center gap-1.5">
+                                            <div className="w-16 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                <div className={`h-full ${color} rounded-full`} style={{ width: `${pct}%` }} />
+                                            </div>
+                                            <span className="whitespace-nowrap">{topic.split(' ')[0]} {pct}%</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    {recsLoading ? (
+                        <div className="flex gap-4 overflow-x-auto pb-2">
+                            {[1,2,3].map(i => (
+                                <div key={i} className="flex-none w-72 h-40 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1">
+                            {recommendations.map((rec, i) => {
+                                const diffBadge: Record<string, string> = {
+                                    comp_oe: 'Competition',
+                                    comp_tp: 'Proof',
+                                    imo:     'IMO',
+                                    cee:     'School',
+                                };
+                                const diffColor: Record<string, string> = {
+                                    comp_oe: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+                                    comp_tp: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+                                    imo:     'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+                                    cee:     'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+                                };
+                                const masteryPct = rec.rec_mastery_pct;
+                                const masteryColor = masteryPct >= 70 ? 'bg-emerald-500' : masteryPct >= 40 ? 'bg-amber-400' : 'bg-rose-400';
+
+                                return (
+                                    <button
+                                        key={`rec-${i}-${rec.id}`}
+                                        onClick={() => onSelectExam(rec.id)}
+                                        className="flex-none w-72 text-left bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 hover:shadow-lg hover:border-indigo-300 dark:hover:border-indigo-600 transition-all hover:-translate-y-0.5 group"
+                                    >
+                                        <div className="flex items-start justify-between mb-2">
+                                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${diffColor[rec.rec_difficulty] ?? 'bg-slate-100 text-slate-600'}`}>
+                                                {diffBadge[rec.rec_difficulty] ?? rec.rec_difficulty}
+                                            </span>
+                                            <span className="text-xs text-slate-400 dark:text-slate-500">
+                                                {(rec as any).time_limit_minutes ?? rec.time} min
+                                            </span>
+                                        </div>
+
+                                        <p className="font-semibold text-sm text-slate-800 dark:text-slate-100 line-clamp-2 mb-1 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                                            {rec.title}
+                                        </p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 line-clamp-2">
+                                            {rec.rec_reason}
+                                        </p>
+
+                                        {/* Mastery bar */}
+                                        {masteryPct > 0 && (
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                    <div className={`h-full ${masteryColor} rounded-full transition-all`} style={{ width: `${masteryPct}%` }} />
+                                                </div>
+                                                <span className="text-xs text-slate-400 dark:text-slate-500 w-8 text-right">{masteryPct}%</span>
+                                            </div>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* ── Search, filters and sort — single compact row ─────────────────── */}
             <div className="mb-6 space-y-3">

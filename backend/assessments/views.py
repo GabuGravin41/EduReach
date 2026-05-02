@@ -1,5 +1,5 @@
 from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
@@ -735,3 +735,41 @@ class UserAttemptViewSet(viewsets.ReadOnlyModelViewSet):
         )
         serializer = UserAttemptSerializer(attempts, many=True)
         return Response(serializer.data)
+
+
+# ── Recommendation endpoint ──────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def recommend_assessments_view(request):
+    """
+    GET /api/assessments/recommend/?limit=6
+
+    Returns personalised assessment recommendations based on the user's
+    topic_mastery profile. Also returns the full mastery dict so the
+    frontend can render progress bars.
+    """
+    from .recommendation import recommend_assessments
+
+    limit = min(int(request.GET.get('limit', 6)), 12)
+    recs  = recommend_assessments(request.user, limit=limit)
+
+    result = []
+    for rec in recs:
+        serializer = AssessmentListSerializer(
+            rec['assessment'], context={'request': request}
+        )
+        result.append({
+            **serializer.data,
+            'rec_reason':     rec['reason'],
+            'rec_topic':      rec['topic'],
+            'rec_difficulty': rec['difficulty'],
+            'rec_mastery_pct': rec['mastery_pct'],
+            'rec_priority':   rec['priority'],
+        })
+
+    return Response({
+        'recommended': result,
+        'mastery':     request.user.topic_mastery or {},
+        'total_found': len(result),
+    })
