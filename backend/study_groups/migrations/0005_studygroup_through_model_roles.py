@@ -34,12 +34,19 @@ def copy_members_to_membership(apps, schema_editor):
             return  # already migrated or table never existed
 
         if vendor == 'postgresql':
+            # Use WHERE NOT EXISTS instead of ON CONFLICT — ON CONFLICT needs the
+            # unique constraint to be committed, which isn't guaranteed within the
+            # same migration transaction when CreateModel just ran above.
             cursor.execute("""
                 INSERT INTO study_groups_studygroupmembership
                     (group_id, user_id, role, is_temp_account, joined_at)
-                SELECT studygroup_id, user_id, 'student', false, NOW()
-                FROM study_groups_studygroup_members
-                ON CONFLICT (group_id, user_id) DO NOTHING;
+                SELECT src.studygroup_id, src.user_id, 'student', false, NOW()
+                FROM study_groups_studygroup_members src
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM study_groups_studygroupmembership m
+                    WHERE m.group_id = src.studygroup_id
+                      AND m.user_id  = src.user_id
+                );
             """)
         else:
             cursor.execute("""
