@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.db import models
 
-from .models import StudyGroup, StudyGroupPost, StudyGroupChallenge, ChallengeParticipation
+from .models import StudyGroup, StudyGroupMembership, StudyGroupPost, StudyGroupChallenge, ChallengeParticipation
 from .serializers import (
     StudyGroupSerializer,
     StudyGroupPostSerializer,
@@ -61,7 +61,11 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         group = serializer.save(creator=self.request.user)
-        group.members.add(self.request.user)
+        StudyGroupMembership.objects.create(
+            group=group,
+            user=self.request.user,
+            role=StudyGroupMembership.Role.TEACHER,
+        )
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def join(self, request, pk=None):
@@ -70,7 +74,11 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Already a member.'}, status=status.HTTP_200_OK)
         if group.member_count >= group.max_members:
             return Response({'detail': 'Group is full.'}, status=status.HTTP_400_BAD_REQUEST)
-        group.members.add(request.user)
+        StudyGroupMembership.objects.get_or_create(
+            group=group,
+            user=request.user,
+            defaults={'role': StudyGroupMembership.Role.STUDENT},
+        )
         return Response({'detail': 'Joined group.'}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
@@ -78,16 +86,99 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
         group = self.get_object()
         if not group.members.filter(id=request.user.id).exists():
             return Response({'detail': 'Not a member.'}, status=status.HTTP_400_BAD_REQUEST)
-        group.members.remove(request.user)
+        StudyGroupMembership.objects.filter(group=group, user=request.user).delete()
         return Response({'detail': 'Left group.'}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticatedOrReadOnly])
     def members(self, request, pk=None):
-        """List members of a study group."""
+        """List members of a study group with their roles."""
         group = self.get_object()
-        members = group.members.all()
-        data = [{'id': m.id, 'username': m.username, 'first_name': getattr(m, 'first_name', ''), 'last_name': getattr(m, 'last_name', '')} for m in members]
+        memberships = group.memberships.select_related('user').all()
+        data = [
+            {
+                'id': ms.user.id,
+                'username': ms.user.username,
+                'first_name': getattr(ms.user, 'first_name', ''),
+                'last_name': getattr(ms.user, 'last_name', ''),
+                'role': ms.role,
+                'is_temp_account': ms.is_temp_account,
+                'joined_at': ms.joined_at.isoformat(),
+            }
+            for ms in memberships
+        ]
         return Response(data)
+
+    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def my_role(self, request, pk=None):
+        """Return the current user's role in this group."""
+        group = self.get_object()
+        try:
+            ms = StudyGroupMembership.objects.get(group=group, user=request.user)
+            return Response({'role': ms.role, 'is_member': True})
+        except StudyGroupMembership.DoesNotExist:
+            return Response({'role': None, 'is_member': False})
+
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[permissions.IsAuthenticated],
+        url_path='bulk-enroll',
+    )
+    def bulk_enroll(self, request, pk=None):
+        """
+        Create temporary contest accounts and enroll them in the group.
+        Only group teachers/creators can call this.
+
+        Request body:
+          - count: int (number of temp accounts to create, max 200)
+          - prefix: str (username prefix, e.g. "contest2024")
+
+        Returns list of created credentials: [{username, password}, ...]
+        """
+        group = self.get_object()
+
+        try:
+            ms = StudyGroupMembership.objects.get(group=group, user=request.user)
+            is_teacher = ms.role in [StudyGroupMembership.Role.TEACHER, StudyGroupMembership.Role.ADMIN]
+        except StudyGroupMembership.DoesNotExist:
+            is_teacher = False
+
+        if not is_teacher and not request.user.is_staff:
+            return Response({'detail': 'Only group teachers can bulk-enroll.'}, status=status.HTTP_403_FORBIDDEN)
+
+        count = int(request.data.get('count', 0))
+        prefix = request.data.get('prefix', 'tmp')
+
+        if count < 1 or count > 200:
+            return Response({'detail': 'count must be between 1 and 200.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if group.member_count + count > group.max_members:
+            return Response(
+                {'detail': f'Would exceed group max of {group.max_members} members.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from django.contrib.auth import get_user_model
+        from django.utils.crypto import get_random_string
+        User = get_user_model()
+
+        created_accounts = []
+        for i in range(count):
+            username = f"{prefix}_{get_random_string(6)}"
+            password = get_random_string(10)
+            while User.objects.filter(username=username).exists():
+                username = f"{prefix}_{get_random_string(6)}"
+
+            user = User.objects.create_user(username=username, password=password)
+            StudyGroupMembership.objects.create(
+                group=group,
+                user=user,
+                role=StudyGroupMembership.Role.STUDENT,
+                is_temp_account=True,
+            )
+            created_accounts.append({'username': username, 'password': password})
+
+        return Response({'created': len(created_accounts), 'accounts': created_accounts})
 
     @action(
         detail=True,
@@ -212,8 +303,12 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
             )
         
         # Add user to group
-        group.members.add(request.user)
-        
+        StudyGroupMembership.objects.get_or_create(
+            group=group,
+            user=request.user,
+            defaults={'role': StudyGroupMembership.Role.STUDENT},
+        )
+
         return Response(
             {'detail': 'Joined group.', 'group_id': group.id},
             status=status.HTTP_200_OK,
@@ -243,7 +338,11 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
         if group.member_count >= group.max_members:
             return Response({'detail': 'Group is full.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        group.members.add(user)
+        StudyGroupMembership.objects.get_or_create(
+            group=group,
+            user=user,
+            defaults={'role': StudyGroupMembership.Role.STUDENT},
+        )
         return Response({'detail': 'User added to group.'}, status=status.HTTP_200_OK)
 
 

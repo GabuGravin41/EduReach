@@ -81,6 +81,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
     { id: 'admin_panel', label: 'Admin Panel', icon: AdminPanelIcon, adminOnly: true },
     { id: 'courses', label: 'My Courses', icon: BookOpenIcon, adminOnly: false },
     { id: 'assessments', label: 'Assessments', icon: ClipboardCheckIcon, adminOnly: false },
+    { id: 'exam_sessions', label: 'Exam Sessions', icon: ClipboardCheckIcon, adminOnly: false },
     { id: 'analytics', label: 'Analytics', icon: AnalyticsIcon, adminOnly: false },
     { id: 'community', label: 'Community', icon: UsersIcon, adminOnly: false },
     { id: 'study_groups', label: 'Study Groups', icon: UsersIcon, adminOnly: false },

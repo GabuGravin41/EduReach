@@ -31,6 +31,7 @@ import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { courseService, Course } from './src/services/courseService';
 import { useToast } from './src/contexts/ToastContext';
 import { notificationService, type AppNotification } from './src/services/notificationService';
+import { FloatingAIAssistant } from './components/FloatingAIAssistant';
 
 // Lazy load heavy components for better performance
 const CreateCoursePage = lazy(() => import('./components/CreateCoursePage').then(module => ({ default: module.CreateCoursePage })));
@@ -44,6 +45,8 @@ const BulkCreateExamPage = lazy(() => import('./components/BulkCreateExamPage').
 const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard').then(module => ({ default: module.AnalyticsDashboard })));
 const TermsOfServicePage = lazy(() => import('./components/TermsOfServicePage').then(module => ({ default: module.TermsOfServicePage })));
 const PrivacyPolicyPage = lazy(() => import('./components/PrivacyPolicyPage').then(module => ({ default: module.PrivacyPolicyPage })));
+const JoinExamPage = lazy(() => import('./components/JoinExamPage'));
+const ExamSessionsPage = lazy(() => import('./components/ExamSessionsPage'));
 
   
 export type UserTier = 'free' | 'learner' | 'pro' | 'pro_plus' | 'admin';
@@ -643,6 +646,15 @@ const AppContent: React.FC = () => {
         );
     }
   
+    // Public page — no auth required
+    if (location.pathname === '/join') {
+      return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>}>
+          <JoinExamPage />
+        </Suspense>
+      );
+    }
+
     if (!user) {
       const isStudyGroupInvite =
         (location.pathname?.startsWith('/study-groups') && location.search?.includes('join_group=')) ||
@@ -667,7 +679,7 @@ const AppContent: React.FC = () => {
     const renderContent = () => {
       switch (currentView) {
         case 'dashboard':
-          return <Dashboard onStartSession={() => setView('setup_session')} onSelectCourse={(id) => setView('course_detail', { courseId: id })} userTier={userTier} username={user?.username ?? (user as any)?.email ?? undefined} />;
+          return <Dashboard onStartSession={() => setView('setup_session')} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onGoToCreateExam={() => setView('create_exam')} userTier={userTier} username={user?.username ?? (user as any)?.email ?? undefined} />;
         case 'courses':
           return <MyCoursesPage courses={courses} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onNewCourse={() => setView('create_course')} userTier={userTier} currentUserId={user?.id} highlightedCourseId={recentlyCreatedCourseId ?? undefined} />;
         case 'create_course':
@@ -831,6 +843,10 @@ const AppContent: React.FC = () => {
            return <TermsOfServicePage />;
         case 'privacy':
            return <PrivacyPolicyPage />;
+        case 'join_exam':
+           return <JoinExamPage />;
+        case 'exam_sessions':
+           return <ExamSessionsPage userAssessments={assessments.map(a => ({ id: a.id, title: a.title }))} />;
         default:
           return (
             <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-10 text-center">
@@ -842,6 +858,7 @@ const AppContent: React.FC = () => {
     };
   
     return (
+      <>
       <div className="flex h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-y-hidden">
         <Sidebar 
           currentView={currentView} 
@@ -1058,6 +1075,9 @@ const AppContent: React.FC = () => {
            </main>
         </div>
       </div>
+      {/* Floating AI assistant — persists across all pages */}
+      <FloatingAIAssistant currentView={currentView} username={user?.username} />
+      </>
     );
   };
 

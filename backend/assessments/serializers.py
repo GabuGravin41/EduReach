@@ -11,7 +11,7 @@ class QuestionSerializer(serializers.ModelSerializer):
         model = Question
         fields = [
             'id', 'assessment', 'question_text', 'question_type',
-            'options', 'correct_answer', 'points', 'order', 'explanation'
+            'options', 'correct_answer', 'points', 'order', 'explanation', 'source_url'
         ]
         read_only_fields = ['id']
 
@@ -47,7 +47,7 @@ class AssessmentSerializer(serializers.ModelSerializer):
             'assessment_type',
             'is_public', 'results_visibility', 'allow_students_see_results',
             'is_proctored', 'proctor_tab_limit',
-            'institution', 'source_year', 'source_attribution', 'tags',
+            'institution', 'source_year', 'source_attribution', 'source_url', 'tags',
             'questions', 'questions_data', 'share_token',
             'question_count', 'source_lesson', 'created_at', 'updated_at'
         ]
@@ -204,7 +204,7 @@ class AssessmentListSerializer(serializers.ModelSerializer):
             'is_public', 'results_visibility', 'allow_students_see_results',
             'image_upload_grace_minutes',
             'assessment_type', 'is_proctored', 'proctor_tab_limit',
-            'institution', 'source_year', 'source_attribution', 'tags',
+            'institution', 'source_year', 'source_attribution', 'source_url', 'tags',
             'source_lesson', 'question_count', 'related_lessons', 'created_at'
         ]
 

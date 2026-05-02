@@ -32,6 +32,8 @@ class MPesaService:
         self.passkey = os.getenv('MPESA_PASSKEY')
         self.callback_url = os.getenv('MPESA_CALLBACK_URL')
         self.base_url = os.getenv('MPESA_BASE_URL', 'https://sandbox.safaricom.co.ke')
+        # 'CustomerPayBillOnline' for Paybill, 'CustomerBuyGoodsOnline' for Till
+        self.transaction_type = os.getenv('MPESA_TRANSACTION_TYPE', 'CustomerPayBillOnline')
 
         if not all([self.consumer_key, self.consumer_secret, self.short_code, self.passkey, self.callback_url]):
             raise MPesaConfigurationError(
@@ -72,7 +74,7 @@ class MPesaService:
             'BusinessShortCode': self.short_code,
             'Password': password,
             'Timestamp': timestamp,
-            'TransactionType': 'CustomerPayBillOnline',
+            'TransactionType': self.transaction_type,
             'Amount': int(amount),
             'PartyA': phone_number,
             'PartyB': self.short_code,
@@ -92,5 +94,32 @@ class MPesaService:
         response.raise_for_status()
         data = response.json()
         logger.info('MPesa STK response: %s', data)
+        return data
+
+    def query_stk_push(self, checkout_request_id: str) -> Dict[str, Any]:
+        """
+        Query the status of an STK Push transaction.
+        ResultCode 0 = success, 1032 = cancelled, 1037 = timeout, etc.
+        """
+        token = self._get_access_token()
+        timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
+        password = base64.b64encode(f'{self.short_code}{self.passkey}{timestamp}'.encode()).decode()
+
+        payload = {
+            'BusinessShortCode': self.short_code,
+            'Password': password,
+            'Timestamp': timestamp,
+            'CheckoutRequestID': checkout_request_id,
+        }
+        url = f'{self.base_url}/mpesa/stkpushquery/v1/query'
+        response = requests.post(
+            url,
+            json=payload,
+            headers={'Authorization': f'Bearer {token}'},
+            timeout=15,
+        )
+        response.raise_for_status()
+        data = response.json()
+        logger.info('MPesa STK Query response: %s', data)
         return data
 

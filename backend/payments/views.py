@@ -314,7 +314,8 @@ class MPesaCallbackView(APIView):
         try:
             payment = Payment.objects.get(reference_code=checkout_request_id)
         except Payment.DoesNotExist:
-            return Response({'detail': 'Payment not found'}, status=status.HTTP_404_NOT_FOUND)
+            logger.warning('MPesa callback: payment not found for CheckoutRequestID %s', checkout_request_id)
+            return Response({'ResultCode': 0, 'ResultDesc': 'Accepted'})
 
         metadata = payment.metadata or {}
         metadata['mpesa_callback'] = callback
@@ -325,6 +326,67 @@ class MPesaCallbackView(APIView):
             payment.mark_failed({'error': result_desc, 'mpesa_callback': callback})
 
         return Response({'ResultCode': 0, 'ResultDesc': 'Processed'})
+
+
+class MPesaQueryView(APIView):
+    """
+    Frontend calls this when STK push is pending and wants to verify without
+    waiting for the callback (e.g. ngrok expired, callback URL changed).
+
+    POST /api/payments/mpesa/query/
+    Body: { "payment_id": 42 }
+
+    Queries Safaricom directly and marks the payment completed if paid.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        payment_id = request.data.get('payment_id')
+        if not payment_id:
+            return Response({'detail': 'payment_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            payment = Payment.objects.get(id=payment_id, user=request.user)
+        except Payment.DoesNotExist:
+            return Response({'detail': 'Payment not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if payment.status == Payment.Status.COMPLETED:
+            return Response({'status': 'completed', 'payment': PaymentSerializer(payment).data})
+
+        # CheckoutRequestID from Safaricom looks like: ws_CO_XXXXXXXXXX
+        # reference_code is set to this value after STK initiation
+        checkout_id = payment.reference_code
+        if not checkout_id or not checkout_id.startswith('ws_CO_'):
+            # Fall back to metadata in case reference_code wasn't saved
+            checkout_id = (payment.metadata or {}).get('CheckoutRequestID')
+            if not checkout_id:
+                return Response({'detail': 'No CheckoutRequestID found. The STK push may still be pending.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            mpesa = MPesaService()
+            result = mpesa.query_stk_push(checkout_id)
+        except Exception as exc:
+            logger.error('MPesa query failed: %s', exc)
+            return Response({'detail': f'Query failed: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
+
+        result_code = result.get('ResultCode')
+        result_desc = result.get('ResultDesc', '')
+
+        if result_code == 0:
+            payment.mark_completed({'mpesa_query': result})
+            return Response({
+                'status': 'completed',
+                'message': 'Payment confirmed! Click Activate Subscription to continue.',
+                'payment': PaymentSerializer(payment).data,
+            })
+        elif result_code in (1032, 1037, 2001):
+            # 1032 = cancelled by user, 1037 = timeout, 2001 = wrong PIN
+            payment.mark_failed({'mpesa_query': result, 'result_desc': result_desc})
+            return Response({'status': 'failed', 'message': result_desc or 'Payment was not completed.'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            # Still pending / unknown
+            return Response({'status': 'pending', 'message': 'Payment is still being processed. Please wait and try again.'})
 
 
 class SubscriptionDetailView(APIView):

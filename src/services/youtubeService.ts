@@ -31,6 +31,7 @@ export interface TranscriptData {
     auto_generated: boolean;
   }>;
   error?: string;
+  _server?: any;
 }
 
 export interface VideoMetadataResponse {

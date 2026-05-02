@@ -475,3 +475,146 @@ def search_videos(request):
         return Response({'results': results, 'total': len(results)})
     except Exception as e:
         return Response({'error': f'Server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def admin_ingest_video(request):
+    """
+    Admin-only: ingest a YouTube video by URL.
+    Pulls transcript + metadata, AI-summarises to key concepts, and stores in VideoCache.
+
+    POST /api/admin/youtube/ingest/
+    { "url": "https://www.youtube.com/watch?v=...", "tags": ["physics", "kcse"] }
+    """
+    if not (request.user.is_staff or getattr(request.user, 'tier', None) == 'admin'):
+        return Response({'error': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+    url = (request.data.get('url') or '').strip()
+    if not url:
+        return Response({'error': 'url is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    tags = request.data.get('tags') or []
+
+    service = YouTubeTranscriptService()
+    video_id = service.extract_video_id(url)
+    if not video_id:
+        return Response({'error': 'Could not parse a YouTube video ID from that URL.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Check if already ingested
+    existing = VideoCache.objects.filter(video_id=video_id).first()
+    if existing and existing.is_processed:
+        existing.topic_tags = list(set((existing.topic_tags or []) + tags))
+        existing.save(update_fields=['topic_tags'])
+        return Response({
+            'status': 'already_ingested',
+            'video_id': video_id,
+            'title': existing.title,
+            'concepts': existing.concepts,
+            'tags': existing.topic_tags,
+        })
+
+    # Pull transcript + metadata
+    result = service.extract_complete_video_data(url)
+    if not result.get('success'):
+        return Response({'error': result.get('error', 'Failed to extract transcript.')}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+    metadata = result.get('metadata') or {}
+    transcript_payload = result.get('transcript') or {}
+    raw_transcript = transcript_payload.get('transcript', '') if isinstance(transcript_payload, dict) else str(transcript_payload)
+    title = metadata.get('title') or result.get('title') or video_id
+    channel = metadata.get('author') or metadata.get('channel_name') or ''
+
+    # AI concept extraction
+    concepts = []
+    summary = ''
+    if raw_transcript:
+        try:
+            from ai_service.views import call_ai
+            excerpt = raw_transcript[:4000]
+            concept_prompt = (
+                f"You are an educational content analyst. Extract the key educational concepts from this video transcript. "
+                f"Video title: '{title}'. "
+                f"Return a JSON object with two keys:\n"
+                f"  'summary': a 2-3 sentence educational summary of the video\n"
+                f"  'concepts': a list of up to 10 strings, each being a key concept or topic covered\n\n"
+                f"Transcript excerpt:\n{excerpt}\n\nReturn only valid JSON, no markdown."
+            )
+            ai_text = call_ai(concept_prompt, max_tokens=600)
+            import re as _re
+            json_match = _re.search(r'\{.*\}', ai_text, _re.DOTALL)
+            if json_match:
+                parsed = json.loads(json_match.group())
+                concepts = parsed.get('concepts') or []
+                summary = parsed.get('summary') or ''
+        except Exception:
+            pass
+
+    # Upsert VideoCache
+    cache_obj, _ = VideoCache.objects.update_or_create(
+        video_id=video_id,
+        defaults={
+            'url': url,
+            'title': title,
+            'channel_name': channel,
+            'transcript': raw_transcript,
+            'transcript_json': transcript_payload if isinstance(transcript_payload, dict) else None,
+            'metadata': metadata,
+            'topic_tags': tags,
+            'concepts': concepts,
+            'is_processed': True,
+        }
+    )
+
+    return Response({
+        'status': 'ingested',
+        'video_id': video_id,
+        'title': title,
+        'channel': channel,
+        'summary': summary,
+        'concepts': concepts,
+        'tags': tags,
+        'transcript_length': len(raw_transcript),
+    }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_list_ingested(request):
+    """
+    Admin-only: list all ingested VideoCache entries with pagination.
+
+    GET /api/admin/youtube/ingested/?page=1&limit=20&q=keyword
+    """
+    if not (request.user.is_staff or getattr(request.user, 'tier', None) == 'admin'):
+        return Response({'error': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+    q = (request.GET.get('q') or '').strip()
+    limit = min(int(request.GET.get('limit', 20)), 100)
+    page = max(int(request.GET.get('page', 1)), 1)
+    offset = (page - 1) * limit
+
+    qs = VideoCache.objects.all()
+    if q:
+        qs = qs.filter(Q(title__icontains=q) | Q(channel_name__icontains=q))
+    total = qs.count()
+    items = qs[offset:offset + limit]
+
+    data = []
+    for v in items:
+        vid = v.video_id
+        data.append({
+            'id': v.id,
+            'video_id': vid,
+            'url': v.url,
+            'title': v.title,
+            'channel_name': v.channel_name,
+            'thumbnail_url': f'https://i.ytimg.com/vi/{vid}/mqdefault.jpg',
+            'concepts': v.concepts or [],
+            'topic_tags': v.topic_tags or [],
+            'is_processed': v.is_processed,
+            'transcript_length': len(v.transcript or ''),
+            'fetched_at': v.fetched_at.isoformat() if v.fetched_at else None,
+        })
+
+    return Response({'results': data, 'total': total, 'page': page, 'limit': limit})

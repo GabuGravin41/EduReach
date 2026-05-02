@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { paymentService, PaymentMethod, Payment, Subscription, InitiatePaymentResponse } from '../src/services/paymentService';
+import apiClient from '../src/services/apiClient';
 import { PriceTagIcon } from './icons/PriceTagIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
@@ -342,6 +343,24 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
       if (onSubscriptionActivated) {
         onSubscriptionActivated(selectedTier);
       }
+    },
+  });
+
+  const mpesaQueryMutation = useMutation({
+    mutationFn: (paymentId: number) =>
+      apiClient.post('/api/payments/mpesa/query/', { payment_id: paymentId }).then(r => r.data),
+    onSuccess: (data) => {
+      if (data.status === 'completed') {
+        setStkPushPending(false);
+        setStkSuccess(true);
+        historyQuery.refetch();
+        setModalPaymentMessage(data.message || 'Payment confirmed! Click Activate Subscription.');
+      } else {
+        setModalPaymentMessage(data.message || 'Payment still pending. Please wait and try again.');
+      }
+    },
+    onError: (err: any) => {
+      setModalPaymentMessage(err?.response?.data?.detail || 'Could not verify payment. Please try again.');
     },
   });
 
@@ -1112,9 +1131,22 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                     <ClockIcon className="w-4 h-4 animate-spin" />
                     <span>Waiting for confirmation...</span>
                   </div>
+                  {modalPaymentMessage && (
+                    <p className="text-sm text-center text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 rounded-lg p-2">{modalPaymentMessage}</p>
+                  )}
+                  {stkPushPaymentId && (
+                    <button
+                      type="button"
+                      onClick={() => mpesaQueryMutation.mutate(stkPushPaymentId)}
+                      disabled={mpesaQueryMutation.isPending}
+                      className="w-full py-2.5 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors text-sm"
+                    >
+                      {mpesaQueryMutation.isPending ? 'Checking...' : '✓ I paid — verify my payment'}
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => { setStkPushPending(false); setStkPushPaymentId(null); }}
+                    onClick={() => { setStkPushPending(false); setStkPushPaymentId(null); setModalPaymentMessage(''); }}
                     className="text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline transition-colors"
                   >
                     Cancel — I didn't get a prompt

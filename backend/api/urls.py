@@ -4,6 +4,7 @@ URL configuration for YouTube API endpoints and analytics endpoints.
 from django.urls import path
 from . import youtube_views
 from . import analytics_views
+from . import recommendations_views
 
 urlpatterns = [
     # YouTube transcript and metadata endpoints
@@ -15,6 +16,13 @@ urlpatterns = [
     path('youtube/download-notes/<int:notes_id>/', youtube_views.download_notes, name='download_notes'),
     # Video cache search
     path('videos/search/', youtube_views.search_videos, name='video_search'),
+
+    # Admin YouTube ingestion
+    path('admin/youtube/ingest/', youtube_views.admin_ingest_video, name='admin_ingest_video'),
+    path('admin/youtube/ingested/', youtube_views.admin_list_ingested, name='admin_list_ingested'),
+
+    # Personalised recommendations
+    path('recommendations/', recommendations_views.recommendations, name='recommendations'),
 
     # Analytics endpoints
     path('analytics/learner/', analytics_views.learner_analytics, name='learner_analytics'),

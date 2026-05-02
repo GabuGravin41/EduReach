@@ -15,10 +15,12 @@ import { AdminDashboard } from './AdminDashboard';
 import { useCourses, useMyCourses } from '../src/hooks/useCourses';
 import { useMyAssessments } from '../src/hooks/useAssessments';
 import apiClient from '../src/services/api';
+import { FeatureSpotlight } from './FeatureSpotlight';
 
 interface DashboardProps {
   onStartSession: () => void;
   onSelectCourse: (courseId: number) => void;
+  onGoToCreateExam?: () => void;
   userTier: UserTier;
   username?: string;
 }
@@ -252,7 +254,7 @@ const DiscoverCard: React.FC<{ course: any; onSelect: (id: number) => void }> = 
 };
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────
-export const Dashboard: React.FC<DashboardProps> = ({ onStartSession, onSelectCourse, userTier, username }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ onStartSession, onSelectCourse, onGoToCreateExam, userTier, username }) => {
   const navigate = useNavigate();
   const { data: apiCourses, isLoading: coursesLoading } = useCourses();
   const { data: myCourses, isLoading: myCoursesLoading } = useMyCourses();
@@ -302,6 +304,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartSession, onSelectCo
         .filter((c: any) => (c.is_public === true || c.isPublic === true) && !myCourseIds.has(c.id))
         .slice(0, 6)
     : [];
+
+  // Personalised recommendations
+  const recsQuery = useQuery({
+    queryKey: ['recommendations'],
+    queryFn: async () => {
+      const res = await apiClient.get('recommendations/');
+      return res.data as {
+        assessments: any[];
+        courses: any[];
+        based_on: string[];
+        is_personalised: boolean;
+      };
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+  const recs = recsQuery.data;
 
   // Lessons completed this week (naive from analytics, fallback to 0)
   const lessonsThisWeek = summary?.total_lessons_completed ?? 0;
@@ -409,6 +428,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartSession, onSelectCo
           />
         </div>
       )}
+
+      {/* ── Feature Spotlight ────────────────────────────────────────── */}
+      <FeatureSpotlight
+        onGoToAssessments={() => navigate(ROUTES.assessments)}
+        onGoToSession={onStartSession}
+        onGoToCreateExam={onGoToCreateExam ?? (() => navigate(ROUTES.createExam))}
+      />
 
       {/* ── My Courses + Activity ─────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -573,6 +599,52 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartSession, onSelectCo
           </div>
         </div>
       </div>
+
+      {/* ── Recommended for You ──────────────────────────────────────── */}
+      {(recs?.assessments?.length ?? 0) > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-slate-800 dark:text-white">
+                {recs!.is_personalised ? 'Recommended for You' : 'Popular Assessments'}
+              </h2>
+              {recs!.is_personalised && recs!.based_on.length > 0 && (
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Based on: {recs!.based_on.slice(0, 4).join(', ')}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {recs!.assessments.slice(0, 4).map((a: any) => (
+              <div
+                key={a.id}
+                className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 hover:shadow-md transition-shadow cursor-pointer group"
+                onClick={() => navigate(`/assessments/${a.id}`)}
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    a.assessment_type === 'quiz'
+                      ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                      : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                  }`}>
+                    {a.assessment_type?.toUpperCase()}
+                  </span>
+                  {a.institution && (
+                    <span className="text-[9px] text-slate-400 truncate max-w-[80px]">{a.institution}</span>
+                  )}
+                </div>
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-1 line-clamp-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors leading-snug">{a.title}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 line-clamp-2 leading-relaxed">{a.description || a.topic}</p>
+                <div className="flex items-center justify-between text-[10px] text-slate-400 border-t border-slate-100 dark:border-slate-700 pt-2">
+                  <span>{a.question_count} questions</span>
+                  <span>{a.time_limit_minutes} min</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Discover section ──────────────────────────────────────────── */}
       <div className="space-y-4">

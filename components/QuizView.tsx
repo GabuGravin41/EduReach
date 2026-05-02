@@ -123,6 +123,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
         correct_answer_index: correctIndex >= 0 ? correctIndex : 0,
         points: q.points || 1,
         explanation: q.explanation,
+        source_url: q.source_url,
       } as MultipleChoiceQuestion;
     });
   }, [quiz]);
@@ -934,6 +935,20 @@ Format: {"score": number, "feedback": "string"}`;
             {isSubmitted && (q as any).explanation && (
               <div className="mt-4 ml-11 p-3 bg-slate-100 dark:bg-slate-700 rounded-lg text-sm text-slate-700 dark:text-slate-300">
                 <strong>Explanation:</strong> <MarkdownRenderer content={(q as any).explanation} />
+              </div>
+            )}
+            {/* Source attribution link */}
+            {(q as any).source_url && (
+              <div className="mt-2 ml-11 text-xs text-slate-400 dark:text-slate-500">
+                Source:{' '}
+                <a
+                  href={(q as any).source_url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  {(q as any).source_url}
+                </a>
               </div>
             )}
           </div>

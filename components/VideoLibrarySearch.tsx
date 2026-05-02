@@ -72,7 +72,7 @@ const VideoLibrarySearch: React.FC<Props> = ({ courseId, lessonId, onSelect }) =
         </button>
       </div>
 
-      <div className="text-xs text-slate-500 mb-2">Search cached transcripts first. If found, click <strong>Load</strong> to open in this session.</div>
+      <div className="text-xs text-slate-500 mb-2">Videos in our library load instantly with full AI support.</div>
 
       {loading && <div className="text-sm text-slate-500">Searching…</div>}
       {error && <div className="text-sm text-rose-600">{error}</div>}

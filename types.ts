@@ -15,6 +15,7 @@ export interface BaseQuestion {
     id: string;
     type: QuestionType;
     points: number;
+    source_url?: string;
 }
 
 export interface MultipleChoiceQuestion extends BaseQuestion {
@@ -144,8 +145,10 @@ export interface Assessment {
     question_types?: string[];
     created_at?: string;
     tags?: string[];
+    source_attribution?: string;
+    source_year?: number | null;
     // For AI generated ones
-    questions_data?: any[]; 
+    questions_data?: any[];
     source_type?: 'text' | 'youtube';
     source_url?: string;
     assessment_type?: AssessmentMode;

@@ -7,7 +7,7 @@ interface OptimizedQueryOptions {
   refetchOnWindowFocus?: boolean;
   enabled?: boolean;
   retry?: number | boolean;
-  retryDelay?: number;
+  retryDelay?: number | ((attemptIndex: number) => number);
   placeholderData?: any;
   keepPreviousData?: boolean;
 }

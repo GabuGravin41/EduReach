@@ -124,6 +124,8 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     const [isRetryingTranscript, setIsRetryingTranscript] = useState(false);
     const [transcriptModalError, setTranscriptModalError] = useState('');
     const canManageCourse = Boolean(currentUserId && course?.owner?.id === currentUserId);
+    const isAdmin = userTier === 'admin';
+    const canSeeTranscriptStatus = canManageCourse || isAdmin;
 
     useEffect(() => {
         if (course) {
@@ -795,26 +797,15 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                                                                 <span className="flex items-center gap-1 bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded-full">
                                                                     <ClockIcon className="w-3 h-3" /> {lesson.duration}
                                                                 </span>
+                                                                {canSeeTranscriptStatus && (
                                                                 <span
-                                                                    className={`px-2 py-1 rounded-full font-medium ${transcriptStatus.className} ${transcriptStatus.isMissing && canManageCourse
-                                                                        ? 'cursor-pointer hover:opacity-80'
-                                                                        : ''
-                                                                        }`}
-                                                                    onClick={() => {
-                                                                        if (transcriptStatus.isMissing && canManageCourse) {
-                                                                            openTranscriptModal(lesson);
-                                                                        }
-                                                                    }}
-                                                                    title={
-                                                                        transcriptStatus.isMissing && canManageCourse
-                                                                            ? 'Add transcript manually or retry auto-fetch'
-                                                                            : transcriptStatus.isMissing
-                                                                                ? 'Transcript missing'
-                                                                                : 'Transcript is available'
-                                                                    }
+                                                                    className={`px-2 py-1 rounded-full font-medium ${transcriptStatus.className} ${transcriptStatus.isMissing && canManageCourse ? 'cursor-pointer hover:opacity-80' : ''}`}
+                                                                    onClick={() => { if (transcriptStatus.isMissing && canManageCourse) openTranscriptModal(lesson); }}
+                                                                    title={transcriptStatus.isMissing && canManageCourse ? 'Add transcript manually or retry auto-fetch' : transcriptStatus.isMissing ? 'Transcript missing' : 'Transcript is available'}
                                                                 >
                                                                     {transcriptStatus.label}
                                                                 </span>
+                                                                )}
                                                                 {lesson.isCompleted && <span className="text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-100 dark:bg-emerald-900/30 px-2 py-1 rounded-full">✓ Completed</span>}
                                                                 {linkedAssessment && (
                                                                     <span

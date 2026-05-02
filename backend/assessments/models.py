@@ -65,6 +65,10 @@ class Assessment(models.Model):
         blank=True,
         help_text='Human-readable credit line, e.g. "Kenyatta University — Engineering, 2023 Final".',
     )
+    source_url = models.URLField(
+        blank=True,
+        help_text='Link to the original source (e.g. university past-paper portal, Olympiad archive).',
+    )
     tags = models.JSONField(
         default=list,
         blank=True,
@@ -152,6 +156,10 @@ class Question(models.Model):
     points = models.PositiveIntegerField(default=1)
     order = models.PositiveIntegerField(default=0)
     explanation = models.TextField(blank=True)
+    source_url = models.URLField(
+        blank=True,
+        help_text='Link to the original source for this specific question (overrides assessment-level source_url).',
+    )
 
     def __str__(self):
         return f"{self.assessment.title} - Q{self.order}"
@@ -412,3 +420,66 @@ class VideoNotes(models.Model):
     def get_video_url(self):
         """Get the YouTube URL for this video."""
         return f"https://www.youtube.com/watch?v={self.video_id}"
+
+
+class ExamSession(models.Model):
+    """
+    A PIN-gated exam session created by a teacher.
+    Students join with a 6-digit PIN and their display name — no account required.
+    """
+    assessment = models.ForeignKey(
+        Assessment,
+        on_delete=models.CASCADE,
+        related_name='exam_sessions',
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='created_exam_sessions',
+    )
+    pin = models.CharField(max_length=8, unique=True, db_index=True)
+    title = models.CharField(max_length=200, blank=True)
+    is_active = models.BooleanField(default=True)
+    allow_anonymous = models.BooleanField(
+        default=True,
+        help_text='When True, students can join with just a display name (no EduReach account needed).',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Session {self.pin} — {self.assessment.title}"
+
+
+class GuestAttempt(models.Model):
+    """
+    An anonymous assessment attempt from a PIN session participant.
+    Linked to an ExamSession, identified by display name only.
+    """
+    session = models.ForeignKey(
+        ExamSession,
+        on_delete=models.CASCADE,
+        related_name='guest_attempts',
+    )
+    display_name = models.CharField(max_length=100)
+    answers = models.JSONField(default=dict)
+    question_results = models.JSONField(default=dict)
+    score = models.CharField(max_length=20, default='0/0')
+    percentage = models.FloatField(default=0.0)
+    status = models.CharField(
+        max_length=20,
+        choices=[('in_progress', 'In Progress'), ('submitted', 'Submitted'), ('graded', 'Graded')],
+        default='in_progress',
+    )
+    started_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-started_at']
+        unique_together = ['session', 'display_name']
+
+    def __str__(self):
+        return f"{self.display_name} in {self.session}"

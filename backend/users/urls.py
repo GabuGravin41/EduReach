@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import UserViewSet, NotificationViewSet, PushSubscriptionView, VapidPublicKeyView, GoogleLoginView
+from .views import UserViewSet, NotificationViewSet, PushSubscriptionView, VapidPublicKeyView, GoogleLoginView, institution_list
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
@@ -12,4 +12,5 @@ urlpatterns = [
     # Web Push subscription management
     path('notifications/push/subscribe/', PushSubscriptionView.as_view(), name='push-subscribe'),
     path('notifications/push/vapid-key/', VapidPublicKeyView.as_view(), name='vapid-public-key'),
+    path('institutions/', institution_list, name='institution-list'),
 ]

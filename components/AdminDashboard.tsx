@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { AdminYouTubeIngestion } from './AdminYouTubeIngestion';
+import { AdminAssessmentUpload } from './AdminAssessmentUpload';
 import { UsersIcon } from './icons/UsersIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
 import { ClipboardCheckIcon } from './icons/ClipboardCheckIcon';
@@ -96,7 +98,10 @@ const Skeleton: React.FC<{ className?: string }> = ({ className = '' }) => (
 // ---------------------------------------------------------------------------
 // AdminDashboard
 // ---------------------------------------------------------------------------
+type AdminTab = 'overview' | 'youtube' | 'upload';
+
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ stats: propsStats }) => {
+    const [activeTab, setActiveTab] = useState<AdminTab>('overview');
 
     // ---- Primary: full analytics endpoint ----
     const {
@@ -179,6 +184,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ stats: propsStat
                     </svg>
                 </a>
             </div>
+
+            {/* ------------------------------------------------------------------ */}
+            {/* Tab bar                                                             */}
+            {/* ------------------------------------------------------------------ */}
+            <div className="flex gap-1 border-b border-slate-200 dark:border-slate-700">
+                {([['overview', 'Overview'], ['youtube', 'YouTube Ingestion'], ['upload', 'Upload Past Papers']] as [AdminTab, string][]).map(([tab, label]) => (
+                    <button
+                        key={tab}
+                        onClick={() => setActiveTab(tab)}
+                        className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg -mb-px border-b-2 transition-colors ${
+                            activeTab === tab
+                                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                    >
+                        {label}
+                    </button>
+                ))}
+            </div>
+
+            {activeTab === 'youtube' && <AdminYouTubeIngestion />}
+            {activeTab === 'upload' && <AdminAssessmentUpload />}
+            {activeTab === 'overview' && <>
 
             {/* ------------------------------------------------------------------ */}
             {/* Error banner                                                        */}
@@ -367,6 +395,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ stats: propsStat
                     </ul>
                 </div>
             </div>
+            </>}
         </div>
     );
 };

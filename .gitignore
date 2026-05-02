@@ -82,3 +82,14 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Database dumps and backups
+*.dump
+*.sql.gz
+backend/logs/
+
+# Test output files
+backend/test_*_out*.txt
+
+# AI / agent planning artifacts
+.agents/

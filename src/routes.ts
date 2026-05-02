@@ -13,10 +13,13 @@ export type View =
   | 'profile'
   | 'admin_panel'
   | 'setup_session'
+  | 'learning_session'
   | 'bulk_create_exam'
   | 'analytics'
   | 'terms'
-  | 'privacy';
+  | 'privacy'
+  | 'join_exam'
+  | 'exam_sessions';
 
 export const ROUTES = {
   dashboard: '/dashboard',
@@ -39,6 +42,8 @@ export const ROUTES = {
   analytics: '/analytics',
   terms: '/terms',
   privacy: '/privacy',
+  joinExam: '/join',
+  examSessions: '/exam-sessions',
 } as const;
 
 const VIEW_TO_PATH: Record<View, string | ((opts?: { courseId?: number; examId?: number }) => string)> = {
@@ -61,6 +66,8 @@ const VIEW_TO_PATH: Record<View, string | ((opts?: { courseId?: number; examId?:
   analytics: ROUTES.analytics,
   terms: ROUTES.terms,
   privacy: ROUTES.privacy,
+  join_exam: ROUTES.joinExam,
+  exam_sessions: ROUTES.examSessions,
 };
 
 export function viewToPath(
@@ -101,6 +108,8 @@ export function pathnameToView(pathname: string): { view: View; courseId: number
   if (p === '/analytics') return { view: 'analytics', courseId: null, examId: null };
   if (p === '/terms') return { view: 'terms', courseId: null, examId: null };
   if (p === '/privacy') return { view: 'privacy', courseId: null, examId: null };
+  if (p === '/join') return { view: 'join_exam', courseId: null, examId: null };
+  if (p === '/exam-sessions') return { view: 'exam_sessions', courseId: null, examId: null };
 
   return { view: 'dashboard', courseId: null, examId: null };
 }

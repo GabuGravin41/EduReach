@@ -4,7 +4,8 @@ import { assessmentService, CreateAssessmentData } from '../src/services/assessm
 import { SparklesIcon } from './icons/SparklesIcon';
 import { ClipboardCheckIcon } from './icons/ClipboardCheckIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
-import { useAssessments } from '../src/hooks/useAssessments';
+import { useQueryClient } from '@tanstack/react-query';
+import { ASSESSMENT_KEYS } from '../src/hooks/useAssessments';
 
 interface BulkCreateExamPageProps {
     onCancel: () => void;
@@ -13,7 +14,7 @@ interface BulkCreateExamPageProps {
 
 export const BulkCreateExamPage: React.FC<BulkCreateExamPageProps> = ({ onCancel, onBatchCreated }) => {
     const { user } = useAuth();
-    const { invalidateAssessments } = useAssessments();
+    const queryClient = useQueryClient();
     const [topic, setTopic] = useState('');
     const [numTests, setNumTests] = useState(5);
     const [questionsPerTest, setQuestionsPerTest] = useState(10);
@@ -60,7 +61,7 @@ export const BulkCreateExamPage: React.FC<BulkCreateExamPageProps> = ({ onCancel
             }
 
             await assessmentService.bulkCreateAssessments(batch);
-            invalidateAssessments();
+            queryClient.invalidateQueries({ queryKey: ASSESSMENT_KEYS.lists() });
             onBatchCreated();
         } catch (err: any) {
             const data = err?.response?.data;

@@ -292,3 +292,34 @@ class GoogleLoginView(APIView):
 
         except ValueError as e:
             return Response({'error': f'Invalid token: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+from rest_framework.decorators import api_view, permission_classes as deco_permission_classes
+from .models import Institution
+
+
+@api_view(['GET', 'POST'])
+@deco_permission_classes([permissions.IsAuthenticated])
+def institution_list(request):
+    """
+    GET  /api/users/institutions/  — list all institutions (for dropdowns)
+    POST /api/users/institutions/  — create institution (admin/staff only)
+    """
+    if request.method == 'GET':
+        insts = Institution.objects.all().order_by('name')
+        return Response([{'id': i.id, 'name': i.name, 'domain': i.domain} for i in insts])
+
+    # POST — admin only
+    if not (request.user.is_staff or getattr(request.user, 'tier', None) == 'admin'):
+        return Response({'error': 'Admin only.'}, status=403)
+    name = (request.data.get('name') or '').strip()
+    if not name:
+        return Response({'error': 'name is required.'}, status=400)
+    inst, created = Institution.objects.get_or_create(
+        name=name,
+        defaults={'domain': request.data.get('domain', '')},
+    )
+    return Response(
+        {'id': inst.id, 'name': inst.name, 'domain': inst.domain},
+        status=201 if created else 200,
+    )
