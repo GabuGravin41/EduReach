@@ -564,14 +564,37 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
         </div>
       )}
 
-      {/* Mobile Toggle Buttons */}
-      <div className="lg:hidden flex justify-between mb-2 flex-shrink-0 gap-2">
-        <Button variant="outline" size="sm" onClick={() => setIsStudyPanelOpen(prev => !prev)} className="flex-1">
-          {isStudyPanelOpen ? 'Hide Notes' : 'Show Notes'}
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => setIsAIPanelOpen(prev => !prev)} className="flex-1">
-          {isAIPanelOpen ? 'Hide AI' : 'Show AI'}
-        </Button>
+      {/* Mobile Toggle — Notes / AI tabs (mutually exclusive) */}
+      <div className="lg:hidden flex mb-2 flex-shrink-0 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => {
+            if (isStudyPanelOpen) { setIsStudyPanelOpen(false); }
+            else { setIsStudyPanelOpen(true); setIsAIPanelOpen(false); }
+          }}
+          className={`flex-1 py-2 text-sm font-semibold transition-colors ${
+            isStudyPanelOpen
+              ? 'bg-indigo-600 text-white'
+              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+          }`}
+        >
+          Notes
+        </button>
+        <div className="w-px bg-slate-200 dark:bg-slate-700 flex-shrink-0" />
+        <button
+          type="button"
+          onClick={() => {
+            if (isAIPanelOpen) { setIsAIPanelOpen(false); }
+            else { setIsAIPanelOpen(true); setIsStudyPanelOpen(false); }
+          }}
+          className={`flex-1 py-2 text-sm font-semibold transition-colors ${
+            isAIPanelOpen
+              ? 'bg-indigo-600 text-white'
+              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+          }`}
+        >
+          AI
+        </button>
       </div>
 
       {/* Video and Notes Section */}

@@ -68,10 +68,12 @@ export const MyCoursesPage: React.FC<MyCoursesPageProps> = ({ courses, onSelectC
             const creatorName = course.owner?.username || 'Unknown';
             const visibility = (course.is_public ?? course.isPublic) ? 'Public' : 'Private';
             const progress = typeof course.progress === 'number' ? course.progress : 0;
-            // Derive thumbnail: explicit > first lesson video > null
-            const firstVideoId = course.lessons?.[0]?.video_id;
-            const cardThumbnail = course.thumbnail
-              || (firstVideoId ? `https://img.youtube.com/vi/${firstVideoId}/hqdefault.jpg` : null);
+            // Derive thumbnail: explicit > first lesson YouTube video > null
+            const firstVideoId = course.lessons?.[0]?.videoId || (course.lessons?.[0] as any)?.video_id;
+            const validVideoId = firstVideoId && !String(firstVideoId).startsWith('placeholder_') ? firstVideoId : null;
+            const cardThumbnail = (course.thumbnail && !course.thumbnail.endsWith('/'))
+              ? course.thumbnail
+              : (validVideoId ? `https://img.youtube.com/vi/${validVideoId}/hqdefault.jpg` : null);
             const actionLabel = progress === 0 ? 'Start Course' : progress === 100 ? 'Review' : 'Continue';
             const isHighlighted = highlightedCourseId === course.id;
 
