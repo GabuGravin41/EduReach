@@ -291,11 +291,13 @@ if DEBUG or IS_LOCAL_SAFE_COMMAND:
 else:
     CORS_ALLOWED_ORIGINS = valid_origins
 
-# Allow Capacitor mobile app origins
+# Allow Capacitor mobile app origins and Vercel preview deployments
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^capacitor://localhost$",
     r"^http://localhost$",
     r"^ionic://localhost$",
+    r"^https://edu-reach-[\w]+-gabugravin41s-projects\.vercel\.app$",
+    r"^https://edu-reach\.vercel\.app$",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
