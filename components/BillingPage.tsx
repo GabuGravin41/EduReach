@@ -12,7 +12,7 @@ import { UserTier } from '../App';
 
 interface BillingPageProps {
   currentTier?: UserTier;
-  onSubscriptionActivated?: (tier: 'learner' | 'pro' | 'pro_plus') => void;
+  onSubscriptionActivated?: (tier: 'learner' | 'pro') => void;
 }
 
 type CurrencyCode = 'USD' | 'KES';
@@ -27,66 +27,54 @@ interface TierInfo {
   color: string; // tailwind accent color token
 }
 
-const tiers: Record<'learner' | 'pro' | 'pro_plus', TierInfo> = {
+const tiers: Record<'learner' | 'pro', TierInfo> = {
   learner: {
-    name: 'Learner',
-    monthlyPrice: { USD: 4, KES: 350 },
+    name: 'Starter',
+    monthlyPrice: { USD: 2.99, KES: 399 },
     priceSuffix: '/ month',
-    description: 'Break past the basic limits with expanded creation tools.',
+    description: 'Perfect for students who want to go beyond the basics.',
     color: 'indigo',
     features: [
+      '100 AI Tutor queries / month',
+      'Create up to 15 assessments',
       'Create up to 5 courses',
-      'Up to 25 lessons per course',
-      'Access 10 public courses',
-      'Create up to 10 exams',
-      'Advanced AI quiz generation',
-      'Unlimited AI Tutor messages',
-      '15 community challenges',
+      'Access all public courses',
+      'AI quiz generation',
+      'Community access',
+      '14-day free Pro trial on signup',
     ],
   },
   pro: {
     name: 'Pro',
-    monthlyPrice: { USD: 11, KES: 950 },
+    monthlyPrice: { USD: 7.99, KES: 999 },
     priceSuffix: '/ month',
-    description: 'For power users and content creators who want the best.',
+    description: 'For serious learners and educators who want the full experience.',
     color: 'violet',
+    isPopular: true,
     features: [
-      'Unlimited courses & lessons',
-      'Unlimited public course access',
-      'Create up to 50 exams',
-      'Premium AI Tutor (gemini-2.5-pro)',
+      '500 AI Tutor queries / month',
+      'Unlimited courses & assessments',
+      'Premium AI model (Gemini 2.5 Pro)',
+      'Analytics dashboard',
+      'Study groups',
       'Private courses & exams',
       '"Pro" badge on profile',
     ],
   },
-  pro_plus: {
-    name: 'Pro Plus',
-    monthlyPrice: { USD: 19, KES: 1700 },
-    priceSuffix: '/ month',
-    description: 'The ultimate toolkit for educators and lifelong learners.',
-    color: 'purple',
-    features: [
-      'Everything in Pro',
-      'Unlimited exams',
-      'AI lesson plan generation',
-      'Early access to new features',
-      'Priority Support',
-    ],
-    isPopular: true,
-  },
 };
 
 // ── Feature comparison table ───────────────────────────────────────────────
-type FeatureRow = { feature: string; free: string | boolean; learner: string | boolean; pro: string | boolean; pro_plus: string | boolean };
+type FeatureRow = { feature: string; free: string | boolean; learner: string | boolean; pro: string | boolean };
 
 const featureRows: FeatureRow[] = [
-  { feature: 'AI Queries / month', free: '20', learner: 'Unlimited', pro: 'Unlimited', pro_plus: 'Unlimited' },
-  { feature: 'Create courses', free: '1', learner: '5', pro: 'Unlimited', pro_plus: 'Unlimited' },
-  { feature: 'Create assessments', free: '3', learner: '10', pro: '50', pro_plus: 'Unlimited' },
-  { feature: 'Community access', free: true, learner: true, pro: true, pro_plus: true },
-  { feature: 'Study groups', free: false, learner: false, pro: true, pro_plus: true },
-  { feature: 'Analytics dashboard', free: false, learner: false, pro: true, pro_plus: true },
-  { feature: 'Priority support', free: false, learner: false, pro: false, pro_plus: true },
+  { feature: 'AI Tutor queries / month', free: '15', learner: '100', pro: '500' },
+  { feature: 'Create courses',           free: '2',  learner: '5',   pro: 'Unlimited' },
+  { feature: 'Create assessments',       free: '3',  learner: '15',  pro: 'Unlimited' },
+  { feature: 'Community access',         free: true, learner: true,  pro: true },
+  { feature: 'Study groups',             free: false, learner: false, pro: true },
+  { feature: 'Analytics dashboard',      free: false, learner: false, pro: true },
+  { feature: 'Premium AI model',         free: false, learner: false, pro: true },
+  { feature: '14-day Pro trial',         free: true,  learner: true,  pro: true },
 ];
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -119,7 +107,7 @@ const formatAmount = (currency: CurrencyCode, amount: number): string =>
     : `$${amount.toLocaleString()} USD`;
 
 /** Show dual-currency price e.g. "$4 USD / KES 350" */
-const formatDualPrice = (tierKey: 'learner' | 'pro' | 'pro_plus'): string => {
+const formatDualPrice = (tierKey: 'learner' | 'pro'): string => {
   const t = tiers[tierKey];
   return `$${t.monthlyPrice.USD} USD / KES ${t.monthlyPrice.KES.toLocaleString()}`;
 };
@@ -211,7 +199,7 @@ const FeatureCell: React.FC<{ value: string | boolean; isActive: boolean }> = ({
 // ── Main Component ─────────────────────────────────────────────────────────
 export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', onSubscriptionActivated }) => {
   const queryClient = useQueryClient();
-  const [selectedTier, setSelectedTier] = useState<'learner' | 'pro' | 'pro_plus'>('learner');
+  const [selectedTier, setSelectedTier] = useState<'learner' | 'pro'>('learner');
   const [currency, setCurrency] = useState<CurrencyCode>(() => {
     if (typeof window === 'undefined') return 'USD';
     const saved = localStorage.getItem(CURRENCY_STORAGE_KEY);
@@ -248,13 +236,13 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
 
   // ── Payment modal state ─────────────────────────────────────────────────
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [paymentModalTier, setPaymentModalTier] = useState<'learner' | 'pro' | 'pro_plus' | null>(null);
+  const [paymentModalTier, setPaymentModalTier] = useState<'learner' | 'pro' | null>(null);
   const [stkPushPending, setStkPushPending] = useState(false);
   const [stkSuccess, setStkSuccess] = useState(false);
   const [stkPushPaymentId, setStkPushPaymentId] = useState<number | null>(null);
   const [modalPaymentMessage, setModalPaymentMessage] = useState('');
   const [modalMpesaPhone, setModalMpesaPhone] = useState('');
-  const [activatedTier, setActivatedTier] = useState<'learner' | 'pro' | 'pro_plus' | null>(null);
+  const [activatedTier, setActivatedTier] = useState<'learner' | 'pro' | null>(null);
 
   const selectedPrice = tiers[selectedTier].monthlyPrice[currency];
 
@@ -370,7 +358,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
       queryClient.invalidateQueries({ queryKey: ['subscription'] });
       historyQuery.refetch();
       if (onSubscriptionActivated) {
-        onSubscriptionActivated(data.subscription.tier as 'learner' | 'pro' | 'pro_plus');
+        onSubscriptionActivated(data.subscription.tier as 'learner' | 'pro');
       }
     },
   });
@@ -461,7 +449,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
 
   const handleCancelSubscription = () => cancelSubscriptionMutation.mutate();
 
-  const openPaymentModal = (tier: 'learner' | 'pro' | 'pro_plus') => {
+  const openPaymentModal = (tier: 'learner' | 'pro') => {
     setPaymentModalTier(tier);
     setPaymentModalOpen(true);
     setStkPushPending(false);
@@ -675,10 +663,10 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-700">
                 <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-400 w-40">Feature</th>
-                {(['free', 'learner', 'pro', 'pro_plus'] as const).map((tk) => {
+                {(['free', 'learner', 'pro'] as const).map((tk) => {
                   const isActive = safeCurrentTier === tk;
-                  const tierLabel = tk === 'free' ? 'Free' : tiers[tk as 'learner' | 'pro' | 'pro_plus'].name;
-                  const price = tk === 'free' ? 'Free' : formatDualPrice(tk as 'learner' | 'pro' | 'pro_plus');
+                  const tierLabel = tk === 'free' ? 'Free' : tiers[tk as 'learner' | 'pro'].name;
+                  const price = tk === 'free' ? 'Free' : formatDualPrice(tk as 'learner' | 'pro');
                   return (
                     <th
                       key={tk}
@@ -705,8 +693,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                   <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-300">{row.feature}</td>
                   <FeatureCell value={row.free} isActive={safeCurrentTier === 'free'} />
                   <FeatureCell value={row.learner} isActive={safeCurrentTier === 'learner'} />
-                  <FeatureCell value={row.pro} isActive={safeCurrentTier === 'pro'} />
-                  <FeatureCell value={row.pro_plus} isActive={safeCurrentTier === 'pro_plus'} />
+                  <FeatureCell value={row.pro} isActive={safeCurrentTier === 'pro' || safeCurrentTier === 'pro_plus'} />
                 </tr>
               ))}
             </tbody>
@@ -806,11 +793,11 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
             </p>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {(Object.keys(tiers) as Array<'learner' | 'pro' | 'pro_plus'>).map((tierKey) => {
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {(Object.keys(tiers) as Array<'learner' | 'pro'>).map((tierKey) => {
               const tier = tiers[tierKey];
               const isSelected = selectedTier === tierKey;
-              const isCurrent = safeCurrentTier === tierKey;
+              const isCurrent = safeCurrentTier === tierKey || (tierKey === 'pro' && safeCurrentTier === 'pro_plus');
               return (
                 <div
                   key={tierKey}

@@ -19,9 +19,9 @@ class User(AbstractUser):
     
     class Tier(models.TextChoices):
         FREE = 'free', 'Free'
-        LEARNER = 'learner', 'Learner'
+        STARTER = 'learner', 'Starter'   # DB value stays 'learner' for backwards compat
         PRO = 'pro', 'Pro'
-        PRO_PLUS = 'pro_plus', 'Pro Plus'
+        PRO_PLUS = 'pro_plus', 'Pro Plus'  # kept for existing subscribers
         ADMIN = 'admin', 'Admin'
 
     tier = models.CharField(
@@ -108,7 +108,7 @@ class User(AbstractUser):
         )
         return usage
     
-    TRIAL_DAYS = 7
+    TRIAL_DAYS = 14
 
     @property
     def trial_days_remaining(self):
@@ -119,7 +119,7 @@ class User(AbstractUser):
         return None
 
     def start_free_trial(self):
-        """Start a 7-day free Pro trial for new users."""
+        """Start a 14-day free Pro trial for new users."""
         if not self.trial_started_at:  # Only if never had a trial before
             self.original_tier = self.tier
             self.tier = self.Tier.PRO
@@ -127,17 +127,15 @@ class User(AbstractUser):
             self.trial_ends_at = timezone.now() + timedelta(days=self.TRIAL_DAYS)
             self.is_trial_active = True
             self.save()
-            # In-app notification
             Notification.objects.create(
                 recipient=self,
                 notif_type=Notification.NotifType.TRIAL_STARTED,
-                title='🎉 7 days of Pro — free!',
+                title='🎉 14 days of Pro — free!',
                 message=(
                     f'Welcome to EduReach Pro! You have {self.TRIAL_DAYS} days to explore '
                     'all premium features at no cost. Upgrade before your trial ends to keep access.'
                 ),
             )
-            # Welcome email (fail silently — email may not be configured yet)
             self._send_trial_email(
                 subject=f'🎓 Your {self.TRIAL_DAYS}-day EduReach Pro trial has started!',
                 body=(
@@ -168,14 +166,13 @@ class User(AbstractUser):
                     recipient=self,
                     notif_type=Notification.NotifType.TRIAL_EXPIRED,
                     title='Your free trial has ended',
-                    message='Your 7-day Pro trial is over. Upgrade now to keep all Pro features and continue your learning without limits.',
+                    message='Your 14-day Pro trial is over. Upgrade now to keep all Pro features and continue your learning without limits.',
                 )
-                # Expiry email
                 self._send_trial_email(
                     subject='Your EduReach Pro trial has ended',
                     body=(
                         'Hi {name},\n\n'
-                        'Your 7-day EduReach Pro trial has ended.\n\n'
+                        'Your 14-day EduReach Pro trial has ended.\n\n'
                         'To keep enjoying unlimited AI tutoring, advanced assessments, and premium courses, '
                         'upgrade to a paid plan:\n{{url}}/billing\n\n'
                         'Thank you for trying EduReach Pro!\n\n'
@@ -301,11 +298,11 @@ class MonthlyUsage(models.Model):
     def get_tier_limits(self):
         """Get limits based on user's current tier."""
         tier_limits = {
-            'free': {'assessments': 2, 'courses': 1, 'ai_queries': 0},
-            'learner': {'assessments': 10, 'courses': 5, 'ai_queries': 50},
-            'pro': {'assessments': 50, 'courses': float('inf'), 'ai_queries': 200},
+            'free':     {'assessments': 3,            'courses': 2,            'ai_queries': 15},
+            'learner':  {'assessments': 15,           'courses': 5,            'ai_queries': 100},
+            'pro':      {'assessments': float('inf'), 'courses': float('inf'), 'ai_queries': 500},
             'pro_plus': {'assessments': float('inf'), 'courses': float('inf'), 'ai_queries': float('inf')},
-            'admin': {'assessments': float('inf'), 'courses': float('inf'), 'ai_queries': float('inf')},
+            'admin':    {'assessments': float('inf'), 'courses': float('inf'), 'ai_queries': float('inf')},
         }
         return tier_limits.get(self.user.tier, tier_limits['free'])
 

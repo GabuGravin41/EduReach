@@ -40,9 +40,9 @@ interface SidebarProps {
 
 const tierNames: Record<UserTier, string> = {
     free: 'Free Tier',
-    learner: 'Learner Tier',
+    learner: 'Starter Tier',
     pro: 'Pro Tier',
-    pro_plus: 'Pro Plus Tier',
+    pro_plus: 'Pro Tier',   // legacy — treat same as Pro in UI
     admin: 'Admin'
 };
 
@@ -60,9 +60,8 @@ const RoleSwitcher: React.FC<{ currentTier: UserTier; onTierChange: (tier: UserT
             >
                 <option value="admin">Admin (Full Access)</option>
                 <option value="free">Free User</option>
-                <option value="learner">Learner User</option>
+                <option value="learner">Starter User</option>
                 <option value="pro">Pro User</option>
-                <option value="pro_plus">Pro Plus User</option>
             </select>
         </div>
     );
@@ -193,7 +192,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
 
       {/* Footer Section - Fixed at bottom */}
       <div className="flex-shrink-0 mt-auto">
-        {!isCollapsed && safeTier !== 'pro' && safeTier !== 'pro_plus' && safeTier !== 'admin' && (
+        {!isCollapsed && safeTier !== 'pro' && safeTier !== 'pro_plus' && safeTier !== 'learner' && safeTier !== 'admin' && (
             <div className="hidden lg:block p-4 mb-4 bg-gradient-to-br from-blue-50 to-emerald-50 dark:from-slate-800 dark:to-slate-700 rounded-md text-center border border-blue-100 dark:border-slate-700">
               <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">You are on the <span className="capitalize font-bold text-blue-600 dark:text-emerald-300">{safeTier}</span> plan.</p>
                 <Button onClick={() => setView('billing')} className="mt-3 w-full justify-center gap-2" size="md" icon={<UpgradeIcon className="w-4 h-4" />}>

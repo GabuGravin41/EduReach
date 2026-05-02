@@ -477,7 +477,7 @@ class SubscriptionUpgradeView(APIView):
             # In-app notification for successful payment / tier upgrade
             try:
                 from users.models import Notification
-                tier_labels = {'learner': 'Learner', 'pro': 'Pro', 'pro_plus': 'Pro Plus'}
+                tier_labels = {'learner': 'Starter', 'pro': 'Pro', 'pro_plus': 'Pro Plus'}
                 tier_label = tier_labels.get(tier, tier.title())
                 Notification.objects.create(
                     recipient=user,
@@ -520,7 +520,7 @@ class StartTrialView(APIView):
       - Cannot start a trial if the user already has an active paid subscription.
       - Trial tier defaults to 'pro' unless a valid tier is supplied.
     POST /api/payments/subscription/start-trial/
-    Body: { "tier": "learner" | "pro" | "pro_plus" }   (optional, defaults to "pro")
+    Body: { "tier": "learner" | "pro" }   (optional, defaults to "pro")
     """
 
     TRIAL_DAYS = 14
@@ -529,7 +529,7 @@ class StartTrialView(APIView):
     def post(self, request):
         user = request.user
         tier = request.data.get('tier', 'pro')
-        valid_tiers = {'learner', 'pro', 'pro_plus'}
+        valid_tiers = {'learner', 'pro', 'pro_plus'}  # pro_plus kept for legacy
         if tier not in valid_tiers:
             return Response(
                 {'detail': f'tier must be one of: {", ".join(sorted(valid_tiers))}'},
@@ -596,7 +596,7 @@ class StartTrialView(APIView):
             # In-app notification
             try:
                 from users.models import Notification
-                tier_labels = {'learner': 'Learner', 'pro': 'Pro', 'pro_plus': 'Pro Plus'}
+                tier_labels = {'learner': 'Starter', 'pro': 'Pro', 'pro_plus': 'Pro Plus'}
                 tier_label = tier_labels.get(tier, tier.title())
                 Notification.objects.create(
                     recipient=user,
