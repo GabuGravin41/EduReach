@@ -325,6 +325,9 @@ const AppContent: React.FC = () => {
     ]);
     
     const [sessionData, setSessionData] = useState<SessionData | null>(null);
+    const [learningAIOpen, setLearningAIOpen] = useState(false);
+    // Reset AI panel whenever a new learning session starts
+    useEffect(() => { setLearningAIOpen(false); }, [sessionData?.videoId]);
     const selectedCourseQuery = useCourse(selectedCourseId ?? 0);
   
     useEffect(() => {
@@ -819,9 +822,9 @@ const AppContent: React.FC = () => {
         case 'learning_session': {
            const learningSessionData = (location.state as { sessionData?: SessionData } | null)?.sessionData ?? sessionData;
            if (learningSessionData) {
-               return <LearningSession 
-                  videoId={learningSessionData.videoId} 
-                  transcript={learningSessionData.transcript} 
+               return <LearningSession
+                  videoId={learningSessionData.videoId}
+                  transcript={learningSessionData.transcript}
                   courseId={learningSessionData.courseId || 0}
                   currentLesson={null}
                   onUpdateLesson={(cId, lId, updates) => {
@@ -830,6 +833,8 @@ const AppContent: React.FC = () => {
                   onSaveAssessment={(assessment) => {
                       setLocalAssessments((prev) => [...prev, assessment]);
                   }}
+                  isAIPanelOpen={learningAIOpen}
+                  setIsAIPanelOpen={setLearningAIOpen}
                />;
            }
            return (
@@ -1075,10 +1080,13 @@ const AppContent: React.FC = () => {
            </main>
         </div>
       </div>
-      {/* Floating AI assistant — hidden on learn page (AI is integrated into the video player there) */}
-      {currentView !== 'learning_session' && (
-        <FloatingAIAssistant currentView={currentView} username={user?.username} />
-      )}
+      {/* Floating AI assistant — on learn page it toggles the inline AI panel instead of opening a popup */}
+      <FloatingAIAssistant
+        currentView={currentView}
+        username={user?.username}
+        onToggleLearningAI={() => setLearningAIOpen(prev => !prev)}
+        isLearningAIPanelOpen={learningAIOpen}
+      />
       </>
     );
   };

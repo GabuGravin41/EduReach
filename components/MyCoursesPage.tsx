@@ -68,6 +68,10 @@ export const MyCoursesPage: React.FC<MyCoursesPageProps> = ({ courses, onSelectC
             const creatorName = course.owner?.username || 'Unknown';
             const visibility = (course.is_public ?? course.isPublic) ? 'Public' : 'Private';
             const progress = typeof course.progress === 'number' ? course.progress : 0;
+            // Derive thumbnail: explicit > first lesson video > null
+            const firstVideoId = course.lessons?.[0]?.video_id;
+            const cardThumbnail = course.thumbnail
+              || (firstVideoId ? `https://img.youtube.com/vi/${firstVideoId}/hqdefault.jpg` : null);
             const actionLabel = progress === 0 ? 'Start Course' : progress === 100 ? 'Review' : 'Continue';
             const isHighlighted = highlightedCourseId === course.id;
 
@@ -104,11 +108,11 @@ export const MyCoursesPage: React.FC<MyCoursesPageProps> = ({ courses, onSelectC
                     : 'bg-white dark:bg-slate-800 shadow-lg shadow-slate-900/5'
                 }`}
               >
-                <div className="h-40 bg-slate-200 dark:bg-slate-700 flex items-center justify-center relative overflow-hidden">
-                   {course.thumbnail ? (
-                       <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                <div className="h-40 bg-slate-700 flex items-center justify-center relative overflow-hidden">
+                   {cardThumbnail ? (
+                       <img src={cardThumbnail} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                    ) : (
-                       <PlayCircleIcon className="w-16 h-16 text-white/50 group-hover:text-white transition-colors" />
+                       <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-blue-800" />
                    )}
                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors flex items-center justify-center">
                         <PlayCircleIcon className="w-12 h-12 text-white/80 group-hover:text-white transition-colors" />

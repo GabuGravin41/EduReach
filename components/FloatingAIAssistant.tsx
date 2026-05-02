@@ -10,6 +10,8 @@ interface Message {
 interface Props {
   currentView: View;
   username?: string;
+  onToggleLearningAI?: () => void;
+  isLearningAIPanelOpen?: boolean;
 }
 
 const VIEW_CONTEXT: Partial<Record<View, string>> = {
@@ -59,7 +61,7 @@ function MinimizeIcon({ className }: { className?: string }) {
   );
 }
 
-export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username }) => {
+export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username, onToggleLearningAI, isLearningAIPanelOpen }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -155,10 +157,12 @@ export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username }) 
     zIndex: 9998,
   };
 
+  const isLearningMode = currentView === 'learning_session' && !!onToggleLearningAI;
+
   return (
     <>
-      {/* Chat panel */}
-      {isOpen && (
+      {/* Chat panel — only rendered when NOT in learning-session toggle mode */}
+      {isOpen && !isLearningMode && (
         <div
           style={panelStyle}
           className="w-80 sm:w-96 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col"
@@ -269,16 +273,26 @@ export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username }) 
       <button
         ref={bubbleRef}
         style={bubbleStyle}
-        onMouseDown={onMouseDown}
-        onClick={() => !isDragging.current && setIsOpen(prev => !prev)}
-        aria-label={isOpen ? 'Close AI assistant' : 'Open AI assistant'}
+        onMouseDown={isLearningMode ? undefined : onMouseDown}
+        onClick={() => {
+          if (isLearningMode) {
+            onToggleLearningAI!();
+          } else if (!isDragging.current) {
+            setIsOpen(prev => !prev);
+          }
+        }}
+        aria-label={
+          isLearningMode
+            ? (isLearningAIPanelOpen ? 'Close AI panel' : 'Open AI panel')
+            : (isOpen ? 'Close AI assistant' : 'Open AI assistant')
+        }
         className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 select-none ${
-          isOpen
+          (isLearningMode ? isLearningAIPanelOpen : isOpen)
             ? 'bg-slate-600 hover:bg-slate-700'
             : 'bg-gradient-to-br from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 hover:scale-110'
         }`}
       >
-        {isOpen ? (
+        {(isLearningMode ? isLearningAIPanelOpen : isOpen) ? (
           <CloseIcon className="w-5 h-5 text-white" />
         ) : (
           <SparkleIcon className="w-6 h-6 text-white" />

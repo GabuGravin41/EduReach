@@ -22,6 +22,8 @@ interface LearningSessionProps {
   currentLesson?: Lesson;
   onUpdateLesson: (courseId: number, lessonId: number, updates: Partial<Lesson>) => void;
   onSaveAssessment?: (assessment: Assessment) => void;
+  isAIPanelOpen?: boolean;
+  setIsAIPanelOpen?: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export const LearningSession: React.FC<LearningSessionProps> = ({
@@ -30,14 +32,18 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   courseId,
   currentLesson,
   onUpdateLesson,
-  onSaveAssessment
+  onSaveAssessment,
+  isAIPanelOpen: externalAIPanelOpen,
+  setIsAIPanelOpen: externalSetAIPanelOpen,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(currentLesson?.chatHistory || []);
   const [quiz, setQuiz] = useState<QuizQuestion[] | null>(null);
   const [notes, setNotes] = useState<string>(currentLesson?.notes || '');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isStudyPanelOpen, setIsStudyPanelOpen] = useState(true);
-  const [isAIPanelOpen, setIsAIPanelOpen] = useState(true);
+  const [internalAIPanelOpen, setInternalAIPanelOpen] = useState(false);
+  const isAIPanelOpen = externalAIPanelOpen ?? internalAIPanelOpen;
+  const setIsAIPanelOpen = externalSetAIPanelOpen ?? setInternalAIPanelOpen;
   const [lastPrompt, setLastPrompt] = useState<string | null>(null);
   const [completedSent, setCompletedSent] = useState(currentLesson?.isCompleted || false);
   const [quizSaved, setQuizSaved] = useState(false);
