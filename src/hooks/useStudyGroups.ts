@@ -116,6 +116,16 @@ export const useDeleteStudyGroupPost = () => {
   });
 };
 
+export const useDeleteStudyGroup = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (groupId: number) => studyGroupService.deleteGroup(groupId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: STUDY_GROUP_KEYS.all });
+    },
+  });
+};
+
 export const useStudyGroupMembers = (groupId: number) => {
   return useQuery({
     queryKey: STUDY_GROUP_KEYS.members(groupId),

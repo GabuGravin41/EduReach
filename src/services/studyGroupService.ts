@@ -114,6 +114,10 @@ export const studyGroupService = {
     await apiClient.delete(`study-groups/group-posts/${postId}/`);
   },
 
+  async deleteGroup(groupId: number): Promise<void> {
+    await apiClient.delete(`study-groups/groups/${groupId}/`);
+  },
+
   async getMembers(groupId: number): Promise<{ id: number; username: string }[]> {
     const { data } = await apiClient.get(`study-groups/groups/${groupId}/members/`);
     return data;

@@ -16,6 +16,7 @@ import {
   useCreateStudyGroupChallenge,
   useStudyGroupPerformance,
   useUpdateStudyGroup,
+  useDeleteStudyGroup,
   STUDY_GROUP_KEYS,
 } from '../src/hooks/useStudyGroups';
 import { useAuth } from '../src/contexts/useAuth';
@@ -85,6 +86,7 @@ export const StudyGroupsPage: React.FC = () => {
   const createPostMutation = useCreateStudyGroupPost();
   const updatePostMutation = useUpdateStudyGroupPost();
   const deletePostMutation = useDeleteStudyGroupPost();
+  const deleteGroupMutation = useDeleteStudyGroup();
   const inviteMemberMutation = useInviteStudyGroupMember();
   const createChallengeMutation = useCreateStudyGroupChallenge();
   const { data: assessmentsData = [] } = useAssessments();
@@ -1061,6 +1063,31 @@ export const StudyGroupsPage: React.FC = () => {
                     )}
                   </div>
                 )}
+
+                {/* ── Danger zone (creator only) ─────────────────────────── */}
+                <div className="border-t border-rose-100 dark:border-rose-900/40 pt-6 mt-6">
+                  <h4 className="text-sm font-semibold text-rose-600 dark:text-rose-400 mb-3">Danger Zone</h4>
+                  <div className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/10 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Delete this group</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Permanently removes the group, all posts, and member data. This cannot be undone.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={deleteGroupMutation.isPending}
+                      onClick={async () => {
+                        if (!window.confirm(`Delete "${activeGroup.name}"? This is permanent and cannot be undone.`)) return;
+                        await deleteGroupMutation.mutateAsync(activeGroup.id);
+                        setActiveGroup(null);
+                      }}
+                      className="flex-shrink-0 px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-sm font-semibold transition-colors"
+                    >
+                      {deleteGroupMutation.isPending ? 'Deleting…' : 'Delete Group'}
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
