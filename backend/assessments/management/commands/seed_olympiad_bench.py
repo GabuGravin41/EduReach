@@ -38,7 +38,7 @@ from django.core.management.base import BaseCommand
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
-DATASET_ROOT = Path(__file__).resolve().parents[6] / 'OlympiadBench_Dataset'
+DATASET_ROOT = Path(__file__).resolve().parents[4] / 'OlympiadBench_Dataset'
 DATA_DIR     = DATASET_ROOT / 'data'
 IMAGES_DIR   = DATASET_ROOT / 'images'
 
@@ -243,11 +243,15 @@ def _parse_row(row: dict) -> tuple[str, str, str]:
     return question, solution, final_answer
 
 
-def _replace_img_tags(text: str) -> tuple[str, list[tuple[str, str]]]:
+def _replace_img_tags(text) -> tuple[str, list[tuple[str, str]]]:
     """
     Replace every <img_XXXX> in text with ![](img_XXXX.jpg).
     Returns (new_text, [(filename, abs_path), ...]).
+    Handles None or non-string gracefully.
     """
+    if not isinstance(text, str):
+        return (text or ''), []
+
     refs: list[tuple[str, str]] = []
     seen: set[str] = set()
 
