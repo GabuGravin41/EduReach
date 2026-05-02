@@ -14,7 +14,10 @@ django-cors-headers==4.3.1
 
 # Google AI (Gemini), Vertex AI, and Auth
 google-generativeai==0.8.4
-google-cloud-aiplatform>=1.50.0
+# TEMP: google-cloud-aiplatform disabled — not used (PREFER_OPENROUTER=True, VERTEX_AI_PROJECT not set).
+# Pulls in grpc + full Google Cloud SDK which is very heavy on RAM.
+# Re-enable on Contabo VPS if Vertex AI is needed.
+# google-cloud-aiplatform>=1.50.0
 google-auth>=2.28.0
 protobuf>=4.25.0
 
