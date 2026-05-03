@@ -196,13 +196,25 @@ class YouTubeTranscriptService:
             except Exception:
                 _is_v1 = hasattr(YouTubeTranscriptApi, 'fetch') and not hasattr(YouTubeTranscriptApi, 'get_transcript')
 
-            # v1.x: instance-based API
+            # v1.x: instance-based API (v1.x uses http_client, not cookies kwarg)
             if _is_v1:
                 try:
-                    # Pass cookies if available — this is the key fix for server IPs
-                    api_kwargs = {}
+                    http_client = None
                     if self.cookies_path:
-                        api_kwargs['cookies'] = self.cookies_path
+                        try:
+                            import requests
+                            from http.cookiejar import MozillaCookieJar
+                            session = requests.Session()
+                            jar = MozillaCookieJar(self.cookies_path)
+                            jar.load(ignore_discard=True, ignore_expires=True)
+                            session.cookies = jar
+                            http_client = session
+                        except Exception as e:
+                            print(f"Failed to load cookies into session: {e}")
+
+                    api_kwargs = {}
+                    if http_client is not None:
+                        api_kwargs['http_client'] = http_client
                     api = YouTubeTranscriptApi(**api_kwargs)
 
                     for langs in ([language_code], ['en'], []):
@@ -303,7 +315,18 @@ class YouTubeTranscriptService:
 
         video_url = f"https://www.youtube.com/watch?v={video_id}"
 
-        ydl_opts = {'skip_download': True, 'quiet': True}
+        # Ensure deno is on PATH for yt-dlp JS challenge solving
+        import os as _os
+        deno_bin = _os.path.expanduser('~/.deno/bin')
+        env_path = _os.environ.get('PATH', '')
+        if deno_bin not in env_path:
+            _os.environ['PATH'] = deno_bin + ':' + env_path
+
+        ydl_opts = {
+            'skip_download': True,
+            'quiet': True,
+            'remote_components': ['ejs:github'],  # enable JS challenge solver download
+        }
         if self.cookies_path:
             ydl_opts['cookiefile'] = self.cookies_path
 
