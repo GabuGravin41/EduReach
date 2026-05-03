@@ -33,6 +33,9 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
     const [isLoadingDetail, setIsLoadingDetail] = React.useState(true);
     const [detailError, setDetailError] = React.useState<string | null>(null);
     const [hasStarted, setHasStarted] = React.useState(false);
+    const [previousAttempt, setPreviousAttempt] = React.useState<AssessmentAttempt | null>(null);
+    const [quizMode, setQuizMode] = React.useState<'take' | 'review' | 'retake'>('take');
+    const [isStartingRetake, setIsStartingRetake] = React.useState(false);
     const [attempts, setAttempts] = React.useState<AssessmentAttempt[]>([]);
     const [isLoadingAttempts, setIsLoadingAttempts] = React.useState(false);
     const [publicAttempts, setPublicAttempts] = React.useState<AssessmentAttempt[]>([]);
@@ -64,12 +67,21 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
             setIsLoadingDetail(true);
             setDetailError(null);
             try {
-                const detail = await assessmentService.getAssessment(exam.id);
-                setLiveExam(detail as any);
-            } catch (err: any) {
-                const msg = err?.response?.data?.detail || err?.message || 'Failed to load assessment details.';
-                setDetailError(msg);
-                // keep fallback exam object from props — questions may be missing but at least title shows
+                const [detail, prevAttempt] = await Promise.allSettled([
+                    assessmentService.getAssessment(exam.id),
+                    assessmentService.getMyAttempt(exam.id),
+                ]);
+                if (detail.status === 'fulfilled') setLiveExam(detail.value as any);
+                else {
+                    const err = (detail as PromiseRejectedResult).reason;
+                    setDetailError(err?.response?.data?.detail || err?.message || 'Failed to load assessment details.');
+                }
+                if (prevAttempt.status === 'fulfilled') {
+                    const a = prevAttempt.value;
+                    if (a && (a.status === 'graded' || a.status === 'submitted')) {
+                        setPreviousAttempt(a);
+                    }
+                }
             } finally {
                 setIsLoadingDetail(false);
             }
@@ -262,6 +274,23 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                 document.documentElement.requestFullscreen?.().catch(() => {});
             }
         }
+    };
+
+    const handleReviewResults = () => {
+        setQuizMode('review');
+        setHasStarted(true);
+    };
+
+    const handleRetake = async () => {
+        setIsStartingRetake(true);
+        try {
+            // Create a new IN_PROGRESS attempt on the server BEFORE rendering QuizView.
+            // This ensures getMyAttempt returns the fresh attempt, not the old graded one.
+            await assessmentService.startAssessment(liveExam.id);
+        } catch { /* ignore — QuizView will retry */ }
+        setIsStartingRetake(false);
+        setQuizMode('retake');
+        setHasStarted(true);
     };
 
     const handleCopyInvite = async () => {
@@ -539,16 +568,49 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                                             This exam is monitored — camera &amp; tab-switch detection active
                                         </div>
                                     )}
-                                    <button
-                                        onClick={handleStartWithProctoring}
-                                        className={`px-8 py-3 rounded-xl font-bold text-lg hover:opacity-90 transition shadow-lg text-white ${
-                                            assessmentType === 'exam'
-                                                ? 'bg-gradient-to-r from-amber-500 to-orange-600 shadow-amber-500/25'
-                                                : 'bg-gradient-to-r from-blue-600 to-indigo-600 shadow-blue-500/25'
-                                        }`}
-                                    >
-                                        {assessmentType === 'quiz' ? 'Start Quiz' : 'Start Exam'}
-                                    </button>
+
+                                    {/* Previous attempt banner */}
+                                    {previousAttempt && (
+                                        <div className="mb-5 p-4 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 text-sm">
+                                            <p className="font-semibold text-indigo-800 dark:text-indigo-200 mb-1">
+                                                You already completed this {assessmentType === 'quiz' ? 'quiz' : 'exam'}
+                                                {previousAttempt.percentage != null ? ` — ${Math.round(Number(previousAttempt.percentage))}%` : ''}
+                                            </p>
+                                            <div className="flex flex-wrap gap-3 mt-3">
+                                                <button
+                                                    onClick={handleReviewResults}
+                                                    className="px-5 py-2 rounded-xl font-bold text-sm bg-white dark:bg-slate-700 border border-indigo-300 dark:border-indigo-600 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition"
+                                                >
+                                                    📋 Review My Results
+                                                </button>
+                                                <button
+                                                    onClick={handleRetake}
+                                                    disabled={isStartingRetake}
+                                                    className={`px-5 py-2 rounded-xl font-bold text-sm text-white transition shadow ${
+                                                        assessmentType === 'exam'
+                                                            ? 'bg-gradient-to-r from-amber-500 to-orange-600'
+                                                            : 'bg-gradient-to-r from-blue-600 to-indigo-600'
+                                                    } disabled:opacity-60`}
+                                                >
+                                                    {isStartingRetake ? 'Starting…' : `🔄 Retake ${assessmentType === 'quiz' ? 'Quiz' : 'Exam'}`}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* First-time start button */}
+                                    {!previousAttempt && (
+                                        <button
+                                            onClick={handleStartWithProctoring}
+                                            className={`px-8 py-3 rounded-xl font-bold text-lg hover:opacity-90 transition shadow-lg text-white ${
+                                                assessmentType === 'exam'
+                                                    ? 'bg-gradient-to-r from-amber-500 to-orange-600 shadow-amber-500/25'
+                                                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 shadow-blue-500/25'
+                                            }`}
+                                        >
+                                            {assessmentType === 'quiz' ? 'Start Quiz' : 'Start Exam'}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         ) : quizData.length > 0 ? (
@@ -580,6 +642,9 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                                         assessmentId={liveExam.id}
                                         imageUploadGraceMinutes={imageUploadGraceMinutes}
                                         forceSubmit={isProctored && tabSwitchCount >= tabLimit}
+                                        reviewMode={quizMode === 'review'}
+                                        initialAnswers={quizMode === 'review' ? (previousAttempt?.answers as Record<string, any> | undefined) : undefined}
+                                        previousAttempt={quizMode === 'review' ? previousAttempt ?? undefined : undefined}
                                     />
                                 </div>
                             </div>

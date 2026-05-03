@@ -25,6 +25,12 @@ interface QuizViewProps {
   imageUploadGraceMinutes?: number;
   forceSubmit?: boolean;
   contestMode?: boolean;
+  /** If true, start in submitted/review state showing previous attempt results. */
+  reviewMode?: boolean;
+  /** Pre-fill answers from a previous attempt (used with reviewMode). */
+  initialAnswers?: Record<string, any>;
+  /** Full previous attempt data (used with reviewMode for scores/grading). */
+  previousAttempt?: import('../src/services/assessmentService').AssessmentAttempt;
 }
 
 export const QuizView: React.FC<QuizViewProps> = ({
@@ -34,6 +40,9 @@ export const QuizView: React.FC<QuizViewProps> = ({
   imageUploadGraceMinutes,
   forceSubmit,
   contestMode = false,
+  reviewMode = false,
+  initialAnswers,
+  previousAttempt,
 }) => {
   const questions: Question[] = useMemo(() => {
     if (!quiz || !Array.isArray(quiz)) return [];
@@ -93,13 +102,19 @@ export const QuizView: React.FC<QuizViewProps> = ({
     });
   }, [quiz]);
 
-  const [answers, setAnswers] = useState<Record<string, any>>({});
-  const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
+  const [answers, setAnswers] = useState<Record<string, any>>(initialAnswers ?? {});
+  const [isSubmitted, setIsSubmitted] = useState<boolean>(reviewMode);
   const [timeLeftSeconds, setTimeLeftSeconds] = useState<number | null>(
     timeLimitMinutes ? Math.max(0, Math.round(timeLimitMinutes * 60)) : null
   );
-  const [attemptStatusFromServer, setAttemptStatusFromServer] = useState<string | null>(null);
-  const [serverAttempt, setServerAttempt] = useState<{ status?: string; score?: string | number; percentage?: number; question_results?: Record<string, QuestionResult> } | null>(null);
+  const [attemptStatusFromServer, setAttemptStatusFromServer] = useState<string | null>(
+    reviewMode && previousAttempt ? (previousAttempt.status ?? null) : null
+  );
+  const [serverAttempt, setServerAttempt] = useState<{ status?: string; score?: string | number; percentage?: number; question_results?: Record<string, QuestionResult> } | null>(
+    reviewMode && previousAttempt
+      ? { status: previousAttempt.status, score: previousAttempt.score, percentage: previousAttempt.percentage, question_results: previousAttempt.question_results }
+      : null
+  );
   const [isMarking, setIsMarking] = useState(false);
   const [markError, setMarkError] = useState('');
   const [gradingResults, setGradingResults] = useState<Record<string, { score: number, feedback: string }>>({});
@@ -116,13 +131,10 @@ export const QuizView: React.FC<QuizViewProps> = ({
   const [tabWarning, setTabWarning] = useState(false);
   const tabEventsRef = useRef<{ time: string; count: number }[]>([]);
 
-  // Easy mode AI tutor
-  const [easyModeEnabled, setEasyModeEnabled] = useState(false);
-  const [aiTutorMessages, setAiTutorMessages] = useState<{ role: 'user' | 'ai'; text: string }[]>([]);
-  const [aiTutorInput, setAiTutorInput] = useState('');
-  const [isAiTutorLoading, setIsAiTutorLoading] = useState(false);
-  const [activeQuestionIdx, setActiveQuestionIdx] = useState(0);
-  const tutorEndRef = useRef<HTMLDivElement>(null);
+  // Easy mode: per-question grade reveal
+  const [easyMode, setEasyMode] = useState(false);
+  const [easyGraded, setEasyGraded] = useState<Set<string>>(new Set());
+  const [easyGrading, setEasyGrading] = useState<Record<string, boolean>>({});
 
   // Contest mode: track tab visibility changes
   useEffect(() => {
@@ -238,14 +250,14 @@ export const QuizView: React.FC<QuizViewProps> = ({
   };
 
   useEffect(() => {
-    if (!assessmentId) return;
+    if (!assessmentId || reviewMode) return;
     ensureAttemptStarted().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assessmentId]);
+  }, [assessmentId, reviewMode]);
 
-  // On page load: check if there's already a submitted/graded attempt
+  // On page load: check if there's already a submitted/graded attempt (skip in review mode — data already passed via props)
   useEffect(() => {
-    if (!assessmentId) return;
+    if (!assessmentId || reviewMode) return;
     assessmentService.getMyAttempt(assessmentId).then((attempt) => {
       if (!attempt) return;
       if (attempt.status === 'graded') {
@@ -257,10 +269,9 @@ export const QuizView: React.FC<QuizViewProps> = ({
       if (attempt.status === 'submitted') {
         setAttemptStatusFromServer('submitted');
         setIsSubmitted(true);
-        // Don't auto-poll — let user click "Grade with AI" explicitly
       }
     }).catch(() => {});
-  }, [assessmentId]);
+  }, [assessmentId, reviewMode]);
 
   useEffect(() => {
     if (!timeLimitMinutes || isSubmitted) return;
@@ -353,36 +364,45 @@ Format: {"score": number, "feedback": "string"}`;
     }
   };
 
-  const handleAiTutorSend = async () => {
-    if (!aiTutorInput.trim() || isAiTutorLoading) return;
-    const userMsg = aiTutorInput.trim();
-    setAiTutorInput('');
-    const q = questions[activeQuestionIdx];
-    const studentAnswer = q ? (answers[q.id] || '(no answer yet)') : '';
-    const context = q
-      ? `Assessment question ${activeQuestionIdx + 1}: ${(q as any).question_text || ''}\n\nStudent's current answer: ${studentAnswer}`
-      : 'Assessment in progress';
+  const handleEasyGradeQuestion = async (q: Question) => {
+    const qId = String(q.id);
+    if (q.type === 'essay') {
+      setEasyGrading(prev => ({ ...prev, [qId]: true }));
+      try {
+        await handleGradeEssay(q as EssayQuestion);
+      } finally {
+        setEasyGrading(prev => ({ ...prev, [qId]: false }));
+      }
+    } else if (q.type === 'short_answer') {
+      const studentAnswer = answers[qId];
+      if (studentAnswer?.trim()) {
+        setEasyGrading(prev => ({ ...prev, [qId]: true }));
+        const sq = q as ShortAnswerQuestion;
+        try {
+          const gradePrompt = `You are a helpful teacher. A student answered a short-answer question.
 
-    setAiTutorMessages(prev => [...prev, { role: 'user', text: userMsg }]);
-    setIsAiTutorLoading(true);
+Question: ${sq.question_text}
+Expected answers: ${sq.correct_answers?.join(' / ') || 'Open-ended'}
+Student's answer: ${studentAnswer}
 
-    try {
-      const response = await aiClient.post('/ai/chat/', {
-        message: `You are an educational AI tutor helping a student during an assessment. Give hints and guidance but do NOT give the answer directly. Be encouraging and Socratic.
-
-Context: ${context}
-
-Student question: ${userMsg}`,
-        context,
-      });
-      const reply = response.data.response || 'I could not generate a response right now.';
-      setAiTutorMessages(prev => [...prev, { role: 'ai', text: reply }]);
-    } catch {
-      setAiTutorMessages(prev => [...prev, { role: 'ai', text: 'Sorry, I could not connect right now. Please try again.' }]);
-    } finally {
-      setIsAiTutorLoading(false);
-      setTimeout(() => tutorEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
+          const response = await aiClient.post('/ai/chat/', { message: gradePrompt, context: sq.question_text });
+          const text = response.data.response || '';
+          let result = { score: 0, feedback: text };
+          try {
+            const m = text.match(/\{[\s\S]*\}/);
+            if (m) result = JSON.parse(m[0]);
+          } catch { /* use raw text */ }
+          setGradingResults(prev => ({ ...prev, [qId]: result }));
+        } catch {
+          setGradingResults(prev => ({ ...prev, [qId]: { score: 0, feedback: 'Could not connect. Try again.' } }));
+        } finally {
+          setEasyGrading(prev => ({ ...prev, [qId]: false }));
+        }
+      }
     }
+    // Reveal correct answer and explanation for all types
+    setEasyGraded(prev => new Set([...prev, qId]));
   };
 
   const calculateScore = () => {
@@ -545,6 +565,15 @@ Student question: ${userMsg}`,
       )}
 
       <div className="flex flex-col gap-4 mb-6">
+        {/* Review mode banner */}
+        {reviewMode && (
+          <div className="rounded-lg border border-indigo-200 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-700 px-4 py-3 flex items-center justify-between gap-3">
+            <span className="text-sm font-medium text-indigo-800 dark:text-indigo-200">
+              📋 Reviewing your previous attempt
+              {previousAttempt?.percentage != null ? ` — ${Math.round(Number(previousAttempt.percentage))}%` : ''}
+            </span>
+          </div>
+        )}
         {/* Header row */}
         <div className="flex justify-between items-center flex-wrap gap-3">
           <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Assessment</h3>
@@ -552,17 +581,9 @@ Student question: ${userMsg}`,
             {/* Easy Mode toggle */}
             {!isSubmitted && (
               <button
-                onClick={() => {
-                  setEasyModeEnabled(v => !v);
-                  if (!easyModeEnabled && aiTutorMessages.length === 0) {
-                    setAiTutorMessages([{
-                      role: 'ai',
-                      text: `Hi! I'm your AI tutor. I can give you hints and explanations — just ask. I won't give you the answer directly, but I'll help you think through it.`
-                    }]);
-                  }
-                }}
+                onClick={() => setEasyMode(v => !v)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-                  easyModeEnabled
+                  easyMode
                     ? 'bg-indigo-600 border-indigo-600 text-white'
                     : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-indigo-400'
                 }`}
@@ -654,7 +675,7 @@ Student question: ${userMsg}`,
                   </>
                 )}
               </Button>
-              {questions.some(q => q.type === 'essay') && (
+              {questions.some(q => q.type === 'essay' && answers[q.id]?.trim()) && (
                 <Button
                   onClick={handleGradeAllEssays}
                   disabled={isMarking}
@@ -696,7 +717,6 @@ Student question: ${userMsg}`,
           <div
             key={q.id}
             className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
-            onClick={() => setActiveQuestionIdx(index)}
           >
             {q.type !== 'passage' && (
               <div className="flex gap-3 mb-4">
@@ -740,54 +760,60 @@ Student question: ${userMsg}`,
             )}
 
             <div className="overflow-visible">
-              {q.type === 'multiple_choice' && (
-                <div className="space-y-2 pl-11 mt-1 min-h-[2rem]" role="listbox" aria-label="Answer options">
-                  {(q as MultipleChoiceQuestion).options?.map((opt, i) => {
-                    const isSelected = answers[q.id] === opt;
-                    const isCorrect = (q as MultipleChoiceQuestion).correct_answer_index === i;
-                    let className = "w-full text-left p-3 rounded-lg border transition-all ";
-                    if (isSubmitted) {
-                      if (isCorrect) className += "bg-emerald-50 border-emerald-500 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300";
-                      else if (isSelected) className += "bg-rose-50 border-rose-500 text-rose-800 dark:bg-rose-900/20 dark:text-rose-300";
-                      else className += "border-slate-200 dark:border-slate-700 text-slate-500 opacity-50";
-                    } else {
-                      if (isSelected) className += "bg-indigo-50 border-indigo-500 text-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300 shadow-sm";
-                      else className += "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 dark:text-slate-300";
-                    }
-                    return (
-                      <button key={i} onClick={() => handleAnswerChange(q.id, opt)} disabled={isSubmitted} className={className}>
-                        <div className="flex items-center justify-between">
-                          <span><MarkdownRenderer content={opt} /></span>
-                          {isSubmitted && isCorrect && <CheckCircleIcon className="w-5 h-5 text-emerald-600" />}
-                          {isSubmitted && isSelected && !isCorrect && <XIcon className="w-5 h-5 text-rose-600" />}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              {q.type === 'multiple_choice' && (() => {
+                const revealed = isSubmitted || easyGraded.has(String(q.id));
+                return (
+                  <div className="space-y-2 pl-11 mt-1 min-h-[2rem]" role="listbox" aria-label="Answer options">
+                    {(q as MultipleChoiceQuestion).options?.map((opt, i) => {
+                      const isSelected = answers[q.id] === opt;
+                      const isCorrect = (q as MultipleChoiceQuestion).correct_answer_index === i;
+                      let className = "w-full text-left p-3 rounded-lg border transition-all ";
+                      if (revealed) {
+                        if (isCorrect) className += "bg-emerald-50 border-emerald-500 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300";
+                        else if (isSelected) className += "bg-rose-50 border-rose-500 text-rose-800 dark:bg-rose-900/20 dark:text-rose-300";
+                        else className += "border-slate-200 dark:border-slate-700 text-slate-500 opacity-50";
+                      } else {
+                        if (isSelected) className += "bg-indigo-50 border-indigo-500 text-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300 shadow-sm";
+                        else className += "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 dark:text-slate-300";
+                      }
+                      return (
+                        <button key={i} onClick={() => handleAnswerChange(q.id, opt)} disabled={isSubmitted} className={className}>
+                          <div className="flex items-center justify-between">
+                            <span><MarkdownRenderer content={opt} /></span>
+                            {revealed && isCorrect && <CheckCircleIcon className="w-5 h-5 text-emerald-600" />}
+                            {revealed && isSelected && !isCorrect && <XIcon className="w-5 h-5 text-rose-600" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
 
-              {q.type === 'true_false' && (
-                <div className="flex gap-4 pl-11">
-                  {[true, false].map((val) => {
-                    const isSelected = answers[q.id] === val;
-                    const isCorrect = (q as TrueFalseQuestion).correct_answer === val;
-                    return (
-                      <button
-                        key={String(val)}
-                        onClick={() => handleAnswerChange(q.id, val)}
-                        disabled={isSubmitted}
-                        className={`px-6 py-3 rounded-lg border font-medium transition-all ${isSubmitted
-                          ? isCorrect ? 'bg-emerald-100 border-emerald-500 text-emerald-800' : isSelected ? 'bg-rose-100 border-rose-500 text-rose-800' : 'opacity-50'
-                          : isSelected ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600'
-                        }`}
-                      >
-                        {val ? 'True' : 'False'}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              {q.type === 'true_false' && (() => {
+                const revealed = isSubmitted || easyGraded.has(String(q.id));
+                return (
+                  <div className="flex gap-4 pl-11">
+                    {[true, false].map((val) => {
+                      const isSelected = answers[q.id] === val;
+                      const isCorrect = (q as TrueFalseQuestion).correct_answer === val;
+                      return (
+                        <button
+                          key={String(val)}
+                          onClick={() => handleAnswerChange(q.id, val)}
+                          disabled={isSubmitted}
+                          className={`px-6 py-3 rounded-lg border font-medium transition-all ${revealed
+                            ? isCorrect ? 'bg-emerald-100 border-emerald-500 text-emerald-800' : isSelected ? 'bg-rose-100 border-rose-500 text-rose-800' : 'opacity-50'
+                            : isSelected ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600'
+                          }`}
+                        >
+                          {val ? 'True' : 'False'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
 
               {q.type === 'short_answer' && (
                 <div className="pl-11">
@@ -799,7 +825,7 @@ Student question: ${userMsg}`,
                     placeholder="Type your answer... (Supports LaTeX: $x^2$)"
                     className="w-full max-w-md p-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none dark:text-slate-100"
                   />
-                  {isSubmitted && (
+                  {(isSubmitted || easyGraded.has(String(q.id))) && (q as ShortAnswerQuestion).correct_answers?.length > 0 && (
                     <div className="mt-2 text-sm text-slate-500">
                       Correct answers: {(q as ShortAnswerQuestion).correct_answers?.join(', ')}
                     </div>
@@ -837,7 +863,7 @@ Student question: ${userMsg}`,
                     className="w-full p-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none dark:text-slate-100 resize-none font-mono text-sm"
                     placeholder="Write your response here... (Supports LaTeX: $x^2$, $$\\int_0^1 f(x)\\,dx$$)"
                   />
-                  {isSubmitted && !gradingResults[q.id] && (
+                  {(isSubmitted || easyMode) && !gradingResults[q.id] && answers[q.id]?.trim() && (
                     <div className="mt-3">
                       <Button onClick={() => handleGradeEssay(q as EssayQuestion)} disabled={isGrading[q.id]} variant="secondary" className="gap-2">
                         {isGrading[q.id] ? (
@@ -897,7 +923,55 @@ Student question: ${userMsg}`,
               )}
             </div>
 
-            {isSubmitted && (q as any).explanation && (
+            {/* Easy mode: per-question Grade with AI button (for non-essay types) */}
+            {easyMode && !isSubmitted && q.type !== 'essay' && !easyGraded.has(String(q.id)) && (
+              <div className="mt-4 ml-11">
+                <Button
+                  onClick={() => handleEasyGradeQuestion(q)}
+                  disabled={!answers[q.id] || easyGrading[String(q.id)]}
+                  variant="secondary"
+                  className="gap-2"
+                >
+                  {easyGrading[String(q.id)] ? (
+                    <><div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />Grading...</>
+                  ) : (
+                    <><SparklesIcon className="w-4 h-4 text-indigo-600" />Grade with AI</>
+                  )}
+                </Button>
+              </div>
+            )}
+            {/* Easy mode: reset button after grading (allow retry) */}
+            {easyMode && !isSubmitted && easyGraded.has(String(q.id)) && (
+              <div className="mt-3 ml-11">
+                <button
+                  onClick={() => {
+                    setEasyGraded(prev => { const s = new Set(prev); s.delete(String(q.id)); return s; });
+                    if (gradingResults[String(q.id)]) setGradingResults(prev => { const r = { ...prev }; delete r[String(q.id)]; return r; });
+                  }}
+                  className="text-xs text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors underline"
+                >
+                  Reset & try again
+                </button>
+              </div>
+            )}
+            {/* Short answer AI feedback in easy mode */}
+            {gradingResults[String(q.id)] && q.type === 'short_answer' && (
+              <div className="mt-4 ml-11 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
+                <div className="flex justify-between items-center mb-2">
+                  <h5 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 text-sm">
+                    <SparklesIcon className="w-4 h-4 text-indigo-500" />
+                    EduReach AI Feedback
+                  </h5>
+                  <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-full font-bold text-xs">
+                    {gradingResults[String(q.id)].score}%
+                  </span>
+                </div>
+                <div className="text-sm text-slate-600 dark:text-slate-300">
+                  <MarkdownRenderer content={gradingResults[String(q.id)].feedback || ''} />
+                </div>
+              </div>
+            )}
+            {(isSubmitted || easyGraded.has(String(q.id))) && (q as any).explanation && (
               <div className="mt-4 ml-11 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300">
                 <div className="font-semibold text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">
                   {q.type === 'essay' ? 'Model Solution' : 'Explanation'}
@@ -931,56 +1005,6 @@ Student question: ${userMsg}`,
         </div>
       )}
 
-      {/* Easy Mode AI Tutor Panel */}
-      {easyModeEnabled && !isSubmitted && (
-        <div className="fixed bottom-4 right-4 z-40 w-80 max-h-[420px] flex flex-col rounded-2xl shadow-2xl border border-indigo-200 dark:border-indigo-700 bg-white dark:bg-slate-800 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 bg-indigo-600 text-white">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <SparklesIcon className="w-4 h-4" />
-              AI Tutor — Q{activeQuestionIdx + 1}
-            </div>
-            <button onClick={() => setEasyModeEnabled(false)} className="text-white/70 hover:text-white">
-              <XIcon className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0" style={{ maxHeight: '280px' }}>
-            {aiTutorMessages.map((msg, i) => (
-              <div key={i} className={`text-xs rounded-xl px-3 py-2 max-w-[90%] ${
-                msg.role === 'user'
-                  ? 'ml-auto bg-indigo-600 text-white'
-                  : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200'
-              }`}>
-                <MarkdownRenderer content={msg.text} />
-              </div>
-            ))}
-            {isAiTutorLoading && (
-              <div className="flex gap-1 px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-xl w-16">
-                {[0, 1, 2].map(i => (
-                  <div key={i} className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
-                ))}
-              </div>
-            )}
-            <div ref={tutorEndRef} />
-          </div>
-          <div className="p-2 border-t border-slate-200 dark:border-slate-700 flex gap-2">
-            <input
-              type="text"
-              value={aiTutorInput}
-              onChange={(e) => setAiTutorInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAiTutorSend(); } }}
-              placeholder="Ask for a hint..."
-              className="flex-1 text-xs px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:ring-1 focus:ring-indigo-500 outline-none dark:text-slate-100"
-            />
-            <button
-              onClick={handleAiTutorSend}
-              disabled={isAiTutorLoading || !aiTutorInput.trim()}
-              className="px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold disabled:opacity-50 hover:bg-indigo-700 transition-colors"
-            >
-              Ask
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

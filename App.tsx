@@ -758,7 +758,7 @@ const AppContent: React.FC = () => {
              assessments={assessments}
              onSelectExam={(id) => setView('exam_detail', { examId: id })}
              setView={setView}
-             onBulkCreate={() => setView('bulk_create_exam')}
+             onBulkCreate={user?.tier === 'admin' ? () => setView('bulk_create_exam') : undefined}
              userTier={userTier}
              isLoading={assessmentsLoading}
              userProfile={user || undefined}
@@ -842,6 +842,10 @@ const AppContent: React.FC = () => {
         case 'analytics':
            return <AnalyticsDashboard userTier={userTier} currentUserId={user?.id} />;
         case 'bulk_create_exam':
+           if (user?.tier !== 'admin') {
+             setView('assessments');
+             return null;
+           }
            return <BulkCreateExamPage onCancel={() => setView('assessments')} onBatchCreated={() => setView('assessments')} />;
         case 'setup_session':
            return <SetupSession onSessionCreated={async (data) => { 
