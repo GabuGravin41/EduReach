@@ -38,7 +38,7 @@ export const API_ENDPOINTS = {
   REFRESH_TOKEN: 'auth/token/refresh/',
   PASSWORD_RESET: 'auth/password/reset/',
   PASSWORD_RESET_CONFIRM: 'auth/password/reset/confirm/',
-  GOOGLE_LOGIN: 'users/google-login/',
+  GOOGLE_LOGIN: 'google-login/',
   
   // Users
   USER_ME: 'users/me/',

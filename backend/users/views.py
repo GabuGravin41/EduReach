@@ -264,34 +264,43 @@ class GoogleLoginView(APIView):
             if not email:
                 return Response({'error': 'Google token did not provide an email address'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Get or create user
+            # Derive a unique username from the email prefix
+            base_username = email.split('@')[0]
+            username = base_username
+            counter = 1
+            while User.objects.filter(username=username).exclude(email=email).exists():
+                username = f"{base_username}{counter}"
+                counter += 1
+
+            # Get or create user — keyed on email so repeated Google logins find the same account
             user, created = User.objects.get_or_create(
                 email=email,
                 defaults={
-                    'username': email.split('@')[0],
+                    'username': username,
                     'first_name': first_name,
                     'last_name': last_name,
                 }
             )
-            
-            # If user existed but without first/last name (from another signup method), update them
+
+            # Backfill name if the account was created via email/password without a name
             if not created and (not user.first_name or not user.last_name):
                 user.first_name = user.first_name or first_name
                 user.last_name = user.last_name or last_name
                 user.save(update_fields=['first_name', 'last_name'])
 
-            # Generate tokens
             refresh = RefreshToken.for_user(user)
-            
+
             return Response({
                 'access': str(refresh.access_token),
                 'refresh': str(refresh),
                 'user': UserSerializer(user).data,
-                'is_new_user': created
+                'is_new_user': created,
             })
 
         except ValueError as e:
-            return Response({'error': f'Invalid token: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': f'Invalid Google token: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': 'Google sign-in failed. Please try again.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 from rest_framework.decorators import api_view, permission_classes as deco_permission_classes
