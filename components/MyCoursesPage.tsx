@@ -112,7 +112,20 @@ export const MyCoursesPage: React.FC<MyCoursesPageProps> = ({ courses, onSelectC
               >
                 <div className="h-40 bg-slate-700 flex items-center justify-center relative overflow-hidden">
                    {cardThumbnail ? (
-                       <img src={cardThumbnail} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                       <img
+                         src={cardThumbnail}
+                         alt={course.title}
+                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                         onError={(e) => {
+                           (e.currentTarget as HTMLImageElement).style.display = 'none';
+                           const parent = e.currentTarget.parentElement;
+                           if (parent && !parent.querySelector('.thumb-fallback')) {
+                             const fb = document.createElement('div');
+                             fb.className = 'thumb-fallback absolute inset-0 bg-gradient-to-br from-indigo-600 to-blue-800';
+                             parent.insertBefore(fb, parent.firstChild);
+                           }
+                         }}
+                       />
                    ) : (
                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-blue-800" />
                    )}

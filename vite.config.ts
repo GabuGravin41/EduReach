@@ -36,6 +36,10 @@ export default defineConfig(({ mode }) => {
           '@': path.resolve(__dirname, '.'),
         }
       },
+      esbuild: mode === 'production' ? {
+        drop: ['debugger'],
+        pure: ['console.log', 'console.warn', 'console.debug', 'console.info'],
+      } : {},
       build: {
         outDir: 'dist',
         rollupOptions: {

@@ -17,6 +17,7 @@ import {
   useStudyGroupPerformance,
   useUpdateStudyGroup,
   useDeleteStudyGroup,
+  useBulkEnroll,
   STUDY_GROUP_KEYS,
 } from '../src/hooks/useStudyGroups';
 import { useAuth } from '../src/contexts/useAuth';
@@ -89,6 +90,10 @@ export const StudyGroupsPage: React.FC = () => {
   const deleteGroupMutation = useDeleteStudyGroup();
   const inviteMemberMutation = useInviteStudyGroupMember();
   const createChallengeMutation = useCreateStudyGroupChallenge();
+  const bulkEnrollMutation = useBulkEnroll();
+  const [bulkCount, setBulkCount] = useState('10');
+  const [bulkPrefix, setBulkPrefix] = useState('');
+  const [bulkResults, setBulkResults] = useState<{ username: string; password: string }[] | null>(null);
   const { data: assessmentsData = [] } = useAssessments();
 
   const activeGroupId = activeGroup?.id;
@@ -156,13 +161,36 @@ export const StudyGroupsPage: React.FC = () => {
       ? (groupsData as any).results
       : []);
 
+  const userTier: string = (user as any)?.tier ?? 'free';
+  const userCreatedGroups = groups.filter(g => user && g.creator && g.creator.id === user.id);
+  const userMemberGroups = groups.filter(g => g.is_member);
+
+  // Tier create limits: free=0, starter=3, pro/admin=unlimited
+  const CREATE_LIMITS: Record<string, number | null> = { free: 0, starter: 3, pro: null, admin: null };
+  // Tier join limits: free=2, starter=7, pro/admin=unlimited
+  const JOIN_LIMITS: Record<string, number | null>   = { free: 2, starter: 7, pro: null, admin: null };
+
+  const createLimit = CREATE_LIMITS[userTier] ?? 0;
+  const joinLimit   = JOIN_LIMITS[userTier] ?? null;
+
+  const canCreate  = (user as any)?.is_staff || (createLimit === null) || (createLimit > 0 && userCreatedGroups.length < createLimit);
+  const atCreateLimit = !canCreate;
+  const atJoinLimit   = joinLimit !== null && userMemberGroups.length >= joinLimit && !(user as any)?.is_staff;
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    await createGroupMutation.mutateAsync({ name, description });
-    setName('');
-    setDescription('');
-    setIsCreateOpen(false);
+    try {
+      await createGroupMutation.mutateAsync({ name, description });
+      setName('');
+      setDescription('');
+      setIsCreateOpen(false);
+      toast.success('Study group created!');
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : 'Failed to create group.');
+      setIsCreateOpen(false);
+    }
   };
 
   const handleJoinToggle = (group: StudyGroup, e?: React.MouseEvent) => {
@@ -208,19 +236,26 @@ export const StudyGroupsPage: React.FC = () => {
 
   const handleCreateChallenge = async () => {
     if (!activeGroupId || !challengeTitle.trim()) return;
-    await createChallengeMutation.mutateAsync({
-      group: Number(activeGroupId),
-      title: challengeTitle.trim(),
-      description: challengeDescription.trim() || undefined,
-      assessment: selectedAssessmentId ? Number(selectedAssessmentId) : null,
-      start_date: challengeStart || undefined,
-      end_date: challengeEnd || null,
-    });
-    setChallengeTitle('');
-    setChallengeDescription('');
-    setSelectedAssessmentId('');
-    setChallengeStart('');
-    setChallengeEnd('');
+    try {
+      await createChallengeMutation.mutateAsync({
+        group: Number(activeGroupId),
+        title: challengeTitle.trim(),
+        description: challengeDescription.trim() || undefined,
+        assessment: selectedAssessmentId ? Number(selectedAssessmentId) : null,
+        start_date: challengeStart || undefined,
+        end_date: challengeEnd || null,
+      });
+      setChallengeTitle('');
+      setChallengeDescription('');
+      setSelectedAssessmentId('');
+      setChallengeStart('');
+      setChallengeEnd('');
+      setCreateChallengeExpanded(false);
+      toast.success('Challenge created!');
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : 'Failed to create challenge. Only group creators can do this.');
+    }
   };
 
   // Resolve group id from URL: either ?join_group=1 or /study-groups/1 (legacy)
@@ -685,20 +720,20 @@ export const StudyGroupsPage: React.FC = () => {
                 ) : normalizedMembers.length === 0 ? (
                   <div className="p-6 text-sm text-slate-500">No data available.</div>
                 ) : (
-                  <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                  <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
                     {normalizedMembers
                       .slice()
                       .sort((a, b) => (b.xp_points || 0) - (a.xp_points || 0))
                       .map((m, i) => (
-                        <div key={m.id} className="px-6 py-4 flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                          <div className="flex-shrink-0 w-8 text-center font-black text-slate-400">
+                        <div key={m.id} className="px-6 py-3 flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                          <div className="flex-shrink-0 w-7 text-center font-black text-slate-400 text-sm">
                             {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
                           </div>
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-sm shadow-md">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-xs shadow-md">
                             {m.username.substring(0, 2).toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-bold text-slate-800 dark:text-slate-200 truncate">
+                            <p className="font-bold text-slate-800 dark:text-slate-200 truncate text-sm">
                               {m.username}
                             </p>
                             <p className="text-xs font-semibold text-slate-500">
@@ -706,10 +741,10 @@ export const StudyGroupsPage: React.FC = () => {
                             </p>
                           </div>
                           <div className="text-right">
-                            <p className="text-lg font-black text-indigo-600 dark:text-indigo-400">
+                            <p className="text-base font-black text-indigo-600 dark:text-indigo-400">
                               {(m.xp_points || 0).toLocaleString()}
                             </p>
-                            <p className="text-[10px] uppercase font-bold text-slate-400 tracking-tighter">TOTAL XP</p>
+                            <p className="text-[10px] uppercase font-bold text-slate-400 tracking-tighter">XP</p>
                           </div>
                         </div>
                       ))}
@@ -732,42 +767,31 @@ export const StudyGroupsPage: React.FC = () => {
                       No graded attempts yet for assessments linked to this group.
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
+                    <div className="max-h-64 overflow-y-auto overflow-x-auto">
                       <table className="min-w-full text-left text-sm">
-                        <thead className="bg-slate-50 dark:bg-slate-700 text-slate-500 text-xs uppercase font-semibold">
+                        <thead className="bg-slate-50 dark:bg-slate-700 text-slate-500 text-xs uppercase font-semibold sticky top-0">
                           <tr>
-                            <th className="px-6 py-3">Student</th>
-                            <th className="px-6 py-3">Attempts</th>
-                            <th className="px-6 py-3">% Average</th>
+                            <th className="px-4 py-2">Student</th>
+                            <th className="px-4 py-2">Attempts</th>
+                            <th className="px-4 py-2">Avg %</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                           {normalizedPerformance.map((row: any) => (
-                            <tr key={row.user_id}>
-                              <td className="px-6 py-3">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 flex items-center justify-center font-bold text-xs">
-                                    {String(row.username || '')
-                                      .substring(0, 2)
-                                      .toUpperCase()}
+                            <tr key={row.user_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                              <td className="px-4 py-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 flex-shrink-0 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 flex items-center justify-center font-bold text-xs">
+                                    {String(row.username || '').substring(0, 2).toUpperCase()}
                                   </div>
-                                  <div>
-                                    <div className="font-semibold text-slate-800 dark:text-slate-100">
-                                      {row.full_name || row.username}
-                                    </div>
-                                    <div className="text-xs text-slate-500">
-                                      {row.username}
-                                    </div>
-                                  </div>
+                                  <span className="font-semibold text-slate-800 dark:text-slate-100 truncate max-w-[120px]">
+                                    {row.full_name || row.username}
+                                  </span>
                                 </div>
                               </td>
-                              <td className="px-6 py-3 text-slate-700 dark:text-slate-200">
-                                {row.attempt_count}
-                              </td>
-                              <td className="px-6 py-3 text-slate-700 dark:text-slate-200">
-                                {typeof row.average_percentage === 'number'
-                                  ? `${row.average_percentage.toFixed(1)}%`
-                                  : '-'}
+                              <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{row.attempt_count}</td>
+                              <td className="px-4 py-2 font-semibold text-slate-700 dark:text-slate-200">
+                                {typeof row.average_percentage === 'number' ? `${row.average_percentage.toFixed(1)}%` : '-'}
                               </td>
                             </tr>
                           ))}
@@ -780,6 +804,7 @@ export const StudyGroupsPage: React.FC = () => {
             )}
             {groupTab === 'events' && (
               <div className="space-y-6">
+                {user && activeGroup.creator && user.id === activeGroup.creator.id && (
                 <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                   <button
                     type="button"
@@ -804,17 +829,17 @@ export const StudyGroupsPage: React.FC = () => {
                           placeholder="Challenge title"
                           className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
                         />
-                        <div className="space-y-2">
+                        <div className="space-y-2 md:col-span-2">
                           <div className="flex items-center justify-between gap-2">
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                              Link an assessment (optional)
+                              Link an assessment <span className="text-slate-400 font-normal">(optional)</span>
                             </label>
                             <select
                               value={assessmentTypeFilter}
                               onChange={(e) => setAssessmentTypeFilter(e.target.value as any)}
                               className="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
                             >
-                              <option value="all">All</option>
+                              <option value="all">All types</option>
                               <option value="quiz">Quizzes</option>
                               <option value="exam">Exams</option>
                             </select>
@@ -822,15 +847,24 @@ export const StudyGroupsPage: React.FC = () => {
                           <select
                             value={selectedAssessmentId}
                             onChange={(e) => setSelectedAssessmentId(e.target.value)}
-                            className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
                           >
-                            <option value="">Choose assessment</option>
-                            {filteredAssessmentsForChallenges.map((assessment: any) => (
-                              <option key={assessment.id} value={assessment.id}>
-                                {assessment.title} {assessment.assessment_type === 'exam' ? '• Exam' : '• Quiz'}
-                              </option>
-                            ))}
+                            <option value="">— No assessment (open challenge) —</option>
+                            {filteredAssessmentsForChallenges.map((assessment: any) => {
+                              const qCount = assessment.question_count ?? assessment.questions?.length ?? '';
+                              const typeLabel = assessment.assessment_type === 'exam' ? 'Exam' : 'Quiz';
+                              return (
+                                <option key={assessment.id} value={assessment.id}>
+                                  {assessment.title}{qCount ? ` (${qCount}Q)` : ''} · {typeLabel}
+                                </option>
+                              );
+                            })}
                           </select>
+                          {selectedAssessmentId && (
+                            <button type="button" onClick={() => setSelectedAssessmentId('')} className="text-xs text-slate-400 hover:text-rose-500 transition-colors">
+                              Clear selection
+                            </button>
+                          )}
                         </div>
                         <input
                           value={challengeStart}
@@ -861,6 +895,7 @@ export const StudyGroupsPage: React.FC = () => {
                     </div>
                   )}
                 </div>
+                )}
 
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700">
                   <h3 className="text-lg font-bold mb-4">Active Challenges</h3>
@@ -918,9 +953,9 @@ export const StudyGroupsPage: React.FC = () => {
                       type="text"
                       readOnly
                       value={(() => {
-                        const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                        const base = import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '');
                         const token = activeGroup.invite_token || '';
-                        return token ? `${origin}/study-groups?join_token=${token}` : '';
+                        return token ? `${base}/invite?t=${token}` : '';
                       })()}
                       className="flex-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500"
                       onFocus={(e) => e.currentTarget.select()}
@@ -932,8 +967,8 @@ export const StudyGroupsPage: React.FC = () => {
                           toast.error('Invite token not available. Please refresh the page.');
                           return;
                         }
-                        const origin = typeof window !== 'undefined' ? window.location.origin : '';
-                        const url = `${origin}/study-groups?join_token=${activeGroup.invite_token}`;
+                        const base = import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+                        const url = `${base}/invite?t=${activeGroup.invite_token}`;
                         try {
                           if (navigator.clipboard && window.isSecureContext) {
                             await navigator.clipboard.writeText(url);
@@ -1003,6 +1038,104 @@ export const StudyGroupsPage: React.FC = () => {
                   </p>
                 </div>
 
+                {/* ── Bulk enroll (creator only) ──────────────────────────── */}
+                {user && activeGroup.creator && user.id === activeGroup.creator.id && (
+                  <div className="border-t border-slate-100 dark:border-slate-700 pt-6 mt-6">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-lg">⚡</span>
+                      <h4 className="text-base font-bold text-slate-800 dark:text-slate-100">Bulk Enroll (Contest Mode)</h4>
+                    </div>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                      Create temporary accounts for contest participants. Distribute the credentials to participants — they log in with username + password.
+                    </p>
+                    <div className="flex flex-wrap gap-3 mb-3">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Username prefix</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. imo2025"
+                          value={bulkPrefix}
+                          onChange={(e) => setBulkPrefix(e.target.value.replace(/[^a-z0-9_-]/gi, ''))}
+                          maxLength={20}
+                          className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm w-40"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Number of accounts (max 200)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={200}
+                          value={bulkCount}
+                          onChange={(e) => setBulkCount(e.target.value)}
+                          className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm w-28"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button
+                          disabled={bulkEnrollMutation.isPending || !bulkPrefix.trim() || Number(bulkCount) < 1 || Number(bulkCount) > 200}
+                          onClick={async () => {
+                            try {
+                              const result = await bulkEnrollMutation.mutateAsync({
+                                groupId: activeGroup.id,
+                                count: Number(bulkCount),
+                                prefix: bulkPrefix.trim(),
+                              });
+                              setBulkResults(result.accounts);
+                              toast.success(`Created ${result.created} accounts!`);
+                            } catch (err: any) {
+                              const detail = err?.response?.data?.detail;
+                              toast.error(typeof detail === 'string' ? detail : 'Bulk enroll failed.');
+                            }
+                          }}
+                        >
+                          {bulkEnrollMutation.isPending ? 'Creating…' : 'Create Accounts'}
+                        </Button>
+                      </div>
+                    </div>
+                    {bulkResults && bulkResults.length > 0 && (
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                            {bulkResults.length} accounts created — share these credentials:
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const text = bulkResults.map(a => `${a.username}\t${a.password}`).join('\n');
+                              navigator.clipboard?.writeText(text).then(() => toast.success('Copied to clipboard!'));
+                            }}
+                            className="text-xs text-indigo-600 hover:underline"
+                          >
+                            Copy all (TSV)
+                          </button>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                          <table className="w-full text-xs">
+                            <thead className="bg-slate-50 dark:bg-slate-900 sticky top-0">
+                              <tr>
+                                <th className="text-left px-3 py-2 font-semibold text-slate-600 dark:text-slate-400">Username</th>
+                                <th className="text-left px-3 py-2 font-semibold text-slate-600 dark:text-slate-400">Password</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {bulkResults.map((a, i) => (
+                                <tr key={i} className="border-t border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                  <td className="px-3 py-1.5 font-mono">{a.username}</td>
+                                  <td className="px-3 py-1.5 font-mono">{a.password}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                          Save these credentials now — passwords will not be shown again.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* ── Group Billing section (creator only) ─────────────────── */}
                 {user && activeGroup.creator && user.id === activeGroup.creator.id && (
                   <div className="border-t border-slate-100 dark:border-slate-700 pt-6 mt-6">
@@ -1065,6 +1198,7 @@ export const StudyGroupsPage: React.FC = () => {
                 )}
 
                 {/* ── Danger zone (creator only) ─────────────────────────── */}
+                {user && activeGroup.creator && user.id === activeGroup.creator.id && (
                 <div className="border-t border-rose-100 dark:border-rose-900/40 pt-6 mt-6">
                   <h4 className="text-sm font-semibold text-rose-600 dark:text-rose-400 mb-3">Danger Zone</h4>
                   <div className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/10 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -1088,6 +1222,7 @@ export const StudyGroupsPage: React.FC = () => {
                     </button>
                   </div>
                 </div>
+                )}
               </div>
             )}
           </div>
@@ -1118,14 +1253,36 @@ export const StudyGroupsPage: React.FC = () => {
           <p className="mt-1 text-sm sm:text-base text-slate-600 dark:text-slate-400">
             Join peers learning the same topics, share questions, and stay accountable.
           </p>
+          {/* Tier usage hint */}
+          {user && !((user as any)?.is_staff) && userTier !== 'pro' && userTier !== 'admin' && (
+            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+              {userTier === 'free'
+                ? `Free plan · ${userMemberGroups.length}/${JOIN_LIMITS.free} groups joined · creating groups requires Starter`
+                : `Starter plan · ${userMemberGroups.length}/${JOIN_LIMITS.starter} joined · ${userCreatedGroups.length}/${createLimit} created`}
+            </p>
+          )}
         </div>
-        <Button onClick={() => setIsCreateOpen(true)} className="flex items-center gap-2">
-          <PlusCircleIcon className="w-4 h-4" />
-          Create group
-        </Button>
+        {atCreateLimit ? (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1.5 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-2.5">
+            <span className="text-sm text-amber-700 dark:text-amber-300">
+              {userTier === 'free' ? 'Free plan: create groups not available' : `Starter limit: ${createLimit} groups reached`}
+            </span>
+            <button
+              onClick={() => navigate('/billing')}
+              className="text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:underline whitespace-nowrap"
+            >
+              {userTier === 'free' ? 'Upgrade to Starter' : 'Upgrade to Pro'}
+            </button>
+          </div>
+        ) : (
+          <Button onClick={() => setIsCreateOpen(true)} className="flex items-center gap-2">
+            <PlusCircleIcon className="w-4 h-4" />
+            Create group
+          </Button>
+        )}
       </div>
 
-      {isCreateOpen && (
+      {isCreateOpen && !atCreateLimit && (
         <form
           onSubmit={handleCreate}
           className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 sm:p-5 space-y-3"
@@ -1173,10 +1330,16 @@ export const StudyGroupsPage: React.FC = () => {
           <p className="text-slate-600 dark:text-slate-400 mb-3 text-sm sm:text-base">
             No study groups yet. Be the first to create one for your course or topic.
           </p>
-          <Button onClick={() => setIsCreateOpen(true)} className="inline-flex items-center gap-2">
-            <PlusCircleIcon className="w-4 h-4" />
-            Start a group
-          </Button>
+          {atCreateLimit ? (
+            <button onClick={() => navigate('/billing')} className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors">
+              Upgrade to create groups
+            </button>
+          ) : (
+            <Button onClick={() => setIsCreateOpen(true)} className="inline-flex items-center gap-2">
+              <PlusCircleIcon className="w-4 h-4" />
+              Start a group
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
@@ -1238,6 +1401,14 @@ export const StudyGroupsPage: React.FC = () => {
                     <Button className="flex-1" onClick={() => enterGroup(group)}>
                       Enter Group
                     </Button>
+                  ) : atJoinLimit ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate('/billing')}
+                      className="flex-1 px-3 py-2 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-sm font-semibold hover:bg-amber-100 transition-colors"
+                    >
+                      {userTier === 'free' ? 'Upgrade to join more' : 'Upgrade to Pro'}
+                    </button>
                   ) : (
                     <Button className="flex-1" onClick={(e) => handleJoinToggle(group, e)} isLoading={joinGroupMutation.isPending}>
                       Join Group

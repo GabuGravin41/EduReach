@@ -80,7 +80,7 @@ class ChallengeParticipationSerializer(serializers.ModelSerializer):
 class StudyGroupChallengeSerializer(serializers.ModelSerializer):
     group = StudyGroupSerializer(read_only=True)
     participations = ChallengeParticipationSerializer(many=True, read_only=True)
-    assessment_title = serializers.CharField(source='assessment.title', read_only=True)
+    assessment_title = serializers.CharField(source='assessment.title', read_only=True, allow_null=True, default=None)
 
     class Meta:
         model = StudyGroupChallenge

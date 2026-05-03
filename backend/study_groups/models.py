@@ -96,7 +96,7 @@ class StudyGroup(models.Model):
         # Generate a stable random token the first time the group is saved,
         # without modifying existing groups that already have one.
         if not self.invite_token:
-            self.invite_token = get_random_string(32)
+            self.invite_token = get_random_string(12)
         super().save(*args, **kwargs)
 
     @property

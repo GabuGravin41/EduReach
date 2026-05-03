@@ -158,6 +158,11 @@ export const studyGroupService = {
     const { data } = await apiClient.get(`study-groups/groups/${groupId}/assessment-performance/`);
     return data;
   },
+
+  async bulkEnroll(groupId: number, payload: { count: number; prefix: string }): Promise<{ created: number; accounts: { username: string; password: string }[] }> {
+    const { data } = await apiClient.post(`study-groups/groups/${groupId}/bulk-enroll/`, payload);
+    return data;
+  },
 };
 
 export default studyGroupService;

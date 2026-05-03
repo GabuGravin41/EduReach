@@ -26,7 +26,7 @@ export const useCreateStudyGroup = () => {
   return useMutation({
     mutationFn: studyGroupService.createGroup,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: STUDY_GROUP_KEYS.lists() });
+      queryClient.invalidateQueries({ queryKey: STUDY_GROUP_KEYS.all });
     },
   });
 };
@@ -170,6 +170,17 @@ export const useStudyGroupPerformance = (groupId: number) => {
     queryFn: () => studyGroupService.getGroupAssessmentPerformance(groupId),
     enabled: !!groupId,
     staleTime: 60 * 1000,
+  });
+};
+
+export const useBulkEnroll = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ groupId, count, prefix }: { groupId: number; count: number; prefix: string }) =>
+      studyGroupService.bulkEnroll(groupId, { count, prefix }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: STUDY_GROUP_KEYS.members(variables.groupId) });
+    },
   });
 };
 

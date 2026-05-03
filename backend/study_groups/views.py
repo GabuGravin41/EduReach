@@ -59,7 +59,45 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
         context['request'] = self.request
         return context
 
+    # ── Tier limits ──────────────────────────────────────────────────────────
+    # free    : cannot create; can join up to 2
+    # starter : can create up to 3; can join up to 7 (total memberships)
+    # pro/admin: unlimited
+    TIER_CREATE_LIMITS = {'free': 0, 'starter': 3, 'pro': None, 'admin': None}
+    TIER_JOIN_LIMITS   = {'free': 2, 'starter': 7, 'pro': None, 'admin': None}
+
+    def _check_create_limit(self, user):
+        if user.is_staff:
+            return
+        tier = getattr(user, 'tier', 'free') or 'free'
+        limit = self.TIER_CREATE_LIMITS.get(tier, 0)
+        if limit == 0:
+            raise permissions.PermissionDenied(
+                'Free accounts cannot create study groups. Upgrade to Starter or Pro.'
+            )
+        if limit is not None:
+            count = StudyGroup.objects.filter(creator=user).count()
+            if count >= limit:
+                raise permissions.PermissionDenied(
+                    f'Starter accounts can create up to {limit} study groups. Upgrade to Pro for unlimited.'
+                )
+
+    def _check_join_limit(self, user):
+        if user.is_staff:
+            return
+        tier = getattr(user, 'tier', 'free') or 'free'
+        limit = self.TIER_JOIN_LIMITS.get(tier)
+        if limit is not None:
+            count = StudyGroupMembership.objects.filter(user=user).count()
+            if count >= limit:
+                tier_label = tier.capitalize()
+                next_tier = 'Starter or Pro' if tier == 'free' else 'Pro'
+                raise permissions.PermissionDenied(
+                    f'{tier_label} accounts can be in up to {limit} study groups. Upgrade to {next_tier} for more.'
+                )
+
     def perform_create(self, serializer):
+        self._check_create_limit(self.request.user)
         group = serializer.save(creator=self.request.user)
         StudyGroupMembership.objects.create(
             group=group,
@@ -74,6 +112,10 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Already a member.'}, status=status.HTTP_200_OK)
         if group.member_count >= group.max_members:
             return Response({'detail': 'Group is full.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            self._check_join_limit(request.user)
+        except permissions.PermissionDenied as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_403_FORBIDDEN)
         StudyGroupMembership.objects.get_or_create(
             group=group,
             user=request.user,
@@ -88,6 +130,11 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Not a member.'}, status=status.HTTP_400_BAD_REQUEST)
         StudyGroupMembership.objects.filter(group=group, user=request.user).delete()
         return Response({'detail': 'Left group.'}, status=status.HTTP_200_OK)
+
+    def perform_destroy(self, instance):
+        if instance.creator != self.request.user and not self.request.user.is_staff:
+            raise permissions.PermissionDenied("Only the group creator can delete this group.")
+        instance.delete()
 
     @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticatedOrReadOnly])
     def members(self, request, pk=None):
@@ -301,7 +348,13 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
                 {'detail': 'Already a member.', 'group_id': group.id},
                 status=status.HTTP_200_OK,
             )
-        
+
+        # Tier join limit
+        try:
+            self._check_join_limit(request.user)
+        except permissions.PermissionDenied as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_403_FORBIDDEN)
+
         # Add user to group
         StudyGroupMembership.objects.get_or_create(
             group=group,

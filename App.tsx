@@ -660,8 +660,9 @@ const AppContent: React.FC = () => {
 
     if (!user) {
       const isStudyGroupInvite =
-        (location.pathname?.startsWith('/study-groups') && location.search?.includes('join_group=')) ||
-        /^\/study-groups\/\d+$/.test(location.pathname || '');
+        (location.pathname?.startsWith('/study-groups') && (location.search?.includes('join_group=') || location.search?.includes('join_token='))) ||
+        /^\/study-groups\/\d+$/.test(location.pathname || '') ||
+        (location.pathname === '/invite' && location.search?.includes('t='));
       return (
         <>
           {sessionExpiredNotice && (
@@ -850,6 +851,16 @@ const AppContent: React.FC = () => {
            return <PrivacyPolicyPage />;
         case 'join_exam':
            return <JoinExamPage />;
+        case 'join_group': {
+          // /invite?t=TOKEN → redirect to /study-groups?join_token=TOKEN
+          const inviteToken = new URLSearchParams(location.search || '').get('t');
+          if (inviteToken) {
+            navigate(`/study-groups?join_token=${encodeURIComponent(inviteToken)}`, { replace: true });
+          } else {
+            navigate('/study-groups', { replace: true });
+          }
+          return null;
+        }
         case 'exam_sessions':
            return <ExamSessionsPage userAssessments={assessments.map(a => ({ id: a.id, title: a.title }))} />;
         default:

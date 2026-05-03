@@ -10,9 +10,14 @@ import { Toaster } from './components/ui/Toaster';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 10, // 10 minutes
-      gcTime: 1000 * 60 * 60 * 24, // 24 hours cache retention
-      retry: 1,
+      staleTime: 1000 * 60 * 10,
+      gcTime: 1000 * 60 * 60 * 24,
+      // Don't retry 4xx errors — they're not transient
+      retry: (failureCount, error: any) => {
+        const status = error?.response?.status;
+        if (status && status >= 400 && status < 500) return false;
+        return failureCount < 1;
+      },
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       networkMode: 'offlineFirst',
