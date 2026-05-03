@@ -649,11 +649,41 @@ const AppContent: React.FC = () => {
         );
     }
   
-    // Public page — no auth required
+    // Public pages — no auth required
     if (location.pathname === '/join') {
       return (
         <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>}>
           <JoinExamPage />
+        </Suspense>
+      );
+    }
+
+    if (location.pathname === '/terms') {
+      return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>}>
+          <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+            <div className="max-w-4xl mx-auto px-4 py-8">
+              <a href="/" className="inline-flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 hover:underline mb-6">
+                ← Back to EduReach
+              </a>
+              <TermsOfServicePage />
+            </div>
+          </div>
+        </Suspense>
+      );
+    }
+
+    if (location.pathname === '/privacy') {
+      return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>}>
+          <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+            <div className="max-w-4xl mx-auto px-4 py-8">
+              <a href="/" className="inline-flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 hover:underline mb-6">
+                ← Back to EduReach
+              </a>
+              <PrivacyPolicyPage />
+            </div>
+          </div>
         </Suspense>
       );
     }

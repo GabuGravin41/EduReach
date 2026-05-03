@@ -783,9 +783,9 @@ export const LoginScreen: React.FC = () => {
                   </form>
                   <div className="mt-6 text-center text-xs text-slate-500 dark:text-slate-400">
                     By continuing, you agree to our{' '}
-                    <a href="/terms" className="text-indigo-600 dark:text-indigo-400 hover:underline">Terms of Service</a>{' '}
+                    <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-indigo-600 dark:text-indigo-400 hover:underline">Terms of Service</a>{' '}
                     and{' '}
-                    <a href="/privacy" className="text-indigo-600 dark:text-indigo-400 hover:underline">Privacy Policy</a>.
+                    <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-indigo-600 dark:text-indigo-400 hover:underline">Privacy Policy</a>.
                   </div>
                 </>
               )}
