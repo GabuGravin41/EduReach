@@ -14,6 +14,7 @@ import { useUsage, USAGE_QUERY_KEY } from './src/hooks/useUsage';
 import { usePosts, useCreatePost, useToggleLike, useAddComment, useDeletePost } from './src/hooks/useCommunity';
 import { Sidebar } from './components/Sidebar';
 import { LoginScreen } from './components/LoginScreen';
+import { LandingPage } from './components/LandingPage';
 import { Dashboard } from './components/Dashboard';
 import { LearningSession } from './components/LearningSession';
 import { SetupSession } from './components/SetupSession';
@@ -689,6 +690,9 @@ const AppContent: React.FC = () => {
     }
 
     if (!user) {
+      if (location.pathname === '/') {
+        return <LandingPage />;
+      }
       const isStudyGroupInvite =
         (location.pathname?.startsWith('/study-groups') && (location.search?.includes('join_group=') || location.search?.includes('join_token='))) ||
         /^\/study-groups\/\d+$/.test(location.pathname || '') ||

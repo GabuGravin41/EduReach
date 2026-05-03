@@ -19,5 +19,5 @@ urlpatterns = [
     path('exam-sessions/join/', exam_session_views.join_exam_session, name='join_exam_session'),
     path('exam-sessions/submit/', exam_session_views.submit_guest_attempt, name='submit_guest_attempt'),
     # Personalised recommendations
-    path('recommend/', recommend_assessments_view, name='recommend_assessments'),
+    path('assessments/recommend/', recommend_assessments_view, name='recommend_assessments'),
 ]

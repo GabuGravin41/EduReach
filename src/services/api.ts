@@ -195,7 +195,8 @@ apiClient.interceptors.response.use(
   }
 );
 
-// Same response interceptor for aiClient
+// Same response interceptor for aiClient — uses shared getRefreshedToken() to
+// avoid a refresh-token rotation race when apiClient and aiClient both 401 simultaneously.
 aiClient.interceptors.response.use(
   (response) => {
     if (typeof window !== 'undefined') {
@@ -216,18 +217,10 @@ aiClient.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (!refreshToken) {
-          throw new Error('No refresh token available');
+        const access = await getRefreshedToken();
+        if (!access) {
+          throw new Error('Refresh failed');
         }
-
-        const response = await axios.post(
-          `${API_CONFIG.BASE_URL}/auth/token/refresh/`,
-          { refresh: refreshToken }
-        );
-
-        const { access } = response.data;
-        localStorage.setItem('access_token', access);
 
         if (originalRequest.headers) {
           originalRequest.headers.Authorization = `Bearer ${access}`;
@@ -237,6 +230,7 @@ aiClient.interceptors.response.use(
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
+        localStorage.removeItem('cached_user');
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('auth:expired'));
         }

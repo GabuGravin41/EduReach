@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { XIcon } from './icons/XIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
@@ -24,6 +24,7 @@ interface QuizViewProps {
   assessmentId?: number;
   imageUploadGraceMinutes?: number;
   forceSubmit?: boolean;
+  contestMode?: boolean;
 }
 
 export const QuizView: React.FC<QuizViewProps> = ({
@@ -32,99 +33,62 @@ export const QuizView: React.FC<QuizViewProps> = ({
   assessmentId,
   imageUploadGraceMinutes,
   forceSubmit,
+  contestMode = false,
 }) => {
-  // Normalize input to standard Question[] format
   const questions: Question[] = useMemo(() => {
     if (!quiz || !Array.isArray(quiz)) return [];
 
-    // Helper: convert letter answer ('A','B','C','D') to index
     const letterToIndex = (letter: string): number => {
       const map: Record<string, number> = { 'A': 0, 'B': 1, 'C': 2, 'D': 3, 'a': 0, 'b': 1, 'c': 2, 'd': 3 };
       return map[letter?.trim()] ?? -1;
     };
 
     return quiz.map((q: any, idx) => {
-      // If it's already a valid Question with a type, return it
-      if (q.type && q.id) {
-        return q as Question;
-      }
+      if (q.type && q.id) return q as Question;
 
       const baseId = `ai-${idx}-${Date.now()}`;
-
-      // Normalize fields: options/choices, correctAnswer/correct_answer
       const options = q.options ?? q.choices ?? [];
       const correctAnswer = q.correctAnswer ?? q.correct_answer;
 
-      // Handle AI Service Schema mappings
-      // Case 1: Essay (has question, maybe no options/correctAnswer)
       if (q.question && options.length === 0 && !correctAnswer) {
         return {
-          id: baseId,
-          type: 'essay',
-          points: 10,
-          question_text: q.question,
-          max_words: 500,
+          id: baseId, type: 'essay', points: 10,
+          question_text: q.question, max_words: 500,
           rubric_criteria: q.rubric_criteria || [],
-          model_solution: q.model_solution,
-          ai_grading_enabled: true
+          model_solution: q.model_solution, ai_grading_enabled: true
         } as EssayQuestion;
       }
-
-      // Case 2: Short Answer (has question and correctAnswer, no options)
       if (q.question && correctAnswer && options.length === 0) {
         return {
-          id: baseId,
-          type: 'short_answer',
-          points: 5,
-          question_text: q.question,
-          correct_answers: [correctAnswer],
-          case_sensitive: false,
-          exact_match: false,
-          max_length: 100
+          id: baseId, type: 'short_answer', points: 5,
+          question_text: q.question, correct_answers: [correctAnswer],
+          case_sensitive: false, exact_match: false, max_length: 100
         } as ShortAnswerQuestion;
       }
-
-      // Case 3: Multiple Choice (default fallback if options exist)
-      // If AI generated an MCQ without options, fall back to short_answer
-      // so the user can still answer the question.
       if (options.length === 0) {
         return {
-          id: baseId,
-          type: 'short_answer',
+          id: baseId, type: 'short_answer',
           question_text: q.question || q.question_text || 'Untitled Question',
           correct_answers: correctAnswer ? [correctAnswer] : [],
-          case_sensitive: false,
-          exact_match: false,
-          max_length: 200,
-          points: q.points || 1,
-          explanation: q.explanation,
+          case_sensitive: false, exact_match: false, max_length: 200,
+          points: q.points || 1, explanation: q.explanation,
         } as ShortAnswerQuestion;
       }
 
-      // Determine correct_answer_index robustly
       let correctIndex = typeof q.correct_answer_index === 'number' ? q.correct_answer_index : -1;
       if (correctIndex < 0 && correctAnswer && options.length > 0) {
-        // Try exact match first
         correctIndex = options.indexOf(correctAnswer);
-        // Try letter mapping (A/B/C/D)
-        if (correctIndex < 0) {
-          correctIndex = letterToIndex(correctAnswer);
-        }
-        // Try case-insensitive match
+        if (correctIndex < 0) correctIndex = letterToIndex(correctAnswer);
         if (correctIndex < 0) {
           const lowerAnswer = String(correctAnswer).toLowerCase();
           correctIndex = options.findIndex((o: string) => o.toLowerCase() === lowerAnswer);
         }
       }
       return {
-        id: baseId,
-        type: 'multiple_choice',
+        id: baseId, type: 'multiple_choice',
         question_text: q.question || q.question_text || 'Untitled Question',
-        options,
-        correct_answer_index: correctIndex >= 0 ? correctIndex : 0,
-        points: q.points || 1,
-        explanation: q.explanation,
-        source_url: q.source_url,
+        options, correct_answer_index: correctIndex >= 0 ? correctIndex : 0,
+        points: q.points || 1, explanation: q.explanation, source_url: q.source_url,
       } as MultipleChoiceQuestion;
     });
   }, [quiz]);
@@ -134,16 +98,10 @@ export const QuizView: React.FC<QuizViewProps> = ({
   const [timeLeftSeconds, setTimeLeftSeconds] = useState<number | null>(
     timeLimitMinutes ? Math.max(0, Math.round(timeLimitMinutes * 60)) : null
   );
-
-  // After submit: when backend returns status 'submitted', auto-poll; user can also manually check
   const [attemptStatusFromServer, setAttemptStatusFromServer] = useState<string | null>(null);
   const [serverAttempt, setServerAttempt] = useState<{ status?: string; score?: string | number; percentage?: number; question_results?: Record<string, QuestionResult> } | null>(null);
   const [isMarking, setIsMarking] = useState(false);
   const [markError, setMarkError] = useState('');
-  const [isPollingForResult, setIsPollingForResult] = useState(false);
-  const [pollAttemptsLeft, setPollAttemptsLeft] = useState(5);
-
-  // State for individual AI grading of essays
   const [gradingResults, setGradingResults] = useState<Record<string, { score: number, feedback: string }>>({});
   const [isGrading, setIsGrading] = useState<Record<string, boolean>>({});
   const [uploadingImages, setUploadingImages] = useState<Record<string, boolean>>({});
@@ -153,12 +111,41 @@ export const QuizView: React.FC<QuizViewProps> = ({
   const [submitError, setSubmitError] = useState<string>('');
   const [imageUploadSecondsLeft, setImageUploadSecondsLeft] = useState<number | null>(null);
 
-  // Auto-submit when the proctor forces it (tab limit exceeded)
+  // Contest mode
+  const [tabSwitches, setTabSwitches] = useState(0);
+  const [tabWarning, setTabWarning] = useState(false);
+  const tabEventsRef = useRef<{ time: string; count: number }[]>([]);
+
+  // Easy mode AI tutor
+  const [easyModeEnabled, setEasyModeEnabled] = useState(false);
+  const [aiTutorMessages, setAiTutorMessages] = useState<{ role: 'user' | 'ai'; text: string }[]>([]);
+  const [aiTutorInput, setAiTutorInput] = useState('');
+  const [isAiTutorLoading, setIsAiTutorLoading] = useState(false);
+  const [activeQuestionIdx, setActiveQuestionIdx] = useState(0);
+  const tutorEndRef = useRef<HTMLDivElement>(null);
+
+  // Contest mode: track tab visibility changes
+  useEffect(() => {
+    if (!contestMode || isSubmitted) return;
+    const handleVisibility = () => {
+      if (document.hidden) {
+        setTabSwitches(prev => {
+          const next = prev + 1;
+          tabEventsRef.current.push({ time: new Date().toISOString(), count: next });
+          if (next >= 1) setTabWarning(true);
+          return next;
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [contestMode, isSubmitted]);
+
+  // Auto-submit when proctor forces it
   useEffect(() => {
     if (forceSubmit && !isSubmitted && !isSubmittingAttempt) {
       submitAttempt();
     }
-  // submitAttempt is defined below; ESLint would warn — intentional
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forceSubmit]);
 
@@ -181,7 +168,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
       await assessmentService.uploadAnswerImage(assessmentId, questionId, file);
       setUploadedImages(prev => ({ ...prev, [questionId]: true }));
     } catch (error) {
-      console.error('Image upload failed:', error);
+      // silently fail — user can retry
     } finally {
       setUploadingImages(prev => ({ ...prev, [questionId]: false }));
     }
@@ -202,11 +189,9 @@ export const QuizView: React.FC<QuizViewProps> = ({
       setAttemptStatusFromServer(data?.status ?? null);
       if (data?.status === 'graded') {
         setServerAttempt({ status: data.status, score: data.score, percentage: data.percentage, question_results: data.question_results });
-      } else if (data?.status === 'submitted') {
-        // AI grading did not complete synchronously; auto-poll up to 5 times (every 10 s)
+      } else {
+        // status === 'submitted' — wait for user to explicitly click "Grade with AI"
         setServerAttempt(null);
-        setPollAttemptsLeft(5);
-        setIsPollingForResult(true);
       }
       setIsSubmitted(true);
       if (imageUploadGraceMinutes && imageUploadGraceMinutes > 0) {
@@ -233,6 +218,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
         const attempt = await assessmentService.getMyAttempt(assessmentId);
         if (attempt?.status === 'graded') {
           setServerAttempt({ status: attempt.status, score: attempt.score, percentage: attempt.percentage, question_results: attempt.question_results });
+          setAttemptStatusFromServer('graded');
           setIsMarking(false);
           return;
         }
@@ -253,89 +239,28 @@ export const QuizView: React.FC<QuizViewProps> = ({
 
   useEffect(() => {
     if (!assessmentId) return;
-    ensureAttemptStarted().catch((error) => {
-      console.error('Could not start assessment attempt', error);
-    });
+    ensureAttemptStarted().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assessmentId]);
 
-  // When returning to this page, load latest attempt so we show graded result or "Mark with AI" state
+  // On page load: check if there's already a submitted/graded attempt
   useEffect(() => {
     if (!assessmentId) return;
     assessmentService.getMyAttempt(assessmentId).then((attempt) => {
       if (!attempt) return;
       if (attempt.status === 'graded') {
         setServerAttempt({ status: attempt.status, score: attempt.score, percentage: attempt.percentage, question_results: attempt.question_results });
+        setAttemptStatusFromServer('graded');
         setIsSubmitted(true);
         return;
       }
       if (attempt.status === 'submitted') {
         setAttemptStatusFromServer('submitted');
         setIsSubmitted(true);
-        // They may have clicked "Mark with AI" and left; poll a few times to pick up graded result
-        let polls = 0;
-        const maxPolls = 5;
-        const poll = () => {
-          if (polls >= maxPolls) return;
-          polls++;
-          assessmentService.getMyAttempt(assessmentId!).then((a) => {
-            if (a?.status === 'graded') {
-              setServerAttempt({ status: a.status, score: a.score, percentage: a.percentage, question_results: a.question_results });
-              return;
-            }
-            setTimeout(poll, 2000);
-          }).catch(() => {});
-        };
-        setTimeout(poll, 2000);
+        // Don't auto-poll — let user click "Grade with AI" explicitly
       }
     }).catch(() => {});
   }, [assessmentId]);
-
-  // Auto-poll for graded result when status is 'submitted' (AI grading still in progress)
-  useEffect(() => {
-    if (!isPollingForResult || !assessmentId || pollAttemptsLeft <= 0) {
-      if (pollAttemptsLeft <= 0) setIsPollingForResult(false);
-      return;
-    }
-    const timeout = setTimeout(async () => {
-      try {
-        const attempt = await assessmentService.getMyAttempt(assessmentId);
-        if (attempt?.status === 'graded') {
-          setServerAttempt({ status: attempt.status, score: attempt.score, percentage: attempt.percentage, question_results: attempt.question_results });
-          setAttemptStatusFromServer('graded');
-          setIsPollingForResult(false);
-        } else {
-          setPollAttemptsLeft(prev => prev - 1);
-        }
-      } catch {
-        setPollAttemptsLeft(prev => prev - 1);
-      }
-    }, 10000);
-    return () => clearTimeout(timeout);
-  }, [isPollingForResult, pollAttemptsLeft, assessmentId]);
-
-  const handleCheckForResults = async () => {
-    if (!assessmentId) return;
-    setIsPollingForResult(false);
-    setIsMarking(true);
-    setMarkError('');
-    try {
-      const attempt = await assessmentService.getMyAttempt(assessmentId);
-      if (attempt?.status === 'graded') {
-        setServerAttempt({ status: attempt.status, score: attempt.score, percentage: attempt.percentage, question_results: attempt.question_results });
-        setAttemptStatusFromServer('graded');
-      } else {
-        // Trigger background grading as a fallback then poll
-        await assessmentService.runGrading(assessmentId);
-        setPollAttemptsLeft(5);
-        setIsPollingForResult(true);
-      }
-    } catch (err: any) {
-      setMarkError(err?.response?.data?.detail || err?.message || 'Failed to check results.');
-    } finally {
-      setIsMarking(false);
-    }
-  };
 
   useEffect(() => {
     if (!timeLimitMinutes || isSubmitted) return;
@@ -361,18 +286,13 @@ export const QuizView: React.FC<QuizViewProps> = ({
       return;
     }
     if (imageUploadSecondsLeft <= 0) return;
-
     const interval = setInterval(() => {
       setImageUploadSecondsLeft((prev) => {
         if (prev === null) return prev;
-        if (prev <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
+        if (prev <= 1) { clearInterval(interval); return 0; }
         return prev - 1;
       });
     }, 1000);
-
     return () => clearInterval(interval);
   }, [isSubmitted, imageUploadGraceMinutes, imageUploadSecondsLeft]);
 
@@ -385,9 +305,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
   const handleGradeEssay = async (q: EssayQuestion) => {
     const studentAnswer = answers[q.id];
     if (!studentAnswer || !studentAnswer.trim()) return;
-
     setIsGrading(prev => ({ ...prev, [q.id]: true }));
-
     try {
       const gradePrompt = `You are an expert educator. Grade the following student essay response.
 
@@ -399,7 +317,7 @@ Student Answer: ${studentAnswer}
 
 Provide a JSON response with:
 - score (0-100)
-- feedback (detailed feedback on what was good and what could improve)
+- feedback (detailed markdown-formatted feedback on what was good and what could improve)
 
 Format: {"score": number, "feedback": "string"}`;
 
@@ -407,11 +325,8 @@ Format: {"score": number, "feedback": "string"}`;
         message: gradePrompt,
         context: q.question_text
       });
-
       const responseText = response.data.response || response.data;
-
-      // Try to parse JSON from response
-      let result = { score: 0, feedback: "Could not parse grading response" };
+      let result = { score: 0, feedback: 'Could not parse grading response' };
       try {
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
@@ -419,26 +334,62 @@ Format: {"score": number, "feedback": "string"}`;
         } else {
           result = { score: 75, feedback: responseText };
         }
-      } catch (e) {
+      } catch {
         result = { score: 75, feedback: responseText };
       }
-
       setGradingResults(prev => ({ ...prev, [q.id]: result }));
-    } catch (error) {
-      console.error('Error grading essay:', error);
-      setGradingResults(prev => ({ ...prev, [q.id]: { score: 0, feedback: "Error grading essay. Please try again." } }));
+    } catch {
+      setGradingResults(prev => ({ ...prev, [q.id]: { score: 0, feedback: 'Error grading essay. Please try again.' } }));
     }
-
     setIsGrading(prev => ({ ...prev, [q.id]: false }));
+  };
+
+  const handleGradeAllEssays = async () => {
+    const essayQuestions = questions.filter(q => q.type === 'essay') as EssayQuestion[];
+    for (const q of essayQuestions) {
+      if (answers[q.id]?.trim()) {
+        await handleGradeEssay(q);
+      }
+    }
+  };
+
+  const handleAiTutorSend = async () => {
+    if (!aiTutorInput.trim() || isAiTutorLoading) return;
+    const userMsg = aiTutorInput.trim();
+    setAiTutorInput('');
+    const q = questions[activeQuestionIdx];
+    const studentAnswer = q ? (answers[q.id] || '(no answer yet)') : '';
+    const context = q
+      ? `Assessment question ${activeQuestionIdx + 1}: ${(q as any).question_text || ''}\n\nStudent's current answer: ${studentAnswer}`
+      : 'Assessment in progress';
+
+    setAiTutorMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+    setIsAiTutorLoading(true);
+
+    try {
+      const response = await aiClient.post('/ai/chat/', {
+        message: `You are an educational AI tutor helping a student during an assessment. Give hints and guidance but do NOT give the answer directly. Be encouraging and Socratic.
+
+Context: ${context}
+
+Student question: ${userMsg}`,
+        context,
+      });
+      const reply = response.data.response || 'I could not generate a response right now.';
+      setAiTutorMessages(prev => [...prev, { role: 'ai', text: reply }]);
+    } catch {
+      setAiTutorMessages(prev => [...prev, { role: 'ai', text: 'Sorry, I could not connect right now. Please try again.' }]);
+    } finally {
+      setIsAiTutorLoading(false);
+      setTimeout(() => tutorEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    }
   };
 
   const calculateScore = () => {
     let totalPoints = 0;
     let earnedPoints = 0;
-
     questions.forEach(q => {
       if (!q.type) return;
-
       if (q.type === 'passage') {
         q.questions.forEach(subQ => {
           totalPoints += subQ.points;
@@ -451,7 +402,6 @@ Format: {"score": number, "feedback": "string"}`;
         });
       } else {
         totalPoints += q.points;
-
         if (q.type === 'multiple_choice') {
           if (answers[q.id] === q.options[q.correct_answer_index]) earnedPoints += q.points;
         } else if (q.type === 'true_false') {
@@ -463,7 +413,6 @@ Format: {"score": number, "feedback": "string"}`;
           );
           if (isCorrect) earnedPoints += q.points;
         } else if (q.type === 'cloze') {
-          // Parse blanks and check
           const parts: string[] = q.question_text?.match(/\[(.*?)\]/g) || [];
           let correctBlanks = 0;
           parts.forEach((part, idx) => {
@@ -471,41 +420,33 @@ Format: {"score": number, "feedback": "string"}`;
             const userVal = answers[`${q.id}-${idx}`] || '';
             if (userVal.toLowerCase().trim() === expected.toLowerCase().trim()) correctBlanks++;
           });
-          if (parts.length > 0) {
-            earnedPoints += (correctBlanks / parts.length) * q.points;
-          }
+          if (parts.length > 0) earnedPoints += (correctBlanks / parts.length) * q.points;
         } else if (q.type === 'essay') {
-          // Use AI graded score if available, otherwise 0
           if (gradingResults[q.id]) {
-            // Normalize 0-100 score to points
             earnedPoints += (gradingResults[q.id].score / 100) * q.points;
           }
         }
       }
     });
-
     return { earned: Math.round(earnedPoints * 10) / 10, total: totalPoints };
   };
 
   const results = isSubmitted ? calculateScore() : { earned: 0, total: 0 };
+  const hasLocalGrades = Object.keys(gradingResults).length > 0;
+  const isFullyGraded = serverAttempt?.status === 'graded';
 
   if (questions.length === 0) {
     return (
       <div className="p-6 h-full flex flex-col items-center justify-center text-center bg-white dark:bg-slate-800">
-        <p className="text-slate-500 dark:text-slate-400">
-          No questions available.
-        </p>
+        <p className="text-slate-500 dark:text-slate-400">No questions available.</p>
       </div>
     );
   }
-
-  // --- Renderers for Question Types ---
 
   const renderCloze = (q: ClozeQuestion) => {
     if (!q.question_text) return null;
     const parts = q.question_text.split(/(\[.*?\])/g);
     let blankIndex = 0;
-
     return (
       <div className="leading-relaxed text-lg flex flex-wrap items-center">
         {parts.map((part, i) => {
@@ -515,7 +456,6 @@ Format: {"score": number, "feedback": "string"}`;
             const val = answers[answerKey] || '';
             const expected = part.slice(1, -1);
             const isCorrect = isSubmitted && val.toLowerCase().trim() === expected.toLowerCase().trim();
-
             return (
               <span key={i} className="mx-1 inline-block relative">
                 <input
@@ -528,7 +468,7 @@ Format: {"score": number, "feedback": "string"}`;
                       ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
                       : 'border-rose-500 bg-rose-50 text-rose-800'
                     : 'border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 dark:text-indigo-200'
-                    }`}
+                  }`}
                 />
                 {isSubmitted && !isCorrect && (
                   <span className="absolute -top-6 left-0 text-xs text-emerald-600 font-bold bg-white px-1 rounded shadow">
@@ -544,77 +484,124 @@ Format: {"score": number, "feedback": "string"}`;
     );
   };
 
-  const renderPassage = (q: PassageQuestion) => {
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="p-4 bg-slate-100 dark:bg-slate-700/50 rounded-lg text-sm leading-relaxed max-h-[500px] overflow-y-auto whitespace-pre-wrap dark:text-slate-300">
-          <h4 className="font-bold text-slate-800 dark:text-slate-100 mb-2">{q.passage_title}</h4>
-          <MarkdownRenderer content={q.passage_text} />
-        </div>
-        <div className="space-y-6">
-          {q.questions.map((subQ, idx) => (
-            <div key={subQ.id} className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
-              <div className="font-semibold mb-3 dark:text-slate-200">
-                <span className="mr-2">{idx + 1}.</span>
-                <MarkdownRenderer content={subQ.question_text} />
-              </div>
-              {/* Reuse logic for simple sub-questions (only MC supported in sub currently for simplicity) */}
-              <div className="space-y-2">
-                {subQ.options?.map((opt, optIdx) => {
-                  const isSelected = answers[`${q.id}-${subQ.id}`] === opt;
-                  let btnClass = "w-full text-left p-3 rounded-md border border-slate-300 dark:border-slate-600 transition-colors dark:text-slate-300";
-
-                  if (isSubmitted) {
-                    if (optIdx === subQ.correct_answer) btnClass += " bg-emerald-100 border-emerald-500 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300";
-                    else if (isSelected) btnClass += " bg-rose-100 border-rose-500 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300";
-                  } else {
-                    if (isSelected) btnClass += " bg-indigo-100 border-indigo-500 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300";
-                    else btnClass += " hover:bg-slate-50 dark:hover:bg-slate-700";
-                  }
-
-                  return (
-                    <button
-                      key={optIdx}
-                      className={btnClass}
-                      onClick={() => handleAnswerChange(`${q.id}-${subQ.id}`, opt)}
-                      disabled={isSubmitted}
-                    >
-                      {opt}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
+  const renderPassage = (q: PassageQuestion) => (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="p-4 bg-slate-100 dark:bg-slate-700/50 rounded-lg text-sm leading-relaxed max-h-[500px] overflow-y-auto whitespace-pre-wrap dark:text-slate-300">
+        <h4 className="font-bold text-slate-800 dark:text-slate-100 mb-2">{q.passage_title}</h4>
+        <MarkdownRenderer content={q.passage_text} />
       </div>
-    )
-  }
+      <div className="space-y-6">
+        {q.questions.map((subQ, idx) => (
+          <div key={subQ.id} className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
+            <div className="font-semibold mb-3 dark:text-slate-200">
+              <span className="mr-2">{idx + 1}.</span>
+              <MarkdownRenderer content={subQ.question_text} />
+            </div>
+            <div className="space-y-2">
+              {subQ.options?.map((opt, optIdx) => {
+                const isSelected = answers[`${q.id}-${subQ.id}`] === opt;
+                let btnClass = "w-full text-left p-3 rounded-md border border-slate-300 dark:border-slate-600 transition-colors dark:text-slate-300";
+                if (isSubmitted) {
+                  if (optIdx === subQ.correct_answer) btnClass += " bg-emerald-100 border-emerald-500 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300";
+                  else if (isSelected) btnClass += " bg-rose-100 border-rose-500 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300";
+                } else {
+                  if (isSelected) btnClass += " bg-indigo-100 border-indigo-500 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300";
+                  else btnClass += " hover:bg-slate-50 dark:hover:bg-slate-700";
+                }
+                return (
+                  <button key={optIdx} className={btnClass} onClick={() => handleAnswerChange(`${q.id}-${subQ.id}`, opt)} disabled={isSubmitted}>
+                    {opt}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <div className="p-6 h-full overflow-y-auto bg-white dark:bg-slate-800">
+
+      {/* Contest mode tab-switch warning overlay */}
+      {contestMode && tabWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-8 max-w-md mx-4 text-center border-2 border-rose-400">
+            <div className="text-4xl mb-3">⚠️</div>
+            <h2 className="text-xl font-bold text-rose-600 dark:text-rose-400 mb-2">Tab Switch Detected</h2>
+            <p className="text-slate-600 dark:text-slate-300 mb-2">
+              You left this tab during your assessment. This has been recorded.
+            </p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+              Tab switches: <span className="font-bold text-rose-600">{tabSwitches}</span>
+              {tabSwitches >= 3 && ' — multiple violations flagged for review'}
+            </p>
+            <Button onClick={() => setTabWarning(false)} className="w-full">
+              Return to Assessment
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-4 mb-6">
-        <div className="flex justify-between items-center">
+        {/* Header row */}
+        <div className="flex justify-between items-center flex-wrap gap-3">
           <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Assessment</h3>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Easy Mode toggle */}
+            {!isSubmitted && (
+              <button
+                onClick={() => {
+                  setEasyModeEnabled(v => !v);
+                  if (!easyModeEnabled && aiTutorMessages.length === 0) {
+                    setAiTutorMessages([{
+                      role: 'ai',
+                      text: `Hi! I'm your AI tutor. I can give you hints and explanations — just ask. I won't give you the answer directly, but I'll help you think through it.`
+                    }]);
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                  easyModeEnabled
+                    ? 'bg-indigo-600 border-indigo-600 text-white'
+                    : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-indigo-400'
+                }`}
+              >
+                <SparklesIcon className="w-3.5 h-3.5" />
+                Easy Mode
+              </button>
+            )}
+            {/* Contest mode badge */}
+            {contestMode && (
+              <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border ${
+                tabSwitches > 0
+                  ? 'bg-rose-50 border-rose-300 text-rose-700 dark:bg-rose-900/20 dark:border-rose-700 dark:text-rose-300'
+                  : 'bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-300'
+              }`}>
+                🔒 Contest Mode{tabSwitches > 0 ? ` · ${tabSwitches} tab switch${tabSwitches !== 1 ? 'es' : ''}` : ''}
+              </span>
+            )}
             {timeLeftSeconds !== null && !isSubmitted && (
-              <div className="text-sm font-semibold text-rose-600 dark:text-rose-400">
+              <div className={`text-sm font-semibold ${timeLeftSeconds < 60 ? 'text-rose-600 dark:text-rose-400 animate-pulse' : 'text-rose-600 dark:text-rose-400'}`}>
                 Time left: {formatTime(timeLeftSeconds)}
               </div>
             )}
             {isSubmitted && (
               <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
-                {serverAttempt?.status === 'graded' && (serverAttempt?.score != null || serverAttempt?.percentage != null)
-                  ? `Score: ${serverAttempt.score ?? '—'}${serverAttempt.percentage != null ? ` (${Math.round(serverAttempt.percentage)}%)` : ''}`
+                {isFullyGraded && !hasLocalGrades && (serverAttempt?.score != null || serverAttempt?.percentage != null)
+                  ? `Score: ${serverAttempt!.score ?? '—'}${serverAttempt!.percentage != null ? ` (${Math.round(serverAttempt!.percentage)}%)` : ''}`
                   : `Score: ${results.earned} / ${results.total}`}
               </div>
             )}
           </div>
         </div>
+
+        {/* Info banner */}
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           You can type answers directly (LaTeX supported). If you're not comfortable typing math, you can upload an image instead.
           Typed answers can be graded instantly; image uploads are stored for manual review.
         </div>
+
         {imageUploadGraceMinutes && imageUploadGraceMinutes > 0 && (
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700 flex items-center justify-between gap-3">
             <span>
@@ -628,48 +615,89 @@ Format: {"score": number, "feedback": "string"}`;
             )}
           </div>
         )}
+
         {submitError && (
           <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
             {submitError}
           </div>
         )}
-        {isSubmitted && attemptStatusFromServer === 'submitted' && !serverAttempt && assessmentId && (
-          <div className="rounded-lg border border-violet-200 bg-violet-50 dark:bg-violet-900/20 dark:border-violet-700 px-4 py-3 text-sm text-violet-900 dark:text-violet-200 space-y-2">
-            <div className="flex items-center gap-2">
-              <SparklesIcon className="w-4 h-4 text-violet-600 dark:text-violet-400 flex-shrink-0" />
-              <p className="font-semibold">Submitted! AI is reviewing your written answers.</p>
-            </div>
-            <p className="text-violet-700 dark:text-violet-300">
-              This usually takes 30-60 seconds. Your objective answers are already scored. We are checking automatically - you can also click below to refresh.
-            </p>
-            {isPollingForResult && (
-              <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400 text-xs font-medium">
-                <div className="w-3 h-3 border-2 border-violet-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-                Checking for results... ({pollAttemptsLeft} check{pollAttemptsLeft !== 1 ? 's' : ''} remaining)
+
+        {/* Post-submit grading card */}
+        {isSubmitted && !isFullyGraded && assessmentId && (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-700 px-5 py-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex items-center justify-center w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-800">
+                <CheckCircleIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               </div>
-            )}
-            <Button
-              onClick={handleCheckForResults}
-              disabled={isMarking || isPollingForResult}
-              className="mt-2"
+              <div>
+                <p className="font-bold text-emerald-800 dark:text-emerald-200">Assessment Submitted</p>
+                <p className="text-sm text-emerald-700 dark:text-emerald-300">
+                  Objective answers are scored. Grade written answers with AI below.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3 items-center">
+              <Button
+                onClick={handleMarkWithAI}
+                disabled={isMarking}
+                className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white border-0"
+              >
+                {isMarking ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    AI Grading…
+                  </>
+                ) : (
+                  <>
+                    <SparklesIcon className="w-4 h-4" />
+                    Grade All with AI
+                  </>
+                )}
+              </Button>
+              {questions.some(q => q.type === 'essay') && (
+                <Button
+                  onClick={handleGradeAllEssays}
+                  disabled={isMarking}
+                  variant="secondary"
+                  className="gap-2"
+                >
+                  <SparklesIcon className="w-4 h-4 text-indigo-600" />
+                  Grade Essays Individually
+                </Button>
+              )}
+            </div>
+            {markError && <p className="mt-3 text-sm text-rose-600 dark:text-rose-400">{markError}</p>}
+          </div>
+        )}
+
+        {/* Re-grade option when already graded */}
+        {isSubmitted && isFullyGraded && assessmentId && (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleMarkWithAI}
+              disabled={isMarking}
+              className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
             >
-              {isMarking ? 'Checking...' : 'Check for results'}
-            </Button>
-            {markError && <p className="text-rose-600 dark:text-rose-400 text-sm">{markError}</p>}
-            {!isPollingForResult && pollAttemptsLeft <= 0 && (
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Auto-checks complete. If grading is still pending, the instructor will finalise your score manually.
-              </p>
-            )}
+              {isMarking ? (
+                <div className="w-3 h-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <SparklesIcon className="w-3.5 h-3.5" />
+              )}
+              {isMarking ? 'Re-grading…' : 'Re-grade with AI'}
+            </button>
+            {markError && <span className="text-xs text-rose-600">{markError}</span>}
           </div>
         )}
       </div>
 
+      {/* Question list */}
       <div className="space-y-8 max-w-4xl mx-auto">
         {questions.map((q, index) => (
-          <div key={q.id} className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-
-            {/* Header */}
+          <div
+            key={q.id}
+            className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+            onClick={() => setActiveQuestionIdx(index)}
+          >
             {q.type !== 'passage' && (
               <div className="flex gap-3 mb-4">
                 <span className="flex-none flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-sm">
@@ -694,7 +722,11 @@ Format: {"score": number, "feedback": "string"}`;
                     {serverAttempt?.status === 'graded' && serverAttempt.question_results?.[String(q.id)] && (() => {
                       const qr = serverAttempt.question_results![String(q.id)];
                       const pct = qr.max_score > 0 ? Math.round((qr.score / qr.max_score) * 100) : 0;
-                      const color = pct >= 70 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : pct >= 40 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300';
+                      const color = pct >= 70
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                        : pct >= 40
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                          : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300';
                       return (
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${color}`}>
                           {qr.ai_graded && <SparklesIcon className="w-3 h-3" />}
@@ -707,14 +739,12 @@ Format: {"score": number, "feedback": "string"}`;
               </div>
             )}
 
-            {/* Body */}
             <div className="overflow-visible">
               {q.type === 'multiple_choice' && (
                 <div className="space-y-2 pl-11 mt-1 min-h-[2rem]" role="listbox" aria-label="Answer options">
                   {(q as MultipleChoiceQuestion).options?.map((opt, i) => {
                     const isSelected = answers[q.id] === opt;
                     const isCorrect = (q as MultipleChoiceQuestion).correct_answer_index === i;
-
                     let className = "w-full text-left p-3 rounded-lg border transition-all ";
                     if (isSubmitted) {
                       if (isCorrect) className += "bg-emerald-50 border-emerald-500 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300";
@@ -724,14 +754,8 @@ Format: {"score": number, "feedback": "string"}`;
                       if (isSelected) className += "bg-indigo-50 border-indigo-500 text-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300 shadow-sm";
                       else className += "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 dark:text-slate-300";
                     }
-
                     return (
-                      <button
-                        key={i}
-                        onClick={() => handleAnswerChange(q.id, opt)}
-                        disabled={isSubmitted}
-                        className={className}
-                      >
+                      <button key={i} onClick={() => handleAnswerChange(q.id, opt)} disabled={isSubmitted} className={className}>
                         <div className="flex items-center justify-between">
                           <span><MarkdownRenderer content={opt} /></span>
                           {isSubmitted && isCorrect && <CheckCircleIcon className="w-5 h-5 text-emerald-600" />}
@@ -748,7 +772,6 @@ Format: {"score": number, "feedback": "string"}`;
                   {[true, false].map((val) => {
                     const isSelected = answers[q.id] === val;
                     const isCorrect = (q as TrueFalseQuestion).correct_answer === val;
-
                     return (
                       <button
                         key={String(val)}
@@ -757,7 +780,7 @@ Format: {"score": number, "feedback": "string"}`;
                         className={`px-6 py-3 rounded-lg border font-medium transition-all ${isSubmitted
                           ? isCorrect ? 'bg-emerald-100 border-emerald-500 text-emerald-800' : isSelected ? 'bg-rose-100 border-rose-500 text-rose-800' : 'opacity-50'
                           : isSelected ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600'
-                          }`}
+                        }`}
                       >
                         {val ? 'True' : 'False'}
                       </button>
@@ -785,35 +808,14 @@ Format: {"score": number, "feedback": "string"}`;
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                       <span className="font-medium text-slate-600 dark:text-slate-400">Answer with a photo:</span>
                       <label className="inline-flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) handleUploadImage(q.id, file);
-                            e.currentTarget.value = '';
-                          }}
-                        />
-                        <span className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700">
-                          Take photo
-                        </span>
+                        <input type="file" accept="image/*" capture="environment" className="hidden"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadImage(q.id, f); e.currentTarget.value = ''; }} />
+                        <span className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700">Take photo</span>
                       </label>
                       <label className="inline-flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) handleUploadImage(q.id, file);
-                            e.currentTarget.value = '';
-                          }}
-                        />
-                        <span className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700">
-                          Upload image
-                        </span>
+                        <input type="file" accept="image/*" className="hidden"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadImage(q.id, f); e.currentTarget.value = ''; }} />
+                        <span className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700">Upload image</span>
                       </label>
                       {uploadingImages[q.id] && <span>Uploading...</span>}
                       {!uploadingImages[q.id] && uploadedImages[q.id] && <span className="text-emerald-600">Uploaded</span>}
@@ -822,17 +824,8 @@ Format: {"score": number, "feedback": "string"}`;
                 </div>
               )}
 
-              {q.type === 'cloze' && (
-                <div className="pl-11">
-                  {renderCloze(q as ClozeQuestion)}
-                </div>
-              )}
-
-              {q.type === 'passage' && (
-                <div>
-                  {renderPassage(q as PassageQuestion)}
-                </div>
-              )}
+              {q.type === 'cloze' && <div className="pl-11">{renderCloze(q as ClozeQuestion)}</div>}
+              {q.type === 'passage' && <div>{renderPassage(q as PassageQuestion)}</div>}
 
               {q.type === 'essay' && (
                 <div className="pl-11">
@@ -846,27 +839,15 @@ Format: {"score": number, "feedback": "string"}`;
                   />
                   {isSubmitted && !gradingResults[q.id] && (
                     <div className="mt-3">
-                      <Button
-                        onClick={() => handleGradeEssay(q as EssayQuestion)}
-                        disabled={isGrading[q.id]}
-                        variant="secondary"
-                        className="gap-2"
-                      >
+                      <Button onClick={() => handleGradeEssay(q as EssayQuestion)} disabled={isGrading[q.id]} variant="secondary" className="gap-2">
                         {isGrading[q.id] ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                            AI Grading in Progress...
-                          </>
+                          <><div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />AI Grading...</>
                         ) : (
-                          <>
-                            <SparklesIcon className="w-4 h-4 text-indigo-600" />
-                            Grade with AI
-                          </>
+                          <><SparklesIcon className="w-4 h-4 text-indigo-600" />Grade with AI</>
                         )}
                       </Button>
                     </div>
                   )}
-
                   {gradingResults[q.id] && (
                     <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
                       <div className="flex justify-between items-center mb-2">
@@ -878,10 +859,9 @@ Format: {"score": number, "feedback": "string"}`;
                           {Math.round((gradingResults[q.id].score / 100) * q.points)} / {q.points} pts
                         </span>
                       </div>
-                      <div className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                        {gradingResults[q.id].feedback}
+                      <div className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed prose prose-sm dark:prose-invert max-w-none">
+                        <MarkdownRenderer content={gradingResults[q.id].feedback || ''} />
                       </div>
-
                       {(q as EssayQuestion).model_solution && (
                         <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-600">
                           <details>
@@ -900,35 +880,14 @@ Format: {"score": number, "feedback": "string"}`;
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                       <span className="font-medium text-slate-600 dark:text-slate-400">Or submit a photo of your answer:</span>
                       <label className="inline-flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) handleUploadImage(q.id, file);
-                            e.currentTarget.value = '';
-                          }}
-                        />
-                        <span className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700">
-                          Take photo
-                        </span>
+                        <input type="file" accept="image/*" capture="environment" className="hidden"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadImage(q.id, f); e.currentTarget.value = ''; }} />
+                        <span className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700">Take photo</span>
                       </label>
                       <label className="inline-flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) handleUploadImage(q.id, file);
-                            e.currentTarget.value = '';
-                          }}
-                        />
-                        <span className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700">
-                          Upload image
-                        </span>
+                        <input type="file" accept="image/*" className="hidden"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadImage(q.id, f); e.currentTarget.value = ''; }} />
+                        <span className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700">Upload image</span>
                       </label>
                       {uploadingImages[q.id] && <span>Uploading...</span>}
                       {!uploadingImages[q.id] && uploadedImages[q.id] && <span className="text-emerald-600">Uploaded</span>}
@@ -938,31 +897,23 @@ Format: {"score": number, "feedback": "string"}`;
               )}
             </div>
 
-            {/* Explanation / Solution */}
             {isSubmitted && (q as any).explanation && (
               <div className="mt-4 ml-11 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300">
                 <div className="font-semibold text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">
                   {q.type === 'essay' ? 'Model Solution' : 'Explanation'}
                 </div>
                 {(q as any).images?.length > 0 ? (
-                  <MathMarkdown images={(q as any).images}>
-                    {(q as any).explanation}
-                  </MathMarkdown>
+                  <MathMarkdown images={(q as any).images}>{(q as any).explanation}</MathMarkdown>
                 ) : (
                   <MarkdownRenderer content={(q as any).explanation} />
                 )}
               </div>
             )}
-            {/* Source attribution link */}
             {(q as any).source_url && (
               <div className="mt-2 ml-11 text-xs text-slate-400 dark:text-slate-500">
                 Source:{' '}
-                <a
-                  href={(q as any).source_url}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 hover:underline"
-                >
+                <a href={(q as any).source_url} target="_blank" rel="noreferrer noopener"
+                  className="text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 hover:underline">
                   {(q as any).source_url}
                 </a>
               </div>
@@ -971,16 +922,63 @@ Format: {"score": number, "feedback": "string"}`;
         ))}
       </div>
 
+      {/* Submit button */}
       {!isSubmitted && (
         <div className="max-w-4xl mx-auto mt-8 flex justify-end">
-          <Button
-            onClick={submitAttempt}
-            size="lg"
-            disabled={isSubmittingAttempt}
-            className="w-full md:w-auto"
-          >
+          <Button onClick={submitAttempt} size="lg" disabled={isSubmittingAttempt} className="w-full md:w-auto">
             {isSubmittingAttempt ? 'Submitting...' : 'Submit Assessment'}
           </Button>
+        </div>
+      )}
+
+      {/* Easy Mode AI Tutor Panel */}
+      {easyModeEnabled && !isSubmitted && (
+        <div className="fixed bottom-4 right-4 z-40 w-80 max-h-[420px] flex flex-col rounded-2xl shadow-2xl border border-indigo-200 dark:border-indigo-700 bg-white dark:bg-slate-800 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 bg-indigo-600 text-white">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <SparklesIcon className="w-4 h-4" />
+              AI Tutor — Q{activeQuestionIdx + 1}
+            </div>
+            <button onClick={() => setEasyModeEnabled(false)} className="text-white/70 hover:text-white">
+              <XIcon className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0" style={{ maxHeight: '280px' }}>
+            {aiTutorMessages.map((msg, i) => (
+              <div key={i} className={`text-xs rounded-xl px-3 py-2 max-w-[90%] ${
+                msg.role === 'user'
+                  ? 'ml-auto bg-indigo-600 text-white'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200'
+              }`}>
+                <MarkdownRenderer content={msg.text} />
+              </div>
+            ))}
+            {isAiTutorLoading && (
+              <div className="flex gap-1 px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-xl w-16">
+                {[0, 1, 2].map(i => (
+                  <div key={i} className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                ))}
+              </div>
+            )}
+            <div ref={tutorEndRef} />
+          </div>
+          <div className="p-2 border-t border-slate-200 dark:border-slate-700 flex gap-2">
+            <input
+              type="text"
+              value={aiTutorInput}
+              onChange={(e) => setAiTutorInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAiTutorSend(); } }}
+              placeholder="Ask for a hint..."
+              className="flex-1 text-xs px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:ring-1 focus:ring-indigo-500 outline-none dark:text-slate-100"
+            />
+            <button
+              onClick={handleAiTutorSend}
+              disabled={isAiTutorLoading || !aiTutorInput.trim()}
+              className="px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold disabled:opacity-50 hover:bg-indigo-700 transition-colors"
+            >
+              Ask
+            </button>
+          </div>
         </div>
       )}
     </div>

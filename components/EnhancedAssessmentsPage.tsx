@@ -222,14 +222,14 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
 
     useEffect(() => {
         let mounted = true;
-        import('../src/services/apiClient').then(({ default: apiClient }) => {
+        import('../src/services/api').then(({ default: apiClient }) => {
             apiClient.get('assessments/recommend/?limit=6')
                 .then(r => {
                     if (!mounted) return;
                     setRecommendations(r.data?.recommended ?? []);
                     setMastery(r.data?.mastery ?? {});
                 })
-                .catch(() => { /* silently ignore if not logged in */ })
+                .catch(() => { if (mounted) setRecsLoading(false); })
                 .finally(() => { if (mounted) setRecsLoading(false); });
         });
         return () => { mounted = false; };
