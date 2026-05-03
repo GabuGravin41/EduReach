@@ -922,7 +922,7 @@ class Command(BaseCommand):
                     options = q_data.get("options", [])
                     correct = q_data.get("correct_answer", "")
 
-                    Question.objects.create(
+                    q_kwargs = dict(
                         assessment=assessment,
                         question_text=q_data["question_text"],
                         question_type=q_type,
@@ -931,9 +931,15 @@ class Command(BaseCommand):
                         points=q_data.get("points", 5),
                         explanation=q_data.get("explanation", ""),
                         order=idx,
-                        ai_grading_enabled=(q_type in ("essay", "short_answer")),
-                        model_solution=q_data.get("correct_answer", "") if q_type == "essay" else "",
                     )
+                    # Optional fields that may not exist on older schema versions
+                    from django.db import connection
+                    q_cols = {c.name for c in connection.introspection.get_table_description(connection.cursor(), 'assessments_question')}
+                    if 'ai_grading_enabled' in q_cols:
+                        q_kwargs['ai_grading_enabled'] = (q_type in ("essay", "short_answer"))
+                    if 'model_solution' in q_cols:
+                        q_kwargs['model_solution'] = q_data.get("correct_answer", "") if q_type == "essay" else ""
+                    Question.objects.create(**q_kwargs)
                 self.stdout.write(f"    {len(asmnt_data['questions'])} questions created.")
 
         self.stdout.write(self.style.SUCCESS("\n✓ Economics courses seeded successfully."))

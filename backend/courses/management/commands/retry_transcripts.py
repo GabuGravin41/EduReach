@@ -80,7 +80,7 @@ class Command(BaseCommand):
                 )
                 self.stdout.flush()
 
-                transcript_data = svc.get_transcript(lesson.video_id)
+                transcript_data = svc.extract_transcript(lesson.video_id)
                 transcript_text = transcript_data.get('text', '') if isinstance(transcript_data, dict) else str(transcript_data)
 
                 if transcript_text and transcript_text.strip():
