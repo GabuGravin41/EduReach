@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../src/services/api';
 import type { Course } from '../src/services/courseService';
+import { YouTubeSearchBox, type YouTubeSearchResult } from './YouTubeSearchBox';
 
 interface SetupSessionProps {
   onSessionCreated: (payload: { videoId: string; transcript: string; title?: string; courseId?: number | null; lessonId?: number }) => Promise<void> | void;
@@ -63,6 +64,12 @@ const PasteIcon = () => (
   </svg>
 );
 
+const YouTubeLogoIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+    <path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+  </svg>
+);
+
 const CheckIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
     <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
@@ -86,6 +93,7 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
   const [videoMeta, setVideoMeta] = useState<{ title?: string } | null>(null);
   const [showCourseAttach, setShowCourseAttach] = useState(false);
   const [showManualTranscript, setShowManualTranscript] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
 
   const extractVideoId = (url: string): string | null => {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -316,50 +324,90 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
           {/* Card body */}
           <form onSubmit={handleSubmit} className="px-8 py-7 space-y-6">
 
-            {/* ── URL INPUT ─────────────────────────────────────────────── */}
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                YouTube URL
-              </label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none">
-                  <LinkIcon />
-                </span>
-                <input
-                  type="text"
-                  value={youtubeUrl}
-                  onChange={(e) => handleUrlChange(e.target.value)}
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  disabled={isLoading}
-                  className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg pl-11 pr-12 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 outline-none transition disabled:opacity-50"
-                />
-                {/* Paste button */}
-                {!youtubeUrl && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        const text = await navigator.clipboard.readText();
-                        if (text) handleUrlChange(text);
-                      } catch {
-                        // clipboard not available
-                      }
-                    }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition px-1"
-                    title="Paste from clipboard"
-                  >
-                    <PasteIcon />
-                    Paste
-                  </button>
-                )}
-                {/* Spinner when loading */}
-                {isLoading && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                  </div>
-                )}
-              </div>
+            {/* ── SEARCH / URL toggle ───────────────────────────────────── */}
+            <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setShowSearch(false)}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-semibold transition ${
+                  !showSearch
+                    ? 'bg-white dark:bg-slate-700 shadow text-slate-800 dark:text-slate-100'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                <LinkIcon />
+                Paste URL
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowSearch(true)}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-semibold transition ${
+                  showSearch
+                    ? 'bg-white dark:bg-slate-700 shadow text-red-600 dark:text-red-400'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                <YouTubeLogoIcon />
+                Search YouTube
+              </button>
             </div>
+
+            {/* ── SEARCH PANEL ─────────────────────────────────────────── */}
+            {showSearch && (
+              <YouTubeSearchBox
+                onSelect={(result: YouTubeSearchResult) => {
+                  setShowSearch(false);
+                  handleUrlChange(result.url);
+                }}
+              />
+            )}
+
+            {/* ── URL INPUT (shown when not in search mode) ─────────────── */}
+            {!showSearch && (
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  YouTube URL
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none">
+                    <LinkIcon />
+                  </span>
+                  <input
+                    type="text"
+                    value={youtubeUrl}
+                    onChange={(e) => handleUrlChange(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    disabled={isLoading}
+                    className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg pl-11 pr-12 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 outline-none transition disabled:opacity-50"
+                  />
+                  {/* Paste button */}
+                  {!youtubeUrl && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const text = await navigator.clipboard.readText();
+                          if (text) handleUrlChange(text);
+                        } catch {
+                          // clipboard not available
+                        }
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition px-1"
+                      title="Paste from clipboard"
+                    >
+                      <PasteIcon />
+                      Paste
+                    </button>
+                  )}
+                  {/* Spinner when loading */}
+                  {isLoading && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* ── STEP 1 — "How it works" info cards ────────────────────── */}
             {step === 1 && (

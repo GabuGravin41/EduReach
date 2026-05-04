@@ -450,6 +450,114 @@ class CourseViewSet(viewsets.ModelViewSet):
         data['transcript_fetch_status'] = fetch_status
         return Response(data, status=status.HTTP_201_CREATED)
 
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def search_youtube(self, request):
+        """
+        Search YouTube and return a list of video metadata cards.
+
+        GET /api/courses/search_youtube/?q=calculus+derivatives&limit=8
+
+        ── CURRENT IMPLEMENTATION: Option B — yt-dlp scraping ──────────────────
+        No API key required. Uses yt-dlp's ytsearch to scrape YouTube results.
+        May be slow (3–6 s) and could be blocked by YouTube on datacenter IPs.
+
+        ── TODO: Switch to Option A — YouTube Data API v3 ──────────────────────
+        When YOUTUBE_API_KEY is available in .env, replace the yt-dlp block below
+        with this (install: pip install google-api-python-client):
+
+            from googleapiclient.discovery import build
+            from django.conf import settings as _s
+
+            yt = build('youtube', 'v3', developerKey=_s.YOUTUBE_API_KEY,
+                       cache_discovery=False)
+            resp = yt.search().list(
+                q=query, part='snippet', maxResults=limit,
+                type='video', relevanceLanguage='en',
+            ).execute()
+
+            results = [
+                {
+                    'video_id':      item['id']['videoId'],
+                    'title':         item['snippet']['title'],
+                    'channel':       item['snippet']['channelTitle'],
+                    'duration':      '',   # needs a videos().list() call to get duration
+                    'thumbnail_url': item['snippet']['thumbnails']['medium']['url'],
+                    'url': f"https://www.youtube.com/watch?v={item['id']['videoId']}",
+                }
+                for item in resp.get('items', [])
+            ]
+
+        Benefits of Option A: faster (~300 ms), richer metadata, official quota,
+        not affected by IP blocks on the video-download path.
+        Cost: 100 quota units per search; free tier = ~100 searches/day.
+        ──────────────────────────────────────────────────────────────────────────
+        """
+        query = request.query_params.get('q', '').strip()
+        try:
+            limit = min(int(request.query_params.get('limit', 8)), 20)
+        except (ValueError, TypeError):
+            limit = 8
+
+        if not query:
+            return Response({'results': [], 'method': 'none'})
+
+        # ── Option B: yt-dlp ──────────────────────────────────────────────────
+        # Remove/replace this block when switching to Option A above.
+        try:
+            import yt_dlp as _ytdlp
+            import os as _os
+
+            deno_bin = _os.path.expanduser('~/.deno/bin')
+            env_path = _os.environ.get('PATH', '')
+            if deno_bin not in env_path:
+                _os.environ['PATH'] = deno_bin + ':' + env_path
+
+            cookies_path = _os.environ.get('YOUTUBE_COOKIES_FILE', '').strip()
+
+            ydl_opts = {
+                'quiet': True,
+                'no_warnings': True,
+                'extract_flat': True,  # metadata only — no format resolution needed
+            }
+            if cookies_path and _os.path.isfile(cookies_path):
+                ydl_opts['cookiefile'] = cookies_path
+
+            with _ytdlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(f'ytsearch{limit}:{query}', download=False)
+
+            entries = (info or {}).get('entries', [])
+            results = []
+            for entry in entries:
+                vid = entry.get('id')
+                if not vid:
+                    continue
+                raw_dur = entry.get('duration')
+                if raw_dur:
+                    m, s = divmod(int(raw_dur), 60)
+                    h, m = divmod(m, 60)
+                    duration = f'{h}:{m:02d}:{s:02d}' if h else f'{m}:{s:02d}'
+                else:
+                    duration = entry.get('duration_string', '')
+                results.append({
+                    'video_id':      vid,
+                    'title':         entry.get('title', 'Untitled'),
+                    'channel':       (entry.get('uploader') or entry.get('channel')
+                                      or entry.get('channel_id', '')),
+                    'duration':      duration,
+                    'thumbnail_url': f'https://img.youtube.com/vi/{vid}/mqdefault.jpg',
+                    'url':           f'https://www.youtube.com/watch?v={vid}',
+                })
+
+            return Response({'results': results, 'method': 'yt_dlp', 'query': query})
+
+        except Exception as exc:
+            logger.warning('YouTube search (yt-dlp) failed for query "%s": %s', query, exc)
+            return Response(
+                {'results': [], 'error': 'Search unavailable right now. Paste a URL instead.',
+                 'method': 'yt_dlp'},
+                status=status.HTTP_200_OK,
+            )
+
     @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def start_session(self, request):
         """

@@ -6,6 +6,7 @@ import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { XCircleIcon } from './icons/XCircleIcon';
 import { View } from '../App';
 import { youtubeService } from '../src/services/youtubeService';
+import { YouTubeSearchBox, type YouTubeSearchResult } from './YouTubeSearchBox';
 
 interface CreateCoursePageProps {
   onCourseCreated: (course: any) => Promise<void> | void;
@@ -43,6 +44,8 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
     { id: 'lesson-1', title: '', videoId: '', isCompleted: false, duration: 'N/A' }
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Track which lesson row has the YouTube search panel open (null = none)
+  const [searchOpenForLesson, setSearchOpenForLesson] = useState<number | null>(null);
 
   const handleAddLesson = () => {
     if (lessons.length >= lessonLimit) {
@@ -196,55 +199,83 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
           <h3 className="text-lg font-bold mb-4">Lessons ({lessons.length}/{lessonLimit === Infinity ? '∞' : lessonLimit})</h3>
           <div className="space-y-4">
             {lessons.map((lesson, index) => (
-              <div key={index} className="flex items-end gap-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                <span className="font-bold text-slate-500 dark:text-slate-400">{index + 1}.</span>
-                <div className="flex-1">
-                  <label className="block text-xs font-medium mb-1">Lesson Title</label>
-                  <input type="text" value={lesson.title} onChange={e => handleLessonChange(index, 'title', e.target.value)} required placeholder="e.g., Introduction to React" className="w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+              <div key={index} className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg space-y-3">
+                <div className="flex items-center gap-3">
+                  <span className="font-bold text-slate-500 dark:text-slate-400 flex-shrink-0">{index + 1}.</span>
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium mb-1">Lesson Title</label>
+                    <input type="text" value={lesson.title} onChange={e => handleLessonChange(index, 'title', e.target.value)} required placeholder="e.g., Introduction to React" className="w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                  </div>
+                  <button type="button" onClick={() => handleRemoveLesson(index)} disabled={lessons.length <= 1} className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent flex-shrink-0"><TrashIcon className="w-5 h-5" /></button>
                 </div>
-                <div className="flex-1">
-                  <label className="block text-xs font-medium mb-1">YouTube URL or Video ID</label>
+
+                {/* Video selector: toggle between URL input and YouTube search */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-medium">YouTube Video</label>
+                    <button
+                      type="button"
+                      onClick={() => setSearchOpenForLesson(searchOpenForLesson === index ? null : index)}
+                      className={`flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md transition ${
+                        searchOpenForLesson === index
+                          ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                          : 'text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400'
+                      }`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
+                        <path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                      </svg>
+                      {searchOpenForLesson === index ? 'Close search' : 'Search YouTube'}
+                    </button>
+                  </div>
+
+                  {/* YouTube search panel for this lesson */}
+                  {searchOpenForLesson === index && (
+                    <div className="mb-2 p-3 bg-white dark:bg-slate-800 rounded-lg border border-red-200 dark:border-red-900/40">
+                      <YouTubeSearchBox
+                        onSelect={(result: YouTubeSearchResult) => {
+                          handleLessonChange(index, 'videoId', result.url);
+                          setSearchOpenForLesson(null);
+                          // Auto-validate after selecting
+                          setTimeout(() => validateVideo(index), 100);
+                        }}
+                        placeholder={`Search YouTube for lesson ${index + 1}…`}
+                      />
+                    </div>
+                  )}
+
+                  {/* URL / ID input */}
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
                       value={lesson.videoId}
                       onChange={e => handleLessonChange(index, 'videoId', e.target.value)}
-                      onPaste={() => {
-                        // Match New Session behavior: auto-fetch details immediately after paste.
-                        setTimeout(() => validateVideo(index), 50);
-                      }}
-                      onBlur={() => {
-                        if (lessons[index].videoId.trim()) {
-                          validateVideo(index);
-                        }
-                      }}
+                      onPaste={() => { setTimeout(() => validateVideo(index), 50); }}
+                      onBlur={() => { if (lessons[index].videoId.trim()) validateVideo(index); }}
                       required
-                      placeholder="e.g., https://www.youtube.com/watch?v=... or zNzzGgr2mhk"
+                      placeholder="Paste URL or video ID — or use Search YouTube above"
                       className="w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     />
                     <button
                       type="button"
                       onClick={() => validateVideo(index)}
                       disabled={!lesson.videoId.trim() || lesson.validating}
-                      className="px-3 py-2 text-xs rounded-md border border-indigo-300 text-indigo-700 hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-700 dark:text-indigo-300 dark:hover:bg-indigo-900/20"
+                      className="px-3 py-2 text-xs rounded-md border border-indigo-300 text-indigo-700 hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-700 dark:text-indigo-300 dark:hover:bg-indigo-900/20 flex-shrink-0"
                     >
                       {lesson.validating ? 'Checking...' : 'Auto-fill'}
                     </button>
                   </div>
                   {lesson.validated && !lesson.error && (
                     <p className="mt-1 flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
-                      <CheckCircleIcon className="w-3.5 h-3.5" />
-                      Video validated
+                      <CheckCircleIcon className="w-3.5 h-3.5" /> Video validated
                     </p>
                   )}
                   {!!lesson.error && (
                     <p className={`mt-1 flex items-center gap-1 text-xs ${lesson.validated ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                      <XCircleIcon className="w-3.5 h-3.5" />
-                      {lesson.error}
+                      <XCircleIcon className="w-3.5 h-3.5" /> {lesson.error}
                     </p>
                   )}
                 </div>
-                <button type="button" onClick={() => handleRemoveLesson(index)} disabled={lessons.length <= 1} className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"><TrashIcon className="w-5 h-5" /></button>
               </div>
             ))}
           </div>
