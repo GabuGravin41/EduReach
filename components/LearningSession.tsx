@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { YouTubePlayer, type YouTubePlayerHandle } from './YouTubePlayer';
 import { AIAssistant } from './AIAssistant';
 import { StudyPanel } from './StudyPanel';
-import { ChatMessage, QuizQuestion, Assessment, Lesson } from '../types';
+import { ChatMessage, QuizQuestion, Assessment, Lesson, Course } from '../types';
 import apiClient, { aiClient } from '../src/services/api';
 import { useAuth } from '../src/contexts/useAuth';
 import { Button } from './ui/Button';
@@ -25,6 +25,9 @@ interface LearningSessionProps {
   isAIPanelOpen?: boolean;
   setIsAIPanelOpen?: React.Dispatch<React.SetStateAction<boolean>>;
   onStartNewSession?: (data: { videoId: string; transcript: string; title?: string }) => void;
+  courses?: Course[];
+  savedSessionId?: number | null;
+  onSessionSaved?: (id: number) => void;
 }
 
 export const LearningSession: React.FC<LearningSessionProps> = ({
@@ -37,6 +40,9 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   isAIPanelOpen: externalAIPanelOpen,
   setIsAIPanelOpen: externalSetAIPanelOpen,
   onStartNewSession,
+  courses = [],
+  savedSessionId: initialSavedSessionId = null,
+  onSessionSaved,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(currentLesson?.chatHistory || []);
   const [quiz, setQuiz] = useState<QuizQuestion[] | null>(null);
@@ -61,6 +67,20 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   const [transcriptSaving, setTranscriptSaving] = useState(false);
   const [transcriptSaveMsg, setTranscriptSaveMsg] = useState<string | null>(null);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
+
+  // ── Personal-session save / course assignment ──
+  const [savedSessionId, setSavedSessionId] = useState<number | null>(initialSavedSessionId);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaveToCourseOpen, setIsSaveToCourseOpen] = useState(false);
+  const [saveToCourseTab, setSaveToCourseTab] = useState<'existing' | 'new'>('existing');
+  const [stcCourseId, setStcCourseId] = useState<number | ''>('');
+  const [stcLessonTitle, setStcLessonTitle] = useState('');
+  const [stcCourseTitle, setStcCourseTitle] = useState('');
+  const [stcCourseDesc, setStcCourseDesc] = useState('');
+  const [stcIsPublic, setStcIsPublic] = useState(true);
+  const [stcBusy, setStcBusy] = useState(false);
+  const [stcError, setStcError] = useState('');
+  const [stcSuccess, setStcSuccess] = useState('');
 
   const { user } = useAuth();
   const isAdmin = user?.tier === 'admin';
@@ -181,6 +201,71 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
         transcript: video.transcript || '',
         title: video.title,
       });
+    }
+  };
+
+  const handleSaveSession = async (titleOverride?: string) => {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      const payload = {
+        video_id: videoId,
+        title: titleOverride || currentLesson?.title || '',
+        transcript: effectiveTranscript,
+        thumbnail_url: currentLesson?.thumbnail || '',
+        notes: notes,
+        chat_history: messages,
+      };
+      if (savedSessionId) {
+        await apiClient.patch(`personal-sessions/${savedSessionId}/`, payload);
+      } else {
+        const res = await apiClient.post('personal-sessions/', payload);
+        const newId = (res.data as any).id;
+        setSavedSessionId(newId);
+        onSessionSaved?.(newId);
+      }
+    } catch {
+      // silently fail — user can retry
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveToCourse = async () => {
+    if (!savedSessionId) {
+      await handleSaveSession();
+    }
+    setStcLessonTitle(currentLesson?.title || '');
+    setStcError('');
+    setStcSuccess('');
+    setIsSaveToCourseOpen(true);
+  };
+
+  const handleStcSubmit = async () => {
+    if (!savedSessionId) return;
+    setStcBusy(true); setStcError(''); setStcSuccess('');
+    try {
+      if (saveToCourseTab === 'existing') {
+        if (!stcCourseId) { setStcError('Pick a course.'); setStcBusy(false); return; }
+        await apiClient.post(`personal-sessions/${savedSessionId}/add_to_course/`, {
+          course_id: stcCourseId,
+          lesson_title: stcLessonTitle,
+        });
+        setStcSuccess('Lesson added to course!');
+      } else {
+        if (!stcCourseTitle.trim()) { setStcError('Course title is required.'); setStcBusy(false); return; }
+        await apiClient.post(`personal-sessions/${savedSessionId}/create_course/`, {
+          course_title: stcCourseTitle.trim(),
+          course_description: stcCourseDesc.trim(),
+          lesson_title: stcLessonTitle,
+          is_public: stcIsPublic,
+        });
+        setStcSuccess(`Course "${stcCourseTitle}" created!`);
+      }
+    } catch (e: any) {
+      setStcError(e?.response?.data?.error || 'Something went wrong. Try again.');
+    } finally {
+      setStcBusy(false);
     }
   };
 
@@ -633,6 +718,33 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
           </div>
         )}
 
+        {/* Save Session / Save to Course bar — shown for standalone sessions */}
+        {courseId === 0 && (
+          <div className="flex-shrink-0 flex items-center justify-between gap-2 px-1">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              {savedSessionId ? '✓ Session saved' : 'Unsaved session'}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleSaveSession()}
+                disabled={isSaving}
+                className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 transition"
+              >
+                {isSaving ? 'Saving…' : savedSessionId ? 'Update' : 'Save Session'}
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveToCourse}
+                disabled={isSaving}
+                className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 transition"
+              >
+                + Save to Course
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Admin transcript editor trigger */}
         {isAdmin && currentLesson?.id && (
           <div className="flex-shrink-0 flex justify-end px-1">
@@ -945,5 +1057,85 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
         </div>
       )}
     </div>
+
+    {/* ── Save-to-Course modal ──────────────────────────────────────────── */}
+    {isSaveToCourseOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+        <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-2xl overflow-hidden">
+          <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700">
+            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">Save to Course</h2>
+            <button onClick={() => setIsSaveToCourseOpen(false)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-md transition">
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/></svg>
+            </button>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex border-b border-slate-200 dark:border-slate-700">
+            {(['existing', 'new'] as const).map(t => (
+              <button key={t} onClick={() => { setSaveToCourseTab(t); setStcError(''); setStcSuccess(''); }}
+                className={`flex-1 py-2.5 text-sm font-semibold transition ${saveToCourseTab === t ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+                {t === 'existing' ? 'Add to Existing Course' : 'Create New Course'}
+              </button>
+            ))}
+          </div>
+
+          <div className="p-5 space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Lesson title</label>
+              <input value={stcLessonTitle} onChange={e => setStcLessonTitle(e.target.value)}
+                className="w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+
+            {saveToCourseTab === 'existing' ? (
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Choose a course</label>
+                {courses.length === 0
+                  ? <p className="text-xs text-slate-500 dark:text-slate-400">No courses yet — create one in the other tab.</p>
+                  : <select value={stcCourseId} onChange={e => setStcCourseId(Number(e.target.value))}
+                      className="w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="">— Select a course —</option>
+                      {courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+                    </select>
+                }
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Course title <span className="text-rose-500">*</span></label>
+                  <input value={stcCourseTitle} onChange={e => setStcCourseTitle(e.target.value)} placeholder="e.g. Calculus Deep Dive"
+                    className="w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Description <span className="text-slate-400">(optional)</span></label>
+                  <textarea value={stcCourseDesc} onChange={e => setStcCourseDesc(e.target.value)} rows={2}
+                    className="w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+                </div>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="radio" checked={stcIsPublic} onChange={() => setStcIsPublic(true)} className="form-radio text-indigo-600" /> Public</label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="radio" checked={!stcIsPublic} onChange={() => setStcIsPublic(false)} className="form-radio text-indigo-600" /> Private</label>
+                </div>
+              </>
+            )}
+
+            {stcError && <p className="text-xs text-rose-600 dark:text-rose-400">{stcError}</p>}
+            {stcSuccess && (
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{stcSuccess}</p>
+            )}
+
+            {!stcSuccess ? (
+              <button onClick={handleStcSubmit} disabled={stcBusy}
+                className="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold disabled:opacity-60 transition">
+                {stcBusy ? 'Saving…' : saveToCourseTab === 'existing' ? 'Add Lesson to Course' : 'Create Course'}
+              </button>
+            ) : (
+              <button onClick={() => setIsSaveToCourseOpen(false)}
+                className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition">
+                Done
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
   );
 };

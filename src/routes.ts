@@ -14,6 +14,7 @@ export type View =
   | 'admin_panel'
   | 'setup_session'
   | 'learning_session'
+  | 'personal_sessions'
   | 'bulk_create_exam'
   | 'analytics'
   | 'terms'
@@ -38,6 +39,7 @@ export const ROUTES = {
   profile: '/profile',
   adminPanel: '/admin',
   setupSession: '/session',
+  personalSessions: '/my-sessions',
   learn: '/learn',
   bulkCreateExam: '/assessments/bulk',
   analytics: '/analytics',
@@ -63,6 +65,7 @@ const VIEW_TO_PATH: Record<View, string | ((opts?: { courseId?: number; examId?:
   profile: ROUTES.profile,
   admin_panel: ROUTES.adminPanel,
   setup_session: ROUTES.setupSession,
+  personal_sessions: ROUTES.personalSessions,
   learning_session: ROUTES.learn,
   bulk_create_exam: ROUTES.bulkCreateExam,
   analytics: ROUTES.analytics,
@@ -107,6 +110,7 @@ export function pathnameToView(pathname: string): { view: View; courseId: number
   if (p === '/profile') return { view: 'profile', courseId: null, examId: null };
   if (p === '/admin') return { view: 'admin_panel', courseId: null, examId: null };
   if (p === '/session') return { view: 'setup_session', courseId: null, examId: null };
+  if (p === '/my-sessions') return { view: 'personal_sessions', courseId: null, examId: null };
   if (p === '/learn') return { view: 'learning_session', courseId: null, examId: null };
   if (p === '/analytics') return { view: 'analytics', courseId: null, examId: null };
   if (p === '/terms') return { view: 'terms', courseId: null, examId: null };

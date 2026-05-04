@@ -124,6 +124,19 @@ export interface Course {
     tags?: string[];
 }
 
+export interface PersonalSession {
+    id: number;
+    video_id: string;
+    title: string;
+    transcript: string;
+    thumbnail_url: string;
+    channel_name: string;
+    notes: string;
+    chat_history: any[];
+    created_at: string;
+    updated_at: string;
+}
+
 export type AssessmentMode = 'quiz' | 'exam';
 
 export interface AssessmentContext {

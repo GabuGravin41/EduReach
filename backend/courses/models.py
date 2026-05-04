@@ -214,3 +214,27 @@ class CreatorEarnings(models.Model):
     def month_start(dt=None):
         dt = dt or timezone.now()
         return timezone.datetime(dt.year, dt.month, 1, tzinfo=dt.tzinfo or timezone.utc)
+
+
+class PersonalSession(models.Model):
+    """A standalone learning session saved by a user — not tied to a course."""
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='personal_sessions'
+    )
+    video_id = models.CharField(max_length=20)
+    title = models.CharField(max_length=500, blank=True)
+    transcript = models.TextField(blank=True)
+    thumbnail_url = models.URLField(max_length=500, blank=True)
+    channel_name = models.CharField(max_length=200, blank=True)
+    notes = models.TextField(blank=True)
+    chat_history = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"{self.user} — {self.title or self.video_id}"

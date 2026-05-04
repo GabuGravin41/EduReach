@@ -6,6 +6,7 @@ from .models import (
     CoursePricing,
     ContentPurchase,
     CreatorTip,
+    PersonalSession,
 )
 from users.serializers import UserSerializer
 
@@ -184,3 +185,13 @@ class CreatorTipSerializer(serializers.ModelSerializer):
             'created_at',
         ]
         read_only_fields = ['id', 'from_user', 'from_username', 'course_title', 'created_at']
+
+
+class PersonalSessionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PersonalSession
+        fields = [
+            'id', 'video_id', 'title', 'transcript', 'thumbnail_url',
+            'channel_name', 'notes', 'chat_history', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']

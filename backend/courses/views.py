@@ -20,6 +20,7 @@ from .models import (
     CoursePricing,
     ContentPurchase,
     CreatorTip,
+    PersonalSession,
 )
 from .serializers import (
     CourseSerializer,
@@ -29,6 +30,7 @@ from .serializers import (
     CoursePricingSerializer,
     ContentPurchaseSerializer,
     CreatorTipSerializer,
+    PersonalSessionSerializer,
 )
 from .permissions import IsOwnerOrReadOnly
 from services.youtube_service import YouTubeTranscriptService
@@ -1222,4 +1224,86 @@ class UserProgressViewSet(viewsets.ModelViewSet):
         return Response(
             UserProgressSerializer(progress).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        )
+
+
+class PersonalSessionViewSet(viewsets.ModelViewSet):
+    """CRUD for a user's personal (standalone) learning sessions."""
+    serializer_class = PersonalSessionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return PersonalSession.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.save(user=self.request.user)
+
+    @action(detail=True, methods=['post'], url_path='add_to_course')
+    def add_to_course(self, request, pk=None):
+        """
+        Add this personal session as a lesson in an existing course.
+        Body: { course_id: int, lesson_title?: str }
+        """
+        session = self.get_object()
+        course_id = request.data.get('course_id')
+        if not course_id:
+            return Response({'error': 'course_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        course = get_object_or_404(Course, id=course_id, owner=request.user)
+        lesson_title = request.data.get('lesson_title') or session.title or session.video_id
+
+        next_order = (course.lessons.aggregate(models.Max('order'))['order__max'] or 0) + 1
+        lesson = Lesson.objects.create(
+            course=course,
+            title=lesson_title,
+            video_id=session.video_id,
+            video_url=f'https://www.youtube.com/watch?v={session.video_id}',
+            transcript=session.transcript,
+            order=next_order,
+        )
+        return Response(LessonSerializer(lesson).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='create_course')
+    def create_course_from_session(self, request, pk=None):
+        """
+        Create a new course with this personal session as its first lesson.
+        Body: { course_title: str, course_description?: str, lesson_title?: str, is_public?: bool }
+        """
+        session = self.get_object()
+        course_title = (request.data.get('course_title') or '').strip()
+        if not course_title:
+            return Response({'error': 'course_title is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        course_description = request.data.get('course_description', '').strip()
+        lesson_title = request.data.get('lesson_title') or session.title or session.video_id
+        is_public = request.data.get('is_public', True)
+
+        try:
+            course = Course.objects.create(
+                title=course_title,
+                description=course_description,
+                owner=request.user,
+                is_public=is_public,
+            )
+        except IntegrityError:
+            return Response(
+                {'error': f'You already have a course titled "{course_title}". Choose a different name.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        lesson = Lesson.objects.create(
+            course=course,
+            title=lesson_title,
+            video_id=session.video_id,
+            video_url=f'https://www.youtube.com/watch?v={session.video_id}',
+            transcript=session.transcript,
+            order=1,
+        )
+        return Response(
+            {'course': CourseSerializer(course, context={'request': request}).data,
+             'lesson': LessonSerializer(lesson).data},
+            status=status.HTTP_201_CREATED,
         )

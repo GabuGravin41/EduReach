@@ -79,6 +79,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
     { id: 'dashboard', label: 'Home', icon: DashboardIcon, adminOnly: false },
     { id: 'admin_panel', label: 'Admin Panel', icon: AdminPanelIcon, adminOnly: true },
     { id: 'courses', label: 'My Courses', icon: BookOpenIcon, adminOnly: false },
+    { id: 'personal_sessions', label: 'My Sessions', icon: NewSessionIcon, adminOnly: false },
     { id: 'assessments', label: 'Assessments', icon: ClipboardCheckIcon, adminOnly: false },
     { id: 'exam_sessions', label: 'Exam Sessions', icon: ClipboardCheckIcon, adminOnly: false },
     { id: 'analytics', label: 'Analytics', icon: AnalyticsIcon, adminOnly: false },
@@ -94,7 +95,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
   };
 
   const NavItem: React.FC<{ id: string; label: string; icon: React.ElementType }> = ({ id, label, icon: Icon }) => {
-    const isActive = currentView === id || (id === 'courses' && currentView === 'course_detail') || (id === 'assessments' && currentView === 'exam_detail');
+    const isActive = currentView === id
+      || (id === 'courses' && currentView === 'course_detail')
+      || (id === 'assessments' && currentView === 'exam_detail')
+      || (id === 'personal_sessions' && currentView === 'learning_session');
     return (
       <button
         title={label}
