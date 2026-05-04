@@ -546,8 +546,8 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
             ? completedLessonIds.has(lesson.id)
             : Boolean(lesson.isCompleted),
     }));
-    const lessonLimit = userTier === 'free' ? 5 : Infinity;
-    const visibleLessons = courseLessons.slice(0, lessonLimit);
+    // YouTube lessons are freely accessible to all users — no paywall on public educational content
+    const visibleLessons = courseLessons;
 
     const completedCount = courseLessons.filter(l => l.isCompleted).length;
     // Always calculate progress from local state for instant UI updates

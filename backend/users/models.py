@@ -336,6 +336,7 @@ class Notification(models.Model):
         LEVEL_UP = 'level_up', 'Level Up'
         STUDY_REMINDER = 'study_reminder', 'Study Reminder'
         ASSESSMENT_GRADED = 'assessment_graded', 'Assessment Graded'
+        MISSING_TRANSCRIPT = 'missing_transcript', 'Missing Transcript'
 
     recipient = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name='notifications'

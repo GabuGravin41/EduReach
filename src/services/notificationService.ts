@@ -10,7 +10,8 @@ export type NotifType =
   | 'payment_failed'
   | 'level_up'
   | 'study_reminder'
-  | 'assessment_graded';
+  | 'assessment_graded'
+  | 'missing_transcript';
 
 export interface AppNotification {
   id: number;

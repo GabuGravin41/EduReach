@@ -441,6 +441,10 @@ class CourseViewSet(viewsets.ModelViewSet):
                 logger.error("Second transcript attempt failed for %s: %s", video_url, e)
                 fetch_status = 'failed'
 
+        if not lesson.transcript and not lesson.manual_transcript and lesson.video_id:
+            from .signals import notify_admin_missing_transcript
+            notify_admin_missing_transcript(lesson)
+
         serializer = LessonSerializer(lesson)
         data = serializer.data
         data['transcript_fetch_status'] = fetch_status
@@ -569,7 +573,10 @@ class LessonViewSet(viewsets.ModelViewSet):
             raise permissions.PermissionDenied(
                 "You don't have permission to add lessons to this course."
             )
-        serializer.save()
+        lesson = serializer.save()
+        if lesson and not lesson.transcript and not lesson.manual_transcript and lesson.video_id:
+            from .signals import notify_admin_missing_transcript
+            notify_admin_missing_transcript(lesson)
     
     def perform_update(self, serializer):
         """Ensure the user owns the course before updating a lesson."""

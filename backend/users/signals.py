@@ -40,6 +40,7 @@ def push_on_notification_created(sender, instance, created, **kwargs):
             'study_reminder': '/',
             'challenge': f'/assessments/{instance.assessment_id}' if instance.assessment_id else '/assessments',
             'assessment_graded': f'/assessments/{instance.assessment_id}' if instance.assessment_id else '/assessments',
+            'missing_transcript': '/courses',
             'system': '/',
         }
         url = url_map.get(notif_type, '/')

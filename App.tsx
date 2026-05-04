@@ -444,7 +444,8 @@ const AppContent: React.FC = () => {
     }, [recentlyCreatedCourseId]);
 
     const limits = {
-        lessonsPerCourse: userTier === 'free' ? 5 : Infinity
+        // YouTube content is freely accessible educational material — no lesson cap
+        lessonsPerCourse: Infinity
     };
 
     const invalidateCourseQueries = async (courseId?: number) => {
@@ -1066,7 +1067,9 @@ const AppContent: React.FC = () => {
                                 onClick={() => {
                                   notificationService.markRead(n.id).catch(() => {});
                                   setNotifications(prev => prev.filter(x => x.id !== n.id));
-                                  if (n.assessment_id) {
+                                  if (n.notif_type === 'missing_transcript') {
+                                    setView('courses');
+                                  } else if (n.assessment_id) {
                                     const path = n.share_token
                                       ? `/assessments/${n.assessment_id}?share_token=${n.share_token}`
                                       : `/assessments/${n.assessment_id}`;
@@ -1075,9 +1078,14 @@ const AppContent: React.FC = () => {
                                   setNotifOpen(false);
                                 }}
                               >
-                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{n.title}</p>
+                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                                  {n.notif_type === 'missing_transcript' ? '📋 ' : ''}{n.title}
+                                </p>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{n.message}</p>
-                                {n.assessment_id && (
+                                {n.notif_type === 'missing_transcript' && (
+                                  <span className="inline-block mt-1 text-xs text-amber-600 dark:text-amber-400 font-medium">Tap to go to Courses →</span>
+                                )}
+                                {n.notif_type !== 'missing_transcript' && n.assessment_id && (
                                   <span className="inline-block mt-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium">Tap to open challenge →</span>
                                 )}
                               </div>
