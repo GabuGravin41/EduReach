@@ -427,7 +427,11 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
 
     const openTranscriptModal = (lesson: Lesson) => {
         setTranscriptModalLesson(lesson);
-        setManualTranscript(lesson.manual_transcript || lesson.transcript || '');
+        // Pre-fill with real transcript only — strip placeholders so the text area
+        // starts empty and the user doesn't have to manually delete fake content
+        const existingText = lesson.manual_transcript || lesson.transcript || '';
+        const isPlaceholder = isPlaceholderTranscript(existingText);
+        setManualTranscript(isPlaceholder ? '' : existingText);
         setTranscriptLanguageInput(lesson.transcript_language || 'en');
         setTranscriptModalError('');
     };
@@ -517,9 +521,23 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
         );
     };
 
+    // Placeholder strings saved when auto-fetch fails — these are NOT real transcripts
+    const isPlaceholderTranscript = (t: string | null | undefined): boolean => {
+        if (!t || !t.trim()) return true;
+        const n = t.trim().toLowerCase();
+        return (
+            n.startsWith('[transcript') ||
+            n.startsWith('(transcript') ||
+            n === '[transcript unavailable]' ||
+            n.startsWith('[transcript could not') ||
+            n.startsWith('transcript unavailable')
+        );
+    };
+
     const getTranscriptStatus = (lesson: Lesson) => {
-        const hasTranscript = lesson.has_transcript ?? Boolean(lesson.transcript || lesson.manual_transcript);
-        if (hasTranscript) {
+        const rawTranscript = lesson.transcript || lesson.manual_transcript || '';
+        const hasRealTranscript = !isPlaceholderTranscript(rawTranscript);
+        if (hasRealTranscript) {
             const label = lesson.transcript_language
                 ? `Transcript ready (${lesson.transcript_language.toUpperCase()})`
                 : 'Transcript ready';
@@ -799,9 +817,11 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                                                                 </span>
                                                                 {canSeeTranscriptStatus && (
                                                                 <span
-                                                                    className={`px-2 py-1 rounded-full font-medium ${transcriptStatus.className} ${transcriptStatus.isMissing && canManageCourse ? 'cursor-pointer hover:opacity-80' : ''}`}
-                                                                    onClick={() => { if (transcriptStatus.isMissing && canManageCourse) openTranscriptModal(lesson); }}
-                                                                    title={transcriptStatus.isMissing && canManageCourse ? 'Add transcript manually or retry auto-fetch' : transcriptStatus.isMissing ? 'Transcript missing' : 'Transcript is available'}
+                                                                    className={`px-2 py-1 rounded-full font-medium ${transcriptStatus.className} ${canManageCourse ? 'cursor-pointer hover:opacity-80' : ''}`}
+                                                                    onClick={() => { if (canManageCourse) openTranscriptModal(lesson); }}
+                                                                    title={canManageCourse
+                                                                        ? transcriptStatus.isMissing ? 'Add transcript' : 'Click to edit transcript'
+                                                                        : transcriptStatus.isMissing ? 'Transcript missing' : 'Transcript available'}
                                                                 >
                                                                     {transcriptStatus.label}
                                                                 </span>
@@ -1028,10 +1048,10 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
                     <div className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900">
                         <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                            Add Transcript - {transcriptModalLesson.title}
+                            Edit Transcript — {transcriptModalLesson.title}
                         </h3>
                         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                            Retry auto-fetch or paste transcript manually to unlock AI lesson features.
+                            Paste or edit the transcript. The AI uses this text as its knowledge base for this lesson.
                         </p>
                         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                             Last transcript update: {formatTranscriptUpdateTime(transcriptModalLesson)}

@@ -154,8 +154,23 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
     return () => { cancelled = true; };
   }, [videoId]); // Only run once on mount
 
-  // Use liveTranscript (with background-fetched data) wherever transcript is needed
-  const effectiveTranscript = liveTranscript || transcript;
+  // Placeholder strings saved when auto-fetch fails — treat these as "no transcript"
+  const isPlaceholderTranscript = (t: string | null | undefined): boolean => {
+    if (!t || !t.trim()) return true;
+    const n = t.trim().toLowerCase();
+    return (
+      n.startsWith('[transcript') ||
+      n.startsWith('(transcript') ||
+      n === '[transcript unavailable]' ||
+      n.startsWith('[transcript could not') ||
+      n.startsWith('transcript unavailable')
+    );
+  };
+
+  // Use liveTranscript (with background-fetched data) wherever transcript is needed.
+  // Discard placeholder strings so the AI never receives fake context.
+  const rawTranscript = liveTranscript || transcript;
+  const effectiveTranscript = isPlaceholderTranscript(rawTranscript) ? '' : rawTranscript;
 
   const handleSelectLibraryVideo = (video: { video_id: string; url: string; title?: string; transcript?: string; thumbnail_url?: string }) => {
     if (!currentLesson?.id) return;
