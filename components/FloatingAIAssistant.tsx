@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import apiClient from '../src/services/apiClient';
+import { aiClient } from '../src/services/api';
 import { type View } from '../App';
 
 interface Message {
@@ -122,15 +122,17 @@ export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username, on
     }));
 
     try {
-      const resp = await apiClient.post('ai/chat/', {
+      const resp = await aiClient.post('ai/chat/', {
         message: text,
         context: `You are EduReach's AI learning assistant. Help the user with their studies, explain concepts clearly, and suggest resources on the platform.${contextNote} Keep answers concise and educational.`,
         history: historyPayload,
       });
       const reply = resp.data?.response || resp.data?.message || 'Sorry, I could not get a response.';
       setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
-    } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I could not reach the AI right now. Please try again.' }]);
+    } catch (err: any) {
+      console.error('AI Chat Error:', err);
+      const errorMsg = err?.response?.data?.error || err?.response?.data?.message || 'Sorry, I could not reach the AI right now. Please try again.';
+      setMessages(prev => [...prev, { role: 'assistant', content: errorMsg }]);
     } finally {
       setIsLoading(false);
     }

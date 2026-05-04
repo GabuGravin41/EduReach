@@ -1,14 +1,9 @@
-import axios from 'axios';
-import { API_CONFIG } from '../config/api';
+import apiClient from './api';
 
-// Use the same normalised base URL as the rest of the app (always ends in /api).
-// Never construct paths with a leading /api/ — the base already includes it.
-const apiClient = axios.create({
-  baseURL: API_CONFIG.BASE_URL,
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+/**
+ * DEPRECATED: Use the default export from './api' instead.
+ * This file is kept for backwards compatibility with existing components
+ * but redirects to the main authenticated apiClient.
+ */
+export default apiClient;
 
-export { apiClient as default };
