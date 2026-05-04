@@ -93,7 +93,7 @@ const VideoLibrarySearch: React.FC<Props> = ({ courseId, lessonId, onSelect }) =
       {/* Status hint */}
       {!query && (
         <p className="px-3 py-2 text-xs text-slate-400 dark:text-slate-500">
-          Search any YouTube video — videos already in our library load instantly with full AI support.
+          Search any YouTube video — click a result to open it as a new learning session.
         </p>
       )}
 
@@ -166,7 +166,7 @@ const VideoLibrarySearch: React.FC<Props> = ({ courseId, lessonId, onSelect }) =
                     onClick={(e) => { e.stopPropagation(); onSelect(r); }}
                     className="ml-auto text-xs bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-0.5 rounded-full font-medium transition-colors"
                   >
-                    Load
+                    Open →
                   </button>
                 </div>
               </div>

@@ -24,6 +24,7 @@ interface LearningSessionProps {
   onSaveAssessment?: (assessment: Assessment) => void;
   isAIPanelOpen?: boolean;
   setIsAIPanelOpen?: React.Dispatch<React.SetStateAction<boolean>>;
+  onStartNewSession?: (data: { videoId: string; transcript: string; title?: string }) => void;
 }
 
 export const LearningSession: React.FC<LearningSessionProps> = ({
@@ -35,6 +36,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   onSaveAssessment,
   isAIPanelOpen: externalAIPanelOpen,
   setIsAIPanelOpen: externalSetAIPanelOpen,
+  onStartNewSession,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(currentLesson?.chatHistory || []);
   const [quiz, setQuiz] = useState<QuizQuestion[] | null>(null);
@@ -173,20 +175,12 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   const effectiveTranscript = isPlaceholderTranscript(rawTranscript) ? '' : rawTranscript;
 
   const handleSelectLibraryVideo = (video: { video_id: string; url: string; title?: string; transcript?: string; thumbnail_url?: string }) => {
-    if (!currentLesson?.id) return;
-    try {
-      // Update lesson via parent callback so player can change videoId
-      onUpdateLesson(courseId, currentLesson.id, {
+    if (onStartNewSession) {
+      onStartNewSession({
         videoId: video.video_id,
         transcript: video.transcript || '',
-        thumbnail: video.thumbnail_url || currentLesson.thumbnail,
+        title: video.title,
       });
-
-      // Also update local live transcript so UI updates immediately
-      setLiveTranscript(video.transcript || '');
-      setMessages(prev => [...prev, { role: 'model', content: `Loaded "${video.title || video.video_id}" from library.` }]);
-    } catch (err) {
-      console.error('Failed to load library video into session:', err);
     }
   };
 

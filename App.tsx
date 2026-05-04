@@ -875,6 +875,11 @@ const AppContent: React.FC = () => {
                   }}
                   isAIPanelOpen={learningAIOpen}
                   setIsAIPanelOpen={setLearningAIOpen}
+                  onStartNewSession={(data) => {
+                      const newSession: SessionData = { videoId: data.videoId, transcript: data.transcript, title: data.title };
+                      setSessionData(newSession);
+                      setView('learning_session', { state: { sessionData: newSession } });
+                  }}
                />;
            }
            return (
