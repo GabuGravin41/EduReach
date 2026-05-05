@@ -38,6 +38,7 @@ export interface User {
   interests?: string;
   profile_cover?: string;
   created_at: string;
+  date_joined?: string;
   // Trial fields
   is_trial_active?: boolean;
   trial_ends_at?: string | null;

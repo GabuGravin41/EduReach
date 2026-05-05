@@ -94,7 +94,7 @@ export interface Lesson {
     id: number;
     title: string;
     videoId: string;
-    isCompleted: boolean;
+    isCompleted?: boolean;
     duration: string;
     transcript?: string;
     thumbnail?: string;
@@ -115,9 +115,12 @@ export interface Course {
     id: number;
     title: string;
     description: string;
-    progress: number;
-    thumbnail: string;
+    progress?: number;
+    thumbnail?: string;
     isPublic: boolean;
+    is_public?: boolean;
+    owner?: { id: number; username?: string };
+    updated_at?: string;
     lessons: Lesson[];
     notes?: CourseNote[];
     level?: string;

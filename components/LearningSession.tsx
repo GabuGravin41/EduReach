@@ -774,7 +774,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
             videoId={videoId}
             className="w-full h-full"
             onReady={handlePlayerReady}
-            onStateChange={onPlayerStateChange}
+            onStateChange={onPlayerStateChange as any}
           />
           <div className="hidden lg:block absolute top-4 right-4 z-50">
             <button

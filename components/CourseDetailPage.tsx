@@ -589,7 +589,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     const startLabel = actualProgress > 0 ? 'Resume' : 'Start';
 
     // Aggregate notes from all lessons (use lessonsWithNotes if available)
-    const aggregatedNotes = (lessonsWithNotes.length > 0 ? lessonsWithNotes : courseLessons).filter(l => l.notes && l.notes.trim().length > 0);
+    const aggregatedNotes = (lessonsWithNotes.length > 0 ? lessonsWithNotes : courseLessons as any[]).filter((l: any) => l.notes && l.notes.trim().length > 0);
 
     return (
         <div>
@@ -927,7 +927,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                         </h2>
                         {aggregatedNotes.length > 0 ? (
                             <div className="space-y-6">
-                                {aggregatedNotes.map(lesson => {
+                                {aggregatedNotes.map((lesson: any) => {
                                     const isExpanded = expandedNoteId === lesson.id;
                                     return (
                                         <div key={lesson.id} className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-5 border border-slate-200 dark:border-slate-700">

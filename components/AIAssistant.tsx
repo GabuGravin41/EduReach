@@ -255,7 +255,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                         <p className="text-sm text-slate-400 dark:text-slate-500">This may take a moment depending on the video length.</p>
                       </div>
                     ) : (
-                      <QuizView quiz={quiz} onUpdateQuiz={onUpdateQuiz} />
+                      <QuizView quiz={quiz} />
                     )}
                 </div>
             </div>

@@ -23,7 +23,7 @@ interface OptimizedMutationOptions {
  * Optimized query hook with intelligent caching and performance features
  */
 export const useOptimizedQuery = <T = any>(
-  queryKey: string[],
+  queryKey: (string | number | boolean | null | undefined)[],
   queryFn: () => Promise<T>,
   options: OptimizedQueryOptions = {}
 ) => {
