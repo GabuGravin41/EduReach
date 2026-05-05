@@ -48,6 +48,7 @@ const TermsOfServicePage = lazy(() => import('./components/TermsOfServicePage').
 const PrivacyPolicyPage = lazy(() => import('./components/PrivacyPolicyPage').then(module => ({ default: module.PrivacyPolicyPage })));
 const JoinExamPage = lazy(() => import('./components/JoinExamPage'));
 const ExamSessionsPage = lazy(() => import('./components/ExamSessionsPage'));
+const PersonalSessionsPage = lazy(() => import('./components/PersonalSessionsPage').then(m => ({ default: m.PersonalSessionsPage })));
 
   
 export type UserTier = 'free' | 'learner' | 'pro' | 'pro_plus' | 'admin';
@@ -254,7 +255,8 @@ const AppContent: React.FC = () => {
 
     useEffect(() => {
       const path = location.pathname || '/';
-      if (path === '/' || path === '') {
+      // Only auto-redirect logged-in users away from '/'; unauthenticated users see the landing page
+      if ((path === '/' || path === '') && user) {
         navigate(ROUTES.dashboard, { replace: true });
         return;
       }
@@ -858,6 +860,17 @@ const AppContent: React.FC = () => {
              return null;
            }
            return <BulkCreateExamPage onCancel={() => setView('assessments')} onBatchCreated={() => setView('assessments')} />;
+        case 'personal_sessions':
+          return (
+            <PersonalSessionsPage
+              setView={setView}
+              courses={courses.map(c => ({ ...c, progress: c.progress ?? 0 })) as any}
+              onOpenSession={(session) => {
+                setSessionData({ videoId: session.video_id, transcript: session.transcript ?? '' });
+                setView('learning_session', { state: { sessionData: { videoId: session.video_id, transcript: session.transcript ?? '' } } });
+              }}
+            />
+          );
         case 'setup_session':
            return <SetupSession onSessionCreated={async (data) => { 
              // Refresh courses after session is created (since a new personal course might have been created)
