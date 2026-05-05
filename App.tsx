@@ -213,6 +213,7 @@ const AppContent: React.FC = () => {
     const queryClient = useQueryClient();
     const { isDark, toggle: toggleDark } = useDarkMode();
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
+    const [readNotifIds, setReadNotifIds] = useState<Set<number>>(new Set());
     const [notifOpen, setNotifOpen] = useState(false);
 
     // Poll for unread notifications every 30s while logged in
@@ -220,7 +221,14 @@ const AppContent: React.FC = () => {
       if (!user) return;
       const fetchNotifs = () => {
         notificationService.getUnread()
-          .then(setNotifications)
+          .then(fresh => {
+            setNotifications(prev => {
+              // merge: keep previously-seen notifications so they stay visible after being read
+              const freshIds = new Set(fresh.map(n => n.id));
+              const kept = prev.filter(n => !freshIds.has(n.id));
+              return [...fresh, ...kept];
+            });
+          })
           .catch(() => {});
       };
       fetchNotifs();
@@ -953,9 +961,9 @@ const AppContent: React.FC = () => {
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                   </svg>
-                  {notifications.length > 0 && (
+                  {notifications.filter(n => !readNotifIds.has(n.id)).length > 0 && (
                     <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                      {notifications.length > 9 ? '9+' : notifications.length}
+                      {notifications.filter(n => !readNotifIds.has(n.id)).length > 9 ? '9+' : notifications.filter(n => !readNotifIds.has(n.id)).length}
                     </span>
                   )}
                 </button>
@@ -1042,9 +1050,9 @@ const AppContent: React.FC = () => {
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                       </svg>
-                      {notifications.length > 0 && (
+                      {notifications.filter(n => !readNotifIds.has(n.id)).length > 0 && (
                         <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
-                          {notifications.length > 9 ? '9+' : notifications.length}
+                          {notifications.filter(n => !readNotifIds.has(n.id)).length > 9 ? '9+' : notifications.filter(n => !readNotifIds.has(n.id)).length}
                         </span>
                       )}
                     </button>
@@ -1052,49 +1060,60 @@ const AppContent: React.FC = () => {
                       <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden">
                         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
                           <span className="font-bold text-slate-800 dark:text-slate-100">Notifications</span>
-                          {notifications.length > 0 && (
+                          {notifications.some(n => !readNotifIds.has(n.id)) && (
                             <button
-                              onClick={() => { notificationService.markAllRead().catch(() => {}); setNotifications([]); }}
+                              onClick={() => {
+                                notificationService.markAllRead().catch(() => {});
+                                setReadNotifIds(new Set(notifications.map(n => n.id)));
+                              }}
                               className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
                             >
                               Mark all read
                             </button>
                           )}
                         </div>
-                        <div className="max-h-72 overflow-y-auto">
+                        <div className="max-h-96 overflow-y-auto">
                           {notifications.length === 0 ? (
-                            <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-6">No new notifications</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-6">No notifications yet</p>
                           ) : (
-                            notifications.map(n => (
-                              <div
-                                key={n.id}
-                                className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer"
-                                onClick={() => {
-                                  notificationService.markRead(n.id).catch(() => {});
-                                  setNotifications(prev => prev.filter(x => x.id !== n.id));
-                                  if (n.notif_type === 'missing_transcript') {
-                                    setView('courses');
-                                  } else if (n.assessment_id) {
-                                    const path = n.share_token
-                                      ? `/assessments/${n.assessment_id}?share_token=${n.share_token}`
-                                      : `/assessments/${n.assessment_id}`;
-                                    navigate(path);
-                                  }
-                                  setNotifOpen(false);
-                                }}
-                              >
-                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                                  {n.notif_type === 'missing_transcript' ? '📋 ' : ''}{n.title}
-                                </p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{n.message}</p>
-                                {n.notif_type === 'missing_transcript' && (
-                                  <span className="inline-block mt-1 text-xs text-amber-600 dark:text-amber-400 font-medium">Tap to go to Courses →</span>
-                                )}
-                                {n.notif_type !== 'missing_transcript' && n.assessment_id && (
-                                  <span className="inline-block mt-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium">Tap to open challenge →</span>
-                                )}
-                              </div>
-                            ))
+                            notifications.map(n => {
+                              const isRead = readNotifIds.has(n.id);
+                              return (
+                                <div
+                                  key={n.id}
+                                  className={`px-4 py-3 border-b border-slate-100 dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition-opacity ${isRead ? 'opacity-50' : ''}`}
+                                  onClick={() => {
+                                    if (!isRead) {
+                                      notificationService.markRead(n.id).catch(() => {});
+                                      setReadNotifIds(prev => new Set([...prev, n.id]));
+                                    }
+                                    if (n.notif_type === 'missing_transcript') {
+                                      setView('courses');
+                                    } else if (n.assessment_id) {
+                                      const path = n.share_token
+                                        ? `/assessments/${n.assessment_id}?share_token=${n.share_token}`
+                                        : `/assessments/${n.assessment_id}`;
+                                      navigate(path);
+                                    }
+                                    setNotifOpen(false);
+                                  }}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                                      {n.notif_type === 'missing_transcript' ? '📋 ' : ''}{n.title}
+                                    </p>
+                                    {!isRead && <span className="mt-1 w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0" />}
+                                  </div>
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{n.message}</p>
+                                  {n.notif_type === 'missing_transcript' && (
+                                    <span className="inline-block mt-1 text-xs text-amber-600 dark:text-amber-400 font-medium">Tap to go to Courses →</span>
+                                  )}
+                                  {n.notif_type !== 'missing_transcript' && n.assessment_id && (
+                                    <span className="inline-block mt-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium">Tap to open challenge →</span>
+                                  )}
+                                </div>
+                              );
+                            })
                           )}
                         </div>
                       </div>

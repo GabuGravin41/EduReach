@@ -20,6 +20,7 @@ type CurrencyCode = 'USD' | 'KES';
 interface TierInfo {
   name: string;
   monthlyPrice: Record<CurrencyCode, number>;
+  biweeklyPrice?: Record<CurrencyCode, number>;
   priceSuffix: string;
   description: string;
   features: string[];
@@ -30,7 +31,8 @@ interface TierInfo {
 const tiers: Record<'learner' | 'pro', TierInfo> = {
   learner: {
     name: 'Starter',
-    monthlyPrice: { USD: 2.99, KES: 399 },
+    monthlyPrice: { USD: 1.99, KES: 299 },
+    biweeklyPrice: { USD: 0.99, KES: 150 },
     priceSuffix: '/ month',
     description: 'Perfect for students who want to go beyond the basics.',
     color: 'indigo',
@@ -46,18 +48,19 @@ const tiers: Record<'learner' | 'pro', TierInfo> = {
   },
   pro: {
     name: 'Pro',
-    monthlyPrice: { USD: 7.99, KES: 999 },
+    monthlyPrice: { USD: 4.99, KES: 799 },
     priceSuffix: '/ month',
-    description: 'For serious learners and educators who want the full experience.',
+    description: 'For serious learners who want the full EduReach experience.',
     color: 'violet',
     isPopular: true,
     features: [
       '500 AI Tutor queries / month',
       'Unlimited courses & assessments',
       'Premium AI model (Gemini 2.5 Pro)',
-      'Analytics dashboard',
+      'Analytics dashboard & progress insights',
       'Study groups',
       'Private courses & exams',
+      'Priority support',
       '"Pro" badge on profile',
     ],
   },
@@ -231,6 +234,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
   const [showMoreMethods, setShowMoreMethods] = useState(false);
 
   // ── Payment modal state ─────────────────────────────────────────────────
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'biweekly'>('monthly');
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentModalTier, setPaymentModalTier] = useState<'learner' | 'pro' | null>(null);
   const [stkPushPending, setStkPushPending] = useState(false);
@@ -240,7 +244,10 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
   const [modalMpesaPhone, setModalMpesaPhone] = useState('');
   const [activatedTier, setActivatedTier] = useState<'learner' | 'pro' | null>(null);
 
-  const selectedPrice = tiers[selectedTier].monthlyPrice[currency];
+  const activeBillingCycle = selectedTier === 'learner' ? billingCycle : 'monthly';
+  const selectedPrice = activeBillingCycle === 'biweekly' && tiers[selectedTier].biweeklyPrice
+    ? tiers[selectedTier].biweeklyPrice![currency]
+    : tiers[selectedTier].monthlyPrice[currency];
 
   const methodsQuery = useQuery<PaymentMethod[]>({
     queryKey: ['payment-methods'],
@@ -471,12 +478,15 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     if (!phone) { setModalPaymentMessage('Please enter your M-Pesa phone number.'); return; }
     setModalPaymentMessage('');
     try {
+      const payAmount = activeBillingCycle === 'biweekly' && paymentModalTier === 'learner' && tiers.learner.biweeklyPrice
+        ? tiers.learner.biweeklyPrice.KES
+        : tiers[paymentModalTier].monthlyPrice.KES;
       const response = await initiatePaymentMutation.mutateAsync({
         payment_method_id: mpesaMethod.id,
-        amount: tiers[paymentModalTier].monthlyPrice.KES,
+        amount: payAmount,
         currency: 'KES',
         phone_number: phone,
-        metadata: { tier: paymentModalTier, display_currency: 'KES' },
+        metadata: { tier: paymentModalTier, display_currency: 'KES', billing_cycle: activeBillingCycle },
       } as any);
       if (!response.paybill_number && !response.paystack_url) {
         setStkPushPending(true);
@@ -936,13 +946,36 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
               </div>
             </div>
 
+            {/* Billing cycle toggle — Starter only */}
+            {selectedTier === 'learner' && tiers.learner.biweeklyPrice && (
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Billing Cycle</p>
+                <div className="flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden text-sm font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setBillingCycle('monthly')}
+                    className={`flex-1 py-2 transition-colors ${billingCycle === 'monthly' ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                  >
+                    Monthly<br /><span className="text-xs font-normal">KES {tiers.learner.monthlyPrice.KES}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBillingCycle('biweekly')}
+                    className={`flex-1 py-2 transition-colors ${billingCycle === 'biweekly' ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                  >
+                    2 Weeks<br /><span className="text-xs font-normal">KES {tiers.learner.biweeklyPrice!.KES}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {safeCurrentTier !== selectedTier ? (
               <button
                 type="button"
                 onClick={() => openPaymentModal(selectedTier)}
                 className="w-full py-3 rounded-xl text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-colors"
               >
-                Subscribe — {formatAmount('KES', tiers[selectedTier].monthlyPrice.KES)} / mo
+                Subscribe — {formatAmount('KES', selectedPrice)} {activeBillingCycle === 'biweekly' ? '/ 2 wks' : '/ mo'}
               </button>
             ) : (
               <div className="w-full py-3 rounded-xl text-center text-sm font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">
@@ -951,7 +984,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
             )}
 
             <p className="text-xs text-center text-slate-400 dark:text-slate-500">
-              Billed monthly · Cancel anytime
+              {activeBillingCycle === 'biweekly' ? 'Billed every 2 weeks · ' : 'Billed monthly · '}Cancel anytime
             </p>
           </div>
 
@@ -1010,7 +1043,9 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
               <div>
                 <h2 className="text-lg font-extrabold">Subscribe to {tiers[paymentModalTier].name}</h2>
                 <p className="text-indigo-100 text-sm mt-0.5">
-                  KES {tiers[paymentModalTier].monthlyPrice.KES.toLocaleString()} / month
+                  {activeBillingCycle === 'biweekly' && paymentModalTier === 'learner' && tiers.learner.biweeklyPrice
+                    ? `KES ${tiers.learner.biweeklyPrice.KES.toLocaleString()} / 2 weeks`
+                    : `KES ${tiers[paymentModalTier].monthlyPrice.KES.toLocaleString()} / month`}
                 </p>
               </div>
               <button
@@ -1094,7 +1129,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                     <p className="font-semibold mb-1">Steps:</p>
                     <ol className="list-decimal list-inside space-y-1 text-left">
                       <li>Open M-Pesa on your phone</li>
-                      <li>You'll see a payment request for <strong>KES {tiers[paymentModalTier].monthlyPrice.KES.toLocaleString()}</strong></li>
+                      <li>You'll see a payment request for <strong>KES {(activeBillingCycle === 'biweekly' && paymentModalTier === 'learner' && tiers.learner.biweeklyPrice ? tiers.learner.biweeklyPrice.KES : tiers[paymentModalTier].monthlyPrice.KES).toLocaleString()}</strong></li>
                       <li>Enter your M-Pesa PIN to confirm</li>
                     </ol>
                   </div>
@@ -1154,7 +1189,8 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                   <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                     <span className="text-sm text-slate-600 dark:text-slate-400">You will be charged</span>
                     <span className="font-extrabold text-lg text-slate-900 dark:text-slate-100">
-                      KES {tiers[paymentModalTier].monthlyPrice.KES.toLocaleString()}
+                      KES {(activeBillingCycle === 'biweekly' && paymentModalTier === 'learner' && tiers.learner.biweeklyPrice ? tiers.learner.biweeklyPrice.KES : tiers[paymentModalTier].monthlyPrice.KES).toLocaleString()}
+                      <span className="text-sm font-normal text-slate-400 ml-1">{activeBillingCycle === 'biweekly' ? '/ 2 wks' : '/ mo'}</span>
                     </span>
                   </div>
 
@@ -1179,13 +1215,13 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                     ) : (
                       <>
                         <span>📱</span>
-                        <span>Send STK Push — KES {tiers[paymentModalTier].monthlyPrice.KES.toLocaleString()}</span>
+                        <span>Send STK Push — KES {(activeBillingCycle === 'biweekly' && paymentModalTier === 'learner' && tiers.learner.biweeklyPrice ? tiers.learner.biweeklyPrice.KES : tiers[paymentModalTier].monthlyPrice.KES).toLocaleString()}</span>
                       </>
                     )}
                   </button>
 
                   <p className="text-xs text-center text-slate-400 dark:text-slate-500">
-                    Secured by Safaricom M-Pesa · Billed monthly · Cancel anytime
+                    Secured by Safaricom M-Pesa · {activeBillingCycle === 'biweekly' ? 'Billed every 2 weeks' : 'Billed monthly'} · Cancel anytime
                   </p>
                 </div>
               )}

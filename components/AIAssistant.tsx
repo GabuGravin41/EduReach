@@ -71,10 +71,10 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   useEffect(scrollToBottom, [messages]);
 
   const quickPrompts = [
-    { label: 'Summarize', prompt: 'Summarize the last section I watched in 3 bullet points.' },
-    { label: 'Key terms', prompt: 'List the key terms mentioned so far and define each briefly.' },
-    { label: 'Explain simply', prompt: 'Explain the main concept so far like I am new to the topic.' },
-    { label: 'Quiz me', prompt: 'Ask me three quick questions about the last part of the video.' },
+    { label: 'Summarize', prompt: 'Summarize the key points covered so far in 3 bullet points.' },
+    { label: 'Key terms', prompt: 'List the key terms and define each one briefly.' },
+    { label: 'Explain simply', prompt: 'Explain the main concept like I am completely new to the topic.' },
+    { label: 'What to study', prompt: 'What are the most important topics I should focus on for an exam on this?' },
   ];
 
   const handleQuickPrompt = (prompt: string) => {
@@ -214,7 +214,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        placeholder="Ask anything about the video..."
+                        placeholder="Ask Edu anything..."
                         disabled={isLoading}
                         className="flex-1 p-2 rounded-md border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />

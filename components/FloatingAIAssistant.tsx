@@ -124,7 +124,7 @@ export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username, on
     try {
       const resp = await aiClient.post('ai/chat/', {
         message: text,
-        context: `You are EduReach's AI learning assistant. Help the user with their studies, explain concepts clearly, and suggest resources on the platform.${contextNote} Keep answers concise and educational.`,
+        context: contextNote ? `User context: ${contextNote}` : '',
         history: historyPayload,
       });
       const reply = resp.data?.response || resp.data?.message || 'Sorry, I could not get a response.';
@@ -174,8 +174,8 @@ export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username, on
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-t-2xl">
             <div className="flex items-center gap-2">
               <SparkleIcon className="w-4 h-4 text-white" />
-              <span className="text-sm font-bold text-white">EduReach AI</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/20 text-white font-medium">Beta</span>
+              <span className="text-sm font-bold text-white">Edu</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/20 text-white font-medium">AI Tutor</span>
             </div>
             <div className="flex items-center gap-1">
               <button
@@ -200,10 +200,10 @@ export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username, on
             {messages.length === 0 && (
               <div className="text-center py-6">
                 <SparkleIcon className="w-8 h-8 text-indigo-400 mx-auto mb-2" />
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Hi{username ? ` ${username}` : ''}! I'm your AI tutor.</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Ask me anything about your studies.</p>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Hi{username ? ` ${username}` : ''}! I'm Edu, your AI tutor.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Ask me anything — I'm here to help you learn.</p>
                 <div className="mt-3 flex flex-col gap-1.5">
-                  {['Explain a concept', 'Help me study', 'Quiz me on a topic'].map(s => (
+                  {['Explain a concept', 'Help me prepare for exams', 'Summarize my notes'].map(s => (
                     <button
                       key={s}
                       onClick={() => { setInput(s); inputRef.current?.focus(); }}
