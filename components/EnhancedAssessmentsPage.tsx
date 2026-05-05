@@ -213,7 +213,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
             .finally(() => { if (mounted) setPublicChallengesLoading(false); });
         return () => { mounted = false; };
     }, []);
-    const [sortBy, setSortBy] = useState<'recent' | 'difficulty' | 'score'>('recent');
+    const [sortBy, setSortBy] = useState<'relevance' | 'recent' | 'difficulty' | 'score'>('relevance');
 
     // ── Personalised recommendations ────────────────────────────────────────
     const [recommendations, setRecommendations] = useState<RecommendedItem[]>([]);
@@ -324,7 +324,56 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
         return { ...assessment, displayTitle, _creator: creator };
     });
 
+    // Relevance score — higher = show first. Like YouTube/TikTok ranking.
+    const computeRelevanceScore = (exam: typeof processedAssessments[0]): number => {
+        let score = 0;
+        const examTags: string[] = (exam as any).tags || [];
+        const topic = (exam.topic || '').toLowerCase();
+        const title = (exam.displayTitle || '').toLowerCase();
+        const desc = (exam.description || '').toLowerCase();
+
+        // Backend personalised recommendation → strong boost
+        if (recommendations.some(r => r.id === exam.id)) score += 120;
+
+        if (userProfile) {
+            const rawInterests = (userProfile.interests || '').toLowerCase();
+            const interestList = rawInterests.split(/[,\s]+/).filter(Boolean);
+            const typeMatch = (userProfile.learner_type || '').toLowerCase();
+            const goalMatch = (userProfile.learning_goal || '').toLowerCase();
+
+            // Interest keyword match
+            interestList.forEach(interest => {
+                if (topic.includes(interest) || title.includes(interest)) score += 40;
+                if (desc.includes(interest)) score += 15;
+                if (examTags.some(t => t.toLowerCase().includes(interest))) score += 20;
+            });
+
+            // Learning goal match
+            if (goalMatch && (desc.includes(goalMatch) || title.includes(goalMatch))) score += 30;
+
+            // Learner type alignment
+            if (typeMatch === 'high_school' && (desc.includes('high school') || desc.includes('secondary'))) score += 25;
+            if (typeMatch === 'university' && desc.includes('university')) score += 25;
+
+            // Olympiad content — only boost for users with math interests
+            const hasMathInterest = ['math', 'olympiad', 'imo', 'pamo', 'eamo', 'algebra', 'geometry', 'competition']
+                .some(k => rawInterests.includes(k));
+            if (examTags.includes('olympiad') && !hasMathInterest) score -= 60;
+        }
+
+        // Penalise already-completed assessments slightly — surface fresh content
+        if (exam.status === 'completed') score -= 10;
+
+        // Mastery data boost — low mastery topics need more practice
+        const masteryEntry = mastery[topic];
+        if (masteryEntry && masteryEntry.avg_score < 60) score += 20;
+
+        return score;
+    };
+
     const filteredAssessments = processedAssessments.filter(exam => {
+        const examTags: string[] = (exam as any).tags || [];
+
         const matchesStatus = filterType === 'all'
             ? true
             : filterType === 'completed'
@@ -333,7 +382,6 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
 
         const isRecommended = () => {
             if (!userProfile) return false;
-            // interests may be a comma-joined string or an array serialised as string
             const rawInterests = userProfile.interests || '';
             const interestList = rawInterests.split(/[,\s]+/).map(s => s.toLowerCase()).filter(Boolean);
             const topic = (exam.topic || '').toLowerCase();
@@ -350,7 +398,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
             );
         };
 
-        const matchesAssessmentType = filterAssessmentType === 'all' 
+        const matchesAssessmentType = filterAssessmentType === 'all'
             || (filterAssessmentType === 'recommended' ? isRecommended() : exam.assessment_type === filterAssessmentType);
 
         const matchesSubject = filterSubject === 'all' || exam.topic === filterSubject;
@@ -360,13 +408,15 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
             exam.topic.toLowerCase().includes(searchQuery.toLowerCase()) ||
             (exam.description || '').toLowerCase().includes(searchQuery.toLowerCase());
 
-        const examTags: string[] = (exam as any).tags || [];
         const matchesTag = filterTag === 'all' || examTags.includes(filterTag);
 
         return matchesStatus && matchesAssessmentType && matchesSubject && matchesSearch && matchesTag;
     });
 
     const sortedAssessments = [...filteredAssessments].sort((a, b) => {
+        if (sortBy === 'relevance') {
+            return computeRelevanceScore(b) - computeRelevanceScore(a);
+        }
         if (sortBy === 'difficulty') {
             const difficultyOrder: Record<string, number> = { easy: 1, medium: 2, hard: 3 };
             return (difficultyOrder[a.difficulty || 'medium'] || 2) - (difficultyOrder[b.difficulty || 'medium'] || 2);
@@ -754,6 +804,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                             onChange={(e) => setSortBy(e.target.value as any)}
                             className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                         >
+                            <option value="relevance">For You</option>
                             <option value="recent">Recent</option>
                             <option value="difficulty">Difficulty</option>
                             <option value="score">Score</option>

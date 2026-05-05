@@ -640,12 +640,56 @@ Requirements:
 
 
 
+def _build_performance_snippet(user) -> str:
+    """Return a compact learner-profile string to personalise Edu's responses.
+
+    Keeps the token budget low: at most ~200 chars injected.
+    Returns empty string if nothing useful is available.
+    """
+    try:
+        from assessments.models import UserAttempt
+        attempts = (
+            UserAttempt.objects
+            .filter(user=user, status='graded')
+            .select_related('assessment')
+            .order_by('-submitted_at')[:20]
+        )
+        if not attempts:
+            return ''
+
+        topic_scores: dict[str, list[float]] = {}
+        for a in attempts:
+            topic = (a.assessment.topic or '').strip()
+            if not topic:
+                continue
+            topic_scores.setdefault(topic, []).append(a.percentage)
+
+        if not topic_scores:
+            return ''
+
+        lines = []
+        for topic, scores in topic_scores.items():
+            avg = sum(scores) / len(scores)
+            label = 'struggling' if avg < 50 else ('improving' if avg < 75 else 'strong')
+            lines.append(f"{topic}: {label} ({avg:.0f}%)")
+
+        # Sort weakest first so Edu can prioritise
+        lines.sort(key=lambda l: float(l.split('(')[1].rstrip('%)') or 100))
+        top = lines[:5]  # cap at 5 topics to stay lean
+
+        learner_type = getattr(user, 'learner_type', '') or ''
+        profile_note = f"Learner type: {learner_type}. " if learner_type else ''
+        return f"Student performance profile — {profile_note}Recent topics: {'; '.join(top)}. Tailor explanations to their level and suggest extra practice on weak areas."
+    except Exception:
+        return ''
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def chat(request):
     """
     Handle chat messages with Gemini API.
-    
+
     Expected request body:
     {
         "message": "string",
@@ -692,7 +736,12 @@ When video/learning context is provided, use it to give more relevant answers. I
 When asked to quiz the user, ask questions ONLY — do NOT provide answers, hints, or explanations until the user has attempted to answer. Let the user think first.
 
 You can also help users navigate the EduReach platform: they can find assessments under the Assessments section, create courses, join study groups, and access their learning analytics. If a user needs an assessment on a topic, encourage them to visit the Assessments section."""
-        
+
+        # Inject a compact learner performance snapshot into the system prompt
+        perf_snippet = _build_performance_snippet(request.user)
+        if perf_snippet:
+            system_instruction += f"\n\n{perf_snippet}"
+
         optimized_context = context
         # Keep chat prompts tight for consistent latency on free-tier models.
         if context and len(context) > 2500:

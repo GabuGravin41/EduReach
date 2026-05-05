@@ -53,9 +53,40 @@ EN_FILES = [
 SUBFIELDS = ['Geometry', 'Algebra', 'Combinatorics', 'Number Theory']
 
 DIFF_LABEL = {
-    'comp_oe': 'Competition OE',
-    'comp_tp': 'Proof',
+    'comp_oe': 'EAMO',
+    'comp_tp': 'IMO/PAMO',
 }
+
+# Tier config: (problems_per_paper, time_limit_minutes, competition_name)
+TIER_CONFIG = {
+    'comp_oe': (5, 180, 'EAMO'),
+    'comp_tp': (4, 240, 'IMO/PAMO'),
+}
+
+# Solution-length thresholds for sub-tier tagging (chars)
+# OE: eamo_easy < 600 ≤ eamo_medium < 1400 ≤ eamo_hard
+# TP: pamo_easy < 900 ≤ pamo_medium < 2000 ≤ imo_easy
+SUB_TIER_THRESHOLDS = {
+    'comp_oe': [
+        (600,  'eamo_easy'),
+        (1400, 'eamo_medium'),
+        (None, 'eamo_hard'),
+    ],
+    'comp_tp': [
+        (900,  'pamo_easy'),
+        (2000, 'pamo_medium'),
+        (None, 'imo_easy'),
+    ],
+}
+
+
+def _solution_sub_tier(solution_text: str, difficulty: str) -> str:
+    """Return eamo_easy/eamo_medium/eamo_hard or pamo_easy/pamo_medium/imo_easy."""
+    n = len(solution_text or '')
+    for threshold, label in SUB_TIER_THRESHOLDS[difficulty]:
+        if threshold is None or n < threshold:
+            return label
+    return SUB_TIER_THRESHOLDS[difficulty][-1][1]
 
 
 class Command(BaseCommand):
@@ -64,7 +95,6 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--admin-user', default=None)
         parser.add_argument('--dry-run', action='store_true')
-        parser.add_argument('--problems-per-paper', type=int, default=5)
 
     def handle(self, *args, **options):
         from django.contrib.auth import get_user_model
@@ -90,7 +120,6 @@ class Command(BaseCommand):
         self.stdout.write(f'Dataset : {DATASET_ROOT}')
 
         dry = options['dry_run']
-        ppp = options['problems_per_paper']  # problems per paper
 
         # ── Load all records grouped by (subfield, difficulty) ───────────────
         buckets: dict[tuple, list] = {}   # (subfield, difficulty) → [row, ...]
@@ -116,8 +145,9 @@ class Command(BaseCommand):
 
         if dry:
             for (sf, diff), rows in sorted(buckets.items()):
+                ppp, time_limit, comp = TIER_CONFIG[diff]
                 papers = _ceil_div(len(rows), ppp)
-                self.stdout.write(f'  {sf:20s} {diff:10s}  {len(rows):4d} problems → {papers} papers')
+                self.stdout.write(f'  {sf:20s} {diff:10s}  {len(rows):4d} problems → {papers} papers ({ppp}/paper, {time_limit}min)')
             return
 
         # ── Seed ─────────────────────────────────────────────────────────────
@@ -127,6 +157,8 @@ class Command(BaseCommand):
 
         for (subfield, difficulty), rows in sorted(buckets.items()):
             diff_label = DIFF_LABEL.get(difficulty, difficulty)
+            ppp, time_limit, comp_name = TIER_CONFIG[difficulty]
+
             # Batch into papers of ppp
             for paper_idx, batch_start in enumerate(range(0, len(rows), ppp), start=1):
                 batch = rows[batch_start: batch_start + ppp]
@@ -137,14 +169,22 @@ class Command(BaseCommand):
                 if Assessment.objects.filter(creator=creator, title=title).exists():
                     continue
 
-                description = (
-                    f'{subfield} practice — {diff_label.lower()} level. '
-                    f'{len(batch)} problems. Source: OlympiadBench (COMP).'
-                )
-                tags = ['olympiad', 'math', subfield.lower().replace(' ', '_'), subfield,
-                        difficulty.replace('_', '-')]
+                # Collect sub-tier difficulty tags for this batch
+                sub_tiers = set()
+                for row, _ in batch:
+                    _, sol_text, _ = _parse_row(row)
+                    sub_tiers.add(_solution_sub_tier(sol_text, difficulty))
 
-                time_limit = 30 * len(batch)  # 30 min per problem
+                description = (
+                    f'{subfield} practice — {diff_label} level. '
+                    f'{len(batch)} problems, {time_limit} minutes. Source: OlympiadBench (COMP).'
+                )
+                tags = [
+                    'olympiad', 'math',
+                    subfield.lower().replace(' ', '_'),
+                    subfield,
+                    difficulty.replace('_', '-'),
+                ] + sorted(sub_tiers)
 
                 assessment = Assessment.objects.create(
                     title=title,
@@ -157,6 +197,7 @@ class Command(BaseCommand):
                     is_public=True,
                     allow_students_see_results=True,
                     difficulty_level=difficulty,
+                    competition_name=comp_name,
                     source_attribution='OlympiadBench Dataset',
                     source_url='https://huggingface.co/datasets/GAIR/OlympiadBench',
                     tags=tags,
