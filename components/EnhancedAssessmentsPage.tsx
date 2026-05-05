@@ -787,18 +787,6 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
                             <option value="pending">Pending</option>
                             <option value="completed">Completed</option>
                         </select>
-                        {uniqueSubjects.length > 0 && (
-                            <select
-                                value={filterSubject}
-                                onChange={(e) => setFilterSubject(e.target.value)}
-                                className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-                            >
-                                <option value="all">All subjects</option>
-                                {uniqueSubjects.map(subject => (
-                                    <option key={subject} value={subject}>{subject}</option>
-                                ))}
-                            </select>
-                        )}
                         <select
                             value={sortBy}
                             onChange={(e) => setSortBy(e.target.value as any)}
