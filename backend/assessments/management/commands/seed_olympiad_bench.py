@@ -8,29 +8,29 @@ Files processed (English, Maths only):
   TP_MM_maths_en_COMP.json    62 theorem-proving, multimodal
   Total: 1,389 problems
 
-Grouping: 5 problems per assessment, grouped by subfield (Geometry, Algebra,
-Combinatorics, Number Theory).
+Paper structure (mirrors real olympiad papers):
+  Each paper draws from ALL four subfields: Algebra, Geometry,
+  Combinatorics, Number Theory.  The algorithm guarantees ≥1 problem
+  per subfield per paper whenever supply allows, then fills remaining
+  slots from the largest remaining pools.
+
+  OE papers (EAMO level):  5 problems, 180 min
+  TP papers (IMO/PAMO):    4 problems, 240 min
 
 Difficulty mapping:
   OE files → comp_oe  (Competition, answer is numerical/expression)
   TP files → comp_tp  (Competition, answer is a full proof)
 
-Image format in dataset: <img_XXXX> → stored as ![](img_XXXX.jpg) in
-question_text / explanation, and saved to media/question_images/.
-
 Usage:
   python manage.py seed_olympiad_bench
   python manage.py seed_olympiad_bench --admin-user admin@edureach.co.ke
   python manage.py seed_olympiad_bench --dry-run
-  python manage.py seed_olympiad_bench --problems-per-paper 10
 """
 
 import ast
-import io
 import json
 import os
 import re
-import shutil
 from pathlib import Path
 
 from django.core.files.base import ContentFile
@@ -42,7 +42,6 @@ DATASET_ROOT = Path(__file__).resolve().parents[4] / 'OlympiadBench_Dataset'
 DATA_DIR     = DATASET_ROOT / 'data'
 IMAGES_DIR   = DATASET_ROOT / 'images'
 
-# Only English math files
 EN_FILES = [
     ('OE_TO_maths_en_COMP.json', 'comp_oe', False),
     ('OE_MM_maths_en_COMP.json', 'comp_oe', True),
@@ -50,38 +49,27 @@ EN_FILES = [
     ('TP_MM_maths_en_COMP.json', 'comp_tp', True),
 ]
 
-SUBFIELDS = ['Geometry', 'Algebra', 'Combinatorics', 'Number Theory']
+SUBFIELDS = ['Algebra', 'Geometry', 'Number Theory', 'Combinatorics']
 
 DIFF_LABEL = {
     'comp_oe': 'EAMO',
     'comp_tp': 'IMO/PAMO',
 }
 
-# Tier config: (problems_per_paper, time_limit_minutes, competition_name)
+# (problems_per_paper, time_limit_minutes, competition_name)
 TIER_CONFIG = {
     'comp_oe': (5, 180, 'EAMO'),
     'comp_tp': (4, 240, 'IMO/PAMO'),
 }
 
-# Solution-length thresholds for sub-tier tagging (chars)
-# OE: eamo_easy < 600 ≤ eamo_medium < 1400 ≤ eamo_hard
-# TP: pamo_easy < 900 ≤ pamo_medium < 2000 ≤ imo_easy
+# Solution-length thresholds for sub-tier tagging
 SUB_TIER_THRESHOLDS = {
-    'comp_oe': [
-        (600,  'eamo_easy'),
-        (1400, 'eamo_medium'),
-        (None, 'eamo_hard'),
-    ],
-    'comp_tp': [
-        (900,  'pamo_easy'),
-        (2000, 'pamo_medium'),
-        (None, 'imo_easy'),
-    ],
+    'comp_oe': [(600, 'eamo_easy'), (1400, 'eamo_medium'), (None, 'eamo_hard')],
+    'comp_tp': [(900, 'pamo_easy'), (2000, 'pamo_medium'), (None, 'imo_easy')],
 }
 
 
 def _solution_sub_tier(solution_text: str, difficulty: str) -> str:
-    """Return eamo_easy/eamo_medium/eamo_hard or pamo_easy/pamo_medium/imo_easy."""
     n = len(solution_text or '')
     for threshold, label in SUB_TIER_THRESHOLDS[difficulty]:
         if threshold is None or n < threshold:
@@ -89,8 +77,47 @@ def _solution_sub_tier(solution_text: str, difficulty: str) -> str:
     return SUB_TIER_THRESHOLDS[difficulty][-1][1]
 
 
+def _build_mixed_papers(pools: dict, ppp: int) -> list:
+    """
+    Draw from per-subfield pools to create mixed papers.
+
+    Each paper gets 1 problem from every non-empty subfield first,
+    then fills remaining slots from the largest remaining pool.
+    Returns a list of papers; each paper is a list of
+    (row_dict, is_multimodal, subfield) tuples.
+    """
+    # Work on copies so caller's lists are unchanged
+    work = {sf: list(rows) for sf, rows in pools.items() if rows}
+    papers = []
+
+    while any(work.values()):
+        paper = []
+
+        # Guarantee at least 1 per subfield while slots remain
+        for sf in SUBFIELDS:
+            if len(paper) >= ppp:
+                break
+            if work.get(sf):
+                row, is_mm = work[sf].pop(0)
+                paper.append((row, is_mm, sf))
+
+        # Fill any remaining slots from whichever pool is largest
+        while len(paper) < ppp:
+            available = [(sf, lst) for sf, lst in work.items() if lst]
+            if not available:
+                break
+            largest_sf = max(available, key=lambda x: len(x[1]))[0]
+            row, is_mm = work[largest_sf].pop(0)
+            paper.append((row, is_mm, largest_sf))
+
+        if paper:
+            papers.append(paper)
+
+    return papers
+
+
 class Command(BaseCommand):
-    help = 'Seed OlympiadBench English math problems into the assessment pool'
+    help = 'Seed OlympiadBench English math problems as mixed-subfield papers'
 
     def add_arguments(self, parser):
         parser.add_argument('--admin-user', default=None)
@@ -121,8 +148,12 @@ class Command(BaseCommand):
 
         dry = options['dry_run']
 
-        # ── Load all records grouped by (subfield, difficulty) ───────────────
-        buckets: dict[tuple, list] = {}   # (subfield, difficulty) → [row, ...]
+        # ── Load problems grouped by (difficulty, subfield) ──────────────────
+        # pools[difficulty][subfield] = [(row, is_multimodal), ...]
+        pools: dict[str, dict[str, list]] = {
+            'comp_oe': {sf: [] for sf in SUBFIELDS},
+            'comp_tp': {sf: [] for sf in SUBFIELDS},
+        }
 
         for filename, difficulty, is_multimodal in EN_FILES:
             filepath = DATA_DIR / filename
@@ -137,17 +168,29 @@ class Command(BaseCommand):
                 subfield = row.get('subfield', '')
                 if subfield not in SUBFIELDS:
                     continue
-                key = (subfield, difficulty)
-                buckets.setdefault(key, []).append((row, is_multimodal))
+                pools[difficulty][subfield].append((row, is_multimodal))
 
-        total_problems = sum(len(v) for v in buckets.values())
-        self.stdout.write(f'Problems: {total_problems} across {len(buckets)} buckets')
-
+        # ── Dry run ──────────────────────────────────────────────────────────
         if dry:
-            for (sf, diff), rows in sorted(buckets.items()):
-                ppp, time_limit, comp = TIER_CONFIG[diff]
-                papers = _ceil_div(len(rows), ppp)
-                self.stdout.write(f'  {sf:20s} {diff:10s}  {len(rows):4d} problems → {papers} papers ({ppp}/paper, {time_limit}min)')
+            self.stdout.write('')
+            for difficulty in ('comp_oe', 'comp_tp'):
+                ppp, time_limit, comp_name = TIER_CONFIG[difficulty]
+                diff_label = DIFF_LABEL[difficulty]
+                subfield_counts = {sf: len(pools[difficulty][sf]) for sf in SUBFIELDS}
+                total = sum(subfield_counts.values())
+                papers = _build_mixed_papers(pools[difficulty], ppp)
+                self.stdout.write(
+                    f'{diff_label} ({difficulty})  {total} problems → {len(papers)} mixed papers '
+                    f'({ppp} problems/paper, {time_limit} min)'
+                )
+                for sf in SUBFIELDS:
+                    self.stdout.write(f'    {sf}: {subfield_counts[sf]} problems')
+                # Show the subfield composition of the first 3 papers
+                self.stdout.write('  First 3 paper compositions:')
+                for i, paper in enumerate(papers[:3], 1):
+                    comp = ', '.join(f'{sf[:3]}' for _, _, sf in paper)
+                    self.stdout.write(f'    Paper {i:03d}: [{comp}]')
+                self.stdout.write('')
             return
 
         # ── Seed ─────────────────────────────────────────────────────────────
@@ -155,40 +198,42 @@ class Command(BaseCommand):
         total_created_questions   = 0
         total_created_images      = 0
 
-        for (subfield, difficulty), rows in sorted(buckets.items()):
-            diff_label = DIFF_LABEL.get(difficulty, difficulty)
+        for difficulty in ('comp_oe', 'comp_tp'):
+            diff_label = DIFF_LABEL[difficulty]
             ppp, time_limit, comp_name = TIER_CONFIG[difficulty]
 
-            # Batch into papers of ppp
-            for paper_idx, batch_start in enumerate(range(0, len(rows), ppp), start=1):
-                batch = rows[batch_start: batch_start + ppp]
+            papers = _build_mixed_papers(pools[difficulty], ppp)
+            self.stdout.write(
+                f'\nSeeding {diff_label}: {len(papers)} mixed papers…'
+            )
 
-                title = f'{subfield} — {diff_label} Set {paper_idx:03d}'
+            for paper_idx, paper in enumerate(papers, start=1):
+                subfields_in_paper = sorted({sf for _, _, sf in paper})
+                title = f'{diff_label} Mixed Paper {paper_idx:03d}'
 
-                # Skip if already seeded
                 if Assessment.objects.filter(creator=creator, title=title).exists():
                     continue
 
-                # Collect sub-tier difficulty tags for this batch
                 sub_tiers = set()
-                for row, _ in batch:
+                for row, _, _ in paper:
                     _, sol_text, _ = _parse_row(row)
                     sub_tiers.add(_solution_sub_tier(sol_text, difficulty))
 
+                sf_short = ' · '.join(s[:3] for s in subfields_in_paper)
                 description = (
-                    f'{subfield} practice — {diff_label} level. '
-                    f'{len(batch)} problems, {time_limit} minutes. Source: OlympiadBench (COMP).'
+                    f'{diff_label} level olympiad paper — {len(paper)} problems, '
+                    f'{time_limit} minutes. Subfields: {", ".join(subfields_in_paper)}. '
+                    f'Source: OlympiadBench (COMP).'
                 )
-                tags = [
-                    'olympiad', 'math',
-                    subfield.lower().replace(' ', '_'),
-                    subfield,
-                    difficulty.replace('_', '-'),
-                ] + sorted(sub_tiers)
+                tags = (
+                    ['olympiad', 'math', 'mixed', difficulty.replace('_', '-')]
+                    + [sf.lower().replace(' ', '_') for sf in subfields_in_paper]
+                    + sorted(sub_tiers)
+                )
 
                 assessment = Assessment.objects.create(
                     title=title,
-                    topic=subfield,
+                    topic='Olympiad',
                     description=description,
                     creator=creator,
                     time_limit_minutes=time_limit,
@@ -204,11 +249,14 @@ class Command(BaseCommand):
                 )
                 total_created_assessments += 1
 
-                for q_order, (row, is_multimodal) in enumerate(batch, start=1):
+                for q_order, (row, is_multimodal, subfield) in enumerate(paper, start=1):
                     question_text, sol_text, final_ans = _parse_row(row)
                     context = row.get('context', '') or ''
                     if context and context.lower() != 'none':
                         question_text = f'**Context:** {context}\n\n{question_text}'
+
+                    # Prefix with subfield label so students know what they're solving
+                    question_text = f'**[{subfield}]**\n\n{question_text}'
 
                     q_type = (
                         Question.QuestionType.SHORT_ANSWER
@@ -216,7 +264,7 @@ class Command(BaseCommand):
                         else Question.QuestionType.ESSAY
                     )
 
-                    q_imgs: list[tuple[str, str]] = []   # (filename, abs_path)
+                    q_imgs: list[tuple[str, str]] = []
                     if is_multimodal:
                         question_text, q_imgs_q = _replace_img_tags(question_text)
                         sol_text, q_imgs_s      = _replace_img_tags(sol_text)
@@ -234,7 +282,6 @@ class Command(BaseCommand):
                     )
                     total_created_questions += 1
 
-                    # Save images
                     for img_filename, img_abs_path in q_imgs:
                         if not os.path.exists(img_abs_path):
                             continue
@@ -245,10 +292,7 @@ class Command(BaseCommand):
                         total_created_images += 1
 
             self.stdout.write(
-                self.style.SUCCESS(
-                    f'  {subfield:20s} {difficulty:10s} '
-                    f'→ {_ceil_div(len(rows), ppp)} papers'
-                )
+                self.style.SUCCESS(f'  {diff_label}: {paper_idx} papers seeded.')
             )
 
         self.stdout.write(
@@ -262,10 +306,7 @@ class Command(BaseCommand):
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _parse_row(row: dict) -> tuple[str, str, str]:
-    """Return (question_text, solution_text, final_answer)."""
     question = row.get('question', '') or ''
-
-    # solution and final_answer are stored as Python-list strings
     sol_raw = row.get('solution', '') or ''
     fa_raw  = row.get('final_answer', '') or ''
 
@@ -285,11 +326,6 @@ def _parse_row(row: dict) -> tuple[str, str, str]:
 
 
 def _replace_img_tags(text) -> tuple[str, list[tuple[str, str]]]:
-    """
-    Replace every <img_XXXX> in text with ![](img_XXXX.jpg).
-    Returns (new_text, [(filename, abs_path), ...]).
-    Handles None or non-string gracefully.
-    """
     if not isinstance(text, str):
         return (text or ''), []
 
@@ -307,7 +343,3 @@ def _replace_img_tags(text) -> tuple[str, list[tuple[str, str]]]:
 
     new_text = re.sub(r'<img_(\d+)>', replacer, text)
     return new_text, refs
-
-
-def _ceil_div(a: int, b: int) -> int:
-    return (a + b - 1) // b
