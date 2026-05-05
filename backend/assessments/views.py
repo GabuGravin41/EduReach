@@ -20,6 +20,7 @@ from users.models import User as UserModel, Notification
 class AssessmentViewSet(viewsets.ModelViewSet):
     """ViewSet for managing assessments."""
     queryset = Assessment.objects.filter(is_public=True)
+    pagination_class = None  # return all assessments in one response — frontend sorts/filters client-side
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get_serializer_class(self):

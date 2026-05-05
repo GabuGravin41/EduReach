@@ -100,9 +100,20 @@ export const assessmentService = {
     try {
       const response = await apiClient.get(API_ENDPOINTS.ASSESSMENTS);
       const data = response.data;
-      // Backend uses PageNumberPagination: { count, next, previous, results }
-      if (data && Array.isArray((data as any).results)) return (data as any).results;
+      // Flat array (pagination disabled on server)
       if (Array.isArray(data)) return data;
+      // Paginated envelope — collect all pages
+      if (data && Array.isArray((data as any).results)) {
+        let results: Assessment[] = [...(data as any).results];
+        let nextUrl: string | null = (data as any).next ?? null;
+        while (nextUrl) {
+          const pageResp = await apiClient.get(nextUrl);
+          const pageData = pageResp.data;
+          results = results.concat(Array.isArray(pageData.results) ? pageData.results : []);
+          nextUrl = pageData.next ?? null;
+        }
+        return results;
+      }
       return [];
     } catch (error) {
       console.error('Error fetching assessments:', error);
