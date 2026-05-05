@@ -649,6 +649,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   };
 
   return (
+    <>
     <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-4rem)] overflow-hidden relative p-4 sm:p-6 lg:p-0">
       {/* ── Lesson completion celebration banner ── */}
       {showCompletionBanner && (
@@ -1137,5 +1138,6 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
         </div>
       </div>
     )}
+    </>
   );
 };
