@@ -277,6 +277,7 @@ const AppContent: React.FC = () => {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [userTier, setUserTier] = useState<UserTier>('free');
+    const [learnerType, setLearnerType] = useState<string>('');
     const [sessionExpiredNotice, setSessionExpiredNotice] = useState('');
     const [aiStatus, setAiStatus] = useState<'unknown' | 'up' | 'down'>('unknown');
     const [isOffline, setIsOffline] = useState<boolean>(typeof navigator !== 'undefined' ? !navigator.onLine : false);
@@ -342,6 +343,7 @@ const AppContent: React.FC = () => {
     useEffect(() => {
       if (user) {
           setUserTier(normalizeUserTier(user.tier));
+          setLearnerType(user.learner_type ?? '');
       }
     }, [user]);
 
@@ -834,7 +836,7 @@ const AppContent: React.FC = () => {
         case 'study_groups':
            return <StudyGroupsPage />;
         case 'billing':
-           return <BillingPage currentTier={userTier} onSubscriptionActivated={(tier) => setUserTier(tier)} />;
+           return <BillingPage currentTier={userTier} onSubscriptionActivated={(tier) => setUserTier(tier)} learnerType={learnerType} />;
         case 'profile':
            return <UserProfilePage />;
         case 'admin_panel':
@@ -928,15 +930,16 @@ const AppContent: React.FC = () => {
     return (
       <>
       <div className="flex h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-y-hidden">
-        <Sidebar 
-          currentView={currentView} 
-          setView={setView} 
-          onLogout={async () => { await logout(); }} 
+        <Sidebar
+          currentView={currentView}
+          setView={setView}
+          onLogout={async () => { await logout(); }}
           onNewSession={() => setView('setup_session')}
           isCollapsed={isSidebarCollapsed}
           setIsCollapsed={setIsSidebarCollapsed}
           userTier={userTier}
           onTierChange={setUserTier}
+          learnerType={learnerType}
           isMobileOpen={isMobileOpen}
           setIsMobileOpen={setIsMobileOpen}
           isDark={isDark}

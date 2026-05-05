@@ -32,6 +32,7 @@ interface SidebarProps {
   setIsCollapsed: (isCollapsed: boolean) => void;
   userTier: UserTier;
   onTierChange: (tier: UserTier) => void;
+  learnerType?: string;
   isMobileOpen: boolean;
   setIsMobileOpen: (isOpen: boolean) => void;
   isDark?: boolean;
@@ -67,26 +68,36 @@ const RoleSwitcher: React.FC<{ currentTier: UserTier; onTierChange: (tier: UserT
     );
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout, onNewSession, isCollapsed, setIsCollapsed, userTier, onTierChange, isMobileOpen, setIsMobileOpen, isDark, onToggleDark }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout, onNewSession, isCollapsed, setIsCollapsed, userTier, onTierChange, learnerType, isMobileOpen, setIsMobileOpen, isDark, onToggleDark }) => {
   const { user } = useAuth();
   const avatarUrl = user?.avatar ? authService.getMediaUrl(user.avatar) : null;
 
-  // Only show admin-specific UI elements to admin users
   const safeTier: UserTier = userTier in tierNames ? userTier : 'free';
   const isAdmin = safeTier === 'admin';
-  
+
+  // Role helpers — educator = teacher or professional
+  const isEducator = learnerType === 'teacher' || learnerType === 'professional';
+  const isStudent = learnerType === 'high_school' || learnerType === 'university';
+
   const navItems = [
-    { id: 'dashboard', label: 'Home', icon: DashboardIcon, adminOnly: false },
-    { id: 'admin_panel', label: 'Admin Panel', icon: AdminPanelIcon, adminOnly: true },
-    { id: 'courses', label: 'My Courses', icon: BookOpenIcon, adminOnly: false },
-    { id: 'personal_sessions', label: 'My Sessions', icon: NewSessionIcon, adminOnly: false },
-    { id: 'assessments', label: 'Assessments', icon: ClipboardCheckIcon, adminOnly: false },
-    { id: 'exam_sessions', label: 'Exam Sessions', icon: ClipboardCheckIcon, adminOnly: false },
-    { id: 'analytics', label: 'Analytics', icon: AnalyticsIcon, adminOnly: false },
-    { id: 'community', label: 'Community', icon: UsersIcon, adminOnly: false },
-    { id: 'study_groups', label: 'Study Groups', icon: UsersIcon, adminOnly: false },
-    { id: 'billing', label: 'Billing & Plans', icon: PriceTagIcon, adminOnly: false },
+    { id: 'dashboard',        label: 'Home',            icon: DashboardIcon,      adminOnly: false, educatorOnly: false },
+    { id: 'admin_panel',      label: 'Admin Panel',     icon: AdminPanelIcon,     adminOnly: true,  educatorOnly: false },
+    { id: 'courses',          label: 'My Courses',      icon: BookOpenIcon,       adminOnly: false, educatorOnly: false },
+    { id: 'personal_sessions',label: 'My Sessions',     icon: NewSessionIcon,     adminOnly: false, educatorOnly: false },
+    { id: 'assessments',      label: 'Assessments',     icon: ClipboardCheckIcon, adminOnly: false, educatorOnly: false },
+    { id: 'exam_sessions',    label: 'Exam Sessions',   icon: ClipboardCheckIcon, adminOnly: false, educatorOnly: true },
+    { id: 'analytics',        label: 'Analytics',       icon: AnalyticsIcon,      adminOnly: false, educatorOnly: false },
+    { id: 'community',        label: 'Community',       icon: UsersIcon,          adminOnly: false, educatorOnly: false },
+    { id: 'study_groups',     label: 'Study Groups',    icon: UsersIcon,          adminOnly: false, educatorOnly: false },
+    { id: 'billing',          label: 'Billing & Plans', icon: PriceTagIcon,       adminOnly: false, educatorOnly: false },
   ];
+
+  // Hide educator-only items from students (when role is known)
+  const visibleNavItems = navItems.filter(item => {
+    if (item.adminOnly && !isAdmin) return false;
+    if (item.educatorOnly && isStudent) return false;
+    return true;
+  });
 
   const handleNavClick = (view: View) => {
     setView(view);
@@ -173,12 +184,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
 
       {/* Navigation Section - Scrollable on mobile */}
       <nav className="space-y-1 overflow-y-auto flex-1 min-h-0 lg:overflow-y-visible lg:flex-none">
-        {navItems.map(item => {
-          if (item.adminOnly && safeTier !== 'admin') {
-              return null;
-          }
-          return <NavItem key={item.id} {...item} />
-        })}
+        {visibleNavItems.map(item => <NavItem key={item.id} {...item} />)}
       </nav>
 
       {/* Desktop collapse button - hidden on mobile */}
@@ -243,7 +249,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
                 <p className="font-semibold text-sm truncate text-gray-700 dark:text-white">
                   {user?.first_name ? `${user.first_name} ${user.last_name}`.trim() : 'Profile'}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{tierNames[safeTier]}</p>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{tierNames[safeTier]}</span>
+                  {learnerType && (
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none ${
+                      isEducator
+                        ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300'
+                        : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                    }`}>
+                      {learnerType === 'high_school' ? 'High School'
+                        : learnerType === 'university' ? 'University'
+                        : learnerType === 'teacher' ? 'Teacher'
+                        : 'Professional'}
+                    </span>
+                  )}
+                </div>
               </div>
             )}
           </button>

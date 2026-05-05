@@ -13,6 +13,7 @@ import { UserTier } from '../App';
 interface BillingPageProps {
   currentTier?: UserTier;
   onSubscriptionActivated?: (tier: 'learner' | 'pro') => void;
+  learnerType?: string;
 }
 
 type CurrencyCode = 'USD' | 'KES';
@@ -110,9 +111,9 @@ const formatAmount = (currency: CurrencyCode, amount: number): string =>
     : `$${amount.toLocaleString()} USD`;
 
 /** Show dual-currency price e.g. "$4 USD / KES 350" */
-const formatDualPrice = (tierKey: 'learner' | 'pro'): string => {
-  const t = tiers[tierKey];
-  return `$${t.monthlyPrice.USD} USD / KES ${t.monthlyPrice.KES.toLocaleString()}`;
+const formatDualPrice = (tierKey: 'learner' | 'pro', t: typeof tiers = tiers): string => {
+  const tier = t[tierKey];
+  return `$${tier.monthlyPrice.USD} USD / KES ${tier.monthlyPrice.KES.toLocaleString()}`;
 };
 
 const formatDate = (dateStr?: string | null): string => {
@@ -200,7 +201,21 @@ const FeatureCell: React.FC<{ value: string | boolean; isActive: boolean }> = ({
 };
 
 // ── Main Component ─────────────────────────────────────────────────────────
-export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', onSubscriptionActivated }) => {
+export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', onSubscriptionActivated, learnerType }) => {
+  const isEducator = learnerType === 'teacher' || learnerType === 'professional';
+
+  // Educators pay more — KES 399/mo starter, KES 999/mo pro
+  const effectiveTiers: typeof tiers = isEducator ? {
+    learner: {
+      ...tiers.learner,
+      monthlyPrice: { USD: 2.99, KES: 399 },
+      biweeklyPrice: { USD: 1.49, KES: 199 },
+    },
+    pro: {
+      ...tiers.pro,
+      monthlyPrice: { USD: 6.99, KES: 999 },
+    },
+  } : tiers;
   const queryClient = useQueryClient();
   const [selectedTier, setSelectedTier] = useState<'learner' | 'pro'>('learner');
   // KES/M-Pesa only for now — USD payment will be enabled when card payments are added
@@ -245,9 +260,9 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
   const [activatedTier, setActivatedTier] = useState<'learner' | 'pro' | null>(null);
 
   const activeBillingCycle = selectedTier === 'learner' ? billingCycle : 'monthly';
-  const selectedPrice = activeBillingCycle === 'biweekly' && tiers[selectedTier].biweeklyPrice
-    ? tiers[selectedTier].biweeklyPrice![currency]
-    : tiers[selectedTier].monthlyPrice[currency];
+  const selectedPrice = activeBillingCycle === 'biweekly' && effectiveTiers[selectedTier].biweeklyPrice
+    ? effectiveTiers[selectedTier].biweeklyPrice![currency]
+    : effectiveTiers[selectedTier].monthlyPrice[currency];
 
   const methodsQuery = useQuery<PaymentMethod[]>({
     queryKey: ['payment-methods'],
@@ -427,7 +442,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     }
     const effectiveCurrency: CurrencyCode =
       selectedMethod?.name === 'mpesa' || selectedMethod?.name === 'mpesa_paybill' ? 'KES' : currency;
-    const amount = tiers[selectedTier].monthlyPrice[effectiveCurrency];
+    const amount = effectiveTiers[selectedTier].monthlyPrice[effectiveCurrency];
     const payload: any = {
       payment_method_id: selectedMethodId,
       amount,
@@ -478,9 +493,9 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     if (!phone) { setModalPaymentMessage('Please enter your M-Pesa phone number.'); return; }
     setModalPaymentMessage('');
     try {
-      const payAmount = activeBillingCycle === 'biweekly' && paymentModalTier === 'learner' && tiers.learner.biweeklyPrice
-        ? tiers.learner.biweeklyPrice.KES
-        : tiers[paymentModalTier].monthlyPrice.KES;
+      const payAmount = activeBillingCycle === 'biweekly' && paymentModalTier === 'learner' && effectiveTiers.learner.biweeklyPrice
+        ? effectiveTiers.learner.biweeklyPrice.KES
+        : effectiveTiers[paymentModalTier].monthlyPrice.KES;
       const response = await initiatePaymentMutation.mutateAsync({
         payment_method_id: mpesaMethod.id,
         amount: payAmount,
@@ -568,6 +583,21 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
           <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Plans & Billing</h1>
           <p className="text-slate-500 dark:text-slate-400">Manage your subscription and payment methods.</p>
         </div>
+        {learnerType && (
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium ${
+            isEducator
+              ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-700'
+              : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700'
+          }`}>
+            <span>{isEducator ? '👨‍🏫' : '🎓'}</span>
+            <span>
+              {isEducator ? 'Educator pricing applied' : 'Student pricing applied'} —{' '}
+              {isEducator
+                ? 'Starter KES 399/mo · Pro KES 999/mo'
+                : 'Starter KES 299/mo · Pro KES 799/mo'}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* ── Current subscription status ─────────────────────────────────── */}
@@ -671,8 +701,8 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                 <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-400 w-40">Feature</th>
                 {(['free', 'learner', 'pro'] as const).map((tk) => {
                   const isActive = safeCurrentTier === tk;
-                  const tierLabel = tk === 'free' ? 'Free' : tiers[tk as 'learner' | 'pro'].name;
-                  const price = tk === 'free' ? 'Free' : formatDualPrice(tk as 'learner' | 'pro');
+                  const tierLabel = tk === 'free' ? 'Free' : effectiveTiers[tk as 'learner' | 'pro'].name;
+                  const price = tk === 'free' ? 'Free' : formatDualPrice(tk as 'learner' | 'pro', effectiveTiers);
                   return (
                     <th
                       key={tk}
@@ -788,8 +818,8 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {(Object.keys(tiers) as Array<'learner' | 'pro'>).map((tierKey) => {
-              const tier = tiers[tierKey];
+            {(Object.keys(effectiveTiers) as Array<'learner' | 'pro'>).map((tierKey) => {
+              const tier = effectiveTiers[tierKey];
               const isSelected = selectedTier === tierKey;
               const isCurrent = safeCurrentTier === tierKey || (tierKey === 'pro' && safeCurrentTier === 'pro_plus');
               return (
@@ -884,13 +914,13 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
             <div className="pb-4 border-b border-slate-100 dark:border-slate-700">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Selected Plan</p>
               <div className="flex justify-between items-center">
-                <span className="font-bold text-lg text-slate-800 dark:text-slate-100">{tiers[selectedTier].name}</span>
+                <span className="font-bold text-lg text-slate-800 dark:text-slate-100">{effectiveTiers[selectedTier].name}</span>
                 <div className="text-right">
                   <p className="font-bold text-indigo-600 dark:text-indigo-400">{formatAmount(currency, selectedPrice)}</p>
                   <p className="text-[10px] text-slate-400">
                     {currency === 'KES'
-                      ? `$${tiers[selectedTier].monthlyPrice.USD} USD / mo`
-                      : `KES ${tiers[selectedTier].monthlyPrice.KES.toLocaleString()} / mo`}
+                      ? `$${effectiveTiers[selectedTier].monthlyPrice.USD} USD / mo`
+                      : `KES ${effectiveTiers[selectedTier].monthlyPrice.KES.toLocaleString()} / mo`}
                   </p>
                 </div>
               </div>
@@ -947,7 +977,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
             </div>
 
             {/* Billing cycle toggle — Starter only */}
-            {selectedTier === 'learner' && tiers.learner.biweeklyPrice && (
+            {selectedTier === 'learner' && effectiveTiers.learner.biweeklyPrice && (
               <div>
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Billing Cycle</p>
                 <div className="flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden text-sm font-semibold">
@@ -956,14 +986,14 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                     onClick={() => setBillingCycle('monthly')}
                     className={`flex-1 py-2 transition-colors ${billingCycle === 'monthly' ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                   >
-                    Monthly<br /><span className="text-xs font-normal">KES {tiers.learner.monthlyPrice.KES}</span>
+                    Monthly<br /><span className="text-xs font-normal">KES {effectiveTiers.learner.monthlyPrice.KES}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setBillingCycle('biweekly')}
                     className={`flex-1 py-2 transition-colors ${billingCycle === 'biweekly' ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                   >
-                    2 Weeks<br /><span className="text-xs font-normal">KES {tiers.learner.biweeklyPrice!.KES}</span>
+                    2 Weeks<br /><span className="text-xs font-normal">KES {effectiveTiers.learner.biweeklyPrice!.KES}</span>
                   </button>
                 </div>
               </div>
@@ -1041,11 +1071,11 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white">
               <div>
-                <h2 className="text-lg font-extrabold">Subscribe to {tiers[paymentModalTier].name}</h2>
+                <h2 className="text-lg font-extrabold">Subscribe to {effectiveTiers[paymentModalTier].name}</h2>
                 <p className="text-indigo-100 text-sm mt-0.5">
-                  {activeBillingCycle === 'biweekly' && paymentModalTier === 'learner' && tiers.learner.biweeklyPrice
-                    ? `KES ${tiers.learner.biweeklyPrice.KES.toLocaleString()} / 2 weeks`
-                    : `KES ${tiers[paymentModalTier].monthlyPrice.KES.toLocaleString()} / month`}
+                  {activeBillingCycle === 'biweekly' && paymentModalTier === 'learner' && effectiveTiers.learner.biweeklyPrice
+                    ? `KES ${effectiveTiers.learner.biweeklyPrice.KES.toLocaleString()} / 2 weeks`
+                    : `KES ${effectiveTiers[paymentModalTier].monthlyPrice.KES.toLocaleString()} / month`}
                 </p>
               </div>
               <button
@@ -1129,7 +1159,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                     <p className="font-semibold mb-1">Steps:</p>
                     <ol className="list-decimal list-inside space-y-1 text-left">
                       <li>Open M-Pesa on your phone</li>
-                      <li>You'll see a payment request for <strong>KES {(activeBillingCycle === 'biweekly' && paymentModalTier === 'learner' && tiers.learner.biweeklyPrice ? tiers.learner.biweeklyPrice.KES : tiers[paymentModalTier].monthlyPrice.KES).toLocaleString()}</strong></li>
+                      <li>You'll see a payment request for <strong>KES {(activeBillingCycle === 'biweekly' && paymentModalTier === 'learner' && effectiveTiers.learner.biweeklyPrice ? effectiveTiers.learner.biweeklyPrice.KES : effectiveTiers[paymentModalTier].monthlyPrice.KES).toLocaleString()}</strong></li>
                       <li>Enter your M-Pesa PIN to confirm</li>
                     </ol>
                   </div>
@@ -1189,7 +1219,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                   <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                     <span className="text-sm text-slate-600 dark:text-slate-400">You will be charged</span>
                     <span className="font-extrabold text-lg text-slate-900 dark:text-slate-100">
-                      KES {(activeBillingCycle === 'biweekly' && paymentModalTier === 'learner' && tiers.learner.biweeklyPrice ? tiers.learner.biweeklyPrice.KES : tiers[paymentModalTier].monthlyPrice.KES).toLocaleString()}
+                      KES {(activeBillingCycle === 'biweekly' && paymentModalTier === 'learner' && effectiveTiers.learner.biweeklyPrice ? effectiveTiers.learner.biweeklyPrice.KES : effectiveTiers[paymentModalTier].monthlyPrice.KES).toLocaleString()}
                       <span className="text-sm font-normal text-slate-400 ml-1">{activeBillingCycle === 'biweekly' ? '/ 2 wks' : '/ mo'}</span>
                     </span>
                   </div>
@@ -1215,7 +1245,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                     ) : (
                       <>
                         <span>📱</span>
-                        <span>Send STK Push — KES {(activeBillingCycle === 'biweekly' && paymentModalTier === 'learner' && tiers.learner.biweeklyPrice ? tiers.learner.biweeklyPrice.KES : tiers[paymentModalTier].monthlyPrice.KES).toLocaleString()}</span>
+                        <span>Send STK Push — KES {(activeBillingCycle === 'biweekly' && paymentModalTier === 'learner' && effectiveTiers.learner.biweeklyPrice ? effectiveTiers.learner.biweeklyPrice.KES : effectiveTiers[paymentModalTier].monthlyPrice.KES).toLocaleString()}</span>
                       </>
                     )}
                   </button>
