@@ -81,16 +81,16 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             </h1>
 
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              {this.state.error?.message || 'An unexpected error occurred'}
+              Something went wrong loading this page. Try refreshing — if the problem continues, please contact support.
             </p>
 
-            {process.env.NODE_ENV === 'development' && this.state.errorInfo && (
+            {process.env.NODE_ENV === 'development' && (
               <details className="text-left mb-6 p-4 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-900">
                 <summary className="cursor-pointer font-semibold text-sm text-red-900 dark:text-red-100">
-                  Error Details (Development Only)
+                  Error Details (Dev only)
                 </summary>
                 <pre className="text-xs text-red-800 dark:text-red-200 mt-2 overflow-auto max-h-48">
-                  {this.state.errorInfo.componentStack}
+                  {this.state.error?.message}{'\n'}{this.state.errorInfo?.componentStack}
                 </pre>
               </details>
             )}

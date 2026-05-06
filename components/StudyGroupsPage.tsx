@@ -495,13 +495,13 @@ export const StudyGroupsPage: React.FC = () => {
           </div>
 
           {/* Navigation */}
-          <div className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-6">
-            <div className="flex gap-6">
+          <div className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+            <div className="flex overflow-x-auto scrollbar-hide px-4 sm:px-6 gap-1 sm:gap-4">
               {(['overview', 'members', 'leaderboard', 'events', 'invites'] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => { setGroupTab(tab as any); setInviteStatus(null); }}
-                  className={`py-4 px-1 text-sm font-semibold border-b-2 transition-colors ${groupTab === tab
+                  className={`flex-shrink-0 py-3.5 px-3 sm:px-1 text-sm font-semibold border-b-2 transition-colors capitalize whitespace-nowrap ${groupTab === tab
                     ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
                     : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                     }`}

@@ -454,6 +454,8 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
   const results = isSubmitted ? calculateScore() : { earned: 0, total: 0 };
   const hasLocalGrades = Object.keys(gradingResults).length > 0;
   const isFullyGraded = serverAttempt?.status === 'graded';
+  // showResults: in practice mode (no server), reveal immediately; otherwise only after AI grading
+  const showResults = isFullyGraded || !assessmentId;
 
   if (questions.length === 0) {
     return (
@@ -475,7 +477,7 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
             const answerKey = `${q.id}-${currentBlankIdx}`;
             const val = answers[answerKey] || '';
             const expected = part.slice(1, -1);
-            const isCorrect = isSubmitted && val.toLowerCase().trim() === expected.toLowerCase().trim();
+            const isCorrect = showResults && val.toLowerCase().trim() === expected.toLowerCase().trim();
             return (
               <span key={i} className="mx-1 inline-block relative">
                 <input
@@ -607,7 +609,7 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
                 Time left: {formatTime(timeLeftSeconds)}
               </div>
             )}
-            {isSubmitted && (
+            {isSubmitted && showResults && (
               <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
                 {isFullyGraded && !hasLocalGrades && (serverAttempt?.score != null || serverAttempt?.percentage != null)
                   ? `Score: ${serverAttempt!.score ?? '—'}${serverAttempt!.percentage != null ? ` (${Math.round(serverAttempt!.percentage)}%)` : ''}`
@@ -619,8 +621,8 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
 
         {/* Info banner */}
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          You can type answers directly (LaTeX supported). If you're not comfortable typing math, you can upload an image instead.
-          Typed answers can be graded instantly; image uploads are stored for manual review.
+          You can type answers directly (LaTeX supported) or upload a photo of your written work.
+          Submit when done, then click <strong>Mark with AI</strong> to see your results.
         </div>
 
         {imageUploadGraceMinutes && imageUploadGraceMinutes > 0 && (
@@ -761,7 +763,7 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
 
             <div className="overflow-visible">
               {q.type === 'multiple_choice' && (() => {
-                const revealed = isSubmitted || easyGraded.has(String(q.id));
+                const revealed = showResults || easyGraded.has(String(q.id));
                 return (
                   <div className="space-y-2 pl-11 mt-1 min-h-[2rem]" role="listbox" aria-label="Answer options">
                     {(q as MultipleChoiceQuestion).options?.map((opt, i) => {
@@ -791,7 +793,7 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
               })()}
 
               {q.type === 'true_false' && (() => {
-                const revealed = isSubmitted || easyGraded.has(String(q.id));
+                const revealed = showResults || easyGraded.has(String(q.id));
                 return (
                   <div className="flex gap-4 pl-11">
                     {[true, false].map((val) => {
@@ -817,15 +819,20 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
 
               {q.type === 'short_answer' && (
                 <div className="pl-11">
-                  <input
-                    type="text"
+                  <textarea
                     value={answers[q.id] || ''}
                     onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                    onInput={(e) => {
+                      const t = e.currentTarget;
+                      t.style.height = 'auto';
+                      t.style.height = t.scrollHeight + 'px';
+                    }}
                     disabled={isSubmitted}
+                    rows={3}
                     placeholder="Type your answer... (Supports LaTeX: $x^2$)"
-                    className="w-full max-w-md p-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none dark:text-slate-100"
+                    className="w-full max-w-md p-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none dark:text-slate-100 resize-none overflow-hidden"
                   />
-                  {(isSubmitted || easyGraded.has(String(q.id))) && (q as ShortAnswerQuestion).correct_answers?.length > 0 && (
+                  {(showResults || easyGraded.has(String(q.id))) && (q as ShortAnswerQuestion).correct_answers?.length > 0 && (
                     <div className="mt-2 text-sm text-slate-500">
                       Correct answers: {(q as ShortAnswerQuestion).correct_answers?.join(', ')}
                     </div>
@@ -858,12 +865,12 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
                   <textarea
                     value={answers[q.id] || ''}
                     onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                    disabled={isSubmitted && !!gradingResults[q.id]}
+                    disabled={isSubmitted}
                     rows={6}
                     className="w-full p-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none dark:text-slate-100 resize-none font-mono text-sm"
                     placeholder="Write your response here... (Supports LaTeX: $x^2$, $$\\int_0^1 f(x)\\,dx$$)"
                   />
-                  {(isSubmitted || easyMode) && !gradingResults[q.id] && answers[q.id]?.trim() && (
+                  {(isSubmitted || easyMode) && !gradingResults[q.id] && (answers[q.id]?.trim() || uploadedImages[q.id]) && (
                     <div className="mt-3">
                       <Button onClick={() => handleGradeEssay(q as EssayQuestion)} disabled={isGrading[q.id]} variant="secondary" className="gap-2">
                         {isGrading[q.id] ? (
@@ -971,7 +978,7 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
                 </div>
               </div>
             )}
-            {(isSubmitted || easyGraded.has(String(q.id))) && (q as any).explanation && (
+            {(showResults || easyGraded.has(String(q.id))) && (q as any).explanation && (
               <div className="mt-4 ml-11 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300">
                 <div className="font-semibold text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">
                   {q.type === 'essay' ? 'Model Solution' : 'Explanation'}
