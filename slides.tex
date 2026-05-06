@@ -1,0 +1,313 @@
+% ============================================================
+%  EduReach — Week 1 Review & Week 2 Deliverables
+%  Compile with pdfLaTeX in Overleaf.
+%  Upload logo.jpeg alongside this file.
+% ============================================================
+\documentclass[aspectratio=169,13pt]{beamer}
+
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usepackage{fontawesome5}
+\usepackage{array}
+\usepackage{colortbl}
+\usepackage{enumitem}
+\usepackage{mdframed}
+
+% ── brand colours ────────────────────────────────────────────
+\definecolor{indigo}{HTML}{4F46E5}
+\definecolor{indigodark}{HTML}{3730A3}
+\definecolor{indigolight}{HTML}{EEF2FF}
+\definecolor{slate}{HTML}{475569}
+\definecolor{slatelight}{HTML}{F1F5F9}
+\definecolor{emerald}{HTML}{059669}
+\definecolor{emeraldlight}{HTML}{D1FAE5}
+\definecolor{amber}{HTML}{D97706}
+\definecolor{amberlight}{HTML}{FEF3C7}
+\definecolor{rose}{HTML}{E11D48}
+\definecolor{roselight}{HTML}{FFE4E6}
+\definecolor{violet}{HTML}{7C3AED}
+
+% ── beamer theme ─────────────────────────────────────────────
+\usetheme{default}
+\usecolortheme[named=indigo]{structure}
+\setbeamercolor{background canvas}{bg=white}
+\setbeamercolor{frametitle}{bg=indigodark, fg=white}
+\setbeamercolor{frametitle right}{bg=indigodark}
+\setbeamerfont{frametitle}{size=\large, series=\bfseries}
+\setbeamerfont{framesubtitle}{size=\footnotesize, series=\normalfont}
+\setbeamercolor{framesubtitle}{fg=white!75}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{frametitle}{
+  \vspace{6pt}
+  \insertframetitle\\
+  {\usebeamerfont{framesubtitle}\usebeamercolor[fg]{framesubtitle}\insertframesubtitle}
+  \vspace{4pt}
+}
+
+% ── footer ───────────────────────────────────────────────────
+\setbeamertemplate{footline}{
+  \leavevmode
+  \hbox{%
+    \begin{beamercolorbox}[wd=.55\paperwidth,ht=2.2ex,dp=1ex,leftskip=6pt]{palette quaternary}
+      \tiny\color{slate}EduReach\ \textbar\ Week 1 Review
+    \end{beamercolorbox}
+    \begin{beamercolorbox}[wd=.45\paperwidth,ht=2.2ex,dp=1ex,rightskip=6pt,right]{palette quaternary}
+      \tiny\color{slate}May 2026\ \textbar\ \insertframenumber/\inserttotalframenumber
+    \end{beamercolorbox}
+  }
+}
+
+% ── helpers ──────────────────────────────────────────────────
+\newcommand{\chip}[2]{%
+  \tikz[baseline=-0.5ex]\node[fill=#1, rounded corners=3pt,
+    inner xsep=5pt, inner ysep=2.5pt, text=white,
+    font=\bfseries\scriptsize]{#2};%
+}
+\newcommand{\done}{\chip{emerald}{\faCheck\ Done}}
+\newcommand{\inprog}{\chip{amber}{\faSpinner\ In Progress}}
+\newcommand{\blocked}{\chip{rose}{\faTimes\ Blocked}}
+
+% icon + bold label helper
+\newcommand{\iconrow}[3]{\textcolor{#1}{#2}\ \textbf{#3}}
+
+% ============================================================
+\begin{document}
+
+% ──────────────────────────────────────────────────────────────
+%  TITLE SLIDE
+% ──────────────────────────────────────────────────────────────
+{
+\setbeamercolor{background canvas}{bg=indigodark}
+\begin{frame}[plain]
+  \centering\vspace{0.7cm}
+  \IfFileExists{logo.jpeg}{%
+    \includegraphics[height=1.6cm]{logo.jpeg}\\[0.25cm]
+  }{%
+    {\Huge\bfseries\color{white}EduReach}\\[0.25cm]
+  }
+  {\Large\bfseries\color{white}Week 1 Review \& Week 2 Plan}\\[0.1cm]
+  {\small\color{white!65}What we shipped · Challenges we hit · What comes next}\\[0.55cm]
+
+  % thin rule
+  \begin{tikzpicture}
+    \draw[white!25, line width=0.4pt](0,0)--(13,0);
+  \end{tikzpicture}\\[0.4cm]
+
+  % 4 stat pills
+  \begin{tikzpicture}
+    \foreach \x/\val/\lab in {
+      0/117/USERS,
+      3.4/33\%/ACTIVE,
+      6.8/MVP/COMPLETE,
+      10.2/0/REVENUE}{
+      \node[fill=white!12, rounded corners=4pt,
+            minimum width=2.6cm, minimum height=1.1cm] at (\x,0) {};
+      \node[font=\Large\bfseries, text=white] at (\x, 0.18) {\val};
+      \node[font=\tiny\bfseries, text=white!55] at (\x,-0.32) {\lab};
+    }
+  \end{tikzpicture}\\[0.45cm]
+  {\scriptsize\color{white!50}Dalton Omondi \& Mary Syokau\ |\ Nairobi, Kenya}
+\end{frame}
+}
+
+% ──────────────────────────────────────────────────────────────
+%  SLIDE 1 — WHAT WE DID
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Slide 1 — What We Did This Week}
+\framesubtitle{Features shipped · Bugs fixed · Content updated}
+
+\begin{columns}[T]
+
+%% LEFT — product work
+\column{0.5\textwidth}
+  \textcolor{indigodark}{\textbf{\faRocket\ Product \& Features}}\\[5pt]
+  \begin{tabular}{@{}p{5.2cm}@{\hspace{4pt}}l@{}}
+    \scriptsize Guest trial — 14 days, no account needed     & \done \\[4pt]
+    \scriptsize Deferred AI marking (submit, then grade)      & \done \\[4pt]
+    \scriptsize Image answer upload (photo of written work)   & \done \\[4pt]
+    \scriptsize Study group searchable challenge picker       & \done \\[4pt]
+    \scriptsize Personalised dashboard (relevance ranking)    & \done \\[4pt]
+    \scriptsize Pop-out AI tutor on all pages                 & \done \\[4pt]
+    \scriptsize Olympiad papers seeded (multi-subject)        & \done \\[4pt]
+    \scriptsize Landing page — general language, new CTA      & \done \\[4pt]
+  \end{tabular}
+
+%% RIGHT — fixes + content
+\column{0.46\textwidth}
+  \textcolor{indigodark}{\textbf{\faWrench\ Fixes \& Content}}\\[5pt]
+  \begin{tabular}{@{}p{4.4cm}@{\hspace{4pt}}l@{}}
+    \scriptsize Mobile tab overflow (Events \& Invites hidden) & \done \\[4pt]
+    \scriptsize Answer input — no word wrap on mobile          & \done \\[4pt]
+    \scriptsize Google Sign-In failing on all browsers         & \done \\[4pt]
+    \scriptsize Raw error messages shown on production site    & \done \\[4pt]
+    \scriptsize Assessment list capped at 20 results           & \done \\[4pt]
+    \scriptsize Microeconomics content — 6 papers, 60 real MCQ questions & \done \\[4pt]
+    \scriptsize API session-expired loop for guest users       & \done \\[4pt]
+  \end{tabular}
+
+  \vspace{5pt}
+  \colorbox{indigolight}{%
+    \parbox{0.95\linewidth}{\scriptsize\color{indigodark}
+      \textbf{Progress report \& financial documentation} compiled
+      and ready for stakeholder review.
+    }
+  }
+\end{columns}
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+%  SLIDE 2 — CHALLENGES
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Slide 2 — Challenges We Faced}
+\framesubtitle{Technical blockers · Growth problems · Financial pressure}
+
+\begin{columns}[T]
+
+%% LEFT — technical & product challenges
+\column{0.5\textwidth}
+  \textcolor{rose}{\textbf{\faExclamationTriangle\ Technical \& Product}}\\[5pt]
+
+  \begin{tabular}{@{}p{0.08\linewidth}p{0.82\linewidth}@{}}
+    \textcolor{rose}{\faCircle} &
+      \scriptsize \textbf{Render → Contabo migration mid-sprint.}
+      Render RAM limits caused backend crashes under load.
+      Had to migrate VPS and re-configure while continuing to ship features.\\[5pt]
+
+    \textcolor{amber}{\faCircle} &
+      \scriptsize \textbf{Guest mode broke the entire auth interceptor.}
+      401 errors during guest sessions were triggering the session-expired
+      redirect, crashing the app for all unauthenticated visitors.\\[5pt]
+
+    \textcolor{amber}{\faCircle} &
+      \scriptsize \textbf{Google Sign-In was silently failing in all browsers.}
+      The \texttt{prompt()} One Tap method is suppressed by browser policies.
+      Took diagnosis to identify — switched to \texttt{renderButton()}.\\[5pt]
+
+    \textcolor{slate}{\faCircle} &
+      \scriptsize \textbf{Database had placeholder/spam assessment content.}
+      Microeconomics papers had 1-question placeholders with nonsense titles
+      (``examps''). Discovered during a review — manually corrected.\\[5pt]
+  \end{tabular}
+
+%% RIGHT — growth & financial challenges
+\column{0.46\textwidth}
+  \textcolor{rose}{\textbf{\faChartLine\ Growth \& Financial}}\\[5pt]
+
+  \begin{tabular}{@{}p{0.08\linewidth}p{0.82\linewidth}@{}}
+    \textcolor{rose}{\faCircle} &
+      \scriptsize \textbf{67\% of users sign up and never return.}
+      Users were being asked to create accounts before experiencing any value.
+      This is the core acquisition bottleneck. Addressed with guest trial.\\[5pt]
+
+    \textcolor{rose}{\faCircle} &
+      \scriptsize \textbf{Critical cash position.}
+      After next month's committed costs (KES 3,002), only \textbf{KES 144}
+      remains. Zero buffer. Revenue or capital injection needed urgently.\\[5pt]
+
+    \textcolor{amber}{\faCircle} &
+      \scriptsize \textbf{Zero paying users despite billing being live.}
+      The monetisation funnel exists but has not been actively pushed.
+      No prompt to upgrade after sign-up.\\[5pt]
+
+    \textcolor{slate}{\faCircle} &
+      \scriptsize \textbf{No institutional anchor yet.}
+      African Olympiad MOU and IMO team onboarding are pending.
+      Without a credible institutional partner, school outreach is harder.\\[5pt]
+  \end{tabular}
+
+\end{columns}
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+%  SLIDE 3 — WEEK 2 DELIVERABLES
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Slide 3 — Week 2 Deliverables}
+\framesubtitle{What must happen in the next 7 days — ranked by urgency}
+
+\begin{columns}[T]
+
+%% LEFT — must-do
+\column{0.5\textwidth}
+  \textcolor{rose}{\textbf{\faFire\ Must Ship (Week 2)}}\\[5pt]
+
+  \begin{tabular}{@{}p{0.07\linewidth}p{0.85\linewidth}@{}}
+
+    \textbf{\textcolor{rose}{1}} &
+      \scriptsize \textbf{Secure first paying customer.}
+      Target: one school, one teacher, or one parent paying any amount.
+      Billing page and M-Pesa are live — this is a sales call, not a tech task.\\[6pt]
+
+    \textbf{\textcolor{rose}{2}} &
+      \scriptsize \textbf{Activate the upgrade funnel.}
+      After sign-up, show a plan selection screen (Free / Starter / Pro).
+      Users should be prompted to pick a plan — not left to discover it.\\[6pt]
+
+    \textbf{\textcolor{amber}{3}} &
+      \scriptsize \textbf{Schedule MOU meeting — African Olympiad Academy.}
+      Book a formal meeting. Prepare a one-page platform overview
+      and demo script. Olympiad content is now seeded and ready.\\[6pt]
+
+    \textbf{\textcolor{amber}{4}} &
+      \scriptsize \textbf{Kenyan IMO team demo session.}
+      Run one live demo. Goal: get at least 5 IMO students active on
+      the platform by end of week.\\[6pt]
+
+  \end{tabular}
+
+%% RIGHT — should do + metric targets
+\column{0.46\textwidth}
+  \textcolor{amber}{\textbf{\faStar\ Should Ship (Week 2)}}\\[5pt]
+
+  \begin{tabular}{@{}p{0.07\linewidth}p{0.85\linewidth}@{}}
+
+    \textbf{\textcolor{amber}{5}} &
+      \scriptsize \textbf{Personalisation prompts via notifications.}
+      3–5 timed prompts asking users their goals, subjects, and level.
+      Delivered as non-blocking notification badges, not pop-ups.\\[6pt]
+
+    \textbf{\textcolor{slate}{6}} &
+      \scriptsize \textbf{Push guest trial conversions.}
+      Monitor how many guests are entering the 14-day trial.
+      Set up a day-7 nudge notification prompting sign-up.\\[6pt]
+
+  \end{tabular}
+
+  \vspace{6pt}
+  \textcolor{indigodark}{\textbf{\faFlag\ Week 2 Success Looks Like}}\\[4pt]
+  \colorbox{emeraldlight}{%
+    \parbox{0.95\linewidth}{\scriptsize\color{emerald}
+      \faCheck\ At least \textbf{1 paying customer}\\[2pt]
+      \faCheck\ Plan selection modal live\\[2pt]
+      \faCheck\ MOU meeting booked\\[2pt]
+      \faCheck\ 5+ IMO students on platform\\[2pt]
+      \faCheck\ Guest trial conversion tracking active
+    }
+  }
+
+\end{columns}
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+%  CLOSING SLIDE
+% ──────────────────────────────────────────────────────────────
+{
+\setbeamercolor{background canvas}{bg=indigodark}
+\begin{frame}[plain]
+  \centering\vspace{1.1cm}
+  {\Large\bfseries\color{white}The platform is built.}\\[0.3cm]
+  {\normalsize\color{white!75}Week 2 is not about code.}\\[0.15cm]
+  {\normalsize\color{white!75}It is about the first paying customer.}\\[0.8cm]
+  \begin{tikzpicture}
+    \draw[white!25, line width=0.4pt](0,0)--(10,0);
+  \end{tikzpicture}\\[0.5cm]
+  {\small\color{white!60}
+    \faGlobe\ edureach.site\quad
+    \faEnvelope\ edu.reach.co@gmail.com\\[0.2cm]
+    Dalton Omondi \& Mary Syokau\ |\ Nairobi, Kenya\ |\ May 2026
+  }
+\end{frame}
+}
+
+\end{document}
