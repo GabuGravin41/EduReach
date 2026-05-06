@@ -31,7 +31,7 @@ export default function MathMarkdown({ children, images = [], className = '' }: 
 
   // react-markdown v8+ dropped the className prop — wrap in a div instead
   return (
-    <div className={`prose prose-sm dark:prose-invert max-w-none ${className}`}>
+    <div className={`prose prose-sm dark:prose-invert max-w-none overflow-x-auto ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkMath]}
         rehypePlugins={[rehypeKatex]}

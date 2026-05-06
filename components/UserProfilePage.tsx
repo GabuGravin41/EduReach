@@ -14,6 +14,19 @@ const PencilIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+const INTEREST_OPTIONS = [
+  'Mathematics', 'Contest Mathematics', 'Programming', 'Science', 'Physics',
+  'Chemistry', 'Biology', 'Engineering', 'Computer Science', 'Economics',
+  'Business', 'Medicine', 'Law', 'History', 'English', 'Arts', 'Philosophy', 'Geography',
+];
+
+const LEARNER_TYPE_OPTIONS = [
+  { value: 'high_school', label: '🏫 High school student' },
+  { value: 'university',  label: '🎓 University student' },
+  { value: 'teacher',     label: '👨‍🏫 Teacher or coach' },
+  { value: 'professional', label: '💼 Working professional' },
+];
+
 const CameraIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -287,33 +300,29 @@ export const UserProfilePage: React.FC = () => {
           <div className="flex items-end gap-4 -mt-12 sm:-mt-10">
             {/* Avatar */}
             <div className="relative flex-none">
-              <div className={`w-24 h-24 rounded-full border-4 border-white dark:border-slate-800 shadow-lg bg-slate-100 dark:bg-slate-900 overflow-hidden ring-2 ${tier.ring} ring-offset-2 ring-offset-white dark:ring-offset-slate-800`}>
+              <label
+                className={`block w-24 h-24 rounded-full border-4 border-white dark:border-slate-800 shadow-lg bg-slate-100 dark:bg-slate-900 overflow-hidden ring-2 ${tier.ring} ring-offset-2 ring-offset-white dark:ring-offset-slate-800 cursor-pointer group`}
+                title="Change profile photo"
+              >
                 {avatarUrl ? (
                   <img
                     src={avatarUrl}
                     alt={user.username}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
                     onError={() => setAvatarPreview(null)}
                   />
                 ) : (
-                  <UserCircleIcon className="w-full h-full text-slate-300 dark:text-slate-600" />
+                  <UserCircleIcon className="w-full h-full text-slate-300 dark:text-slate-600 group-hover:opacity-70 transition-opacity" />
                 )}
-              </div>
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 rounded-full">
+                  <CameraIcon className="w-6 h-6 text-white" />
+                </div>
+                <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} disabled={uploadState === 'uploading'} />
+              </label>
               {/* Level badge */}
-              <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-black text-xs shadow-md ring-2 ring-white dark:ring-slate-800">
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-black text-xs shadow-md ring-2 ring-white dark:ring-slate-800 pointer-events-none">
                 {user.level}
               </div>
-              {/* Camera overlay button */}
-              <button
-                type="button"
-                onClick={() => avatarInputRef.current?.click()}
-                disabled={uploadState === 'uploading'}
-                className="absolute -bottom-1 -left-1 w-8 h-8 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center shadow-md ring-2 ring-white dark:ring-slate-800 transition-colors disabled:opacity-60"
-                title="Change profile photo"
-              >
-                <CameraIcon className="w-4 h-4" />
-              </button>
-              <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
             </div>
 
             {/* Name + username row — bio goes below, not inline */}
@@ -460,18 +469,54 @@ export const UserProfilePage: React.FC = () => {
 
             <FieldRow
               label="I am a" editing={isEditing}
-              display={displayVal(user.learner_type ? String(user.learner_type).replace(/_/g, ' ') : '', 'Not set')}
-              input={<input type="text" value={formData.learner_type} onChange={e => setFormData({ ...formData, learner_type: e.target.value })} placeholder="e.g. high_school, university, teacher, professional" className={inputCls} />}
+              display={displayVal(
+                LEARNER_TYPE_OPTIONS.find(o => o.value === user.learner_type)?.label
+                  ?? (user.learner_type ? String(user.learner_type).replace(/_/g, ' ') : ''),
+                'Not set'
+              )}
+              input={
+                <select
+                  value={formData.learner_type}
+                  onChange={e => setFormData({ ...formData, learner_type: e.target.value })}
+                  className={inputCls}
+                >
+                  <option value="">Select your role…</option>
+                  {LEARNER_TYPE_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              }
             />
 
             {/* Interests */}
             <div className="space-y-1">
               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Interests</label>
               {isEditing ? (
-                <>
-                  <input type="text" value={formData.interests} onChange={e => setFormData({ ...formData, interests: e.target.value })} placeholder="e.g. math, programming, languages (comma-separated)" className={inputCls} />
-                  <p className="text-xs text-slate-400 mt-1">Separate with commas.</p>
-                </>
+                <div className="flex flex-wrap gap-2 py-1">
+                  {INTEREST_OPTIONS.map(option => {
+                    const selected = formData.interests.split(',').map(s => s.trim()).filter(Boolean).includes(option);
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => {
+                          const current = formData.interests.split(',').map(s => s.trim()).filter(Boolean);
+                          const next = selected
+                            ? current.filter(t => t !== option)
+                            : [...current, option];
+                          setFormData({ ...formData, interests: next.join(', ') });
+                        }}
+                        className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${
+                          selected
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                        }`}
+                      >
+                        {option}
+                      </button>
+                    );
+                  })}
+                </div>
               ) : (
                 interestTags.length > 0 ? (
                   <div className="flex flex-wrap gap-2 py-1">
@@ -563,29 +608,6 @@ export const UserProfilePage: React.FC = () => {
             </div>
           </div>
 
-          {/* Photo upload hint when not in edit mode */}
-          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 text-center">
-            <CameraIcon className="w-6 h-6 text-slate-400 mx-auto mb-2" />
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Update your profile or cover photo</p>
-            <div className="flex gap-2 justify-center">
-              <button
-                type="button"
-                onClick={() => avatarInputRef.current?.click()}
-                disabled={uploadState === 'uploading'}
-                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-60"
-              >
-                {uploadState === 'uploading' ? '…' : 'Change Photo'}
-              </button>
-              <button
-                type="button"
-                onClick={() => coverInputRef.current?.click()}
-                disabled={uploadState === 'uploading'}
-                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
-              >
-                Cover
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>

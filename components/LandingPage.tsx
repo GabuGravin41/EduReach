@@ -83,8 +83,8 @@ const FEATURES = [
   },
   {
     icon: 'M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z',
-    title: 'Olympiad Assessments',
-    desc: 'Train with curated national and international competition problems — Number Theory, Algebra, Combinatorics, Geometry and more.',
+    title: 'Assessments & Quizzes',
+    desc: 'Take timed exams, quick quizzes, or advanced practice sets on any subject — from everyday coursework to high-level competition prep.',
     accent: 'from-amber-500 to-orange-600',
     bg: 'bg-amber-50 dark:bg-amber-950/40',
     iconColor: 'text-amber-600',
@@ -133,7 +133,7 @@ const STEPS = [
   {
     num: '02',
     title: 'Pick a course or assessment',
-    desc: 'Browse courses built by educators, take Olympiad practice sets, or let our AI generate a custom quiz from any topic.',
+    desc: 'Browse courses built by educators, take assessments on any subject, or let our AI generate a custom quiz from any topic.',
     icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
   },
   {
@@ -269,8 +269,8 @@ const DashboardMockup: React.FC = () => (
         {/* Course cards */}
         <div className="grid grid-cols-2 gap-3">
           {[
-            { title: 'Number Theory', pct: 72, color: 'from-indigo-500 to-violet-500' },
-            { title: 'Combinatorics', pct: 45, color: 'from-amber-500 to-orange-500' },
+            { title: 'Biology', pct: 72, color: 'from-indigo-500 to-violet-500' },
+            { title: 'Business Studies', pct: 45, color: 'from-amber-500 to-orange-500' },
           ].map((c) => (
             <div key={c.title} className="bg-slate-800 rounded-xl overflow-hidden border border-white/5">
               <div className={`h-20 bg-gradient-to-br ${c.color} relative flex items-center justify-center`}>
@@ -465,7 +465,7 @@ export const LandingPage: React.FC = () => {
 
               {/* Sub-headline */}
               <p className="animate-fade-up delay-200 text-lg sm:text-xl text-slate-400 leading-relaxed max-w-lg">
-                EduReach combines AI tutoring, Olympiad practice, study groups, and deep analytics — everything a serious student needs in one platform.
+                EduReach combines AI tutoring, smart assessments, study groups, and deep analytics — everything a serious student needs in one platform.
               </p>
 
               {/* CTAs */}
@@ -537,7 +537,7 @@ export const LandingPage: React.FC = () => {
               One platform. Every tool<br className="hidden sm:block" /> a serious student needs.
             </h2>
             <p className="text-lg text-slate-500 max-w-2xl mx-auto">
-              From AI-generated quizzes to Olympiad competition prep — EduReach gives you the depth and breadth that generic study apps simply can&apos;t match.
+              From AI-generated quizzes to rich courses built by real educators — EduReach gives you the depth and breadth that generic study apps simply can&apos;t match.
             </p>
           </div>
 
@@ -557,10 +557,10 @@ export const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* ── OLYMPIAD HIGHLIGHT ────────────────────────────────────────── */}
+      {/* ── ASSESSMENTS HIGHLIGHT ─────────────────────────────────────── */}
       <section className="py-24 bg-slate-950 overflow-hidden relative">
-        <div className="absolute -top-40 right-0 w-[600px] h-[600px] bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -top-40 right-0 w-[600px] h-[600px] bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-violet-600/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
@@ -569,22 +569,18 @@ export const LandingPage: React.FC = () => {
               <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-slate-900 shadow-2xl shadow-black/50">
                 <div className="px-5 py-4 border-b border-white/5 bg-slate-800/60 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-amber-400" />
-                    <span className="text-slate-300 text-sm font-semibold">Olympiad Practice #7</span>
+                    <div className="w-2 h-2 rounded-full bg-indigo-400" />
+                    <span className="text-slate-300 text-sm font-semibold">Biology — Cell Division Quiz</span>
                   </div>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-medium">Number Theory</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-medium">Question 3 of 10</span>
                 </div>
                 <div className="p-6 space-y-5">
-                  <div className="space-y-2">
-                    <p className="text-white/90 text-sm font-medium leading-relaxed">
-                      Find all positive integers <span className="text-amber-300 font-mono">n</span> such that{' '}
-                      <span className="text-amber-300 font-mono">n² + 1</span> divides{' '}
-                      <span className="text-amber-300 font-mono">n³ + 4</span>.
-                    </p>
-                  </div>
+                  <p className="text-white/90 text-sm font-medium leading-relaxed">
+                    Which phase of mitosis is characterised by chromosomes aligning at the cell's equatorial plate?
+                  </p>
 
                   <div className="space-y-2">
-                    {['n = 1 only', 'n = 1 and n = 3', 'n = 3 only', 'No solution exists'].map((opt, i) => (
+                    {['Prophase', 'Metaphase', 'Anaphase', 'Telophase'].map((opt, i) => (
                       <div key={opt} className={`flex items-center gap-3 p-3 rounded-lg border text-sm transition-all ${
                         i === 1
                           ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300'
@@ -603,7 +599,7 @@ export const LandingPage: React.FC = () => {
 
                   <div className="rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-4 text-xs text-indigo-300 leading-relaxed">
                     <p className="font-semibold text-indigo-200 mb-1">AI Explanation</p>
-                    If n²+1 | n³+4, then n²+1 | n·(n²+1) - (n³+4) = n-4. So n²+1 | (n-4)(n+4) = n²-16, giving n²+1 | 17. Thus n²+1 ∈ {"{1,17}"}, so n=1 or n=4. Checking: n=1 ✓, n=4 → 17 | 68 ✓, n=3 → 10 ∤ 31 ✗.
+                    Metaphase is when replicated chromosomes, each consisting of two sister chromatids, are pulled by spindle fibres to align along the metaphase plate — making it the easiest phase to count and study chromosomes under a microscope.
                   </div>
                 </div>
               </div>
@@ -611,37 +607,36 @@ export const LandingPage: React.FC = () => {
 
             {/* Right — copy */}
             <div className="order-1 lg:order-2 space-y-6">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-sm font-semibold">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-sm font-semibold">
                 <Icon path="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" className="w-4 h-4" />
-                Competition-ready prep
+                Practice that actually works
               </div>
               <h2 className="text-4xl sm:text-5xl font-extrabold text-white leading-tight">
-                Train for<br />
-                <span className="bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
-                  Mathematical Olympiads
-                </span><br />
-                like a champion.
+                Test yourself on<br />
+                <span className="bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
+                  any subject, any level.
+                </span>
               </h2>
               <p className="text-slate-400 text-lg leading-relaxed">
-                Our curated problem bank spans national and international competitions — with full solutions, AI explanations, and topic-based practice paths that build from foundations to competition level.
+                From quick 5-minute quizzes to timed exams and advanced problem sets — EduReach has assessments for every subject, every level, and every goal.
               </p>
               <ul className="space-y-3">
                 {[
-                  'Number Theory, Algebra, Geometry, Combinatorics',
-                  'Difficulty-graded from beginner to IMO level',
-                  'AI tutor explains every solution step-by-step',
-                  'Contest mode with anti-cheating controls',
+                  'AI-generated quizzes from any topic in seconds',
+                  'Timed exams with auto-grading and instant feedback',
+                  'Difficulty graded from beginner to advanced',
+                  'Advanced practice sets for competition students',
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-3 text-slate-300 text-sm">
-                    <div className="mt-0.5 w-5 h-5 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-                      <CheckIcon className="w-3 h-3 text-amber-400" />
+                    <div className="mt-0.5 w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
+                      <CheckIcon className="w-3 h-3 text-indigo-400" />
                     </div>
                     {item}
                   </li>
                 ))}
               </ul>
               <button onClick={goToApp}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold transition-all shadow-lg shadow-amber-500/30">
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition-all shadow-lg shadow-indigo-600/30">
                 Explore Assessments
                 <ArrowRight className="w-4 h-4" />
               </button>
@@ -731,7 +726,7 @@ export const LandingPage: React.FC = () => {
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white font-bold text-sm">M</div>
                     <div>
-                      <div className="text-white font-semibold text-sm">Maths Olympiad 2026</div>
+                      <div className="text-white font-semibold text-sm">Form 4 Science Group</div>
                       <div className="text-teal-200 text-xs">12 members · Active challenge</div>
                     </div>
                   </div>

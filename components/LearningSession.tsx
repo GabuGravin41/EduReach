@@ -650,7 +650,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
 
   return (
     <>
-    <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-4rem)] overflow-hidden relative p-4 sm:p-6 lg:p-0">
+    <div className="flex flex-col lg:flex-row gap-4 lg:h-[calc(100svh-4rem)] lg:overflow-hidden relative p-4 sm:p-6 lg:p-0">
       {/* ── Lesson completion celebration banner ── */}
       {showCompletionBanner && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 animate-bounce pointer-events-none">
@@ -815,10 +815,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
         {/* Video library search - shows cached videos and allows loading into current session */}
         <VideoLibrarySearch courseId={courseId} lessonId={currentLesson?.id} onSelect={handleSelectLibraryVideo} />
         {isStudyPanelOpen && (
-          <div className={`lg:flex-none lg:h-48 xl:h-56 lg:min-h-0 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 ${
-            // Mobile: Give substantial height when open, allow scrolling within panel
-            'h-[60vh] min-h-[400px] lg:min-h-0'
-            }`}>
+          <div className="lg:flex-none lg:h-48 xl:h-56 lg:min-h-0 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 min-h-[300px] lg:h-auto">
             <StudyPanel
               transcriptRef={transcriptRef}
               transcript={effectiveTranscript}
@@ -841,8 +838,8 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
             transition-all duration-300 ease-in-out
             lg:w-[30%] lg:opacity-100 lg:h-full lg:min-h-0
             ${isStudyPanelOpen
-              ? 'h-[60vh] min-h-[400px] lg:min-h-0'
-              : 'h-[70vh] min-h-[500px] lg:min-h-0'
+              ? 'min-h-[300px] lg:min-h-0'
+              : 'min-h-[400px] lg:min-h-0'
             }
           `}
         >

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../src/contexts/useAuth';
 import { authService } from '../src/services/authService';
 
@@ -86,33 +86,13 @@ export const LoginScreen: React.FC = () => {
 
   // Google Sign-In state
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleReady, setGoogleReady] = useState(false);
+  const googleDivRef = useRef<HTMLDivElement>(null);
   const googleClientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
   const { login, register } = useAuth();
 
   const passwordStrength = password.length === 0 ? null : password.length < 8 ? 'weak' : password.length < 12 ? 'good' : 'strong';
-
-  // Load Google GSI script when the modal is open
-  useEffect(() => {
-    if (!googleClientId || !showAuth) return;
-    if (document.getElementById('gsi-script')) return;
-
-    const script = document.createElement('script');
-    script.id = 'gsi-script';
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      if (!window.google) return;
-      window.google.accounts.id.initialize({
-        client_id: googleClientId,
-        callback: handleGoogleCredential,
-        auto_select: false,
-        cancel_on_tap_outside: true,
-      });
-    };
-    document.head.appendChild(script);
-  }, [googleClientId, showAuth]);
 
   const handleGoogleCredential = async (response: { credential: string }) => {
     setGoogleLoading(true);
@@ -129,21 +109,60 @@ export const LoginScreen: React.FC = () => {
     }
   };
 
-  const handleGoogleButtonClick = () => {
-    if (!googleClientId) {
-      setError('Google Sign-In is not yet configured on this server. Please use email and password.');
-      return;
+  // Load Google GSI script and initialize when modal opens
+  useEffect(() => {
+    if (!googleClientId || !showAuth) return;
+
+    const init = () => {
+      if (!window.google?.accounts?.id) return;
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: handleGoogleCredential,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+      });
+      setGoogleReady(true);
+    };
+
+    // Already loaded
+    if (window.google?.accounts?.id) { init(); return; }
+
+    // Script already injected — wait for it
+    if (document.getElementById('gsi-script')) {
+      const poll = setInterval(() => {
+        if (window.google?.accounts?.id) { clearInterval(poll); init(); }
+      }, 100);
+      return () => clearInterval(poll);
     }
-    if (!window.google?.accounts?.id) {
-      setError('Google Sign-In is still loading. Please wait a moment and try again.');
-      return;
-    }
-    window.google.accounts.id.prompt((notification: any) => {
-      if (notification.isNotDisplayed?.() || notification.isSkippedMoment?.()) {
-        setError('Google Sign-In could not open. Please disable any popup blockers and try again, or use email and password.');
-      }
+
+    const script = document.createElement('script');
+    script.id = 'gsi-script';
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = init;
+    document.head.appendChild(script);
+  }, [googleClientId, showAuth]);
+
+  // Render Google's button once GSI is ready
+  useEffect(() => {
+    if (!googleReady || !googleDivRef.current || !window.google?.accounts?.id) return;
+    const width = googleDivRef.current.offsetWidth || 400;
+    window.google.accounts.id.renderButton(googleDivRef.current, {
+      type: 'standard',
+      theme: 'outline',
+      size: 'large',
+      text: 'continue_with',
+      shape: 'rectangular',
+      logo_alignment: 'left',
+      width,
     });
-  };
+  }, [googleReady]);
+
+  // Reset googleReady when modal closes so the button re-renders next open
+  useEffect(() => {
+    if (!showAuth) setGoogleReady(false);
+  }, [showAuth]);
 
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -753,18 +772,21 @@ export const LoginScreen: React.FC = () => {
                             <div className="flex-grow border-t border-slate-200 dark:border-slate-700" />
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={handleGoogleButtonClick}
-                            disabled={isLoading || googleLoading}
-                            className="w-full flex items-center justify-center gap-3 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-semibold py-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm disabled:opacity-60"
-                          >
-                            {googleLoading
-                              ? <svg className="w-5 h-5 animate-spin text-slate-400" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                              : <GoogleIcon className="w-5 h-5" />
-                            }
-                            {googleLoading ? 'Signing in with Google…' : 'Continue with Google'}
-                          </button>
+                          {googleLoading ? (
+                            <div className="w-full flex items-center justify-center gap-3 bg-white dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700 py-3 rounded-xl text-sm">
+                              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                              Signing in with Google…
+                            </div>
+                          ) : googleClientId ? (
+                            <div ref={googleDivRef} className="w-full min-h-[44px] flex items-center justify-center">
+                              {!googleReady && (
+                                <div className="w-full flex items-center justify-center gap-3 bg-white dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700 py-3 rounded-xl text-sm">
+                                  <GoogleIcon className="w-5 h-5 opacity-40" />
+                                  Loading Google Sign-In…
+                                </div>
+                              )}
+                            </div>
+                          ) : null}
                         </>
                       )}
 

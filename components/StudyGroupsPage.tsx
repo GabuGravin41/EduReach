@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useStudyGroups,
@@ -148,10 +148,19 @@ export const StudyGroupsPage: React.FC = () => {
       ? (assessmentsData as any).results
       : []);
   const [assessmentTypeFilter, setAssessmentTypeFilter] = useState<'all' | 'quiz' | 'exam'>('all');
+  const [assessmentSearch, setAssessmentSearch] = useState('');
+  const [assessmentPickerOpen, setAssessmentPickerOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
   const filteredAssessmentsForChallenges = normalizedAssessments.filter((a: any) => {
-    if (assessmentTypeFilter === 'all') return true;
-    const kind = (a.assessment_type as 'quiz' | 'exam' | undefined) || 'exam';
-    return kind === assessmentTypeFilter;
+    if (assessmentTypeFilter !== 'all') {
+      const kind = (a.assessment_type as 'quiz' | 'exam' | undefined) || 'exam';
+      if (kind !== assessmentTypeFilter) return false;
+    }
+    if (assessmentSearch.trim()) {
+      return a.title?.toLowerCase().includes(assessmentSearch.trim().toLowerCase());
+    }
+    return true;
   });
 
   // Normalize groups data: backend may return either an array or a paginated object
@@ -257,6 +266,18 @@ export const StudyGroupsPage: React.FC = () => {
       toast.error(typeof detail === 'string' ? detail : 'Failed to create challenge. Only group creators can do this.');
     }
   };
+
+  // Close assessment picker when clicking outside
+  useEffect(() => {
+    if (!assessmentPickerOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setAssessmentPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [assessmentPickerOpen]);
 
   // Resolve group id from URL: either ?join_group=1 or /study-groups/1 (legacy)
   // OR: ?join_token=abcd1234 (new token-based invite)
@@ -821,76 +842,178 @@ export const StudyGroupsPage: React.FC = () => {
                     />
                   </button>
                   {createChallengeExpanded && (
-                    <div className="px-6 pb-6 pt-0 border-t border-slate-200 dark:border-slate-700">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                    <div className="px-6 pb-6 pt-4 border-t border-slate-200 dark:border-slate-700 space-y-5">
+                      {/* Title */}
+                      <div className="space-y-1.5">
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">Challenge Title <span className="text-rose-400">*</span></label>
                         <input
                           value={challengeTitle}
                           onChange={(e) => setChallengeTitle(e.target.value)}
-                          placeholder="Challenge title"
-                          className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-                        />
-                        <div className="space-y-2 md:col-span-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                              Link an assessment <span className="text-slate-400 font-normal">(optional)</span>
-                            </label>
-                            <select
-                              value={assessmentTypeFilter}
-                              onChange={(e) => setAssessmentTypeFilter(e.target.value as any)}
-                              className="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
-                            >
-                              <option value="all">All types</option>
-                              <option value="quiz">Quizzes</option>
-                              <option value="exam">Exams</option>
-                            </select>
-                          </div>
-                          <select
-                            value={selectedAssessmentId}
-                            onChange={(e) => setSelectedAssessmentId(e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
-                          >
-                            <option value="">— No assessment (open challenge) —</option>
-                            {filteredAssessmentsForChallenges.map((assessment: any) => {
-                              const qCount = assessment.question_count ?? assessment.questions?.length ?? '';
-                              const typeLabel = assessment.assessment_type === 'exam' ? 'Exam' : 'Quiz';
-                              return (
-                                <option key={assessment.id} value={assessment.id}>
-                                  {assessment.title}{qCount ? ` (${qCount}Q)` : ''} · {typeLabel}
-                                </option>
-                              );
-                            })}
-                          </select>
-                          {selectedAssessmentId && (
-                            <button type="button" onClick={() => setSelectedAssessmentId('')} className="text-xs text-slate-400 hover:text-rose-500 transition-colors">
-                              Clear selection
-                            </button>
-                          )}
-                        </div>
-                        <input
-                          value={challengeStart}
-                          onChange={(e) => setChallengeStart(e.target.value)}
-                          type="datetime-local"
-                          className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-                        />
-                        <input
-                          value={challengeEnd}
-                          onChange={(e) => setChallengeEnd(e.target.value)}
-                          type="datetime-local"
-                          className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                          placeholder="e.g. Weekend Biology Sprint"
+                          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/60 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition text-sm"
                         />
                       </div>
-                      <textarea
-                        value={challengeDescription}
-                        onChange={(e) => setChallengeDescription(e.target.value)}
-                        placeholder="Description (optional)"
-                        className="mt-4 w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-                      />
+
+                      {/* Assessment Picker */}
+                      <div className="space-y-1.5">
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
+                          Linked Assessment <span className="text-slate-400 font-normal text-xs">(optional)</span>
+                        </label>
+
+                        {/* Selected chip */}
+                        {selectedAssessmentId ? (() => {
+                          const sel = normalizedAssessments.find((a: any) => String(a.id) === selectedAssessmentId);
+                          if (!sel) return null;
+                          const qCount = sel.question_count ?? sel.questions?.length ?? 0;
+                          const isExam = sel.assessment_type === 'exam';
+                          return (
+                            <div className="flex items-center gap-2 p-3 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700">
+                              <div className={`flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${isExam ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400' : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400'}`}>
+                                {isExam ? 'E' : 'Q'}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{sel.title}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">{isExam ? 'Exam' : 'Quiz'}{qCount ? ` · ${qCount} questions` : ''}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedAssessmentId('')}
+                                className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors"
+                                aria-label="Remove assessment"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                              </button>
+                            </div>
+                          );
+                        })() : (
+                          /* Picker trigger + dropdown */
+                          <div className="relative" ref={pickerRef}>
+                            <button
+                              type="button"
+                              onClick={() => setAssessmentPickerOpen(o => !o)}
+                              className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors text-sm"
+                            >
+                              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                              <span>Search and link an assessment…</span>
+                            </button>
+
+                            {assessmentPickerOpen && (
+                              <div className="absolute z-50 mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden">
+                                {/* Search input */}
+                                <div className="p-3 border-b border-slate-100 dark:border-slate-700">
+                                  <div className="relative">
+                                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                    <input
+                                      autoFocus
+                                      value={assessmentSearch}
+                                      onChange={(e) => setAssessmentSearch(e.target.value)}
+                                      placeholder="Search assessments…"
+                                      className="w-full pl-9 pr-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-600 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition"
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Type filter tabs */}
+                                <div className="flex items-center gap-1 px-3 py-2 border-b border-slate-100 dark:border-slate-700">
+                                  {(['all', 'quiz', 'exam'] as const).map(tab => (
+                                    <button
+                                      key={tab}
+                                      type="button"
+                                      onClick={() => setAssessmentTypeFilter(tab)}
+                                      className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${assessmentTypeFilter === tab ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
+                                    >
+                                      {tab === 'all' ? 'All' : tab === 'quiz' ? 'Quizzes' : 'Exams'}
+                                    </button>
+                                  ))}
+                                  <span className="ml-auto text-xs text-slate-400">{filteredAssessmentsForChallenges.length} result{filteredAssessmentsForChallenges.length !== 1 ? 's' : ''}</span>
+                                </div>
+
+                                {/* Results list */}
+                                <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700/60">
+                                  <button
+                                    type="button"
+                                    onClick={() => { setSelectedAssessmentId(''); setAssessmentPickerOpen(false); setAssessmentSearch(''); }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors"
+                                  >
+                                    <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                                      <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+                                    </div>
+                                    <span className="italic">No assessment — open challenge</span>
+                                  </button>
+
+                                  {filteredAssessmentsForChallenges.length === 0 ? (
+                                    <div className="px-4 py-6 text-center text-sm text-slate-400">
+                                      <svg className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                      No assessments match "{assessmentSearch}"
+                                    </div>
+                                  ) : filteredAssessmentsForChallenges.map((assessment: any) => {
+                                    const qCount = assessment.question_count ?? assessment.questions?.length ?? 0;
+                                    const isExam = assessment.assessment_type === 'exam';
+                                    return (
+                                      <button
+                                        key={assessment.id}
+                                        type="button"
+                                        onClick={() => { setSelectedAssessmentId(String(assessment.id)); setAssessmentPickerOpen(false); setAssessmentSearch(''); }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors group"
+                                      >
+                                        <div className={`flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${isExam ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400' : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400'}`}>
+                                          {isExam ? 'E' : 'Q'}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                          <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate group-hover:text-indigo-700 dark:group-hover:text-indigo-300 transition-colors">{assessment.title}</p>
+                                          <p className="text-xs text-slate-400">{isExam ? 'Exam' : 'Quiz'}{qCount ? ` · ${qCount} questions` : ''}</p>
+                                        </div>
+                                        <svg className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 flex-shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Date range */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">Starts</label>
+                          <input
+                            value={challengeStart}
+                            onChange={(e) => setChallengeStart(e.target.value)}
+                            type="datetime-local"
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/60 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">Ends</label>
+                          <input
+                            value={challengeEnd}
+                            onChange={(e) => setChallengeEnd(e.target.value)}
+                            type="datetime-local"
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/60 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Description */}
+                      <div className="space-y-1.5">
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">Description <span className="text-slate-400 font-normal text-xs">(optional)</span></label>
+                        <textarea
+                          value={challengeDescription}
+                          onChange={(e) => setChallengeDescription(e.target.value)}
+                          placeholder="What's this challenge about? Any special rules or goals?"
+                          rows={3}
+                          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/60 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition text-sm resize-none"
+                        />
+                      </div>
+
                       <Button
-                        className="mt-4"
                         onClick={handleCreateChallenge}
-                        disabled={createChallengeMutation.isPending}
+                        disabled={createChallengeMutation.isPending || !challengeTitle.trim()}
+                        className="w-full"
                       >
-                        Create Challenge
+                        {createChallengeMutation.isPending ? 'Creating…' : 'Create Challenge'}
                       </Button>
                     </div>
                   )}

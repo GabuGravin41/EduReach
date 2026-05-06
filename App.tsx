@@ -999,7 +999,7 @@ const AppContent: React.FC = () => {
                 </button>
               </div>
            </header>
-           <main className={`flex-1 overflow-y-auto ${currentView === 'learning_session' ? 'p-0 sm:p-4 lg:p-8' : 'p-4 sm:p-6 lg:p-8'}`}>
+           <main className={`flex-1 overflow-y-auto overflow-x-hidden ${currentView === 'learning_session' ? 'p-0 sm:p-4 lg:p-8' : 'p-4 sm:p-6 lg:p-8'}`}>
               {showInstallPrompt && installEvent && (
                 <div className="mb-4 rounded-lg border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-2 text-xs font-medium text-indigo-900 dark:text-indigo-100 flex items-center justify-between gap-3">
                   <span>Install EduReach for faster access and better offline support.</span>
