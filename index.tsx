@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import { AuthProvider } from './src/contexts/AuthContext';
+import { GuestProvider } from './src/contexts/GuestContext';
 import { ToastProvider } from './src/contexts/ToastContext';
 import { Toaster } from './components/ui/Toaster';
 
@@ -39,10 +40,12 @@ root.render(
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <ToastProvider>
-            <App />
-            <Toaster />
-          </ToastProvider>
+          <GuestProvider>
+            <ToastProvider>
+              <App />
+              <Toaster />
+            </ToastProvider>
+          </GuestProvider>
         </AuthProvider>
       </QueryClientProvider>
     </BrowserRouter>

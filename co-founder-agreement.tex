@@ -1,0 +1,1886 @@
+\documentclass[12pt,a4paper]{article}
+
+% ── Encoding & Font ───────────────────────────────────────────────────────────
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% ── Page layout ───────────────────────────────────────────────────────────────
+\usepackage[top=2.8cm, bottom=2.8cm, left=2.8cm, right=2.8cm]{geometry}
+
+% ── Tables ────────────────────────────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{ragged2e}
+
+% ── Lists ─────────────────────────────────────────────────────────────────────
+\usepackage{enumitem}
+\setlist[itemize]{leftmargin=1.5em, itemsep=2pt, topsep=4pt}
+\setlist[enumerate]{leftmargin=1.5em, itemsep=2pt, topsep=4pt}
+
+% ── Colours ───────────────────────────────────────────────────────────────────
+\usepackage{xcolor}
+\definecolor{indigocolor}{RGB}{67, 56, 202}
+\definecolor{notebg}{RGB}{245, 247, 255}
+\definecolor{noteborder}{RGB}{165, 180, 252}
+\definecolor{warnbg}{RGB}{255, 251, 235}
+\definecolor{warnborder}{RGB}{251, 191, 36}
+\definecolor{tabheadbg}{RGB}{238, 242, 255}
+
+% ── Section titles ────────────────────────────────────────────────────────────
+\usepackage{titlesec}
+\titleformat{\section}[block]
+  {\large\bfseries\color{indigocolor}}{Part \thesection:}{0.5em}{}
+  [\vspace{2pt}\color{indigocolor}\titlerule\vspace{4pt}]
+\titleformat{\subsection}[hang]
+  {\normalsize\bfseries}{\thesubsection}{0.5em}{}
+\titlespacing{\section}{0pt}{18pt}{8pt}
+\titlespacing{\subsection}{0pt}{12pt}{4pt}
+
+% ── Paragraph spacing ─────────────────────────────────────────────────────────
+\usepackage{parskip}
+\setlength{\parskip}{6pt}
+
+% ── Note boxes ────────────────────────────────────────────────────────────────
+\usepackage{mdframed}
+\newmdenv[
+  backgroundcolor=notebg,
+  linecolor=noteborder,
+  linewidth=1.2pt,
+  innerleftmargin=10pt,
+  innerrightmargin=10pt,
+  innertopmargin=8pt,
+  innerbottommargin=8pt,
+  skipabove=6pt,
+  skipbelow=6pt,
+]{notebox}
+\newmdenv[
+  backgroundcolor=warnbg,
+  linecolor=warnborder,
+  linewidth=1.2pt,
+  innerleftmargin=10pt,
+  innerrightmargin=10pt,
+  innertopmargin=8pt,
+  innerbottommargin=8pt,
+  skipabove=6pt,
+  skipbelow=6pt,
+]{warnbox}
+
+% ── Header & footer ───────────────────────────────────────────────────────────
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textit{EduReach Co-Founder Agreement}}
+\fancyhead[R]{\small\textit{Strictly Confidential}}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ── Hyperlinks ────────────────────────────────────────────────────────────────
+\usepackage[hidelinks, colorlinks=false]{hyperref}
+\usepackage{bookmark}
+
+% ── Custom commands ───────────────────────────────────────────────────────────
+\newcommand{\blank}[1][5.5cm]{\underline{\hspace{#1}}}
+\newcommand{\cb}{$\square$\;}                   % checkbox
+\newcommand{\sectionrule}{\vspace{4pt}\noindent\rule{\linewidth}{0.3pt}\vspace{4pt}}
+
+% Column types
+\newcolumntype{L}[1]{>{\RaggedRight\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\begin{document}
+
+% ── Title page ────────────────────────────────────────────────────────────────
+\begin{titlepage}
+  \centering
+  \vspace*{3cm}
+  {\color{indigocolor}\rule{\linewidth}{1.5pt}}\\[1em]
+  {\LARGE\bfseries EduReach}\\[0.4em]
+  {\large\bfseries Co-Founder Agreement \& Discussion Framework}\\[0.8em]
+  {\color{indigocolor}\rule{\linewidth}{1.5pt}}\\[2.5em]
+
+  \begin{tabular}{@{}l l@{}}
+    \textbf{Prepared for:}   & Dalton Omondi \& Mary Syokau \\[0.7em]
+    \textbf{Date:}            & \blank[5cm] \\[0.7em]
+    \textbf{Location:}        & \blank[5cm] \\[0.7em]
+    \textbf{Witness (name):}  & \blank[5cm] \\[0.7em]
+    \textbf{Witness (ID No):} & \blank[5cm] \\
+  \end{tabular}\\[3em]
+
+  \begin{mdframed}[linecolor=noteborder, backgroundcolor=notebg,
+      innerleftmargin=14pt, innerrightmargin=14pt,
+      innertopmargin=10pt, innerbottommargin=10pt]
+    \textit{This document is strictly confidential. It is not to be shared
+    with any third party without the written consent of both founders.
+    It serves simultaneously as a structured discussion guide and,
+    once fully completed, signed, and witnessed, as a binding founders'
+    agreement.}
+  \end{mdframed}
+
+  \vfill
+  {\small Version 1.0 \quad --- \quad May 2026}
+\end{titlepage}
+
+% ── Table of Contents ─────────────────────────────────────────────────────────
+\tableofcontents
+\newpage
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section*{Preamble}
+\addcontentsline{toc}{section}{Preamble}
+% ─────────────────────────────────────────────────────────────────────────────
+
+This document serves two purposes. First, it is a structured discussion guide --- a set of questions, frameworks, and decisions that both founders are to work through together honestly before the company grows further. Second, once completed, signed, and witnessed, it becomes a binding record of the agreements made between the founders of EduReach.
+
+This is not a formal legal contract replacing proper incorporation documents. It is a founders' agreement --- a living record of intent, roles, ownership, and operating principles. When the company is formally registered, these terms are to be incorporated into the shareholders' agreement and Articles of Association with the assistance of a qualified lawyer.
+
+Neither founder should sign this document under pressure or without fully understanding every section. Where there is disagreement on any section, that disagreement is to be resolved before signing --- not after.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Company Identity \& Shared Vision}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Company Name}
+
+\begin{tabular}{@{}l l@{}}
+  Legal name (once registered): & \blank \\[0.5em]
+  Trading name:                  & EduReach \\[0.5em]
+  Proposed entity type:          & Private Limited Company \\[0.5em]
+  Primary jurisdiction:          & Kenya (with future international holding structure) \\
+\end{tabular}
+
+\subsection{Mission Statement}
+
+\begin{notebox}
+\textit{The involved parties are to agree on this together. It is to be written jointly and both founders must be able to recite it from memory.}
+\end{notebox}
+
+\noindent EduReach exists to: \blank[10cm]
+
+\medskip
+\noindent \blank[14cm]
+
+\subsection{Vision --- Where Are We in 5 Years?}
+
+\begin{notebox}
+\textit{Each founder is to write their honest answer independently first, then the two answers are to be compared and discussed openly. Where these answers differ significantly, agreement is to be reached before proceeding. Founders who disagree on the destination will constantly be in conflict about direction.}
+\end{notebox}
+
+\noindent\textbf{Dalton Omondi:} \blank[11cm]\\[0.5em]
+\noindent\phantom{\textbf{Dalton Omondi:} }\blank[11cm]
+
+\medskip
+\noindent\textbf{Mary Syokau:} \blank[11.3cm]\\[0.5em]
+\noindent\phantom{\textbf{Mary Syokau:} }\blank[11.3cm]
+
+\subsection{Core Values}
+
+\begin{notebox}
+\textit{The involved parties are to agree on 4--6 values that will guide how EduReach operates, makes decisions, and treats people --- including users, employees, and partners.}
+\end{notebox}
+
+\begin{enumerate}
+  \item \blank[10cm]
+  \item \blank[10cm]
+  \item \blank[10cm]
+  \item \blank[10cm]
+  \item \blank[10cm]
+  \item \blank[10cm]
+\end{enumerate}
+
+\subsection{Target Markets --- Agreed Expansion Sequence}
+
+\begin{notebox}
+\textit{The sequence and timelines below are to be agreed upon by both founders.}
+\end{notebox}
+
+\begin{itemize}[label=\cb]
+  \item Kenya --- primary market, launch phase
+  \item East Africa (Uganda, Tanzania, Rwanda, Ethiopia) --- target by: \blank[4cm]
+  \item Rest of Africa --- target by: \blank[4cm]
+  \item International --- target by: \blank[4cm]
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Founder Contributions}
+% ─────────────────────────────────────────────────────────────────────────────
+
+This section documents what each founder has brought to EduReach up to the date of signing. This record matters for equity calculations, for future investor due diligence, and for resolving any future disputes about who built what.
+
+\subsection{Capital Contributions}
+
+\begin{tabularx}{\linewidth}{L{3.2cm} C{2.5cm} C{2cm} L{3cm} L{3cm}}
+  \toprule
+  \textbf{Founder} & \textbf{Cash (KES)} & \textbf{Date(s)} & \textbf{Purpose} & \textbf{Evidence} \\
+  \midrule
+  Dalton Omondi & 12{,}400 & \blank[1.2cm] & \blank[2.5cm] & \blank[2.5cm] \\[0.4em]
+  Mary Syokau   & 200      & \blank[1.2cm] & \blank[2.5cm] & \blank[2.5cm] \\[0.4em]
+  \midrule
+  \textbf{Total} & \textbf{12{,}600} & & & \\
+  \bottomrule
+\end{tabularx}
+
+\medskip
+\begin{notebox}
+\textit{Going forward, all company expenditure is to be recorded with receipts. A method of tracking this --- such as a shared Google Sheet or accounting tool --- is to be agreed upon by both founders.}
+\end{notebox}
+
+\noindent\textbf{The involved parties are to agree on how these contributions are treated:}
+
+\begin{itemize}[label=\cb]
+  \item As loans to the company, to be repaid when the company has revenue
+  \item As capital contributions that increase the contributing founder's equity proportionally
+  \item As expenses that are noted in the record but do not affect equity
+  \item Other: \blank[7cm]
+\end{itemize}
+
+\subsection{Intellectual Property Contributions}
+
+\begin{tabularx}{\linewidth}{L{3cm} L{6cm} C{2cm} L{2.5cm}}
+  \toprule
+  \textbf{Founder} & \textbf{What Was Built / Contributed} & \textbf{Est.\ Hours} & \textbf{Agreed Value} \\
+  \midrule
+  Dalton Omondi & Entire EduReach platform --- frontend, backend, architecture, database, deployment, server setup & \blank[1cm] & \blank[2cm] \\[0.5em]
+  Mary Syokau   & \blank[5.5cm] & \blank[1cm] & \blank[2cm] \\
+  \bottomrule
+\end{tabularx}
+
+\medskip
+\noindent\textbf{IP Assignment --- the following clause is to be agreed to by both founders:}
+
+All intellectual property created by either founder in connection with EduReach --- including but not limited to code, designs, content, databases, domain names, brand assets, and business processes --- belongs entirely to EduReach the company, not to the individual who created it. Neither founder may claim personal ownership of any work done for EduReach, use it for another venture, or take it away in the event of departure.
+
+\begin{itemize}[label=\cb]
+  \item Dalton Omondi agrees to this clause
+  \item Mary Syokau agrees to this clause
+\end{itemize}
+
+\begin{warnbox}
+\textbf{Note:} This clause is non-negotiable. An investor will walk away the moment they discover the product legally belongs to an individual rather than the company.
+\end{warnbox}
+
+\subsection{Non-Cash Contributions}
+
+\begin{notebox}
+\textit{Any other contributions --- networks, partnerships, equipment, facilities, or time already invested --- are to be recorded here with an agreed value.}
+\end{notebox}
+
+\begin{tabularx}{\linewidth}{L{3.5cm} L{6.5cm} L{3.5cm}}
+  \toprule
+  \textbf{Founder} & \textbf{Contribution} & \textbf{Agreed Value} \\
+  \midrule
+  Dalton Omondi & \blank[6cm] & \blank[3cm] \\[0.5em]
+  Mary Syokau   & \blank[6cm] & \blank[3cm] \\
+  \bottomrule
+\end{tabularx}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Contribution Tracking, Performance Accountability \& Company Ownership}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{notebox}
+\textit{This section comes before equity intentionally. How equity is split, and whether vesting continues, depends on what each founder actually contributes over time. Both founders are to read and agree to this section before the equity discussion begins.}
+\end{notebox}
+
+\subsection{Contribution Categories}
+
+Both founders acknowledge that contributions to EduReach fall into two types:
+
+\begin{tabularx}{\linewidth}{L{3.5cm} L{5.5cm} X}
+  \toprule
+  \textbf{Category} & \textbf{Examples} & \textbf{Traceable?} \\
+  \midrule
+  \textbf{Individual -- easily attributed} & Cash invested, paid users brought in via a personal referral, partnerships personally negotiated and closed, content personally created & Yes --- to be recorded individually \\[0.5em]
+  \textbf{Shared -- teamwork} & Platform features built together, brand decisions, shared marketing campaigns, joint meetings with partners & Partial --- to be recorded as joint contribution; neither founder claims sole credit \\[0.5em]
+  \textbf{Operational -- time-based} & Hours worked, tasks completed, responses to users, administrative work & Partial --- tracked via tools and meeting attendance \\
+  \bottomrule
+\end{tabularx}
+
+\noindent Both founders agree that shared contributions are not to be claimed individually. Where a result came from teamwork, it is to be recorded as a joint achievement.
+
+\subsection{The Quarterly Contribution Scorecard}
+
+Both founders are to complete the following scorecard at the end of every quarter. Each founder fills in their own column independently. The results are then compared and discussed honestly.
+
+\begin{tabularx}{\linewidth}{L{5cm} X X}
+  \toprule
+  \textbf{Metric} & \textbf{Dalton Omondi} & \textbf{Mary Syokau} \\
+  \midrule
+  Personal cash invested this quarter (KES)              & & \\[0.4em]
+  Paid users personally attributed (referral links etc.) & & \\[0.4em]
+  Partnerships personally closed (name them)             & & \\[0.4em]
+  Hours committed per week (average)                     & & \\[0.4em]
+  Key deliverables completed (list 3)                    & & \\[0.4em]
+  Missed commitments (list if any)                       & & \\[0.4em]
+  Area where I fell short this quarter                   & & \\[0.4em]
+  Area where I exceeded expectation                      & & \\[0.4em]
+  My honest assessment of partner's contribution (1--10) & & \\
+  \bottomrule
+\end{tabularx}
+
+\medskip
+\noindent The scorecard is to be:
+\begin{itemize}
+  \item Completed independently before the quarterly founders' meeting
+  \item Discussed openly at that meeting
+  \item Stored in shared company records with both founders' signatures
+  \item Used as input for the annual equity and vesting review (Section~\ref{sec:antiloafing})
+\end{itemize}
+
+\subsection{Minimum Contribution Standards}
+
+Both founders are to agree on the following minimum standards. A founder who falls below these standards for two consecutive quarters triggers the accountability process in the following section.
+
+\begin{tabularx}{\linewidth}{L{5.5cm} C{3cm} C{3cm}}
+  \toprule
+  \textbf{Minimum Standard} & \textbf{Dalton Omondi} & \textbf{Mary Syokau} \\
+  \midrule
+  Minimum hours per week                      & \blank[2.5cm] & \blank[2.5cm] \\[0.4em]
+  Attendance at founders' meetings (\%)       & \blank[2.5cm] & \blank[2.5cm] \\[0.4em]
+  Key deliverables completed per quarter      & \blank[2.5cm] & \blank[2.5cm] \\[0.4em]
+  Response time to urgent messages (hours)    & \blank[2.5cm] & \blank[2.5cm] \\[0.4em]
+  Any personal cash to be invested per year   & \blank[2.5cm] & \blank[2.5cm] \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{The Anti-Loafing Protocol}
+\label{sec:antiloafing}
+
+Loafing is defined as sustained failure to meet the minimum contribution standards above, without an agreed leave of absence, for two or more consecutive quarters.
+
+When loafing is identified, the following process is to be followed in order. Neither founder may skip a step.
+
+\begin{enumerate}
+  \item \textbf{Private conversation}: the other founder raises the concern directly and privately. A 30-day improvement period is agreed with specific, measurable targets. This conversation is to be documented.
+  \item \textbf{Formal written notice}: if improvement targets are not met after 30 days, a written notice is issued citing specific failures and setting a final 60-day improvement period with milestones. Signed by both founders.
+  \item \textbf{Equity vesting pause}: if the 60-day period passes without meeting agreed milestones, vesting for the underperforming founder is paused from that date. The pause continues until minimum standards are met consistently for one full quarter.
+  \item \textbf{Forced buyout}: if vesting remains paused for more than \blank[2cm] months with no improvement, the performing founder may invoke a forced buyout of the underperforming founder's unvested shares at original issue price. Vested shares are retained per the Good Leaver provisions in the Departure section.
+\end{enumerate}
+
+\begin{warnbox}
+\textbf{Important:} This process is not punitive --- it is protective. It protects the company, protects the working founder from carrying dead weight, and protects the underperforming founder from being accused without due process. Both founders are to agree to submit to this process if it is ever invoked against either of them.
+\end{warnbox}
+
+\subsection{Recognising Exceptional Contribution}
+
+The accountability framework works in both directions. Where one founder makes an exceptional individual contribution --- brings in a major partnership, invests significant personal funds, or delivers a critical product milestone single-handedly --- both founders are to agree on how to recognise it:
+
+\begin{itemize}[label=\cb]
+  \item Noted in the key decisions log and quarterly scorecard only (no financial adjustment)
+  \item Counted as additional capital contribution (see the Founder Contributions section)
+  \item Discussed at the annual equity review as grounds for vesting acceleration
+  \item Other: \blank[7cm]
+\end{itemize}
+
+\subsection{Everything Belongs to EduReach}
+
+This is a restatement and extension of the IP Assignment clause in the Founder Contributions section. It is placed here --- early --- because it is non-negotiable and both founders must internalise it before any further discussion of equity or roles.
+
+\noindent\textbf{The following belong to EduReach the company --- not to either founder personally:}
+
+\begin{itemize}
+  \item All code, whether written on a personal computer or during personal time --- if it was written for EduReach, it belongs to EduReach
+  \item The \texttt{edureach.site} domain and all related domains, regardless of whose personal account they were registered under
+  \item All official EduReach social media accounts (Instagram, TikTok, X, YouTube, LinkedIn, WhatsApp Business) --- login credentials are to be stored in a shared company password manager, not in a personal account
+  \item The Vercel deployment account, the Contabo server account, and all cloud/hosting accounts used for EduReach
+  \item All user data, subscriber lists, and contact databases generated through EduReach activity
+  \item All partnership agreements, contracts, and revenue-sharing arrangements entered into on behalf of EduReach
+  \item The EduReach brand identity: name, logo, colour palette, and any brand guidelines
+  \item Any content, curricula, assessments, or educational material created for the platform
+\end{itemize}
+
+\noindent\textbf{Transition obligation:} Any of the above that is currently registered under a founder's personal name, email, or account is to be transferred to a company-owned account within \blank[2cm] days of company registration.
+
+\begin{tabularx}{\linewidth}{L{4.5cm} L{3.5cm} X}
+  \toprule
+  \textbf{Account / Asset} & \textbf{Currently Under} & \textbf{To Be Transferred To} \\
+  \midrule
+  \texttt{edureach.site} domain        & \blank[3cm] & Company account \\[0.3em]
+  Vercel deployment                    & \blank[3cm] & Company account \\[0.3em]
+  Contabo server                       & \blank[3cm] & Company account \\[0.3em]
+  GitHub repository                    & \blank[3cm] & Company organisation \\[0.3em]
+  Instagram / TikTok / X accounts      & \blank[3cm] & Shared company access \\[0.3em]
+  Google Workspace / business email    & \blank[3cm] & Company account \\[0.3em]
+  Payment processor account            & \blank[3cm] & Company account \\
+  \bottomrule
+\end{tabularx}
+
+\medskip
+\noindent Both founders confirm Section 3.6 (Everything Belongs to EduReach) by initialling here --- separately from the main signature page:
+
+\medskip
+\noindent Dalton Omondi initials: \rule{4cm}{0.4pt} \hspace{2cm} Mary Syokau initials: \rule{4cm}{0.4pt}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Equity}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{warnbox}
+\textbf{This is the most important section.} Getting it wrong will break the company. As much time as is needed is to be taken here. No other section is to be considered settled until this one is.
+\end{warnbox}
+
+\subsection{How Equity Is to Be Determined}
+
+Equity is not just about who had the idea. It reflects the totality of what each founder contributes and risks. The following factors are to be considered and scored honestly by both parties before arriving at a split:
+
+\begin{tabularx}{\linewidth}{L{5.5cm} X X}
+  \toprule
+  \textbf{Factor} & \textbf{Dalton Omondi} & \textbf{Mary Syokau} \\
+  \midrule
+  Original idea                      & & \\[0.4em]
+  Product built                      & & \\[0.4em]
+  Capital invested                   & & \\[0.4em]
+  Technical skills                   & & \\[0.4em]
+  Business / sales skills            & & \\[0.4em]
+  Networks \& relationships          & & \\[0.4em]
+  Time committed (hrs/week)          & & \\[0.4em]
+  Risk taken (full-time? quit job?)  & & \\[0.4em]
+  Future commitments                 & & \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Proposed Equity Split}
+
+\begin{notebox}
+\textit{The following split is to be agreed upon after honest discussion of the factors above. It is strongly recommended that 10--15\% be reserved for a future employee option pool before the founders' equity is split, so that future hiring does not dilute founders unfairly.}
+\end{notebox}
+
+\begin{tabularx}{\linewidth}{L{6cm} C{3cm} C{3cm}}
+  \toprule
+  \textbf{Founder / Pool} & \textbf{Shares} & \textbf{Percentage} \\
+  \midrule
+  Dalton Omondi                         & \blank[2cm] & \blank[2cm]\% \\[0.4em]
+  Mary Syokau                           & \blank[2cm] & \blank[2cm]\% \\[0.4em]
+  Employee option pool (ESOP)           & \blank[2cm] & \blank[2cm]\% \\[0.4em]
+  \midrule
+  \textbf{Total}                        & \textbf{10{,}000} & \textbf{100\%} \\
+  \bottomrule
+\end{tabularx}
+
+\medskip
+\noindent\textbf{On the question of 50/50:}
+
+A 50/50 split creates real operational problems. When disagreement arises --- and it will --- there is no mechanism to break the deadlock. One founder holding 51\% or an agreed tiebreaker mechanism is necessary, and both founders are to understand this before signing.
+
+\medskip
+\noindent\textbf{The agreed equity split and the reasoning behind it are to be recorded here:}
+
+\noindent\blank[14cm]\\[0.5em]
+\noindent\blank[14cm]
+
+\subsection{Vesting Schedule}
+
+Vesting protects both founders. If Mary Syokau leaves in 3 months, she should not walk away with the full equity allocated to her. If Dalton Omondi leaves in 3 months, the same applies. Vesting means equity is earned over time, not granted all at once.
+
+\textit{Recommended standard:} 4-year vest, 1-year cliff, then 1/48 of total equity released monthly. Actual terms are to be agreed upon by both parties.
+
+\begin{tabularx}{\linewidth}{L{5cm} C{4cm} C{4cm}}
+  \toprule
+  & \textbf{Dalton Omondi} & \textbf{Mary Syokau} \\
+  \midrule
+  Vesting period             & \blank[2.5cm] years & \blank[2.5cm] years \\[0.4em]
+  Cliff period               & \blank[2.5cm] months & \blank[2.5cm] months \\[0.4em]
+  Monthly release post-cliff & \blank[2.5cm]\% & \blank[2.5cm]\% \\
+  \bottomrule
+\end{tabularx}
+
+\medskip
+\noindent\textbf{Early Vesting Credit --- the involved parties are to agree on whether this applies:}
+
+Given that Dalton Omondi has already built the entire EduReach platform prior to this agreement, a case can be made for partial credit --- treating a portion of his equity as already vested in recognition of work already delivered. This is known as ``early vesting credit.''
+
+\medskip
+\noindent Early vesting credit for Dalton Omondi: \blank[2cm]\% of equity treated as immediately vested in recognition of the product already built.
+
+\begin{notebox}
+\textit{The percentage and basis for this credit are to be agreed upon by both founders and recorded above before signing.}
+\end{notebox}
+
+\subsection{Dilution}
+
+When the company raises investment, new shares are created and existing shareholders are diluted. The following principles are to be agreed to by both founders:
+
+\begin{itemize}
+  \item Dilution affects both founders proportionally unless otherwise agreed in writing
+  \item Neither founder may issue new shares or bring in new shareholders without the other's written consent
+  \item Any future option pool will be created before investment rounds (pre-money), not after
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Roles, Authority \& Decision Making}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Titles and Roles}
+
+\begin{notebox}
+\textit{Mary Syokau's title is to be agreed upon and must reflect her actual primary contribution. Common co-founder titles: COO (Operations), CMO (Marketing), CCO (Commercial), CPO (Product), CSO (Strategy). A title that does not reflect real responsibility is to be avoided.}
+\end{notebox}
+
+\begin{tabularx}{\linewidth}{L{3.5cm} L{3.5cm} X}
+  \toprule
+  \textbf{Founder} & \textbf{Title} & \textbf{Primary Responsibilities} \\
+  \midrule
+  Dalton Omondi & Chief Executive Officer (CEO) & \blank[6cm] \\[0.5em]
+  Mary Syokau   & \blank[3cm]                  & \blank[6cm] \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{CEO Authority \& Decision-Making Structure}
+
+Both founders are to agree to the following structure and acknowledge it in writing by signing this document.
+
+\medskip
+\noindent\textbf{Dalton Omondi as CEO holds unilateral authority over:}
+
+\begin{itemize}
+  \item Product direction and roadmap
+  \item Technology decisions
+  \item Hiring and firing
+  \item Day-to-day operations
+  \item Partnerships and business development
+  \item Marketing strategy and messaging
+  \item Pricing decisions
+  \item Customer support standards
+\end{itemize}
+
+\noindent\textbf{The following decisions require mutual agreement from both founders:}
+
+\begin{itemize}
+  \item Issuing new equity or bringing in new shareholders
+  \item Taking on debt above KES \blank[3cm]
+  \item Acquiring another company
+  \item Selling the company or significant assets
+  \item Removing a co-founder
+  \item Changing the fundamental nature of the business
+  \item Dissolving the company
+\end{itemize}
+
+\noindent\textbf{In the event of disagreement on a mutual-agreement decision, the following process is to be followed in order:}
+
+\begin{enumerate}
+  \item Good faith discussion for \blank[2cm] days
+  \item Mediation by an agreed neutral third party: \blank[5cm]
+  \item Final escalation mechanism: \blank[5cm]
+\end{enumerate}
+
+\subsection{Responsibility Matrix}
+
+\begin{notebox}
+\textit{The following is to be filled in by agreement. ``Owns'' means accountable for outcomes, not necessarily doing all the work alone. Every area must have a named owner.}
+\end{notebox}
+
+\begin{tabularx}{\linewidth}{L{5cm} C{3.5cm} X}
+  \toprule
+  \textbf{Area} & \textbf{Owned by} & \textbf{Notes} \\
+  \midrule
+  Product development             & & \\[0.4em]
+  Technology \& infrastructure    & & \\[0.4em]
+  User acquisition                & & \\[0.4em]
+  Content \& curriculum           & & \\[0.4em]
+  Partnerships (schools, orgs)    & & \\[0.4em]
+  Finance \& accounting           & & \\[0.4em]
+  Legal \& compliance             & & \\[0.4em]
+  Investor relations              & & \\[0.4em]
+  Marketing \& brand              & & \\[0.4em]
+  Customer support                & & \\[0.4em]
+  Hiring                          & & \\[0.4em]
+  Social media                    & & \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Time Commitment}
+
+\begin{notebox}
+\textit{Both founders are to be honest here. A founder who is part-time should not hold the same equity or authority as one who is full-time. If a transition to full-time is planned, the expected date is to be recorded.}
+\end{notebox}
+
+\begin{tabularx}{\linewidth}{L{3.5cm} C{3.5cm} C{2.5cm} C{3cm}}
+  \toprule
+  \textbf{Founder} & \textbf{Hrs/week committed} & \textbf{Full-time?} & \textbf{If not, by when?} \\
+  \midrule
+  Dalton Omondi & \blank[2cm] & Y \;/\; N & \blank[2cm] \\[0.4em]
+  Mary Syokau   & \blank[2cm] & Y \;/\; N & \blank[2cm] \\
+  \bottomrule
+\end{tabularx}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Strengths, Weaknesses \& Gaps}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Founder Self-Assessment}
+
+\begin{notebox}
+\textit{Each founder is to fill in their own column independently and honestly. The answers are then to be shared and discussed openly. Neither founder is to fill in the other's column.}
+\end{notebox}
+
+\begin{tabularx}{\linewidth}{L{4.5cm} X X}
+  \toprule
+  & \textbf{Dalton Omondi} & \textbf{Mary Syokau} \\
+  \midrule
+  Top 3 strengths            & 1.\quad\blank[4cm]\newline 2.\quad\blank[4cm]\newline 3.\quad\blank[4cm]
+                             & 1.\quad\blank[4cm]\newline 2.\quad\blank[4cm]\newline 3.\quad\blank[4cm] \\[0.4em]
+  Top 3 weaknesses           & 1.\quad\blank[4cm]\newline 2.\quad\blank[4cm]\newline 3.\quad\blank[4cm]
+                             & 1.\quad\blank[4cm]\newline 2.\quad\blank[4cm]\newline 3.\quad\blank[4cm] \\[0.4em]
+  What I bring that is irreplaceable & \blank[4.5cm] & \blank[4.5cm] \\[0.4em]
+  What I struggle with most          & \blank[4.5cm] & \blank[4.5cm] \\[0.4em]
+  How I prefer to communicate        & \blank[4.5cm] & \blank[4.5cm] \\[0.4em]
+  How I handle conflict              & \blank[4.5cm] & \blank[4.5cm] \\[0.4em]
+  What demotivates me                & \blank[4.5cm] & \blank[4.5cm] \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Company Skills Gap Analysis}
+
+\begin{notebox}
+\textit{The skills EduReach needs that neither founder currently has are to be identified and a plan agreed upon for each.}
+\end{notebox}
+
+\begin{tabularx}{\linewidth}{X C{3cm} C{4cm}}
+  \toprule
+  \textbf{Skill Gap} & \textbf{How Critical} & \textbf{Plan to Fill It} \\
+  \midrule
+  \blank[6cm] & High / Med / Low & Hire / Freelance / Learn \\[0.4em]
+  \blank[6cm] & High / Med / Low & Hire / Freelance / Learn \\[0.4em]
+  \blank[6cm] & High / Med / Low & Hire / Freelance / Learn \\[0.4em]
+  \blank[6cm] & High / Med / Low & Hire / Freelance / Learn \\[0.4em]
+  \blank[6cm] & High / Med / Low & Hire / Freelance / Learn \\
+  \bottomrule
+\end{tabularx}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Compensation}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Current Compensation}
+
+Both founders acknowledge that as of the date of signing, neither is drawing a salary from EduReach. Both are working without immediate financial compensation in exchange for equity.
+
+\begin{itemize}[label=\cb]
+  \item Dalton Omondi confirms this
+  \item Mary Syokau confirms this
+\end{itemize}
+
+\subsection{First Salary Trigger}
+
+\begin{notebox}
+\textit{The condition under which salaries will begin is to be agreed upon. One of the following is to be selected or a custom condition defined.}
+\end{notebox}
+
+\begin{itemize}[label=\cb]
+  \item Monthly recurring revenue reaches KES \blank[3.5cm]
+  \item After a successful fundraising round of KES \blank[3.5cm]
+  \item By date: \blank[3cm] regardless of revenue
+  \item Other: \blank[7cm]
+\end{itemize}
+
+\subsection{Agreed Starting Salaries (when triggered)}
+
+\begin{notebox}
+\textit{Salaries are to reflect market rates for the roles. Both founders are to research Kenyan market rates for equivalent positions before agreeing on figures.}
+\end{notebox}
+
+\begin{tabularx}{\linewidth}{L{3.5cm} X X}
+  \toprule
+  \textbf{Founder} & \textbf{Monthly Salary (KES)} & \textbf{Review Frequency} \\
+  \midrule
+  Dalton Omondi & \blank[4cm] & \blank[4cm] \\[0.4em]
+  Mary Syokau   & \blank[4cm] & \blank[4cm] \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Expense Reimbursement Policy}
+
+Going forward, company expenses are to be:
+\begin{itemize}
+  \item Pre-approved by the CEO for amounts above KES \blank[3cm]
+  \item Accompanied by a receipt
+  \item Recorded in the shared company expenses log
+  \item Reimbursed within \blank[1.5cm] days when the company has funds
+\end{itemize}
+
+\noindent The existing contributions (KES 12{,}400 by Dalton Omondi, KES 200 by Mary Syokau) are to be treated as: \blank[6cm]
+
+\subsection{Founder Minimum Survival Stipend}
+
+\begin{notebox}
+\textit{This is one of the first practical financial decisions to be made. Before formal salaries are triggered, there comes a point where the company has some revenue but not enough to pay full market-rate salaries. At that point, founders need a minimum amount to cover basic living expenses. This is not a salary --- it is a survival stipend. Both founders are to agree on the terms below.}
+\end{notebox}
+
+\noindent\textbf{Stipend trigger} --- the minimum stipend becomes payable when:
+
+\begin{itemize}[label=\cb]
+  \item Monthly revenue reaches KES \blank[3.5cm]
+  \item After the first paying subscriber
+  \item Other: \blank[6cm]
+\end{itemize}
+
+\noindent\textbf{Stipend amount:}
+
+\begin{tabularx}{\linewidth}{L{4cm} X X}
+  \toprule
+  \textbf{Founder} & \textbf{Monthly Stipend (KES)} & \textbf{Notes} \\
+  \midrule
+  Dalton Omondi & \blank[4cm] & \\[0.4em]
+  Mary Syokau   & \blank[4cm] & \\
+  \bottomrule
+\end{tabularx}
+
+\begin{notebox}
+\textit{Both founders are to receive equal stipends regardless of equity split. The stipend is not tied to equity --- it is tied to need. Suggested starting range: KES 20{,}000--50{,}000/month depending on individual circumstances. The stipend stops automatically when full formal salaries are triggered (Section 6.2).}
+\end{notebox}
+
+\noindent The stipend is to be: \quad Equal for both founders \;/\; Different (specify rationale: \blank[4cm])
+
+\noindent The stipend is subject to: \quad PAYE deduction \;/\; Treated as a loan to be repaid from future salary \;/\; Other: \blank[3cm]
+
+\subsection{Gifts, Bonuses \& Special Payments}
+
+Both founders are to agree that no payment outside of the agreed stipend and salary structure may be made to either founder without the following conditions being met:
+
+\begin{itemize}
+  \item The payment is agreed upon in writing by both founders
+  \item The payment is recorded in the company accounts with a stated reason
+  \item The payment does not exceed KES \blank[3cm] per founder per calendar year
+  \item The payment is equal for both founders unless a specific performance-based rationale is documented
+\end{itemize}
+
+\begin{warnbox}
+\textbf{Kenya tax note:} Gifts and ex-gratia payments from a company to its directors or employees are treated as employment income under the Income Tax Act and are subject to PAYE. There is no tax-free gift allowance for company-to-director payments. Both founders are to be aware of this before making any such payment.
+\end{warnbox}
+
+\noindent Maximum annual gift/bonus per founder (agreed): KES \blank[4cm]\\[0.5em]
+\noindent Approval required from: \quad Both founders \;/\; CEO only (if equal amounts)
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Founder Departure, Death \& Dispute}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Voluntary Departure (``Good Leaver'')}
+
+Should a founder choose to leave EduReach voluntarily with proper notice, the following terms are to apply:
+
+\begin{itemize}
+  \item Notice period required: \blank[2cm] months
+  \item Vested equity: retained by departing founder
+  \item Unvested equity: returned to the company, with the remaining founder having first right of refusal
+  \item Right of first refusal: the remaining founder is to have \blank[1.5cm] days to purchase the departed founder's shares at agreed valuation before those shares may be offered to any third party
+\end{itemize}
+
+\subsection{Involuntary Departure or Serious Misconduct (``Bad Leaver'')}
+
+Should a founder be removed due to gross misconduct, fraud, or material breach of this agreement:
+
+\begin{itemize}
+  \item Vested equity: subject to buyback at original price (not current market value)
+  \item Unvested equity: forfeited immediately
+  \item Definition of ``gross misconduct'' for this agreement: \blank[7cm]
+\end{itemize}
+
+\subsection{Death or Permanent Incapacitation}
+
+Should a founder die or become permanently unable to fulfil their duties:
+
+\begin{itemize}
+  \item Their vested shares pass to their estate
+  \item The estate may not participate in company operations
+  \item The remaining founder is to have right of first refusal to purchase the shares from the estate at fair market value
+  \item A key-person insurance policy on both founders is to be taken out as soon as financially feasible
+\end{itemize}
+
+\noindent Both parties agree to key-person insurance as a priority: \quad Y \;/\; N
+
+\subsection{Deadlock \& Dispute Resolution}
+
+For disputes that cannot be resolved between the two founders, the following process is to be followed in order:
+
+\begin{enumerate}
+  \item Written notice of dispute issued; 7-day cooling-off period observed
+  \item Good faith mediation --- agreed mediator: \blank[5cm]
+  \item If unresolved, arbitration under the Kenyan Arbitration Act
+  \item Legal proceedings in Kenyan courts as last resort
+\end{enumerate}
+
+\noindent Neither founder may take a company dispute to social media, public forums, or third parties outside the agreed resolution process above.
+
+\subsection{Non-Compete \& Non-Solicitation}
+
+Both founders are to agree that during their time at EduReach and for \blank[1.5cm] months after departure, neither will:
+
+\begin{itemize}
+  \item Start or join a directly competing edtech platform targeting the same market
+  \item Solicit EduReach employees, contractors, or customers for a competing venture
+  \item Use EduReach's proprietary data, user information, or codebase for any other purpose
+\end{itemize}
+
+\subsection{Burnout, Leave of Absence \& Temporary Withdrawal}
+
+\begin{notebox}
+\textit{Burnout is real and common in early-stage startups. A founder who is burnt out but not formally departing sits in a grey area that can create resentment, inequity, and operational problems if not handled clearly. This section distinguishes temporary withdrawal from permanent departure and provides a framework for handling it fairly.}
+\end{notebox}
+
+\noindent\textbf{Definitions:}
+
+\begin{itemize}
+  \item \textbf{Temporary withdrawal / burnout leave}: a period not exceeding \blank[1.5cm] months during which a founder reduces or pauses their active contribution due to burnout, health, or personal emergency, without intending to permanently leave
+  \item \textbf{Permanent departure}: any withdrawal lasting beyond the agreed temporary period, or a formal declaration of exit
+\end{itemize}
+
+\noindent\textbf{Terms of a leave of absence:}
+
+\begin{itemize}
+  \item A leave of absence is to be requested in writing, stating the reason and expected duration
+  \item Both founders are to agree to the leave before it begins
+  \item Maximum duration before it is treated as permanent departure: \blank[2cm] months
+  \item Equity vesting during leave: \quad Paused entirely \;/\; Continues at 50\% rate \;/\; Continues in full \;/\; Other: \blank[3cm]
+  \item Day-to-day responsibilities of the absent founder are to be redistributed and documented before leave begins
+  \item The absent founder retains their title and equity position during the agreed leave period
+  \item The absent founder may not take on paid employment or other founder-level commitments at another company during the leave period
+\end{itemize}
+
+\noindent\textbf{Return conditions:}
+
+\begin{itemize}
+  \item A return-to-work plan is to be agreed upon in writing before the founder returns
+  \item A 2-week transition period is to be allowed for the founder to resume full responsibilities
+  \item If the founder is unable to return after the agreed leave period, the departure provisions of Section 7.1 apply from the date the leave period expires
+\end{itemize}
+
+\noindent\textbf{What triggers this section vs Section 7.1:}
+
+If a founder says ``I need a break'' --- this section applies.\\
+If a founder says ``I am leaving'' --- Section 7.1 (Good Leaver) applies immediately.\\
+If a founder goes silent and stops contributing without notice for more than \blank[1.5cm] weeks --- both founders are to meet and formally classify the situation within \blank[1.5cm] days.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Fundraising \& Financial Governance}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Fundraising Strategy}
+
+\noindent\textbf{Bootstrapping phase (current):}\\
+The milestone to be reached before seeking external investment: \blank[7cm]
+
+\medskip
+\noindent\textbf{First external funding round:}
+\begin{itemize}
+  \item Target amount: KES \blank[4cm]
+  \item Preferred source: \quad Angel \;/\; Grant \;/\; VC \;/\; Friends \& Family
+  \item Target timeline: \blank[4cm]
+  \item Maximum equity to be offered: \blank[2cm]\%
+\end{itemize}
+
+\noindent\textbf{The following conditions are to apply. Neither founder may raise money without the other's written agreement if:}
+
+\begin{itemize}
+  \item The deal dilutes either founder below \blank[2cm]\%
+  \item The deal changes the voting structure
+  \item The deal involves giving a board seat to an investor
+  \item The deal involves personal guarantees from either founder
+\end{itemize}
+
+\subsection{Banking \& Financial Controls}
+
+\begin{itemize}
+  \item A company bank account is to be opened in the company name upon registration
+  \item Signatories: \blank[6cm]
+  \item Transactions above KES \blank[3cm] are to require both signatories
+  \item Monthly financial review: both founders review accounts together on the \blank[1.5cm] of each month
+  \item Accounting tool to be used: \blank[4cm]
+\end{itemize}
+
+\subsection{Revenue Distribution Policy}
+
+Until formal salaries are triggered, any revenue earned by EduReach is to be handled as follows:
+
+\begin{itemize}[label=\cb]
+  \item Reinvested entirely into the company
+  \item Split: \blank[1.5cm]\% reinvested, \blank[1.5cm]\% distributed to founders proportionally to equity
+  \item Other: \blank[7cm]
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Documentation \& Record Keeping}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Both founders are to agree that proper documentation is a non-negotiable discipline from day one.
+
+\subsection{What Must Be Documented}
+
+\begin{tabularx}{\linewidth}{L{4cm} L{3cm} L{3cm} L{3cm}}
+  \toprule
+  \textbf{Document} & \textbf{Frequency} & \textbf{Stored Where} & \textbf{Signed by} \\
+  \midrule
+  This founders' agreement       & Once; updated as needed & \blank[2.5cm] & Both + witness \\[0.4em]
+  Monthly expense log            & Monthly                 & \blank[2.5cm] & CEO \\[0.4em]
+  Key decisions log              & Every major decision    & \blank[2.5cm] & Both founders \\[0.4em]
+  Founders' meeting minutes      & Every meeting           & \blank[2.5cm] & Both founders \\[0.4em]
+  Amendments to this agreement   & As needed               & \blank[2.5cm] & Both + witness \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{The Key Decisions Log}
+
+Every significant company decision is to be recorded with: date, decision made, who was present, who approved, rationale, and signature of CEO. This record protects both founders and creates an audit trail for investors and legal purposes.
+
+\subsection{Founders' Meeting Cadence}
+
+\begin{itemize}
+  \item Frequency: \blank[5cm]
+  \item Format: \quad In person \;/\; Video call
+  \item Agenda to be shared: \blank[1.5cm] hours before each meeting
+  \item Minutes to be written and signed: within \blank[1.5cm] hours after each meeting
+\end{itemize}
+
+\subsection{Amendments to This Agreement}
+
+This agreement may only be amended when all of the following conditions are met:
+\begin{itemize}
+  \item The amendment is in writing
+  \item Signed by both founders
+  \item Witnessed by the same or a new independent witness
+  \item At least \blank[1.5cm] days' written notice given before signing any amendment
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Intellectual Property \& Brand}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{What Needs to Be Protected}
+
+\begin{tabularx}{\linewidth}{L{3.5cm} L{4cm} L{3.5cm} C{2cm}}
+  \toprule
+  \textbf{Asset} & \textbf{Protection Type} & \textbf{Current Status} & \textbf{Priority} \\
+  \midrule
+  ``EduReach'' name    & Trademark (KIPI)          & Not filed           & High \\[0.3em]
+  EduReach logo        & Copyright + Trademark     & Not filed           & High \\[0.3em]
+  Platform codebase    & Copyright (automatic)     & Owned on registration & High \\[0.3em]
+  Domain names         & Registration              & Active              & Done \\[0.3em]
+  Content / curriculum & Copyright (automatic)     & \blank[2.5cm]       & Medium \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Trademark Registration in Kenya}
+
+Trademark registration is to be filed through the Kenya Industrial Property Institute (KIPI) at \texttt{kipi.go.ke} as soon as the company is registered:
+
+\begin{itemize}
+  \item Cost: approximately KES 7{,}500--15{,}000 per class
+  \item Timeline: 12--24 months from filing
+  \item Relevant classes: Class 41 (Education \& Training), Class 42 (Software \& Technology)
+\end{itemize}
+
+Both founders agree this is a priority action upon company registration: \quad Y \;/\; N
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Confidentiality}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Both founders are to agree to the following and observe it at all times:
+
+\begin{itemize}
+  \item All business information, user data, financial information, product details, and strategic plans are strictly confidential
+  \item Neither founder may share confidential information with any third party without written consent from the CEO
+  \item This obligation is to continue for \blank[2cm] years after departure from the company
+  \item Conversations with advisors, lawyers, and accountants are exempt, provided those parties sign appropriate NDAs
+  \item All third-party contractors are to sign an NDA before beginning any work
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Company Registration --- Timing \& Process}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{When to Register}
+
+Both founders are to agree on the trigger that will initiate formal company registration. Operating informally is acceptable in the early stage but carries risks --- including no legal protection, inability to open a business bank account, and inability to hire employees properly.
+
+\noindent\textbf{The involved parties are to agree on the registration trigger. One is to be selected:}
+
+\begin{itemize}[label=\cb]
+  \item First paying customer or first revenue of any amount
+  \item Monthly revenue reaches KES \blank[3.5cm]
+  \item When seeking investment (investor requires a registered entity)
+  \item Before hiring the first employee (a legal requirement)
+  \item By a specific date: \blank[4cm]
+  \item Other: \blank[5cm]
+\end{itemize}
+
+\subsection{Registration Process (Kenya)}
+
+Registration is done through the Business Registration Service (BRS) at \texttt{brs.go.ke}. The steps are as follows:
+
+\begin{enumerate}
+  \item Reserve the company name (approx.\ KES 150) --- confirm ``EduReach Limited'' or agreed name is available
+  \item Prepare Memorandum \& Articles of Association
+  \item File incorporation documents and pay registration fee (approx.\ KES 10{,}650)
+  \item Receive Certificate of Incorporation
+  \item Apply for company KRA PIN via \texttt{itax.kra.go.ke}
+  \item Open a business bank account (Certificate of Incorporation + KRA PIN required)
+  \item Register for NSSF and NHIF as an employer (required before hiring)
+  \item File first annual return (due within 12 months of registration)
+\end{enumerate}
+
+Estimated timeline: 3--7 business days if done online.
+
+\subsection{Pre-Registration Checklist}
+
+\begin{itemize}[label=\cb]
+  \item This founders' agreement signed and witnessed
+  \item Agreed company name confirmed available on BRS
+  \item Equity split finalised and agreed
+  \item Directors identified and agreed (minimum one required)
+  \item Registered office address confirmed (can be a home address initially)
+  \item Shareholders' agreement drafted (with a lawyer)
+\end{itemize}
+
+\subsection{Post-Registration Immediate Actions}
+
+\begin{itemize}[label=\cb]
+  \item Company bank account opened
+  \item KRA PIN obtained for the company
+  \item Trademark application filed at KIPI
+  \item IP assignment agreement signed (assigns all existing work to the company)
+  \item Employment contracts prepared (template) for future hires
+  \item Privacy policy and terms of service updated to reflect registered company name
+\end{itemize}
+
+\subsection{International Holding Structure}
+
+Both founders acknowledge that international investors --- particularly from the US, Europe, and Gulf --- typically prefer to invest into a foreign holding entity rather than directly into a Kenyan company. The two common structures are:
+
+\begin{itemize}
+  \item \textbf{Mauritius Holding Company}: preferred by African-focused VCs; lower tax treaty benefits; relatively easy to set up
+  \item \textbf{Delaware C-Corp}: required by most US-based investors and Y Combinator-affiliated funds
+\end{itemize}
+
+This restructuring (a ``flip'') is done at Series A stage or before raising from international investors. Both founders are to acknowledge this is a future requirement and agree not to make equity decisions that would make a future flip unnecessarily complicated.
+
+Both founders confirm this understanding: \quad Y \;/\; N
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Investor Relations \& Capital Strategy}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Types of Investors Relevant to EduReach}
+
+\begin{tabularx}{\linewidth}{L{3.5cm} L{5cm} X}
+  \toprule
+  \textbf{Type} & \textbf{Examples (Kenya/Africa)} & \textbf{What They Provide} \\
+  \midrule
+  Angel investors      & Local HNWIs, diaspora angels    & Capital + networks; flexible terms \\[0.3em]
+  Grants               & Tony Elumelu Foundation, Google for Startups Africa, GSMA Innovation Fund, Mastercard Foundation & Non-dilutive capital; no equity given \\[0.3em]
+  Impact investors     & Acumen, Omidyar Network         & Patient capital; mission-aligned \\[0.3em]
+  Africa-focused VCs   & Novastar Ventures, Partech Africa, Founders Factory Africa, Future Africa & Larger cheques; board involvement \\[0.3em]
+  Strategic investors  & Telecom companies, publishers, exam boards & Distribution + capital \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{What to Prepare Before Approaching Investors}
+
+Both founders are to agree that no investor will be approached until the following are in place:
+
+\begin{itemize}[label=\cb]
+  \item Registered company with clean cap table
+  \item Pitch deck (10--12 slides covering: problem, solution, market size, traction, business model, team, financials, ask)
+  \item 3-year financial projections
+  \item User metrics: active users, retention rate, revenue (if any)
+  \item Data room: company documents, IP assignments, team CVs, product demo
+  \item Clear ask: how much, at what valuation, for what use of funds
+\end{itemize}
+
+\subsection{Key Terms Both Founders Must Understand}
+
+\begin{tabularx}{\linewidth}{L{3.5cm} X}
+  \toprule
+  \textbf{Term} & \textbf{What It Means} \\
+  \midrule
+  Pre-money valuation   & What the company is worth before investor money goes in \\[0.3em]
+  Post-money valuation  & Pre-money valuation + investment amount \\[0.3em]
+  SAFE note             & Simple Agreement for Future Equity --- investor gives money now, receives equity at next priced round \\[0.3em]
+  Equity round          & Investor receives a percentage of the company immediately \\[0.3em]
+  Valuation cap         & Maximum valuation at which a SAFE converts to equity (protects the investor) \\[0.3em]
+  Pro-rata rights       & Investor's right to maintain their percentage in future rounds \\[0.3em]
+  Anti-dilution         & Protects investor's equity percentage if future rounds are at a lower valuation \\[0.3em]
+  Board seat            & Investor gets a vote on major company decisions \\[0.3em]
+  Information rights    & Investor's right to receive financial reports regularly \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Investor Protection Principles}
+
+Both founders are to agree on the following protections before entering any investor negotiation:
+
+\begin{itemize}
+  \item Neither founder's equity is to fall below \blank[2cm]\% at any stage without both founders' written consent
+  \item No investor is to receive a board seat without both founders agreeing
+  \item No investor is to receive veto rights over operational decisions
+  \item The CEO retains day-to-day operational authority regardless of investor composition
+  \item All investment terms are to be reviewed by a lawyer before signing
+\end{itemize}
+
+\subsection{Grants Strategy}
+
+\begin{notebox}
+\textit{Grants are non-dilutive --- no equity is given away. They are the best form of early funding. Both founders are to agree on who is responsible for identifying and applying for grants.}
+\end{notebox}
+
+\noindent Responsibility for grant applications: \blank[5cm]\\[0.5em]
+\noindent First grants to apply for: \blank[8cm]\\[0.5em]
+\noindent Target grant funding in first year: KES \blank[3cm]
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Legal \& Professional Advisors}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{When to Engage a Lawyer}
+
+Both founders are to agree that a lawyer must be engaged before the following events occur --- not after:
+
+\begin{itemize}[label=\cb]
+  \item Company registration (to draft proper Articles of Association and shareholders' agreement)
+  \item Signing any partnership or revenue-sharing agreement
+  \item Before raising any investment (to review term sheets)
+  \item Before hiring the first employee (employment contract template)
+  \item Before filing trademarks at KIPI
+  \item In the event of any dispute with a third party
+\end{itemize}
+
+\noindent Agreed lawyer / legal firm: \blank[7cm]\\[0.5em]
+\noindent Estimated budget for legal in Year 1: KES \blank[3cm]
+
+\subsection{Tax Obligations Post-Registration}
+
+Both founders are to understand and agree to comply with all Kenyan tax obligations:
+
+\begin{tabularx}{\linewidth}{L{4cm} L{4cm} X}
+  \toprule
+  \textbf{Tax / Levy} & \textbf{Rate} & \textbf{When It Applies} \\
+  \midrule
+  Corporate income tax  & 30\% of net profit     & When the company is profitable \\[0.3em]
+  VAT                   & 16\%                   & When annual turnover exceeds KES 5{,}000{,}000 \\[0.3em]
+  PAYE                  & Progressive bands      & On every employee salary from day one of hiring \\[0.3em]
+  NSSF                  & KES 200 employee + employer contribution & On every employee \\[0.3em]
+  NHIF                  & Band-based             & On every employee \\[0.3em]
+  Withholding tax (WHT) & 5--30\% depending on payment type & On payments to contractors and service providers \\[0.3em]
+  Digital service tax   & 1.5\% of gross revenue & On digital services delivered in Kenya (currently suspended --- monitor) \\
+  \bottomrule
+\end{tabularx}
+
+\noindent\textbf{KRA obligations:} Monthly PAYE returns, monthly VAT returns (once registered), annual corporate tax return. All to be filed via \texttt{itax.kra.go.ke}.
+
+\subsection{Accounting}
+
+\begin{itemize}
+  \item Accounting tool to be used from day one: \blank[5cm]
+  \item External accountant to be engaged when monthly transactions exceed: KES \blank[3cm]
+  \item Financial year end: \blank[3cm] (to be elected at registration)
+  \item Both founders are to have read access to all company financial records at all times
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Cybersecurity \& Data Protection}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{warnbox}
+\textbf{This section is legally important.} Kenya's Data Protection Act 2019 (KDPA) imposes obligations on any entity that collects or processes personal data of Kenyan residents. Non-compliance can result in fines of up to KES 5{,}000{,}000 or 1\% of annual turnover. EduReach collects sensitive data --- student performance, names, email addresses, and educational history. Both founders are to take this seriously from day one.
+\end{warnbox}
+
+\subsection{Kenya Data Protection Act (KDPA) 2019 Compliance}
+
+\begin{itemize}[label=\cb]
+  \item Register as a data controller/processor with the Office of the Data Protection Commissioner (ODPC) at \texttt{odpc.go.ke} upon company registration
+  \item Appoint a Data Protection Officer (DPO) --- can be one of the founders initially
+  \item Maintain a data register documenting all categories of personal data collected
+  \item Implement a compliant privacy policy visible to all users
+  \item Implement a data breach notification procedure (ODPC must be notified within 72 hours of a breach)
+\end{itemize}
+
+\noindent Agreed DPO: \blank[5cm]
+
+\subsection{Data Collected by EduReach}
+
+Both founders are to agree on what data is collected, why, and for how long it is retained:
+
+\begin{tabularx}{\linewidth}{L{3.5cm} L{4cm} L{2.5cm} L{3cm}}
+  \toprule
+  \textbf{Data Type} & \textbf{Purpose} & \textbf{Retention} & \textbf{Shared With} \\
+  \midrule
+  Name, email address       & Account creation, login          & Account lifetime + \blank[1cm] yrs & \blank[2.5cm] \\[0.4em]
+  Assessment results        & Progress tracking, analytics     & \blank[1.5cm]                     & \blank[2.5cm] \\[0.4em]
+  Study group activity      & Group features                   & \blank[1.5cm]                     & \blank[2.5cm] \\[0.4em]
+  AI tutor conversation     & Personalisation                  & \blank[1.5cm]                     & \blank[2.5cm] \\[0.4em]
+  Payment information       & Subscription processing          & As required by law                & Payment processor \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Security Measures in Place and Required}
+
+\begin{tabularx}{\linewidth}{L{5cm} C{2.5cm} L{5cm}}
+  \toprule
+  \textbf{Security Measure} & \textbf{In Place?} & \textbf{Notes} \\
+  \midrule
+  HTTPS / SSL on all endpoints          & Yes & edureach.site \& api.edureach.site \\[0.3em]
+  Password hashing (bcrypt/Argon2)      & \blank[2cm] & \\[0.3em]
+  JWT / token-based API authentication  & Yes & \\[0.3em]
+  Rate limiting on API endpoints        & \blank[2cm] & \\[0.3em]
+  SQL injection protection              & Yes & Django ORM \\[0.3em]
+  XSS protection                        & Yes & React escaping + DRF \\[0.3em]
+  Regular dependency security updates   & \blank[2cm] & \\[0.3em]
+  Regular database backups              & \blank[2cm] & Frequency: \blank[2.5cm] \\[0.3em]
+  2FA on all admin accounts             & \blank[2cm] & \\[0.3em]
+  Access control (staff-only routes)    & Yes & Django \texttt{is\_staff} flag \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Incident Response Plan}
+
+Both founders are to agree on the following response procedure in the event of a security breach:
+
+\begin{enumerate}
+  \item Immediately isolate affected systems to prevent further data exposure
+  \item Assess the scope: which users affected, what data exposed, how long
+  \item If personal data of Kenyan residents is exposed, notify ODPC within 72 hours
+  \item Notify affected users by email within \blank[2cm] hours of confirmed breach
+  \item Engage a cybersecurity professional to investigate root cause
+  \item Document the incident, response taken, and corrective actions
+  \item Post-incident review: what failed and how to prevent recurrence
+\end{enumerate}
+
+\noindent Primary responsible person for security incidents: \blank[5cm]
+
+\subsection{Privacy Policy \& Terms of Service}
+
+Both founders are to agree that the following documents are to be legally reviewed before the platform is publicly marketed:
+
+\begin{itemize}[label=\cb]
+  \item Privacy Policy --- compliant with KDPA 2019; to be reviewed by a lawyer
+  \item Terms of Service --- covering acceptable use, content ownership, liability limitations
+  \item Cookie Policy --- if cookies are used beyond session management
+  \item Educator/Content Creator Agreement --- governing what content creators may upload and who owns it
+  \item Minors Policy --- if the platform targets users under 18 (parental consent requirements apply)
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Employees \& Human Resources}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{When to Make the First Hire}
+
+Both founders are to agree on the trigger for making the first hire:
+
+\begin{itemize}[label=\cb]
+  \item When monthly revenue reaches KES \blank[3.5cm]
+  \item After a fundraising round of KES \blank[3.5cm]
+  \item When a specific bottleneck is identified: \blank[5cm]
+  \item Other: \blank[5cm]
+\end{itemize}
+
+\noindent First hire role (agreed): \blank[7cm]
+
+\subsection{Types of Employment}
+
+\begin{tabularx}{\linewidth}{L{3.5cm} X L{3.5cm}}
+  \toprule
+  \textbf{Type} & \textbf{When to Use} & \textbf{Legal Requirements} \\
+  \midrule
+  Permanent employee  & Core long-term roles & Full Employment Act protections apply \\[0.3em]
+  Fixed-term contract & Project-based or short-term & Written contract required; max 2 renewals \\[0.3em]
+  Casual labour       & Day-to-day tasks, no continuity & Paid daily or weekly \\[0.3em]
+  Internship          & Students; skills gap filling & Stipend agreement; NDA required \\[0.3em]
+  Independent contractor (freelance) & Specialist one-off work & No employment protections; NDA + IP assignment required \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Statutory Deductions (Kenya Employment Act)}
+
+All employees are entitled to the following, to be deducted/contributed by the company:
+
+\begin{tabularx}{\linewidth}{L{3cm} L{4cm} X}
+  \toprule
+  \textbf{Deduction} & \textbf{Rate} & \textbf{Notes} \\
+  \midrule
+  PAYE         & Progressive (10--30\%)                   & Remitted to KRA by 9th of following month \\[0.3em]
+  NSSF         & KES 200 employee + KES 200 employer (increasing under new Act) & Remitted to NSSF \\[0.3em]
+  NHIF / SHIF  & Band-based (KES 500--1{,}700)             & Transitioning to SHIF (2.75\% of gross salary under new Act); monitor changes \\[0.3em]
+  NITA levy    & 0.05\% of gross monthly payroll           & National Industrial Training Authority \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Leave Entitlements (Kenya Employment Act 2007)}
+
+\begin{tabularx}{\linewidth}{L{3.5cm} X}
+  \toprule
+  \textbf{Leave Type} & \textbf{Entitlement} \\
+  \midrule
+  Annual leave           & 21 working days per year (after 12 months of service) \\[0.3em]
+  Sick leave             & 7 days full pay + 7 days half pay per year \\[0.3em]
+  Maternity leave        & 3 months (90 days) fully paid \\[0.3em]
+  Paternity leave        & 2 weeks (14 days) fully paid \\[0.3em]
+  Compassionate leave    & At company discretion; to be defined in HR policy \\[0.3em]
+  Public holidays        & 13 days per year (Kenya national holidays) \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Employment Contract Requirements}
+
+Every employee --- including interns and contractors performing regular work --- is to sign a written agreement before starting. The agreement is to include:
+
+\begin{itemize}
+  \item Job title, responsibilities, reporting line
+  \item Salary and payment date
+  \item Working hours and location (remote/on-site)
+  \item Probation period (maximum 6 months under Kenya Employment Act)
+  \item Notice period (minimum 28 days for employees over 1 month of service)
+  \item Leave entitlements
+  \item Confidentiality and NDA clause
+  \item IP assignment clause (all work done for EduReach belongs to EduReach)
+  \item Non-solicitation clause
+\end{itemize}
+
+\subsection{Disciplinary Procedure}
+
+The following progressive disciplinary procedure is to be applied consistently:
+
+\begin{enumerate}
+  \item Verbal warning (documented in writing)
+  \item First written warning
+  \item Final written warning
+  \item Dismissal with notice (or summary dismissal for gross misconduct)
+\end{enumerate}
+
+\noindent Gross misconduct (warranting immediate dismissal) is to be defined in the HR policy and is to include: fraud, theft, harassment, unauthorised disclosure of confidential information, and wilful damage to company property.
+
+\subsection{Remote Work Policy}
+
+\begin{itemize}
+  \item Remote work is: \quad Fully allowed \;/\; Partially allowed \;/\; Office only
+  \item Core working hours (if remote): \blank[4cm] to \blank[4cm]
+  \item Communication tool: \blank[4cm]
+  \item Performance review frequency: \blank[4cm]
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Product Strategy, Pricing \& Market Decisions}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{notebox}
+\textit{This section covers decisions specific to the EduReach product that are to be agreed upon by both founders. These decisions directly affect revenue, user experience, and the platform's competitive positioning.}
+\end{notebox}
+
+\subsection{Platform Subscription Tiers}
+
+The EduReach platform currently operates with the following tier structure. The pricing and feature boundaries are to be agreed upon and reviewed quarterly:
+
+\begin{tabularx}{\linewidth}{L{2.5cm} C{2.5cm} C{2.5cm} X}
+  \toprule
+  \textbf{Tier} & \textbf{Target User} & \textbf{Price (KES/mo)} & \textbf{Key Features Included} \\
+  \midrule
+  Free       & Students (trial)    & 0                  & \blank[6cm] \\[0.5em]
+  Starter    & Students            & \blank[1.5cm]      & \blank[6cm] \\[0.5em]
+  Pro        & Educators / Power users & \blank[1.5cm]  & \blank[6cm] \\[0.5em]
+  Pro+       & Institutions        & \blank[1.5cm]      & \blank[6cm] \\
+  \bottomrule
+\end{tabularx}
+
+\medskip
+\noindent\textbf{Pricing rationale to be agreed upon and recorded:}\\[0.4em]
+\noindent\blank[14cm]\\[0.4em]
+\noindent\blank[14cm]
+
+\subsection{Revenue Model}
+
+Both founders are to agree on the primary revenue model:
+
+\begin{itemize}[label=\cb]
+  \item Freemium subscription (free tier with paid upgrades) --- current model
+  \item Institution licensing (sell to schools/universities directly)
+  \item B2B2C (partner with schools who provide access to their students)
+  \item Advertising (display or sponsored content)
+  \item Content marketplace (educators sell content, EduReach takes a commission)
+  \item Other: \blank[6cm]
+\end{itemize}
+
+\subsection{Target User Segments}
+
+\begin{tabularx}{\linewidth}{L{3.5cm} L{4cm} L{3cm} X}
+  \toprule
+  \textbf{Segment} & \textbf{Description} & \textbf{Priority} & \textbf{Acquisition Strategy} \\
+  \midrule
+  Secondary school students (Form 1--4) & KCSE prep, assessment practice & High    & \blank[4cm] \\[0.5em]
+  University students                   & Course support, study groups   & High    & \blank[4cm] \\[0.5em]
+  Educators (teachers)                  & Content creation, assessments  & High    & \blank[4cm] \\[0.5em]
+  Primary school students               & Foundation content             & Medium  & \blank[4cm] \\[0.5em]
+  Institutions (schools)                & Bulk licensing                 & Medium  & \blank[4cm] \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Content Policy}
+
+Both founders are to agree on the following content governance rules before allowing educator-created content:
+
+\begin{itemize}
+  \item Who may create and publish content: \blank[6cm]
+  \item Content review process before publishing: \blank[6cm]
+  \item What content is prohibited (e.g.\ political, religious, adult, plagiarised): \blank[6cm]
+  \item Who owns content uploaded by educators: \quad EduReach \;/\; Educator \;/\; Shared (specify: \blank[3cm])
+  \item Takedown procedure for reported content: \blank[6cm]
+\end{itemize}
+
+\subsection{Platform Feature Roadmap}
+
+Both founders are to agree on the next 3 major features to build:
+
+\begin{tabularx}{\linewidth}{L{5cm} C{3cm} X}
+  \toprule
+  \textbf{Feature} & \textbf{Priority} & \textbf{Target Quarter} \\
+  \midrule
+  \blank[4.5cm] & High / Med / Low & \blank[4cm] \\[0.4em]
+  \blank[4.5cm] & High / Med / Low & \blank[4cm] \\[0.4em]
+  \blank[4.5cm] & High / Med / Low & \blank[4cm] \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Institution Partnership Strategy}
+
+Schools and universities are the most effective distribution channel for EduReach. Both founders are to agree on the approach:
+
+\begin{itemize}
+  \item Minimum institution size to target: \blank[5cm]
+  \item Pricing for institutions: KES \blank[3cm] per student per year / per month
+  \item Who leads institution sales: \blank[5cm]
+  \item First 3 target institutions: \blank[8cm]
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Advisory Board}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{What an Advisory Board Does}
+
+Advisors are experienced individuals who provide domain expertise, strategic guidance, investor introductions, and credibility to the company. They are not directors and have no legal authority over the company.
+
+\subsection{When to Form One}
+
+Both founders are to agree on the timing:
+
+\begin{itemize}[label=\cb]
+  \item After company registration, before first fundraising round
+  \item When a specific domain gap is identified: \blank[5cm]
+  \item When preparing for Series A
+\end{itemize}
+
+\subsection{Advisor Equity}
+
+Advisors are typically compensated with equity, not cash. Standard terms:
+
+\begin{itemize}
+  \item Equity per advisor: 0.1--0.5\% (to be agreed per individual based on value provided)
+  \item Vesting: 2-year vest, 6-month cliff (standard advisor schedule)
+  \item The advisor equity pool is to come from the ESOP, not from founder equity
+\end{itemize}
+
+\subsection{Advisor Roles Needed}
+
+Both founders are to agree on what types of advisors EduReach needs:
+
+\begin{tabularx}{\linewidth}{L{4cm} L{5cm} C{3cm}}
+  \toprule
+  \textbf{Expertise Needed} & \textbf{Why EduReach Needs It} & \textbf{Identified Person} \\
+  \midrule
+  Kenya education sector      & School partnerships, curriculum knowledge & \blank[2.5cm] \\[0.4em]
+  Edtech product              & Product decisions, user research          & \blank[2.5cm] \\[0.4em]
+  Africa fundraising / VC     & Investor intros, term sheet advice        & \blank[2.5cm] \\[0.4em]
+  Software \& engineering     & Technical architecture, scaling           & \blank[2.5cm] \\[0.4em]
+  Legal / compliance          & Data protection, corporate law            & \blank[2.5cm] \\
+  \bottomrule
+\end{tabularx}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Marketing \& Growth Strategy}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Go-to-Market Approach}
+
+Both founders are to agree on the primary go-to-market motion for Kenya:
+
+\begin{itemize}[label=\cb]
+  \item B2C: direct to students and educators via social media and organic search
+  \item B2B2C: partner with schools who then deploy the platform to their students
+  \item B2B: sell institution licences directly to school management / principals
+  \item Mixed (B2C + B2B2C): \blank[6cm]
+\end{itemize}
+
+\subsection{Digital Marketing Channels (Kenya Priority)}
+
+\begin{tabularx}{\linewidth}{L{3.5cm} C{2.5cm} L{3cm} X}
+  \toprule
+  \textbf{Channel} & \textbf{Priority} & \textbf{Owner} & \textbf{Strategy / Notes} \\
+  \midrule
+  WhatsApp (groups, broadcast) & High     & \blank[2.5cm] & Study group sharing, parent networks \\[0.3em]
+  TikTok                       & High     & \blank[2.5cm] & Short educational content \\[0.3em]
+  Instagram                    & High     & \blank[2.5cm] & Visual content, student audience \\[0.3em]
+  X (Twitter)                  & Medium   & \blank[2.5cm] & Edtech community, educators \\[0.3em]
+  YouTube                      & Medium   & \blank[2.5cm] & Long-form tutorials \\[0.3em]
+  Facebook                     & Medium   & \blank[2.5cm] & Parent and teacher groups \\[0.3em]
+  Google / SEO                 & High     & \blank[2.5cm] & Organic search, KCSE-related content \\[0.3em]
+  Email newsletter             & Medium   & \blank[2.5cm] & Retention, re-engagement \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Referral \& Viral Growth}
+
+Both founders are to agree on a referral programme design:
+
+\begin{itemize}
+  \item Referral incentive for referring user: \blank[6cm]
+  \item Referral incentive for new user: \blank[6cm]
+  \item Study group invite link mechanism: already built into the platform (to be leveraged)
+  \item School ambassador programme: Y \;/\; N --- if Yes, first cohort size: \blank[2cm]
+\end{itemize}
+
+\subsection{PR \& Media}
+
+Key media outlets in Kenya for EdTech coverage:
+
+\begin{itemize}
+  \item Business Daily Africa --- business and technology desk
+  \item Nation Media Group (Daily Nation, NTV) --- general audience
+  \item Standard Media Group (The Standard, KTN) --- general audience
+  \item TechCabal, Disrupt Africa, Technext --- Africa tech press
+  \item Kenya ICT Authority communications --- government validation
+\end{itemize}
+
+\noindent Both founders are to agree: a press strategy is the responsibility of: \blank[5cm]
+
+\subsection{Key Performance Indicators (KPIs) to Track from Day One}
+
+Both founders are to agree on the metrics that define success and are to be reviewed monthly:
+
+\begin{tabularx}{\linewidth}{L{5cm} C{3cm} C{3cm}}
+  \toprule
+  \textbf{Metric} & \textbf{Current} & \textbf{Target (3 months)} \\
+  \midrule
+  Registered users               & \blank[2.5cm] & \blank[2.5cm] \\[0.4em]
+  Monthly active users (MAU)     & \blank[2.5cm] & \blank[2.5cm] \\[0.4em]
+  Paying subscribers             & \blank[2.5cm] & \blank[2.5cm] \\[0.4em]
+  Monthly recurring revenue (MRR) & \blank[2.5cm] & \blank[2.5cm] \\[0.4em]
+  User retention rate (30-day)   & \blank[2.5cm] & \blank[2.5cm] \\[0.4em]
+  Assessments completed per month & \blank[2.5cm] & \blank[2.5cm] \\[0.4em]
+  Study groups created           & \blank[2.5cm] & \blank[2.5cm] \\[0.4em]
+  Net Promoter Score (NPS)       & \blank[2.5cm] & \blank[2.5cm] \\
+  \bottomrule
+\end{tabularx}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Board of Directors, Lawyers, Investors \& Advisors --- Engagement Framework}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{notebox}
+\textit{These are not immediate problems. They are, however, problems that arrive faster than expected and with high stakes when they do. Both founders are to read and discuss this section now so that when the moment comes, the principles are already agreed upon and there is no scrambling.}
+\end{notebox}
+
+\subsection{Board of Directors}
+
+\subsubsection{What a Board of Directors Is}
+
+A Board of Directors is a formal governing body with legal authority over the company. Unlike advisors, directors have fiduciary duties --- they are legally accountable for major company decisions. In a private company, the board typically approves major financial decisions, appoints and can remove the CEO, and signs off on equity issuances and fundraising rounds.
+
+At the current stage, EduReach does not need a formal board. The founders are the directors. However, as the company grows and investors come in, a board will be formed --- and if it is not structured carefully, founders can lose control of their own company.
+
+\subsubsection{Recommended Board Structure at Each Stage}
+
+\begin{tabularx}{\linewidth}{L{3cm} L{5cm} X}
+  \toprule
+  \textbf{Stage} & \textbf{Recommended Composition} & \textbf{Notes} \\
+  \midrule
+  Pre-registration (now) & Dalton Omondi (sole director, or both founders as directors) & Minimal; keeps it simple \\[0.5em]
+  Post-registration, pre-investment & Both founders as directors & 2-person board; CEO has casting vote \\[0.5em]
+  Seed round & 2 founders + 1 independent director (agreed by both founders) & Independent director breaks deadlocks; no investor board seat at seed \\[0.5em]
+  Series A & 2 founders + 1 independent + 1 investor seat & Investor earns a board seat only at Series A and above \\[0.5em]
+  Series B and beyond & To be negotiated; founders must retain majority & Never allow investors to hold more board seats than founders \\
+  \bottomrule
+\end{tabularx}
+
+\subsubsection{Founder Control Protections}
+
+Both founders are to agree to the following board principles before any investor is engaged:
+
+\begin{itemize}
+  \item Dalton Omondi as CEO is to retain the casting vote on all operational matters at the board level
+  \item No single investor is to receive more than one board seat regardless of ownership percentage
+  \item An independent director, if appointed, is to be agreed upon by both founders jointly --- not selected by any investor
+  \item Board observer rights (the right to attend board meetings without voting) may be offered to early-stage investors as a concession in place of a full board seat
+  \item Any board resolution that affects founder equity, CEO authority, or company dissolution requires a supermajority of \blank[2cm]\% of the board
+\end{itemize}
+
+\subsubsection{Independent Director}
+
+An independent director is a neutral board member who is not a founder, investor, or employee. They are often an experienced entrepreneur, executive, or lawyer. Their role is to:
+
+\begin{itemize}
+  \item Break deadlocks between the two founders
+  \item Provide experienced oversight of major decisions
+  \item Increase investor confidence and company credibility
+\end{itemize}
+
+\noindent\textbf{What to offer an independent director:}
+\begin{itemize}
+  \item Equity: 0.1--0.25\% (from the ESOP), vesting over 2--3 years
+  \item A modest director's fee once the company is funded (to be agreed at appointment)
+  \item A signed Directors' Agreement covering duties, liability, and term
+\end{itemize}
+
+\noindent Agreed independent director (when needed): \blank[7cm]
+
+\subsection{Engaging Lawyers}
+
+\subsubsection{Principles for Working with Lawyers}
+
+Both founders are to agree on the following approach to legal counsel:
+
+\begin{itemize}
+  \item A lawyer is to be engaged \textbf{before} each high-stakes event, not after a problem arises
+  \item Legal fees are a company expense, not a personal one --- they are to be budgeted for
+  \item Neither founder is to sign any agreement with a third party above KES \blank[3cm] without legal review
+  \item The CEO has authority to engage a lawyer for routine matters; engagements above KES \blank[3cm] require both founders to agree
+  \item All legal documents are to be stored in the company's shared document repository
+\end{itemize}
+
+\subsubsection{Types of Legal Help Needed and When}
+
+\begin{tabularx}{\linewidth}{L{3.5cm} L{4.5cm} X}
+  \toprule
+  \textbf{Legal Need} & \textbf{When It Arises} & \textbf{Estimated Cost (KES)} \\
+  \midrule
+  Company incorporation          & Before first revenue or hiring          & 15{,}000--30{,}000 \\[0.3em]
+  Shareholders' agreement        & At incorporation (with co-founder)      & 20{,}000--50{,}000 \\[0.3em]
+  Employment contract template   & Before first hire                       & 10{,}000--20{,}000 \\[0.3em]
+  NDA template                   & Before engaging any contractor          & 5{,}000--10{,}000 \\[0.3em]
+  Trademark filing (KIPI)        & After registration                      & 7{,}500--15{,}000 per class \\[0.3em]
+  Terms of Service / Privacy Policy review & Before public launch           & 20{,}000--40{,}000 \\[0.3em]
+  Investment term sheet review   & Before accepting any investment         & 30{,}000--80{,}000 \\[0.3em]
+  Dispute resolution             & If a dispute arises                     & Variable \\
+  \bottomrule
+\end{tabularx}
+
+\subsubsection{How to Choose a Lawyer}
+
+\begin{itemize}
+  \item Prefer a lawyer with experience in technology companies or startups --- not a general practice lawyer
+  \item Ask for a fixed-fee quote for incorporation and standard documents rather than hourly billing
+  \item Request references from other founders they have worked with
+  \item Avoid engaging a lawyer who is a close friend or relative of either founder --- conflicts of interest are common
+\end{itemize}
+
+\noindent Agreed lawyer / firm: \blank[7cm]\\[0.5em]
+\noindent Year 1 legal budget (KES): \blank[5cm]
+
+\subsection{Engaging Investors --- What to Offer and What to Protect}
+
+\subsubsection{The Offer Framework by Stage}
+
+Both founders are to understand and agree on what is reasonable to offer at each fundraising stage. Giving away too much too early permanently damages the company's future capital structure.
+
+\begin{tabularx}{\linewidth}{L{2.5cm} L{2.5cm} L{3cm} L{2.5cm} X}
+  \toprule
+  \textbf{Stage} & \textbf{Typical Amount} & \textbf{Equity to Offer} & \textbf{Instrument} & \textbf{What Investors Get} \\
+  \midrule
+  Pre-seed (grants, friends \& family) & KES 500K--2M & 0\% (grants) or 5--8\% & Grant or SAFE note & Capital only; no board seat; no voting rights \\[0.5em]
+  Seed & KES 2M--15M & 10--15\% & SAFE note or priced equity round & Capital + information rights + pro-rata rights; no board seat \\[0.5em]
+  Pre-Series A & KES 15M--50M & 10--20\% additional & Priced equity round & Capital + 1 board observer seat (not full seat) \\[0.5em]
+  Series A & KES 50M+ & 15--25\% additional & Priced equity round & Capital + 1 board seat + information rights + pro-rata rights \\
+  \bottomrule
+\end{tabularx}
+
+\subsubsection{What Must Never Be Offered Without Both Founders Agreeing}
+
+\begin{itemize}
+  \item A board seat at seed stage or earlier
+  \item Veto rights over operational or product decisions
+  \item Anti-dilution provisions that protect the investor but not the founders
+  \item Personal guarantees from either founder
+  \item A right of first refusal over the entire company (drag-along without founder protections)
+  \item Liquidation preferences above 1x non-participating (this means in a sale, the investor gets their money back first before founders receive anything --- the more aggressive versions can leave founders with nothing)
+\end{itemize}
+
+\subsubsection{What Investors Will Ask For and How to Respond}
+
+\begin{tabularx}{\linewidth}{L{4cm} L{4cm} X}
+  \toprule
+  \textbf{Investor Request} & \textbf{Founder Response} & \textbf{Notes} \\
+  \midrule
+  Board seat at seed       & Offer observer rights instead & Full board seats at seed give investors disproportionate control \\[0.4em]
+  Pro-rata rights          & Acceptable at seed and above  & Lets investor maintain their \% in future rounds; not harmful \\[0.4em]
+  Information rights       & Acceptable; agree on format   & Quarterly financials + annual report is standard \\[0.4em]
+  Anti-dilution (broad-based weighted average) & Acceptable & Avoid ``full ratchet'' anti-dilution --- it is very harmful to founders \\[0.4em]
+  Liquidation preference 1x non-participating & Acceptable & Higher multiples (2x, 3x) or participating preferred is to be resisted \\[0.4em]
+  Drag-along rights        & Acceptable with founder veto threshold & Ensure drag-along requires majority of common shareholders (founders) to approve any sale \\[0.4em]
+  Right of first refusal (ROFR) on shares & Acceptable & Standard; does not limit founder control \\
+  \bottomrule
+\end{tabularx}
+
+\subsubsection{How to Handle Multiple Investors}
+
+As the company grows, there will be multiple investors on the cap table. Both founders are to agree:
+
+\begin{itemize}
+  \item A lead investor is to be identified for each round --- they set terms, others follow
+  \item Side letters (private additional terms given to one investor that others do not know about) are to be avoided entirely
+  \item All investors in a given round are to receive the same terms
+  \item A cap table management tool is to be used from the first investment (e.g.\ Carta, Pulley, or a Kenya-specific equivalent)
+\end{itemize}
+
+\subsection{Engaging Advisors --- Detailed Offer Framework}
+
+\subsubsection{Advisor Tiers}
+
+Not all advisors are equal. The equity and engagement level should reflect the actual value and time commitment of each advisor:
+
+\begin{tabularx}{\linewidth}{L{2.5cm} L{3cm} L{3cm} L{3cm} X}
+  \toprule
+  \textbf{Tier} & \textbf{Engagement} & \textbf{Equity Offered} & \textbf{Vesting} & \textbf{Examples} \\
+  \midrule
+  Strategic (Tier 1) & 2--5 hrs/month; intros, strategic guidance & 0.25--0.5\% & 2-yr vest, 6-month cliff & Industry veterans, VCs, ex-founders \\[0.5em]
+  Operational (Tier 2) & 5--10 hrs/month; hands-on help with a specific function & 0.1--0.25\% & 2-yr vest, 6-month cliff & Marketing experts, finance specialists, engineers \\[0.5em]
+  Network (Tier 3) & Introductions only; 1--2 hrs/month & 0.05--0.1\% & 1-yr vest, 3-month cliff & Well-connected individuals in education or government \\
+  \bottomrule
+\end{tabularx}
+
+\subsubsection{The Advisor Agreement}
+
+Every advisor, regardless of tier, is to sign a written Advisor Agreement before any equity is issued or any confidential information is shared. The agreement is to cover:
+
+\begin{itemize}
+  \item Scope of advisory services (specific, not vague)
+  \item Equity grant amount and vesting schedule
+  \item Confidentiality obligations
+  \item IP assignment (any ideas or work product created in the advisory role belongs to EduReach)
+  \item Term of the agreement and termination conditions
+  \item Conflict of interest declaration (advisor confirms they are not advising a direct competitor)
+\end{itemize}
+
+\subsubsection{What to Avoid with Advisors}
+
+\begin{itemize}
+  \item Giving equity to someone simply because they are well-known or have an impressive title --- equity must be earned
+  \item Giving equity to an advisor who has not yet delivered any value (issue equity only after the cliff is reached)
+  \item Having more than 6--8 advisors at any one time --- it becomes unmanageable and dilutes the pool unnecessarily
+  \item Allowing an advisor to use their EduReach association to promote their own business without consent
+  \item Forgetting to terminate advisor agreements and stop vesting when an advisor becomes inactive
+\end{itemize}
+
+\subsubsection{Agreed Advisor Governance}
+
+\begin{itemize}
+  \item Maximum number of advisors at any one time: \blank[2cm]
+  \item Advisor appointments require agreement from: \quad CEO only \;/\; Both founders
+  \item Advisor equity to be reviewed annually: Y \;/\; N
+  \item Inactive advisor threshold (months of no engagement before termination): \blank[2cm] months
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\newpage
+\section*{Signatures \& Witnessing}
+\addcontentsline{toc}{section}{Signatures \& Witnessing}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{warnbox}
+This document becomes legally binding when all sections are completed, signed by both founders, and witnessed by an independent adult who is not a founder or an immediate family member of either founder. Both founders confirm by signing below that they have read this entire document, understand its contents, agree to all completed sections, and are signing without pressure or duress.
+\end{warnbox}
+
+\vspace{1.5em}
+
+\noindent\textbf{FOUNDER 1}\\[1em]
+\begin{tabular}{@{}l l@{}}
+  Full name:              & Dalton Omondi \\[1em]
+  National ID number:     & \blank[6cm] \\[1em]
+  Role:                   & Chief Executive Officer \\[1em]
+  Date:                   & \blank[6cm] \\[1.5em]
+  Signature:              & \rule{7cm}{0.4pt} \\
+\end{tabular}
+
+\vspace{2em}
+
+\noindent\textbf{FOUNDER 2}\\[1em]
+\begin{tabular}{@{}l l@{}}
+  Full name:              & Mary Syokau \\[1em]
+  National ID number:     & \blank[6cm] \\[1em]
+  Role:                   & \blank[6cm] \\[1em]
+  Date:                   & \blank[6cm] \\[1.5em]
+  Signature:              & \rule{7cm}{0.4pt} \\
+\end{tabular}
+
+\vspace{2em}
+
+\noindent\textbf{WITNESS}\\[1em]
+\begin{tabular}{@{}l l@{}}
+  Full name:                        & \blank[7cm] \\[1em]
+  National ID number:               & \blank[7cm] \\[1em]
+  Relationship to founders:         & \blank[7cm] \\[1em]
+  Date:                             & \blank[7cm] \\[1.5em]
+  Signature:                        & \rule{7cm}{0.4pt} \\
+\end{tabular}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\newpage
+\appendix
+\section*{Appendix A --- Outstanding Decisions Log}
+\addcontentsline{toc}{section}{Appendix A --- Outstanding Decisions Log}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{notebox}
+\textit{This table is to be used to track anything not yet agreed on. The main document is not to be signed until all HIGH priority items are resolved.}
+\end{notebox}
+
+\begin{tabularx}{\linewidth}{C{1.5cm} L{5.5cm} C{2cm} C{3cm}}
+  \toprule
+  \textbf{Section} & \textbf{Outstanding Decision} & \textbf{Priority} & \textbf{Target Date} \\
+  \midrule
+  3.2  & Equity split                                  & HIGH   & \blank[2.5cm] \\[0.3em]
+  3.3  & Early vesting credit for Dalton Omondi        & HIGH   & \blank[2.5cm] \\[0.3em]
+  4.1  & Mary Syokau's title and role                  & HIGH   & \blank[2.5cm] \\[0.3em]
+  4.4  & Mary Syokau's time commitment (hrs/week)      & HIGH   & \blank[2.5cm] \\[0.3em]
+  13.1 & Company registration trigger                  & HIGH   & \blank[2.5cm] \\[0.3em]
+  18.1 & Pricing for each subscription tier            & HIGH   & \blank[2.5cm] \\[0.3em]
+  6.2  & Salary trigger condition                      & Medium & \blank[2.5cm] \\[0.3em]
+  6.3  & Agreed starting salaries                      & Medium & \blank[2.5cm] \\[0.3em]
+  7.1  & Notice period on departure                    & Medium & \blank[2.5cm] \\[0.3em]
+  7.5  & Non-compete period (months)                   & Medium & \blank[2.5cm] \\[0.3em]
+  15.1 & Agreed lawyer / legal firm                    & Medium & \blank[2.5cm] \\[0.3em]
+  18.3 & First 3 target institution partners           & Medium & \blank[2.5cm] \\[0.3em]
+  6.5  & Founder minimum stipend amount \& trigger        & HIGH   & \blank[2.5cm] \\[0.3em]
+  6.6  & Maximum annual gift/bonus per founder            & HIGH   & \blank[2.5cm] \\[0.3em]
+  7.6  & Vesting treatment during burnout leave           & HIGH   & \blank[2.5cm] \\[0.3em]
+  22.3 & Minimum contribution standards per founder       & HIGH   & \blank[2.5cm] \\[0.3em]
+  22.4 & Anti-loafing forced buyout trigger (months)      & Medium & \blank[2.5cm] \\[0.3em]
+  22.6 & Transfer of personal accounts to company         & HIGH   & \blank[2.5cm] \\[0.3em]
+  21.1 & Board composition at post-registration stage     & Medium & \blank[2.5cm] \\[0.3em]
+  21.1 & Independent director (name, when to appoint)  & Medium & \blank[2.5cm] \\[0.3em]
+  21.3 & Maximum equity to offer at seed round         & HIGH   & \blank[2.5cm] \\[0.3em]
+  21.4 & Advisor tier framework \& max advisor count   & Low    & \blank[2.5cm] \\[0.3em]
+  20.3 & Referral programme design                     & Low    & \blank[2.5cm] \\[0.3em]
+  \blank[1.2cm] & \blank[5cm]                         & \blank[1.5cm] & \blank[2.5cm] \\[0.3em]
+  \blank[1.2cm] & \blank[5cm]                         & \blank[1.5cm] & \blank[2.5cm] \\
+  \bottomrule
+\end{tabularx}
+
+\vspace{2em}
+
+\section*{Appendix B --- Amendment Log}
+\addcontentsline{toc}{section}{Appendix B --- Amendment Log}
+
+\begin{tabularx}{\linewidth}{C{2cm} L{5cm} L{4cm} C{2cm}}
+  \toprule
+  \textbf{Date} & \textbf{Section Amended} & \textbf{Nature of Change} & \textbf{Both Signed?} \\
+  \midrule
+  \blank[1.5cm] & \blank[4.5cm] & \blank[3.5cm] & Y / N \\[0.4em]
+  \blank[1.5cm] & \blank[4.5cm] & \blank[3.5cm] & Y / N \\[0.4em]
+  \blank[1.5cm] & \blank[4.5cm] & \blank[3.5cm] & Y / N \\
+  \bottomrule
+\end{tabularx}
+
+\end{document}

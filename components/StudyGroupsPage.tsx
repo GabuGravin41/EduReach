@@ -39,7 +39,12 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { ROUTES } from '../src/routes';
 import { useToast } from '../src/contexts/ToastContext';
 
-export const StudyGroupsPage: React.FC = () => {
+interface StudyGroupsPageProps {
+  isGuest?: boolean;
+  onGuestBlock?: (action: string) => void;
+}
+
+export const StudyGroupsPage: React.FC<StudyGroupsPageProps> = ({ isGuest = false, onGuestBlock }) => {
   const navigate = useNavigate();
   const toast = useToast();
   const location = useLocation();
@@ -204,6 +209,10 @@ export const StudyGroupsPage: React.FC = () => {
 
   const handleJoinToggle = (group: StudyGroup, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    if (isGuest) {
+      onGuestBlock?.('join a study group — you need an account so the group can track you');
+      return;
+    }
     if (group.is_member) {
       leaveGroupMutation.mutate(Number(group.id));
     } else {
@@ -1398,7 +1407,7 @@ export const StudyGroupsPage: React.FC = () => {
             </button>
           </div>
         ) : (
-          <Button onClick={() => setIsCreateOpen(true)} className="flex items-center gap-2">
+          <Button onClick={() => isGuest ? onGuestBlock?.('create a study group') : setIsCreateOpen(true)} className="flex items-center gap-2">
             <PlusCircleIcon className="w-4 h-4" />
             Create group
           </Button>
@@ -1458,7 +1467,7 @@ export const StudyGroupsPage: React.FC = () => {
               Upgrade to create groups
             </button>
           ) : (
-            <Button onClick={() => setIsCreateOpen(true)} className="inline-flex items-center gap-2">
+            <Button onClick={() => isGuest ? onGuestBlock?.('create a study group') : setIsCreateOpen(true)} className="inline-flex items-center gap-2">
               <PlusCircleIcon className="w-4 h-4" />
               Start a group
             </Button>

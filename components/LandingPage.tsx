@@ -298,7 +298,11 @@ const DashboardMockup: React.FC = () => (
 
 // ─── Main landing page ────────────────────────────────────────────────────────
 
-export const LandingPage: React.FC = () => {
+interface LandingPageProps {
+  onEnterAsGuest?: () => void;
+}
+
+export const LandingPage: React.FC<LandingPageProps> = ({ onEnterAsGuest }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -472,24 +476,26 @@ export const LandingPage: React.FC = () => {
               <div className="animate-fade-up delay-300 flex flex-wrap gap-4">
                 <button onClick={goToApp}
                   className="group inline-flex items-center gap-2 px-7 py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-base transition-all shadow-xl shadow-indigo-600/40 hover:shadow-indigo-500/50 hover:-translate-y-0.5">
-                  Start for Free
+                  Create Free Account
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </button>
-                <a href="#how-it-works"
-                  className="inline-flex items-center gap-2 px-7 py-4 rounded-xl border border-white/15 text-white/80 hover:text-white hover:border-white/30 hover:bg-white/5 font-semibold text-base transition-all">
-                  See how it works
-                </a>
+                {onEnterAsGuest && (
+                  <button onClick={onEnterAsGuest}
+                    className="inline-flex items-center gap-2 px-7 py-4 rounded-xl border border-white/15 text-white/80 hover:text-white hover:border-white/30 hover:bg-white/5 font-semibold text-base transition-all">
+                    Try it first — no account needed
+                  </button>
+                )}
               </div>
 
               {/* Trust signals */}
               <div className="animate-fade-up delay-400 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-slate-500">
                 <span className="flex items-center gap-1.5">
                   <CheckIcon className="w-4 h-4 text-emerald-400" />
-                  No credit card required
+                  No account needed for 14 days
                 </span>
                 <span className="flex items-center gap-1.5">
                   <CheckIcon className="w-4 h-4 text-emerald-400" />
-                  14-day Pro trial
+                  No credit card required
                 </span>
                 <span className="flex items-center gap-1.5">
                   <CheckIcon className="w-4 h-4 text-emerald-400" />

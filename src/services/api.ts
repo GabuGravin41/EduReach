@@ -131,6 +131,12 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
+      // If there's no refresh token we're in guest mode (no session at all) — just fail silently
+      const hasRefreshToken = !!localStorage.getItem('refresh_token');
+      if (!hasRefreshToken) {
+        return Promise.reject(error);
+      }
+
       try {
         const access = await getRefreshedToken();
         if (!access) {
@@ -215,6 +221,11 @@ aiClient.interceptors.response.use(
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
+
+      const hasRefreshToken = !!localStorage.getItem('refresh_token');
+      if (!hasRefreshToken) {
+        return Promise.reject(error);
+      }
 
       try {
         const access = await getRefreshedToken();

@@ -7,6 +7,8 @@ import { Assessment } from './types';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { AuthProvider } from './src/contexts/AuthContext';
 import { useAuth } from './src/contexts/useAuth';
+import { useGuest } from './src/contexts/GuestContext';
+import { GuestSignUpModal } from './components/GuestSignUpModal';
 import { authService } from './src/services/authService';
 import { useCourses, useCreateCourse, useCourse, COURSE_KEYS, useMyCourses } from './src/hooks/useCourses';
 import { useAssessments, useCreateAssessment, useAssessment, ASSESSMENT_KEYS } from './src/hooks/useAssessments';
@@ -209,6 +211,8 @@ const useDarkMode = () => {
 
 const AppContent: React.FC = () => {
     const { user, logout, isLoading } = useAuth();
+    const { isGuest, guestTrialExpired, guestDaysRemaining, exitGuestMode, enterGuestMode } = useGuest();
+    const [guestModal, setGuestModal] = useState<{ action: string } | null>(null);
     const location = useLocation();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
@@ -702,9 +706,9 @@ const AppContent: React.FC = () => {
       );
     }
 
-    if (!user) {
+    if (!user && !isGuest) {
       if (location.pathname === '/') {
-        return <LandingPage />;
+        return <LandingPage onEnterAsGuest={() => { enterGuestMode(); navigate(ROUTES.dashboard, { replace: true }); }} />;
       }
       const isStudyGroupInvite =
         (location.pathname?.startsWith('/study-groups') && (location.search?.includes('join_group=') || location.search?.includes('join_token='))) ||
@@ -726,13 +730,44 @@ const AppContent: React.FC = () => {
         </>
       );
     }
+
+    // Guest whose 14-day trial has expired — force sign-up, no way around it
+    if (!user && isGuest && guestTrialExpired) {
+      return (
+        <GuestSignUpModal
+          reason="trial_expired"
+          onSignUp={() => { exitGuestMode(); navigate('/', { replace: true }); }}
+          onLogin={() => { exitGuestMode(); navigate('/', { replace: true }); }}
+        />
+      );
+    }
   
+    // Routes that require a real account — guests get a sign-up prompt instead
+    const GUEST_BLOCKED: Partial<Record<View, string>> = {
+      create_course: 'create a course',
+      create_exam: 'create an assessment',
+      generate_ai_quiz: 'generate an AI quiz',
+      bulk_create_exam: 'bulk create assessments',
+      profile: 'view your profile',
+      analytics: 'view analytics',
+      admin_panel: 'access the admin panel',
+      personal_sessions: 'view personal sessions',
+    };
+
     const renderContent = () => {
+      // Intercept blocked routes for guests
+      if (isGuest && !user && currentView in GUEST_BLOCKED) {
+        const action = GUEST_BLOCKED[currentView]!;
+        // Show modal and fall back to dashboard
+        if (!guestModal) setTimeout(() => setGuestModal({ action }), 0);
+        return <Dashboard onStartSession={() => setView('setup_session')} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onGoToCreateExam={() => setGuestModal({ action: 'create an assessment' })} userTier={userTier} username="Guest" />;
+      }
+
       switch (currentView) {
         case 'dashboard':
-          return <Dashboard onStartSession={() => setView('setup_session')} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onGoToCreateExam={() => setView('create_exam')} userTier={userTier} username={user?.username ?? (user as any)?.email ?? undefined} />;
+          return <Dashboard onStartSession={() => setView('setup_session')} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onGoToCreateExam={() => isGuest && !user ? setGuestModal({ action: 'create an assessment' }) : setView('create_exam')} userTier={userTier} username={user?.username ?? (user as any)?.email ?? undefined} />;
         case 'courses':
-          return <MyCoursesPage courses={courses} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onNewCourse={() => setView('create_course')} userTier={userTier} currentUserId={user?.id} highlightedCourseId={recentlyCreatedCourseId ?? undefined} />;
+          return <MyCoursesPage courses={courses} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onNewCourse={() => isGuest && !user ? setGuestModal({ action: 'create a course' }) : setView('create_course')} userTier={userTier} currentUserId={user?.id} highlightedCourseId={recentlyCreatedCourseId ?? undefined} />;
         case 'create_course':
           return <CreateCoursePage onCourseCreated={handleCourseCreated} onCancel={() => setView('courses')} lessonLimit={limits.lessonsPerCourse} setView={setView} />;
         case 'course_detail':
@@ -836,7 +871,7 @@ const AppContent: React.FC = () => {
         case 'community':
            return <CommunityView userTier={userTier} username={user?.username ?? (user as any)?.email ?? 'User'} />;
         case 'study_groups':
-           return <StudyGroupsPage />;
+           return <StudyGroupsPage onGuestBlock={(action) => setGuestModal({ action })} isGuest={isGuest && !user} />;
         case 'billing':
            return <BillingPage currentTier={userTier} onSubscriptionActivated={(tier) => setUserTier(tier)} learnerType={learnerType} />;
         case 'profile':
@@ -1027,6 +1062,20 @@ const AppContent: React.FC = () => {
                   onDismiss={() => setTrialBannerDismissed(true)}
                 />
               )}
+              {/* Guest banner — shown while browsing without an account */}
+              {isGuest && !user && currentView !== 'learning_session' && (
+                <div className="mb-3 rounded-lg border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-2.5 text-sm flex items-center justify-between gap-3">
+                  <span className="text-indigo-800 dark:text-indigo-200">
+                    <span className="font-semibold">Guest mode</span> — {guestDaysRemaining} day{guestDaysRemaining !== 1 ? 's' : ''} left in your free trial.
+                  </span>
+                  <button
+                    onClick={() => { exitGuestMode(); navigate('/', { replace: true }); }}
+                    className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
+                  >
+                    Sign up free
+                  </button>
+                </div>
+              )}
               {/* SW update banner — kept as it requires user action */}
               {updateToastVisible && (
                 <div className="mb-3 rounded-lg border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-2 text-xs font-medium text-emerald-900 dark:text-emerald-100 flex items-center justify-between gap-3">
@@ -1184,6 +1233,16 @@ const AppContent: React.FC = () => {
         onToggleLearningAI={() => setLearningAIOpen(prev => !prev)}
         isLearningAIPanelOpen={learningAIOpen}
       />
+      {/* Guest restricted-action modal */}
+      {guestModal && (
+        <GuestSignUpModal
+          reason="restricted"
+          action={guestModal.action}
+          onSignUp={() => { setGuestModal(null); exitGuestMode(); navigate('/', { replace: true }); }}
+          onLogin={() => { setGuestModal(null); exitGuestMode(); navigate('/', { replace: true }); }}
+          onDismiss={() => setGuestModal(null)}
+        />
+      )}
       </>
     );
   };
