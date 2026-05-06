@@ -211,7 +211,7 @@ const useDarkMode = () => {
 
 const AppContent: React.FC = () => {
     const { user, logout, isLoading } = useAuth();
-    const { isGuest, guestTrialExpired, guestDaysRemaining, exitGuestMode, enterGuestMode } = useGuest();
+    const { isGuest, isReady: guestReady, guestTrialExpired, guestDaysRemaining, exitGuestMode, enterGuestMode } = useGuest();
     const [guestModal, setGuestModal] = useState<{ action: string } | null>(null);
     const location = useLocation();
     const navigate = useNavigate();
@@ -655,8 +655,8 @@ const AppContent: React.FC = () => {
       window.location.reload();
     };
   
-    // Show loading spinner while checking authentication
-    if (isLoading) {
+    // Show loading spinner while checking authentication OR waiting for guest state to hydrate
+    if (isLoading || !guestReady) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-slate-50 dark:bg-slate-900">
                 <div className="text-center">

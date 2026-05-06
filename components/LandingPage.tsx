@@ -144,7 +144,7 @@ const STEPS = [
   },
 ];
 
-const PRICING = [
+const PRICING_STUDENTS = [
   {
     tier: 'Free',
     price: 0,
@@ -164,11 +164,69 @@ const PRICING = [
   },
   {
     tier: 'Starter',
+    price: 299,
+    priceLabel: 'KES 299',
+    period: 'per month',
+    usd: '$2.29',
+    desc: 'For students who want more AI power and richer practice.',
+    cta: 'Start Free Trial',
+    highlight: true,
+    badge: 'Most Popular',
+    features: [
+      '100 AI tutor queries / month',
+      'Up to 5 courses',
+      'Up to 15 assessments',
+      'Community access',
+      '14-day Pro trial included',
+    ],
+    missing: ['Study groups', 'Analytics dashboard'],
+  },
+  {
+    tier: 'Pro',
+    price: 799,
+    priceLabel: 'KES 799',
+    period: 'per month',
+    usd: '$6.15',
+    desc: 'Unlimited AI, study groups, and deep analytics for serious students.',
+    cta: 'Start Free Trial',
+    highlight: false,
+    features: [
+      '500 AI tutor queries / month',
+      'Unlimited courses & assessments',
+      'Study groups & group challenges',
+      'Full analytics dashboard',
+      'Premium AI (Gemini 2.5 Pro)',
+      'Priority support',
+    ],
+    missing: [],
+  },
+];
+
+const PRICING_EDUCATORS = [
+  {
+    tier: 'Free',
+    price: 0,
+    priceLabel: 'KES 0',
+    period: 'forever',
+    desc: 'Try the platform before committing — no card needed.',
+    cta: 'Get Started',
+    highlight: false,
+    features: [
+      '15 AI tutor queries / month',
+      'Up to 2 courses',
+      'Up to 3 assessments',
+      'Community access',
+      '14-day Pro trial included',
+    ],
+    missing: ['Study groups', 'Analytics dashboard', 'Priority support'],
+  },
+  {
+    tier: 'Starter',
     price: 399,
     priceLabel: 'KES 399',
     period: 'per month',
-    usd: '$2.99',
-    desc: 'For serious students who want more AI power and content.',
+    usd: '$3.07',
+    desc: 'For teachers and tutors who want to build and share content.',
     cta: 'Start Free Trial',
     highlight: true,
     badge: 'Most Popular',
@@ -186,8 +244,8 @@ const PRICING = [
     price: 999,
     priceLabel: 'KES 999',
     period: 'per month',
-    usd: '$7.99',
-    desc: 'For educators and competitive students who want it all.',
+    usd: '$7.69',
+    desc: 'Full platform access — run exams, grade with AI, and track every student.',
     cta: 'Start Free Trial',
     highlight: false,
     features: [
@@ -305,6 +363,9 @@ interface LandingPageProps {
 export const LandingPage: React.FC<LandingPageProps> = ({ onEnterAsGuest }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [pricingAudience, setPricingAudience] = useState<'students' | 'educators'>('students');
+
+  const PRICING = pricingAudience === 'students' ? PRICING_STUDENTS : PRICING_EDUCATORS;
 
   const statsRef = useInView(0.3);
   const featuresRef = useInView(0.1);
@@ -772,12 +833,43 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterAsGuest }) => {
       {/* ── PRICING ───────────────────────────────────────────────────── */}
       <section id="pricing" className="py-24 sm:py-32 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div ref={pricingRef.ref} className={`text-center mb-14 transition-all duration-700 ${pricingRef.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+          <div ref={pricingRef.ref} className={`text-center mb-10 transition-all duration-700 ${pricingRef.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
             <h2 className="text-4xl sm:text-5xl font-extrabold text-slate-900 tracking-tight mb-5">
               Simple, transparent pricing.
             </h2>
             <p className="text-lg text-slate-500 max-w-xl mx-auto">
               Start free. Upgrade when you need more. All plans include a <strong className="text-slate-700">14-day Pro trial</strong> so you can explore everything with no risk.
+            </p>
+
+            {/* Audience toggle */}
+            <div className="mt-8 inline-flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200">
+              <button
+                onClick={() => setPricingAudience('students')}
+                className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                  pricingAudience === 'students'
+                    ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                🎓 Students &amp; Learners
+              </button>
+              <button
+                onClick={() => setPricingAudience('educators')}
+                className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                  pricingAudience === 'educators'
+                    ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                🏫 Educators &amp; Professionals
+              </button>
+            </div>
+
+            {/* Context line below toggle */}
+            <p className="mt-3 text-xs text-slate-400">
+              {pricingAudience === 'students'
+                ? 'Student pricing — affordable rates for individual learners'
+                : 'Educator pricing — build courses, run exams, and manage students'}
             </p>
           </div>
 

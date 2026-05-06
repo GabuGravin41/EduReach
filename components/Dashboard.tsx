@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../src/routes';
 import { useQuery } from '@tanstack/react-query';
@@ -58,11 +58,22 @@ interface LearnerAnalytics {
 }
 
 // ── Utility helpers ────────────────────────────────────────────────────────
-const getGreeting = (): string => {
+const computeGreeting = (): string => {
   const h = new Date().getHours();
   if (h < 12) return 'Good morning';
   if (h < 17) return 'Good afternoon';
-  return 'Good evening';
+  if (h < 21) return 'Good evening';
+  return 'Good night';
+};
+
+/** Reactive greeting that refreshes every 60 s — works across midnight/noon boundaries. */
+const useGreeting = (): string => {
+  const [greeting, setGreeting] = useState(computeGreeting);
+  useEffect(() => {
+    const id = setInterval(() => setGreeting(computeGreeting()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return greeting;
 };
 
 /** Deterministic gradient from a string (hashes course title). */
@@ -329,7 +340,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartSession, onSelectCo
     return <AdminDashboard stats={{ totalUsers: 1345, coursesCreated: 218, activeAssessments: 45 }} />;
   }
 
-  const greeting = getGreeting();
+  const greeting = useGreeting();
   const displayName = username ? `, ${username}` : '';
   const streak = summary?.streak_days ?? 0;
   const xpToday = summary?.total_xp ?? 0;
