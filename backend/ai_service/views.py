@@ -528,38 +528,42 @@ def generate_quiz(request):
                 existing_qs = "; ".join([q.get("question", "")[:60] for q in all_questions[-5:]])
                 avoid_clause = f"\n\nDo NOT repeat these questions you already generated: {existing_qs}"
 
-            prompt = f"""Generate exactly {batch_count} {difficulty} difficulty quiz questions from this content:
+            prompt = f"""You are generating assessment questions from the following study material. Read it carefully — it may contain exam problems, lecture notes, textbook content, or worked examples.
 
+CONTENT:
 {batch_context}
 
-IMPORTANT: Return ONLY valid JSON with exactly {batch_count} questions.{avoid_clause}
+Generate exactly {batch_count} {difficulty} difficulty questions.{avoid_clause}
 
-Use LaTeX ($...$ for inline, $$...$$ for block math) for any formulas:
+CRITICAL RULES:
+1. Use the EXACT data, values, tables, and formulas from the content above. Do not invent generic questions.
+   - If the content has specific numbers (e.g. data points, integrals, polynomials), those numbers must appear in your questions.
+   - If the content has worked problems, turn those into assessment questions.
+2. Choose question TYPE based on the subject:
+   - Mathematics, engineering, science, computation → use "short_answer" with specific numerical/algebraic answers
+   - Conceptual or definition questions → use "mcq" with 4 plausible options
+   - Simple fact-checks → use "true_false"
+   - Do NOT use true/false or MCQ for problems that require calculation or derivation.
+3. For short_answer questions about computation: state the problem clearly with all required data, and provide the exact numerical answer in correct_answer.
+4. Use LaTeX for all mathematics: $...$ for inline, $$...$$ for block equations.
+5. Every question must have a detailed explanation showing how to arrive at the answer.
+
+Return ONLY valid JSON:
 {{"questions": [
+  {{
+    "question": "Using Newton's divided difference formula with the data $x$: [1,3,6,11], $f(x)$: [4,32,224,1344], find the divided difference $f[1,3]$.",
+    "type": "short_answer",
+    "correct_answer": "14",
+    "explanation": "$f[1,3] = (f(3)-f(1))/(3-1) = (32-4)/2 = 14$"
+  }},
   {{
     "question": "Sample multiple choice question?",
     "type": "mcq",
     "options": ["Correct Option", "Wrong Option 1", "Wrong Option 2", "Wrong Option 3"],
     "correct_answer": "Correct Option",
-    "explanation": "Why this is correct"
-  }},
-  {{
-    "question": "Sample true/false question?",
-    "type": "true_false",
-    "options": ["True", "False"],
-    "correct_answer": "True",
-    "explanation": "Why this is correct"
+    "explanation": "Explanation of why this is correct."
   }}
-]}}
-
-Requirements:
-- Generate exactly {batch_count} questions
-- Mix question types: multiple choice, true/false, short answer
-- CRITICAL for 'mcq' type: you MUST ALWAYS provide the 'options' array with exactly 4 strings. DO NOT OMIT 'options'.
-- CRITICAL for 'true_false' type: provide 'options': ["True", "False"].
-- The 'correct_answer' must perfectly match one of the items in the 'options' array.
-- For short answer: provide the expected answer in 'correct_answer' and omit 'options'.
-- Include detailed explanations for all questions."""
+]}}"""
 
             try:
                 response_text = call_ai(
@@ -722,20 +726,23 @@ def chat(request):
         ])
         
         # Construct the full prompt with context and system instructions
-        system_instruction = """You are Edu, a helpful and friendly AI educational tutor on the EduReach platform. Your role is to help students learn effectively.
+        system_instruction = """You are Edu, an expert AI tutor on the EduReach platform. You help students genuinely understand and solve problems.
 
-Your responses should be:
-- Concise and direct (unless the user asks for more detail)
-- Conversational and warm
-- Genuinely helpful — answer educational questions even when they go beyond the provided context
-- Clear and easy to understand
-- If technical or mathematical content is involved, use LaTeX ($...$ for inline, $$...$$ for block math)
+CORE RULES — follow these without exception:
+1. When a student pastes problems, questions, notes, exam content, or any study material — engage with it DIRECTLY and IMMEDIATELY. Do not ask them to repeat themselves. Do not redirect them elsewhere. Work through it with them.
+2. When asked to solve a problem, solve it. Show working. Be thorough.
+3. When asked to create an assessment or quiz from content, generate the actual questions based on that exact content — use the specific data, values, and problems provided.
+4. NEVER tell a student to "go to the Assessments section" or "navigate to X" as a response to a learning request. That is not tutoring — it is a failure.
+5. If the student is frustrated or says the AI is not helping, acknowledge it directly, apologise once, and immediately do what they actually asked.
 
-When video/learning context is provided, use it to give more relevant answers. If the user asks about topics not covered in the provided context, draw on your general knowledge to help them.
+How to respond:
+- For mathematical / technical problems: show full working step by step. Use LaTeX ($...$ for inline, $$...$$ for block equations).
+- For conceptual questions: explain clearly with examples.
+- For "help me with this exam / these problems": work through each question in order.
+- Response length should match the complexity of the request — a numerical analysis problem deserves a full solution, not two sentences.
+- Be warm but never waste the student's time with filler phrases.
 
-When asked to quiz the user, ask questions ONLY — do NOT provide answers, hints, or explanations until the user has attempted to answer. Let the user think first.
-
-You can also help users navigate the EduReach platform: they can find assessments under the Assessments section, create courses, join study groups, and access their learning analytics. If a user needs an assessment on a topic, encourage them to visit the Assessments section."""
+When asked to quiz the student: ask questions only — no answers or hints until they attempt."""
 
         # Inject a compact learner performance snapshot into the system prompt
         perf_snippet = _build_performance_snippet(request.user)
@@ -743,31 +750,17 @@ You can also help users navigate the EduReach platform: they can find assessment
             system_instruction += f"\n\n{perf_snippet}"
 
         optimized_context = context
-        # Keep chat prompts tight for consistent latency on free-tier models.
-        if context and len(context) > 2500:
-            context_chunks = chunk_text_for_ai(context)
-            relevant_chunks = find_relevant_context_chunks(
-                context_chunks,
-                message,
-                max_chunks=2 if wants_detailed else 1
-            )
-            optimized_context = "\n\n---\n\n".join(relevant_chunks)
-            logger.debug(
-                "Chat context reduced from %s chars to %s chars (chunks selected: %s)",
-                len(context),
-                len(optimized_context),
-                len(relevant_chunks)
-            )
-        if optimized_context and len(optimized_context) > 5000:
-            optimized_context = optimized_context[:5000]
-        
-        if optimized_context:
-            full_prompt = f"{system_instruction}\n\nVideo/Learning Context:\n{optimized_context}\n\nUser Question: {message}"
-        else:
-            full_prompt = f"{system_instruction}\n\nUser Question: {message}"
+        # Allow generous context — truncate only if truly oversized
+        if optimized_context and len(optimized_context) > 12000:
+            optimized_context = optimized_context[:12000]
 
-        # Generate content with appropriate token limits using Gemini first, then OpenRouter
-        max_tokens = 350 if wants_detailed else 180
+        if optimized_context:
+            full_prompt = f"{system_instruction}\n\nLearning Context (video transcript / notes / material the student is working with):\n{optimized_context}\n\nStudent: {message}"
+        else:
+            full_prompt = f"{system_instruction}\n\nStudent: {message}"
+
+        # Token budget: enough to actually teach — short answers still capped, detailed get full room
+        max_tokens = 1200 if wants_detailed else 700
         response_text = call_ai(full_prompt, max_tokens=max_tokens)
         _increment_ai_usage(request.user)
 
