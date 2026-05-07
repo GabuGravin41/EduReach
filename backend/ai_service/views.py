@@ -528,7 +528,7 @@ def generate_quiz(request):
                 existing_qs = "; ".join([q.get("question", "")[:60] for q in all_questions[-5:]])
                 avoid_clause = f"\n\nDo NOT repeat these questions you already generated: {existing_qs}"
 
-            prompt = f"""You are generating assessment questions from the following study material. Read it carefully — it may contain exam problems, lecture notes, textbook content, or worked examples.
+            prompt = f"""You are generating assessment questions from the following study material. Read it carefully — it may be an exam paper, lecture notes, textbook content, or worked examples.
 
 CONTENT:
 {batch_context}
@@ -536,25 +536,36 @@ CONTENT:
 Generate exactly {batch_count} {difficulty} difficulty questions.{avoid_clause}
 
 CRITICAL RULES:
-1. Use the EXACT data, values, tables, and formulas from the content above. Do not invent generic questions.
-   - If the content has specific numbers (e.g. data points, integrals, polynomials), those numbers must appear in your questions.
-   - If the content has worked problems, turn those into assessment questions.
-2. Choose question TYPE based on the subject:
-   - Mathematics, engineering, science, computation → use "short_answer" with specific numerical/algebraic answers
-   - Conceptual or definition questions → use "mcq" with 4 plausible options
-   - Simple fact-checks → use "true_false"
-   - Do NOT use true/false or MCQ for problems that require calculation or derivation.
-3. For short_answer questions about computation: state the problem clearly with all required data, and provide the exact numerical answer in correct_answer.
-4. Use LaTeX for all mathematics: $...$ for inline, $$...$$ for block equations.
-5. Every question must have a detailed explanation showing how to arrive at the answer.
+
+RULE 1 — FORMAT MIRRORING (most important):
+Analyse the structure of the content above. If it is an exam paper or structured problem set, mirror its format exactly:
+- If it has multi-part questions (i, ii, iii), reproduce that structure
+- If it has data tables, those exact tables must appear in your questions
+- If it uses a specific notation or formula style, use the same
+- If problems say "using Method X, find Y for the following data", keep that phrasing
+- Each question should feel like it came from the same exam paper, not a generic quiz
+
+RULE 2 — USE EXACT DATA:
+Never invent or substitute numbers. The specific values in the content (data points, tables, integrals, polynomials, coefficients) must appear in your questions verbatim.
+
+RULE 3 — QUESTION TYPE by subject:
+- Computation, mathematics, engineering, science → "short_answer" with a specific numerical/algebraic answer
+- Definitions, concepts, theory → "mcq" with 4 meaningful options
+- NEVER use true/false for computational or derivation problems
+- If the source is an exam paper with long-form problems, use "short_answer" for all of them
+
+RULE 4 — COMPLETENESS:
+Each short_answer question must include all data the student needs to solve it (full tables, limits, formulas). The correct_answer must be the exact numerical or algebraic result. The explanation must show the full working.
+
+RULE 5 — LaTeX: $...$ inline, $$...$$ block. Use for all mathematics.
 
 Return ONLY valid JSON:
 {{"questions": [
   {{
-    "question": "Using Newton's divided difference formula with the data $x$: [1,3,6,11], $f(x)$: [4,32,224,1344], find the divided difference $f[1,3]$.",
+    "question": "Using Newton's divided difference formula with $x$: [1,3,6,11] and $f(x)$: [4,32,224,1344], find the divided difference $f[1,3]$.",
     "type": "short_answer",
     "correct_answer": "14",
-    "explanation": "$f[1,3] = (f(3)-f(1))/(3-1) = (32-4)/2 = 14$"
+    "explanation": "$$f[1,3] = \\frac{{f(3)-f(1)}}{{3-1}} = \\frac{{32-4}}{{2}} = 14$$"
   }},
   {{
     "question": "Sample multiple choice question?",
