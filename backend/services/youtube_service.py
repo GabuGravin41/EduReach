@@ -115,6 +115,50 @@ class YouTubeTranscriptService:
             'extracted_at': datetime.now().isoformat()
         }
 
+    def get_video_description(self, video_id: str) -> str:
+        """Scrape the video description from the YouTube page via ytInitialData."""
+        try:
+            url = f"https://www.youtube.com/watch?v={video_id}"
+            response = self._make_request(url, timeout=20)
+            if response and response.status_code == 200:
+                text = response.text
+                # Primary: shortDescription in ytInitialData JSON blob
+                match = re.search(r'"shortDescription":"((?:[^"\\]|\\.)*)"', text)
+                if match:
+                    desc = match.group(1)
+                    desc = (desc
+                            .replace('\\n', '\n')
+                            .replace('\\"', '"')
+                            .replace('\\\\', '\\')
+                            .replace('\\u0026', '&')
+                            .replace('\\u003c', '<')
+                            .replace('\\u003e', '>')
+                            )
+                    return desc[:4000].strip()
+                # Fallback: og:description meta tag
+                og = re.search(r'<meta name="description" content="([^"]*)"', text)
+                if og:
+                    return og.group(1)[:2000].strip()
+        except Exception as e:
+            print(f"Error fetching video description for {video_id}: {e}")
+        return ''
+
+    def get_rich_context(self, video_id: str) -> Dict:
+        """
+        Return the richest possible context about a video without a transcript.
+        Combines oEmbed metadata + scraped description.
+        """
+        metadata = self.get_video_metadata(video_id)
+        description = self.get_video_description(video_id)
+        return {
+            'title': metadata.get('title', ''),
+            'channel': metadata.get('author', ''),
+            'thumbnail_url': metadata.get('thumbnail_url', ''),
+            'description': description,
+            'video_id': video_id,
+            'video_url': f'https://www.youtube.com/watch?v={video_id}',
+        }
+
     def get_available_transcripts(self, video_id: str) -> List[Dict]:
         try:
             video_url = f"https://www.youtube.com/watch?v={video_id}"

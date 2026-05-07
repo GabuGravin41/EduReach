@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AdminYouTubeIngestion } from './AdminYouTubeIngestion';
 import { AdminAssessmentUpload } from './AdminAssessmentUpload';
+import { AdminCoursesTab } from './AdminCoursesTab';
 import { UsersIcon } from './icons/UsersIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
 import { ClipboardCheckIcon } from './icons/ClipboardCheckIcon';
@@ -98,7 +99,7 @@ const Skeleton: React.FC<{ className?: string }> = ({ className = '' }) => (
 // ---------------------------------------------------------------------------
 // AdminDashboard
 // ---------------------------------------------------------------------------
-type AdminTab = 'overview' | 'youtube' | 'upload';
+type AdminTab = 'overview' | 'youtube' | 'upload' | 'courses';
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ stats: propsStats }) => {
     const [activeTab, setActiveTab] = useState<AdminTab>('overview');
@@ -189,7 +190,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ stats: propsStat
             {/* Tab bar                                                             */}
             {/* ------------------------------------------------------------------ */}
             <div className="flex gap-1 border-b border-slate-200 dark:border-slate-700">
-                {([['overview', 'Overview'], ['youtube', 'YouTube Ingestion'], ['upload', 'Upload Past Papers']] as [AdminTab, string][]).map(([tab, label]) => (
+                {([['overview', 'Overview'], ['courses', 'Courses & Transcripts'], ['youtube', 'YouTube Ingestion'], ['upload', 'Upload Past Papers']] as [AdminTab, string][]).map(([tab, label]) => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
@@ -204,6 +205,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ stats: propsStat
                 ))}
             </div>
 
+            {activeTab === 'courses' && <AdminCoursesTab />}
             {activeTab === 'youtube' && <AdminYouTubeIngestion />}
             {activeTab === 'upload' && <AdminAssessmentUpload />}
             {activeTab === 'overview' && <>

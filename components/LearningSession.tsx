@@ -49,6 +49,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   const [notes, setNotes] = useState<string>(currentLesson?.notes || '');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isStudyPanelOpen, setIsStudyPanelOpen] = useState(true);
+  const [bottomTab, setBottomTab] = useState<'search' | 'notes'>('search');
   const [internalAIPanelOpen, setInternalAIPanelOpen] = useState(false);
   const isAIPanelOpen = externalAIPanelOpen ?? internalAIPanelOpen;
   const setIsAIPanelOpen = externalSetAIPanelOpen ?? setInternalAIPanelOpen;
@@ -659,16 +660,25 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
         </div>
       )}
 
-      {/* Mobile Toggle — Notes / AI tabs (mutually exclusive) */}
+      {/* Mobile Toggle — Search / Notes / AI */}
       <div className="lg:hidden flex mb-2 flex-shrink-0 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
         <button
           type="button"
-          onClick={() => {
-            if (isStudyPanelOpen) { setIsStudyPanelOpen(false); }
-            else { setIsStudyPanelOpen(true); setIsAIPanelOpen(false); }
-          }}
+          onClick={() => { setIsStudyPanelOpen(true); setBottomTab('search'); setIsAIPanelOpen(false); }}
           className={`flex-1 py-2 text-sm font-semibold transition-colors ${
-            isStudyPanelOpen
+            isStudyPanelOpen && bottomTab === 'search'
+              ? 'bg-indigo-600 text-white'
+              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+          }`}
+        >
+          Search
+        </button>
+        <div className="w-px bg-slate-200 dark:bg-slate-700 flex-shrink-0" />
+        <button
+          type="button"
+          onClick={() => { setIsStudyPanelOpen(true); setBottomTab('notes'); setIsAIPanelOpen(false); }}
+          className={`flex-1 py-2 text-sm font-semibold transition-colors ${
+            isStudyPanelOpen && bottomTab === 'notes'
               ? 'bg-indigo-600 text-white'
               : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
           }`}
@@ -678,10 +688,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
         <div className="w-px bg-slate-200 dark:bg-slate-700 flex-shrink-0" />
         <button
           type="button"
-          onClick={() => {
-            if (isAIPanelOpen) { setIsAIPanelOpen(false); }
-            else { setIsAIPanelOpen(true); setIsStudyPanelOpen(false); }
-          }}
+          onClick={() => { setIsAIPanelOpen(prev => !prev); setIsStudyPanelOpen(false); }}
           className={`flex-1 py-2 text-sm font-semibold transition-colors ${
             isAIPanelOpen
               ? 'bg-indigo-600 text-white'
@@ -811,21 +818,54 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
           </div>
         </div>
 
-        {/* Notes Panel - Mobile: Scrollable with proper height, Desktop: Fixed height */}
-        {/* Video library search - shows cached videos and allows loading into current session */}
-        <VideoLibrarySearch courseId={courseId} lessonId={currentLesson?.id} onSelect={handleSelectLibraryVideo} />
+        {/* Tabbed bottom panel — Search Videos | Notes */}
         {isStudyPanelOpen && (
-          <div className="lg:flex-none lg:h-48 xl:h-56 lg:min-h-0 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 min-h-[300px] lg:h-auto">
-            <StudyPanel
-              transcriptRef={transcriptRef}
-              transcript={effectiveTranscript}
-              transcriptFetching={transcriptFetching}
-              notes={notes}
-              onNotesChange={setNotes}
-              videoId={videoId}
-              lessonId={currentLesson?.id}
-              onSeekTo={handleSeekTo}
-            />
+          <div className="lg:flex-none lg:min-h-0 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 flex flex-col min-h-[340px] lg:min-h-[300px]">
+            {/* Tab bar */}
+            <div className="flex flex-shrink-0 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-t-xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setBottomTab('search')}
+                className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${
+                  bottomTab === 'search'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                Search Videos
+              </button>
+              <div className="w-px bg-slate-200 dark:bg-slate-700 flex-shrink-0" />
+              <button
+                type="button"
+                onClick={() => setBottomTab('notes')}
+                className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${
+                  bottomTab === 'notes'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                Notes
+              </button>
+            </div>
+
+            {/* Tab content */}
+            <div className="flex-1 min-h-0 overflow-y-auto rounded-b-xl border border-t-0 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+              {bottomTab === 'search' && (
+                <VideoLibrarySearch courseId={courseId} lessonId={currentLesson?.id} onSelect={handleSelectLibraryVideo} />
+              )}
+              {bottomTab === 'notes' && (
+                <StudyPanel
+                  transcriptRef={transcriptRef}
+                  transcript={effectiveTranscript}
+                  transcriptFetching={transcriptFetching}
+                  notes={notes}
+                  onNotesChange={setNotes}
+                  videoId={videoId}
+                  lessonId={currentLesson?.id}
+                  onSeekTo={handleSeekTo}
+                />
+              )}
+            </div>
           </div>
         )}
       </div>

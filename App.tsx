@@ -211,7 +211,7 @@ const useDarkMode = () => {
 
 const AppContent: React.FC = () => {
     const { user, logout, isLoading } = useAuth();
-    const { isGuest, isReady: guestReady, guestTrialExpired, guestDaysRemaining, exitGuestMode, enterGuestMode } = useGuest();
+    const { isGuest, isReady: guestReady, guestTrialExpired, guestDaysRemaining, shouldShowReminder, dismissReminder, exitGuestMode, enterGuestMode } = useGuest();
     const [guestModal, setGuestModal] = useState<{ action: string } | null>(null);
     const location = useLocation();
     const navigate = useNavigate();
@@ -963,8 +963,11 @@ const AppContent: React.FC = () => {
           }
           return null;
         }
-        case 'exam_sessions':
-           return <ExamSessionsPage userAssessments={assessments.map(a => ({ id: a.id, title: a.title }))} />;
+        case 'exam_sessions': {
+          const isEducator = learnerType === 'teacher' || learnerType === 'professional';
+          if (!isEducator) { setView('dashboard'); return null; }
+          return <ExamSessionsPage userAssessments={assessments.map(a => ({ id: a.id, title: a.title }))} />;
+        }
         default:
           return (
             <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-10 text-center">
@@ -1242,6 +1245,51 @@ const AppContent: React.FC = () => {
           onLogin={() => { setGuestModal(null); exitGuestMode(); navigate('/', { replace: true }); }}
           onDismiss={() => setGuestModal(null)}
         />
+      )}
+      {/* Daily reminder — shown once per day to active guest users */}
+      {shouldShowReminder && !user && !guestModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-2xl overflow-hidden">
+            {/* Top accent */}
+            <div className="h-1.5 bg-gradient-to-r from-indigo-500 to-violet-500" />
+            <div className="p-6">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide mb-0.5">
+                    Day {14 - guestDaysRemaining + 1} of 14
+                  </p>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                    {guestDaysRemaining <= 3
+                      ? `Only ${guestDaysRemaining} day${guestDaysRemaining !== 1 ? 's' : ''} left on your free trial`
+                      : 'Save your progress before it\'s gone'}
+                  </h3>
+                </div>
+              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-300 mb-5">
+                You're exploring EduReach without an account. Create a free account to save your results, track your progress, and keep access beyond your trial.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={() => { dismissReminder(); exitGuestMode(); navigate('/', { replace: true }); }}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors"
+                >
+                  Create free account
+                </button>
+                <button
+                  onClick={dismissReminder}
+                  className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Continue without account
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
       </>
     );

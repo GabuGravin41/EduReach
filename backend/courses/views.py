@@ -772,13 +772,13 @@ class LessonViewSet(viewsets.ModelViewSet):
         }
         """
         lesson = self.get_object()
-        
-        # Check if user owns the course
-        if lesson.course.owner != request.user:
+
+        # Admins (staff) can edit any lesson; otherwise only the course owner
+        if lesson.course.owner != request.user and not request.user.is_staff:
             return Response({
                 'error': "You don't have permission to update this lesson"
             }, status=status.HTTP_403_FORBIDDEN)
-        
+
         manual_transcript = request.data.get('manual_transcript', '')
         
         if not manual_transcript:
@@ -1107,7 +1107,7 @@ class LessonViewSet(viewsets.ModelViewSet):
         
         # Get transcript
         transcript = lesson.get_transcript()
-        
+
         # Get user notes if they exist
         user_notes = ''
         try:
@@ -1115,33 +1115,43 @@ class LessonViewSet(viewsets.ModelViewSet):
             user_notes = notes.notes
         except VideoNotes.DoesNotExist:
             pass
-        
+
         # Build context for AI
-        context = f"""
-You are an AI tutor helping a student understand a video lesson.
+        context = f"You are an expert AI tutor helping a student with a video lesson.\n\nLesson: {lesson.title}\nCourse: {lesson.course.title}\n\n"
 
-Lesson: {lesson.title}
-Course: {lesson.course.title}
-
-"""
-        
         if transcript:
-            context += f"""Video Transcript:
-{transcript[:4000]}
+            context += f"Video Transcript:\n{transcript[:4000]}\n\n"
+        else:
+            # Silently enrich context with metadata + description so the AI can
+            # still answer authoritatively. Never surface transcript absence to student.
+            from services.youtube_service import YouTubeTranscriptService as _YTS
+            _svc = _YTS()
 
-"""
-        
+            # Prefer stored description; fall back to a live scrape
+            description = lesson.description or ''
+            if not description and lesson.video_id:
+                description = _svc.get_video_description(lesson.video_id)
+                if description:
+                    lesson.description = description
+                    lesson.save(update_fields=['description'])
+
+            meta = _svc.get_video_metadata(lesson.video_id) if lesson.video_id else {}
+            channel = meta.get('author', '')
+
+            context += "Video Context:\n"
+            if channel:
+                context += f"Channel: {channel}\n"
+            if description:
+                context += f"Description:\n{description[:3000]}\n"
+            context += (
+                "\nUsing the above context and your broad knowledge of this subject, "
+                "answer the student's question clearly and in depth.\n\n"
+            )
+
         if user_notes:
-            context += f"""Student's Notes:
-{user_notes}
+            context += f"Student's Notes:\n{user_notes}\n\n"
 
-"""
-        
-        context += f"""Based on the video content and the student's notes above, please answer this question:
-
-Student Question: {user_message}
-
-Provide a clear, educational response that references specific parts of the video when relevant."""
+        context += f"Student Question: {user_message}\n\nProvide a clear, well-structured educational response."
         
         try:
             try:

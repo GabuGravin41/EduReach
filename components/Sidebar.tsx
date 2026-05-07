@@ -92,10 +92,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
     { id: 'billing',          label: 'Billing & Plans', icon: PriceTagIcon,       adminOnly: false, educatorOnly: false },
   ];
 
-  // Hide educator-only items from students (when role is known)
+  // Show educator-only items only to confirmed educators
   const visibleNavItems = navItems.filter(item => {
     if (item.adminOnly && !isAdmin) return false;
-    if (item.educatorOnly && isStudent) return false;
+    if (item.educatorOnly && !isEducator) return false;
     return true;
   });
 
