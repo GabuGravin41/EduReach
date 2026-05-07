@@ -1,0 +1,523 @@
+\documentclass[a4paper,11pt]{article}
+
+% ── Packages ────────────────────────────────────────────────
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{parskip}
+\usepackage{hyperref}
+\usepackage{amssymb}
+\usepackage{pifont}
+\usepackage{tcolorbox}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{colortbl}
+
+% ── Font: Inter (EduReach brand font) ───────────────────────
+% Option A — pdfLaTeX (requires `inter` package in TeXLive/MiKTeX):
+\usepackage[sfdefault,lf]{inter}
+\usepackage[T1]{fontenc}
+% Option B — XeLaTeX / LuaLaTeX (comment out Option A and use these):
+% \usepackage{fontspec}
+% \setmainfont{Inter}
+
+% ── Brand Colours (EduReach design system) ──────────────────
+%
+%  Three core brand colours:
+%    Violet  — co-primary, gradient accent, active states
+%    Ember   — warm amber/orange accent (streaks, highlights, energy)
+%    Emerald — success states, checkmarks, positive feedback
+%  Indigo is the base primary; violet sits above it in visual weight.
+%
+\definecolor{indigobrand}{HTML}{4F46E5}   % indigo-600  — base primary
+\definecolor{violetbrand}{HTML}{7C3AED}   % violet-600  — co-primary / headings
+\definecolor{purplebrand}{HTML}{7E22CE}   % purple-700  — gradient end
+\definecolor{emberbrand} {HTML}{D97706}   % ember-600   — warm accent (amber)
+\definecolor{emberbg}    {HTML}{FFFBEB}   % ember-50    — warm accent bg
+\definecolor{emeraldbrand}{HTML}{059669}  % emerald-600 — success / checks
+\definecolor{slatedark}  {HTML}{0F172A}   % slate-900   — headings
+\definecolor{slatemid}   {HTML}{64748B}   % slate-500   — supporting text
+\definecolor{slatelight} {HTML}{F1F5F9}   % slate-100   — light bg
+\definecolor{indigobg}   {HTML}{EEF2FF}   % indigo-50   — soft accent bg
+
+% ── Macros ──────────────────────────────────────────────────
+% Emerald checkmark — matches success states in the UI
+\newcommand{\yes}{\textcolor{emeraldbrand}{\ding{51}}}
+% Ember highlight — for energetic callouts
+\newcommand{\ember}[1]{\textcolor{emberbrand}{\textbf{#1}}}
+
+% ── Section heading style ───────────────────────────────────
+% Violet-600 headings with a rule — violet is the co-primary accent
+\titleformat{\section}
+  {\color{violetbrand}\large\bfseries}
+  {\thesection.}{0.5em}{}
+  [\vspace{-4pt}\color{violetbrand!40}\rule{\linewidth}{0.4pt}\vspace{2pt}]
+
+\titleformat{\subsection*}
+  {\color{slatedark}\normalsize\bfseries}
+  {}{0em}{}
+
+\titleformat{\subsection}
+  {\color{slatedark}\normalsize\bfseries}
+  {\thesubsection}{0.5em}{}
+
+% ── Hyperlink colours (violet-600) ──────────────────────────
+\hypersetup{
+  colorlinks = true,
+  linkcolor  = violetbrand,
+  urlcolor   = violetbrand,
+  citecolor  = violetbrand,
+}
+
+% ── Table rule colour (violet at 25% opacity) ───────────────
+\arrayrulecolor{violetbrand!25}
+
+% ── Header / Footer ─────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{%
+  {\color{violetbrand}\textbf{EduReach}}%
+  {\color{slatemid} — Business Loan Proposal}}
+\fancyhead[R]{\small\textcolor{slatemid}{May 2026}}
+\fancyfoot[C]{\small\textcolor{slatemid}{\thepage}}
+% Brand-coloured header rule (violet-600)
+\renewcommand{\headrulewidth}{0.5pt}
+\renewcommand{\headrule}{%
+  \hbox to\headwidth{\color{violetbrand}\leaders\hrule height\headrulewidth\hfill}}
+
+% ── tcolorbox style — ember (warm amber) highlight panel ─────
+% Matches the energy/CTA highlight panels in the UI
+\tcbuselibrary{skins,breakable}
+\tcbset{
+  edureach/.style={
+    enhanced,
+    colback   = emberbg,
+    colframe  = emberbrand,
+    coltext   = slatedark,
+    arc       = 6pt,
+    boxrule   = 0.6pt,
+    left      = 10pt,
+    right     = 10pt,
+    top       = 8pt,
+    bottom    = 8pt,
+  }
+}
+
+% ── Title ───────────────────────────────────────────────────
+\title{
+  \vspace{-2cm}
+  {\color{violetbrand}\textbf{\Huge EduReach}}\\[0.25cm]
+  {\color{slatedark}\Large Business Loan Proposal}\\[0.2cm]
+  {\color{slatemid}\normalsize May 2026 \,|\, Nairobi, Kenya}\\[0.1cm]
+  {\color{violetbrand}\small
+    \href{https://edureach.site}{\texttt{edureach.site}}
+    \textbar\
+    \href{mailto:edu.reach.co@gmail.com}{\texttt{edu.reach.co@gmail.com}}}
+}
+\author{}
+\date{}
+
+% ────────────────────────────────────────────────────────────
+\begin{document}
+
+\maketitle
+\thispagestyle{fancy}
+
+% ── Executive Summary ───────────────────────────────────────
+\section{Executive Summary}
+
+EduReach is an AI-powered learning and assessment platform that combines digital examinations, automated grading, structured learning, and learner engagement tools into a single system for students, educators, tutors, and academic institutions.
+
+The platform enables educators and organisations to create assessments, host competitions, manage courses, and track learner performance through a mobile-first interface. EduReach supports automated grading for multiple question formats, including handwritten responses submitted as images, alongside analytics, study groups, progress tracking, and integrated tutoring assistance.
+
+EduReach is already live and operational. The platform has reached \textbf{117 registered users}, recorded \textbf{55+ assessment attempts}, and achieved a \textbf{33\% returning-user rate} without paid marketing or active monetisation.
+
+Core platform infrastructure is already deployed and tested. The remaining work is focused on operational refinement, automation, reliability improvements, and institutional onboarding.
+
+Our most urgent current need is a \textbf{KES 200,000 loan} to strengthen platform operations, complete key workflow improvements, and support the first phase of institutional outreach and growth.
+
+EduReach is no longer an early-stage concept. It is a functioning product positioned for commercial expansion.
+
+% ── Market Gap ──────────────────────────────────────────────
+\section{Market Gap}
+
+Most digital learning systems focus either on content delivery or basic testing functionality, but rarely provide a unified environment that combines assessments, learner engagement, analytics, and institutional workflows.
+
+Educational institutions, tutors, and independent educators continue to face several operational challenges:
+
+\begin{itemize}[nosep]
+    \item Manual grading processes that consume significant time
+    \item Limited tools for scalable assessment management
+    \item Weak learner engagement and progress tracking systems
+    \item Fragmented platforms for learning, testing, analytics, and communication
+    \item Existing systems that are expensive, technically complex, or poorly optimised for mobile usage
+\end{itemize}
+
+EduReach addresses these gaps through a unified platform that combines assessments, automated grading, analytics, competitions, structured learning, and learner engagement tools within a single system.
+
+% ── Platform Capabilities ───────────────────────────────────
+\section{Platform Capabilities}
+
+\subsection{Assessment Infrastructure}
+
+EduReach provides a flexible assessment system for schools, educators, tutoring centres, and academic organisations.
+
+Key capabilities include:
+
+\begin{itemize}[nosep]
+    \item Multiple assessment formats including MCQ, short-answer, essay, and timed examinations
+    \item Automated grading and feedback generation
+    \item Handwritten answer uploads with automated evaluation support
+    \item Randomised question delivery and competition leaderboards
+    \item Performance analytics and learner progress tracking
+    \item Assessment hosting through private access links
+\end{itemize}
+
+The platform currently contains \textbf{2,400+ questions} across Mathematics, Physics, Chemistry, Biology, and Economics.
+
+\subsection{Learning \& Engagement Tools}
+
+EduReach also includes learning and engagement features designed to improve retention and participation:
+
+\begin{itemize}[nosep]
+    \item Structured course delivery
+    \item Quiz generation from educational content and uploaded materials
+    \item Integrated tutoring assistance
+    \item Study groups and collaborative learning spaces
+    \item Gamified achievement systems and activity tracking
+    \item Guest trial access for new users
+\end{itemize}
+
+% ── Market Opportunity ──────────────────────────────────────
+\section{Market Opportunity}
+
+\subsection*{Primary User Segments}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}p{0.42\textwidth} p{0.48\textwidth}@{}}
+\toprule
+\rowcolor{indigobg}
+\textcolor{indigobrand}{\textbf{Segment}} & \textcolor{indigobrand}{\textbf{Use Case}} \\
+\midrule
+Secondary schools & Digital assessments, grading, and analytics \\
+Tertiary institutions \& tutoring centres & Scalable assessment management and learner tracking \\
+Competition organisers & Timed contests and ranked examinations \\
+Independent educators & Course delivery and assessment monetisation \\
+Content creators & Structured educational content and engagement systems \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{Market Indicators}
+
+\begin{itemize}[nosep]
+    \item Kenya tertiary student population: \textbf{$\sim$600,000}
+    \item Rapid growth in digital and blended learning adoption
+    \item Increased demand for scalable assessment systems
+    \item Expanding creator-led education and tutoring market
+\end{itemize}
+
+\subsection*{Competitive Positioning}
+
+EduReach combines assessment delivery, automated grading, learner engagement, analytics, and course infrastructure within a single integrated platform.
+
+The platform's strongest differentiation lies in:
+
+\begin{itemize}[nosep]
+    \item Automated evaluation workflows
+    \item Handwritten response support
+    \item Competition and leaderboard infrastructure
+    \item Unified learning and assessment environment
+    \item Mobile-first accessibility
+\end{itemize}
+
+% ── Traction & Current Status ───────────────────────────────
+\section{Traction \& Current Status}
+
+\subsection*{Platform Status}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}p{0.65\textwidth} c@{}}
+\toprule
+\rowcolor{indigobg}
+\textcolor{indigobrand}{\textbf{Feature}} & \textcolor{indigobrand}{\textbf{Status}} \\
+\midrule
+Assessment engine & \yes\ Live \\
+Automated grading system & \yes\ Live \\
+Handwritten answer uploads & \yes\ Live \\
+Competition leaderboards & \yes\ Live \\
+Study groups and learner communities & \yes\ Live \\
+Course delivery infrastructure & \yes\ Live \\
+Analytics dashboard & \yes\ Live \\
+Mobile-first progressive web application & \yes\ Live \\
+Integrated tutoring assistant & \yes\ Live \\
+Guest access onboarding system & \yes\ Live \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{Current Metrics}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}p{0.45\textwidth} p{0.2\textwidth} p{0.25\textwidth}@{}}
+\toprule
+\rowcolor{indigobg}
+\textcolor{indigobrand}{\textbf{Metric}} & \textcolor{indigobrand}{\textbf{Current}} & \textcolor{indigobrand}{\textbf{Notes}} \\
+\midrule
+Registered users & 117 & Organic acquisition only \\
+Assessment attempts & 775+ & Across multiple subjects \\
+Returning-user rate & 33\% & Indicates repeat engagement \\
+Courses available & 48+ & Multi-subject coverage \\
+Question database & 2,400+ & Academic and olympiad content \\
+Platform uptime & Stable & Production environment active \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The platform has achieved measurable engagement without paid acquisition campaigns or active subscription enforcement.
+
+% ── Revenue Model ───────────────────────────────────────────
+\section{Revenue Model}
+
+\subsection*{Subscription Structure}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}c c c p{5cm}@{}}
+\toprule
+\rowcolor{indigobg}
+\textcolor{indigobrand}{\textbf{Tier}} &
+\textcolor{indigobrand}{\textbf{Monthly (KES)}} &
+\textcolor{indigobrand}{\textbf{Annual (KES)}} &
+\textcolor{indigobrand}{\textbf{Key Features}} \\
+\midrule
+Free & 0 & — & Basic access and limited assessments \\
+Starter & 399 & 3,499 & Expanded assessments and course access \\
+Pro & 999 & 9,999 & Full platform access, analytics, and advanced tools \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{Additional Revenue Streams}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}p{0.4\textwidth} p{0.4\textwidth}@{}}
+\toprule
+\rowcolor{indigobg}
+\textcolor{indigobrand}{\textbf{Revenue Stream}} & \textcolor{indigobrand}{\textbf{Model}} \\
+\midrule
+Institutional licensing & Subscription agreements with schools and organisations \\
+Paid assessments & Revenue share on paid competitions and exams \\
+Course monetisation & Revenue share on educator-created courses \\
+Premium learning tools & Subscription-based advanced features \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{Revenue Outlook}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}c p{6cm} c@{}}
+\toprule
+\rowcolor{indigobg}
+\textcolor{indigobrand}{\textbf{Period}} &
+\textcolor{indigobrand}{\textbf{Scenario}} &
+\textcolor{indigobrand}{\textbf{Projected MRR (KES)}} \\
+\midrule
+Month 4  & Early subscriptions + first institutional users & $\sim$16,000 \\
+Month 6  & Expanded institutional onboarding               & $\sim$45,000 \\
+Month 9  & Growth in subscriptions and competitions        & $\sim$120,000+ \\
+Month 12 & Recurring institutional and platform revenue    & $\sim$250,000+ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ── Operational Priorities ──────────────────────────────────
+\section{Operational Priorities}
+
+The platform is fully functional, with remaining work focused on operational refinement and scalability improvements.
+
+Current priorities include:
+
+\begin{itemize}[nosep]
+    \item Automating subscription and onboarding workflows
+    \item Improving reliability of content-processing systems
+    \item Enhancing user onboarding and notification systems
+    \item Expanding institutional administration features
+    \item Improving conversion and retention workflows
+\end{itemize}
+
+These are implementation refinements rather than foundational product risks. Core platform infrastructure is already operational and stable.
+
+% ── Use of Funds ────────────────────────────────────────────
+\section{Use of Funds}
+
+\subsection*{Funding Allocation}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}p{6.5cm} c p{3.5cm}@{}}
+\toprule
+\rowcolor{indigobg}
+\textcolor{indigobrand}{\textbf{Item}} &
+\textcolor{indigobrand}{\textbf{Amount (KES)}} &
+\textcolor{indigobrand}{\textbf{Purpose}} \\
+\midrule
+Infrastructure and platform operations   & 57,600  & Hosting, APIs, storage, email services \\
+Workflow automation improvements          & 30,000  & Subscription and onboarding automation \\
+Platform refinement and reliability       & 50,000  & Development support and optimisation \\
+Institutional outreach and demonstrations & 30,000  & School visits and onboarding activities \\
+Contingency reserve                       & 32,400  & Operational flexibility \\
+\midrule
+\textbf{Total} & \textbf{200,000} & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{Current Operating Costs}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}p{7cm} c@{}}
+\toprule
+\rowcolor{indigobg}
+\textcolor{indigobrand}{\textbf{Item}} & \textcolor{indigobrand}{\textbf{Monthly Cost (KES)}} \\
+\midrule
+Server infrastructure                   & 702 \\
+AI and processing services              & 1,300 \\
+Email and communication services        & $\sim$500 \\
+Cloud storage and miscellaneous         & $\sim$500 \\
+\midrule
+\textbf{Total} & \textbf{$\sim$3,002} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ── Repayment Plan ──────────────────────────────────────────
+\section{Repayment Plan}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}p{2cm} p{5cm} p{5cm}@{}}
+\toprule
+\rowcolor{indigobg}
+\textcolor{indigobrand}{\textbf{Period}} &
+\textcolor{indigobrand}{\textbf{Milestone}} &
+\textcolor{indigobrand}{\textbf{Repayment Activity}} \\
+\midrule
+Months 1--4   & Platform refinement and institutional onboarding        & Grace period \\
+Month 5+      & Revenue from subscriptions and institutional users      & Monthly repayments begin \\
+Months 5--12  & Growth in recurring platform revenue                    & Ongoing repayment cycle \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Proposed interest terms:} 12\% per annum simple interest on outstanding balance.\\
+\textbf{Expected repayment period:} 12--15 months from disbursement.
+
+% ── Founding Team ───────────────────────────────────────────
+\section{Founding Team}
+
+\textbf{Dalton Omondi} — Co-founder \& Lead Developer. Responsible for platform architecture, backend systems, frontend development, infrastructure management, and product deployment.
+
+\textbf{Mary Syokau} — Co-founder \& Operations Lead. Oversees institutional partnerships, educator onboarding, operational coordination, and growth initiatives.
+
+The platform has been developed and deployed without external funding, with operational costs funded directly by the founding team.
+
+% ── Risks & Mitigations ─────────────────────────────────────
+\section{Risks \& Mitigations}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}p{3cm} p{2.5cm} p{6.5cm}@{}}
+\toprule
+\rowcolor{indigobg}
+\textcolor{indigobrand}{\textbf{Risk}} &
+\textcolor{indigobrand}{\textbf{Likelihood}} &
+\textcolor{indigobrand}{\textbf{Mitigation}} \\
+\midrule
+Slower revenue growth        & Medium & Focused institutional onboarding and recurring subscription model \\
+Platform scaling challenges  & Low    & Infrastructure budget allocated for operational expansion \\
+Competition from larger platforms & Medium & Strong focus on assessments, engagement, and institutional workflows \\
+Operational dependency       & Medium & Contractor allocation included within funding plan \\
+Institutional adoption delays & Medium & Multiple user segments and revenue pathways available \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ── What We Invite You To Do ────────────────────────────────
+\section{What We Invite You To Do}
+
+We welcome further review and due diligence.
+
+\begin{itemize}[nosep]
+    \item \textbf{Platform access:} Visit \href{https://edureach.site}{edureach.site}
+    \item \textbf{Product demonstration:} Request a live walkthrough of the assessment system and analytics tools
+    \item \textbf{Technical review:} Platform architecture and operational documentation available on request
+    \item \textbf{Financial review:} Expenditure records and operational breakdowns available during discussions
+    \item \textbf{Funding discussions:} Open to reasonable repayment structures and phased disbursement models
+\end{itemize}
+
+% ── Growth Outlook ──────────────────────────────────────────
+\section{Growth Outlook}
+
+EduReach is at the point where operational refinement and institutional adoption can transition the platform from early traction into sustainable recurring revenue.
+
+The product is already deployed, users are actively engaging with the system, and the core infrastructure is operational. The requested funding is intended to accelerate platform stability, institutional onboarding, and revenue activation.
+
+% Branded highlight box — matches EduReach hero/CTA panel style
+\vspace{0.4cm}
+\begin{tcolorbox}[edureach]
+\begin{center}
+  \textcolor{indigobrand}{\textbf{``The platform is built. Now it needs paying customers.}}\\[4pt]
+  \textcolor{indigobrand}{\textbf{Your support makes that possible — with a very small cheque}}\\
+  \textcolor{indigobrand}{\textbf{and a very large impact.''}}
+\end{center}
+\end{tcolorbox}
+
+\vspace{0.5cm}
+
+\begin{center}
+  \textbf{Dalton Omondi \& Mary Syokau}\\[3pt]
+  \textcolor{indigobrand}{\href{mailto:edu.reach.co@gmail.com}{\texttt{edu.reach.co@gmail.com}}}
+  \,\textbullet\,
+  \textcolor{indigobrand}{\href{https://edureach.site}{\texttt{edureach.site}}}
+  \,\textbullet\,
+  Nairobi, Kenya
+  \,\textbullet\,
+  May 2026
+\end{center}
+
+% ── Appendix ────────────────────────────────────────────────
+\newpage
+
+\section*{Appendix: Platform Statistics (May 2026)}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}p{7cm} c@{}}
+\toprule
+\rowcolor{indigobg}
+\textcolor{indigobrand}{\textbf{Metric}} & \textcolor{indigobrand}{\textbf{Value}} \\
+\midrule
+Questions available on platform   & 2,400+ \\
+Courses published                 & 48+ \\
+Assessment attempts recorded      & 775+ \\
+Registered users                  & 117 \\
+Returning-user rate               & 33\% \\
+Platform uptime                   & Stable \\
+Monthly operating cost            & $\sim$KES 3,002 \\
+Current monetisation status       & Not yet activated \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\end{document}

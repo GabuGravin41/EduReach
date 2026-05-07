@@ -2,29 +2,90 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar hiding for mobile tabs */
+/* ── Base font ──────────────────────────────────────────────────────────────
+   Inter is loaded via <link> in index.html (preconnect + display=swap).
+   Tailwind's fontFamily.sans is set to Inter in tailwind.config.js.
+   This rule ensures the body picks it up even before Tailwind classes apply. */
+@layer base {
+  html {
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+  body {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+}
+
+/* ── Animation delay helpers ────────────────────────────────────────────────
+   Used alongside Tailwind animate-* classes for staggered entrances.       */
+@layer utilities {
+  .delay-75  { animation-delay:  75ms; }
+  .delay-100 { animation-delay: 100ms; }
+  .delay-150 { animation-delay: 150ms; }
+  .delay-200 { animation-delay: 200ms; }
+  .delay-300 { animation-delay: 300ms; }
+  .delay-400 { animation-delay: 400ms; }
+  .delay-500 { animation-delay: 500ms; }
+  .delay-600 { animation-delay: 600ms; }
+  .delay-700 { animation-delay: 700ms; }
+}
+
+/* ── Shimmer skeleton utility ───────────────────────────────────────────────
+   Use: <div class="shimmer rounded-xl h-4 w-32" />
+   Gives a sweeping highlight effect richer than plain animate-pulse.        */
+@layer utilities {
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      theme('colors.slate.200') 25%,
+      theme('colors.slate.100') 50%,
+      theme('colors.slate.200') 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
+  .dark .shimmer {
+    background: linear-gradient(
+      90deg,
+      theme('colors.slate.700') 25%,
+      theme('colors.slate.600') 50%,
+      theme('colors.slate.700') 75%
+    );
+    background-size: 200% 100%;
+  }
+}
+
+/* ── Scrollbar hiding (mobile tabs, carousels) ──────────────────────────── */
 .scrollbar-hide {
-  -ms-overflow-style: none;  /* Internet Explorer 10+ */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 .scrollbar-hide::-webkit-scrollbar {
-  display: none;  /* Safari and Chrome */
+  display: none;
 }
 
-@keyframes toast-in {
-  from { opacity: 0; transform: translateY(8px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0)   scale(1);    }
-}
-
-/* KaTeX display math — scroll horizontally instead of overflowing on mobile */
+/* ── KaTeX math display ─────────────────────────────────────────────────────
+   Scroll horizontally instead of overflowing on mobile screens.             */
 .katex-display {
   overflow-x: auto;
   overflow-y: hidden;
   padding-bottom: 4px;
 }
 
-/* Prevent any page-level horizontal scroll from escaped content */
-html, body {
-  overflow-x: hidden;
-  max-width: 100%;
+/* ── Reduced-motion safety ──────────────────────────────────────────────────
+   Respects user's OS accessibility preference. All animations collapse to
+   instant fades so the UI remains functional without motion.                */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
+

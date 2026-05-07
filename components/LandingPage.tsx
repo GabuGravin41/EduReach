@@ -382,40 +382,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterAsGuest }) => {
 
   return (
     <div className="bg-white text-slate-900 antialiased overflow-x-hidden">
-      <style>{`
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(28px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to   { opacity: 1; }
-        }
-        @keyframes floatA {
-          0%, 100% { transform: translateY(0px) rotate(0deg); }
-          50%       { transform: translateY(-12px) rotate(2deg); }
-        }
-        @keyframes floatB {
-          0%, 100% { transform: translateY(0px) rotate(0deg); }
-          50%       { transform: translateY(-8px) rotate(-1.5deg); }
-        }
-        @keyframes pulse-ring {
-          0%   { box-shadow: 0 0 0 0 rgba(99,102,241,0.4); }
-          70%  { box-shadow: 0 0 0 16px rgba(99,102,241,0); }
-          100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
-        }
-        .animate-fade-up   { animation: fadeUp 0.7s cubic-bezier(.16,1,.3,1) both; }
-        .animate-fade-in   { animation: fadeIn 0.6s ease both; }
-        .animate-float-a   { animation: floatA 6s ease-in-out infinite; }
-        .animate-float-b   { animation: floatB 8s ease-in-out infinite; }
-        .animate-pulse-ring { animation: pulse-ring 2.5s ease-out infinite; }
-        .delay-100 { animation-delay: 0.1s; }
-        .delay-200 { animation-delay: 0.2s; }
-        .delay-300 { animation-delay: 0.3s; }
-        .delay-400 { animation-delay: 0.4s; }
-        .delay-500 { animation-delay: 0.5s; }
-        .delay-600 { animation-delay: 0.6s; }
-      `}</style>
 
       {/* ── NAVBAR ────────────────────────────────────────────────────── */}
       <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${

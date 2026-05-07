@@ -306,7 +306,7 @@ export const LoginScreen: React.FC = () => {
 
   const fieldOptions = learnerType === 'university' ? UNIVERSITY_FIELDS
     : learnerType === 'high_school' ? HIGH_SCHOOL_SUBJECTS
-    : null;
+      : null;
 
   return (
     <div className="relative flex items-center justify-center min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 overflow-hidden">
@@ -453,8 +453,8 @@ export const LoginScreen: React.FC = () => {
                       {isLogin
                         ? 'Sign in to continue your learning journey'
                         : signupStep === 1
-                        ? 'Step 1 of 2 — Account details'
-                        : 'Step 2 of 2 — Personalise your experience'}
+                          ? 'Step 1 of 2 — Account details'
+                          : 'Step 2 of 2 — Personalise your experience'}
                     </p>
                   </div>
 
@@ -593,22 +593,20 @@ export const LoginScreen: React.FC = () => {
                                   {[1, 2, 3].map((i) => (
                                     <div
                                       key={i}
-                                      className={`h-1 flex-1 rounded-full transition-all ${
-                                        passwordStrength === 'weak' && i === 1 ? 'bg-red-400' :
-                                        passwordStrength === 'good' && i <= 2 ? 'bg-amber-400' :
-                                        passwordStrength === 'strong' ? 'bg-emerald-500' :
-                                        'bg-slate-200 dark:bg-slate-700'
-                                      }`}
+                                      className={`h-1 flex-1 rounded-full transition-all ${passwordStrength === 'weak' && i === 1 ? 'bg-red-400' :
+                                          passwordStrength === 'good' && i <= 2 ? 'bg-amber-400' :
+                                            passwordStrength === 'strong' ? 'bg-emerald-500' :
+                                              'bg-slate-200 dark:bg-slate-700'
+                                        }`}
                                     />
                                   ))}
                                 </div>
-                                <span className={`text-xs font-medium ${
-                                  passwordStrength === 'weak' ? 'text-red-500' :
-                                  passwordStrength === 'good' ? 'text-amber-500' :
-                                  'text-emerald-600 dark:text-emerald-400'
-                                }`}>
+                                <span className={`text-xs font-medium ${passwordStrength === 'weak' ? 'text-red-500' :
+                                    passwordStrength === 'good' ? 'text-amber-500' :
+                                      'text-emerald-600 dark:text-emerald-400'
+                                  }`}>
                                   {passwordStrength === 'weak' ? `${8 - password.length} more chars needed` :
-                                   passwordStrength === 'good' ? 'Good' : 'Strong'}
+                                    passwordStrength === 'good' ? 'Good' : 'Strong'}
                                 </span>
                               </>
                             )}
@@ -633,11 +631,10 @@ export const LoginScreen: React.FC = () => {
                                 type="button"
                                 onClick={() => setLearningGoal(g.value)}
                                 disabled={isLoading}
-                                className={`text-left p-3 rounded-xl border-2 transition-all ${
-                                  learningGoal === g.value
+                                className={`text-left p-3 rounded-xl border-2 transition-all ${learningGoal === g.value
                                     ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/50'
                                     : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800/50'
-                                }`}
+                                  }`}
                               >
                                 <div className="text-xl mb-1">{g.icon}</div>
                                 <div className="text-xs font-semibold text-slate-800 dark:text-slate-100 leading-snug">{g.label}</div>
@@ -657,11 +654,10 @@ export const LoginScreen: React.FC = () => {
                                 type="button"
                                 onClick={() => { setLearnerType(t.value); setFieldOfStudy(''); }}
                                 disabled={isLoading}
-                                className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all ${
-                                  learnerType === t.value
+                                className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all ${learnerType === t.value
                                     ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/50'
                                     : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800/50'
-                                }`}
+                                  }`}
                               >
                                 <span className="text-lg">{t.icon}</span>
                                 <span className="text-xs font-medium text-slate-700 dark:text-slate-200">{t.label}</span>
@@ -683,11 +679,10 @@ export const LoginScreen: React.FC = () => {
                                   type="button"
                                   onClick={() => setFieldOfStudy(prev => prev === f ? '' : f)}
                                   disabled={isLoading}
-                                  className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${
-                                    fieldOfStudy === f
+                                  className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${fieldOfStudy === f
                                       ? 'border-indigo-500 bg-indigo-500 text-white'
                                       : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-indigo-400'
-                                  }`}
+                                    }`}
                                 >
                                   {f}
                                 </button>
@@ -708,11 +703,10 @@ export const LoginScreen: React.FC = () => {
                                 type="button"
                                 onClick={() => toggleInterest(tag)}
                                 disabled={isLoading}
-                                className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${
-                                  interests.includes(tag)
+                                className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${interests.includes(tag)
                                     ? 'border-purple-500 bg-purple-500 text-white'
                                     : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-purple-400'
-                                }`}
+                                  }`}
                               >
                                 {tag}
                               </button>
@@ -816,13 +810,7 @@ export const LoginScreen: React.FC = () => {
         </div>
       )}
 
-      <style>{`
-        @keyframes auth-in {
-          from { opacity: 0; transform: translateY(16px) scale(0.97); }
-          to   { opacity: 1; transform: translateY(0)   scale(1);    }
-        }
-        .animate-auth-in { animation: auth-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-      `}</style>
     </div>
   );
 };
+
