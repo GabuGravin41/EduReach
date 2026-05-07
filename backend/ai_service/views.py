@@ -737,23 +737,32 @@ def chat(request):
         ])
         
         # Construct the full prompt with context and system instructions
-        system_instruction = """You are Edu, an expert AI tutor on the EduReach platform. You help students genuinely understand and solve problems.
+        system_instruction = """You are Edu, an expert AI tutor on the EduReach platform. You help students genuinely understand and solve problems — and you can take actions on the platform on their behalf.
 
 CORE RULES — follow these without exception:
-1. When a student pastes problems, questions, notes, exam content, or any study material — engage with it DIRECTLY and IMMEDIATELY. Do not ask them to repeat themselves. Do not redirect them elsewhere. Work through it with them.
-2. When asked to solve a problem, solve it. Show working. Be thorough.
-3. When asked to create an assessment or quiz from content, generate the actual questions based on that exact content — use the specific data, values, and problems provided.
-4. NEVER tell a student to "go to the Assessments section" or "navigate to X" as a response to a learning request. That is not tutoring — it is a failure.
-5. If the student is frustrated or says the AI is not helping, acknowledge it directly, apologise once, and immediately do what they actually asked.
+1. When a student pastes problems, questions, notes, exam content, or any study material — engage with it DIRECTLY and IMMEDIATELY.
+2. When asked to solve a problem, solve it. Show full working. Be thorough.
+3. When asked to create an assessment or quiz — do it. Emit an action tag (see ACTIONS below) AND briefly confirm what you are doing.
+4. NEVER tell a student to navigate somewhere themselves. If they need to go somewhere, take them there via an action.
+5. If the student is frustrated, acknowledge it once and immediately do what they asked.
+6. Response length must match request complexity — a numerical analysis problem deserves a full solution.
 
-How to respond:
-- For mathematical / technical problems: show full working step by step. Use LaTeX ($...$ for inline, $$...$$ for block equations).
-- For conceptual questions: explain clearly with examples.
-- For "help me with this exam / these problems": work through each question in order.
-- Response length should match the complexity of the request — a numerical analysis problem deserves a full solution, not two sentences.
-- Be warm but never waste the student's time with filler phrases.
+ACTIONS — you can control the platform by appending ONE action tag at the very end of your response:
 
-When asked to quiz the student: ask questions only — no answers or hints until they attempt."""
+<action>{"type": "navigate", "view": "assessments"}</action>
+<action>{"type": "navigate", "view": "study_groups"}</action>
+<action>{"type": "navigate", "view": "dashboard"}</action>
+<action>{"type": "navigate", "view": "analytics"}</action>
+<action>{"type": "create_assessment", "title": "Assessment title here", "num_questions": 10}</action>
+
+When to use actions:
+- User says "create an assessment / quiz / exam from this" → emit create_assessment with a relevant title and question count (default 10, max 15)
+- User says "take me to assessments / show me my exams" → emit navigate to assessments
+- User asks to go anywhere on the platform → emit navigate
+- ONLY emit ONE action per response, at the very end, after your text
+
+For mathematical / technical content: use LaTeX ($...$ inline, $$...$$ block).
+When quizzing the student: ask questions only — no answers until they attempt."""
 
         # Inject a compact learner performance snapshot into the system prompt
         perf_snippet = _build_performance_snippet(request.user)
@@ -761,24 +770,49 @@ When asked to quiz the student: ask questions only — no answers or hints until
             system_instruction += f"\n\n{perf_snippet}"
 
         optimized_context = context
-        # Allow generous context — truncate only if truly oversized
         if optimized_context and len(optimized_context) > 12000:
             optimized_context = optimized_context[:12000]
 
-        if optimized_context:
-            full_prompt = f"{system_instruction}\n\nLearning Context (video transcript / notes / material the student is working with):\n{optimized_context}\n\nStudent: {message}"
-        else:
-            full_prompt = f"{system_instruction}\n\nStudent: {message}"
+        # Include conversation history for context continuity
+        history = request.data.get('history', [])
+        history_text = ''
+        if history and len(history) > 1:
+            history_lines = []
+            for m in history[-8:]:  # last 8 turns
+                role_label = 'Student' if m.get('role') == 'user' else 'Edu'
+                history_lines.append(f"{role_label}: {m.get('content', '')[:600]}")
+            history_text = '\n'.join(history_lines)
 
-        # Token budget: enough to actually teach — short answers still capped, detailed get full room
-        max_tokens = 1200 if wants_detailed else 700
+        parts = [system_instruction]
+        if optimized_context:
+            parts.append(f"Learning Context:\n{optimized_context}")
+        if history_text:
+            parts.append(f"Conversation so far:\n{history_text}")
+        parts.append(f"Student: {message}")
+        full_prompt = '\n\n'.join(parts)
+
+        max_tokens = 1200 if wants_detailed else 800
         response_text = call_ai(full_prompt, max_tokens=max_tokens)
         _increment_ai_usage(request.user)
 
-        return Response(
-            {'response': response_text},
-            status=status.HTTP_200_OK
-        )
+        # Parse action tag from response
+        import re as _re
+        action_data = None
+        action_match = _re.search(r'<action>(.*?)</action>', response_text, _re.DOTALL)
+        if action_match:
+            try:
+                import json as _json
+                action_data = _json.loads(action_match.group(1).strip())
+                # Strip action tag from visible response
+                response_text = _re.sub(r'\s*<action>.*?</action>', '', response_text, flags=_re.DOTALL).strip()
+            except Exception:
+                action_data = None
+
+        payload = {'response': response_text}
+        if action_data:
+            payload['action'] = action_data
+
+        return Response(payload, status=status.HTTP_200_OK)
     
     except AIProviderUnavailableError as e:
         logger.warning("AI unavailable in chat: %s", e)

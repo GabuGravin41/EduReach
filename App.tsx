@@ -1235,6 +1235,7 @@ const AppContent: React.FC = () => {
         username={user?.username}
         onToggleLearningAI={() => setLearningAIOpen(prev => !prev)}
         isLearningAIPanelOpen={learningAIOpen}
+        onNavigate={(view, params) => setView(view as any, params as any)}
       />
       {/* Guest restricted-action modal */}
       {guestModal && (
