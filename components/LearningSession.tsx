@@ -10,6 +10,7 @@ import { PanelLeftIcon } from './icons/PanelLeftIcon';
 import { PanelRightIcon } from './icons/PanelRightIcon';
 import type { YouTubeEvent } from 'react-youtube';
 import VideoLibrarySearch from './VideoLibrarySearch';
+import { saveLastActivity } from './FloatingAIAssistant';
 
 const PLAYER_HEIGHT_STORAGE_KEY = 'edureach_player_height';
 const CHAT_STORAGE_KEY_PREFIX = 'edureach:chat:';
@@ -98,6 +99,13 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
       setPlayerHeight(parseInt(savedHeight, 10));
     }
   }, []);
+
+  // Track last activity for AI proactive greeting
+  useEffect(() => {
+    if (currentLesson?.title) {
+      saveLastActivity(currentLesson.title);
+    }
+  }, [currentLesson?.title]);
 
   // Load chat messages from localStorage on mount (fallback persistence)
   useEffect(() => {

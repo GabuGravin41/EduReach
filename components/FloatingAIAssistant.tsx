@@ -92,6 +92,39 @@ function RestoreIcon({ className }: { className?: string }) {
   );
 }
 
+const LAST_ACTIVITY_KEY = 'edureach:last-activity';
+const PROACTIVE_GREETED_KEY = 'edureach:edu-greeted';
+
+export const saveLastActivity = (topic: string) => {
+  try { localStorage.setItem(LAST_ACTIVITY_KEY, JSON.stringify({ topic, ts: Date.now() })); } catch {}
+};
+
+function buildProactiveGreeting(username?: string): string | null {
+  try {
+    const onboardingRaw = localStorage.getItem('edureach:onboarding-data');
+    const activityRaw = localStorage.getItem(LAST_ACTIVITY_KEY);
+    const greeted = localStorage.getItem(PROACTIVE_GREETED_KEY);
+    if (greeted) return null; // only once per session
+
+    const name = username ? `, ${username}` : '';
+    const onboarding = onboardingRaw ? JSON.parse(onboardingRaw) : null;
+    const activity = activityRaw ? JSON.parse(activityRaw) : null;
+
+    if (activity?.topic) {
+      const hoursAgo = Math.round((Date.now() - activity.ts) / 3600000);
+      const when = hoursAgo < 1 ? 'just now' : hoursAgo < 24 ? `${hoursAgo}h ago` : 'recently';
+      return `Welcome back${name}! Last time you were studying **${activity.topic}** (${when}). Want to pick up where you left off, or is there something new I can help with?`;
+    }
+    if (onboarding?.subject) {
+      const examPart = onboarding.examDate
+        ? ` Your exam is on ${new Date(onboarding.examDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}.`
+        : '';
+      return `Hi${name}! I see you're studying **${onboarding.subject}**.${examPart} What would you like to work on today?`;
+    }
+    return null;
+  } catch { return null; }
+}
+
 export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username, onToggleLearningAI, isLearningAIPanelOpen, onNavigate }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -114,6 +147,16 @@ export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username, on
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [isOpen, messages]);
+
+  // Proactive greeting — inject once on first open if context is available
+  useEffect(() => {
+    if (!isOpen || messages.length > 0) return;
+    const greeting = buildProactiveGreeting(username);
+    if (greeting) {
+      setMessages([{ role: 'assistant', content: greeting }]);
+      try { localStorage.setItem(PROACTIVE_GREETED_KEY, '1'); } catch {}
+    }
+  }, [isOpen]);
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     if (isOpen) return; // don't drag while open
@@ -148,7 +191,8 @@ export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username, on
       setActionInProgress(`Creating "${title}"…`);
       try {
         const resp = await apiClient.post('ai/generate-quiz/', {
-          transcript: conversationContext,
+          transcript: conversationContext || undefined,
+          topic: conversationContext ? undefined : title,
           num_questions: numQ,
           difficulty: 'medium',
           assessment_type: 'exam',
@@ -221,27 +265,40 @@ export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username, on
       .map(m => m.content)
       .join('\n\n');
 
-    try {
-      const resp = await aiClient.post('ai/chat/', {
-        message: text,
-        context: contextNote,
-        history: historyPayload,
-      });
-      const reply = resp.data?.response || resp.data?.message || 'Sorry, I could not get a response.';
-      const action: AgentAction | undefined = resp.data?.action;
-
-      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
-
-      if (action) {
-        await executeAction(action, conversationContext);
+    const MAX_RETRIES = 2;
+    let lastErr: any = null;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt));
+        const resp = await aiClient.post('ai/chat/', {
+          message: text,
+          context: contextNote,
+          history: historyPayload,
+        });
+        const reply = resp.data?.response || resp.data?.message || 'Sorry, I could not get a response.';
+        const action: AgentAction | undefined = resp.data?.action;
+        setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+        if (action) await executeAction(action, conversationContext);
+        setIsLoading(false);
+        return;
+      } catch (err: any) {
+        lastErr = err;
+        const status = err?.response?.status;
+        // Don't retry on quota/auth errors
+        if (status === 429 || status === 401 || status === 403) break;
       }
-    } catch (err: any) {
-      console.error('AI Chat Error:', err);
-      const errorMsg = err?.response?.data?.error || err?.response?.data?.message || 'Sorry, I could not reach the AI right now. Please try again.';
-      setMessages(prev => [...prev, { role: 'assistant', content: errorMsg }]);
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
+    const status = lastErr?.response?.status;
+    let friendlyMsg = 'Something went wrong. Please try again in a moment.';
+    if (status === 429) {
+      friendlyMsg = lastErr?.response?.data?.error || 'You\'ve reached your monthly AI limit. Upgrade your plan to continue.';
+    } else if (status === 503 || status === 502) {
+      friendlyMsg = 'The AI service is temporarily busy. Please try again in a few seconds.';
+    } else if (!navigator.onLine) {
+      friendlyMsg = 'You appear to be offline. Check your connection and try again.';
+    }
+    setMessages(prev => [...prev, { role: 'assistant', content: friendlyMsg }]);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

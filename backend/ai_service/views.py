@@ -471,12 +471,24 @@ def generate_quiz(request):
             if len(pdf_context) > 18000:
                 pdf_context = pdf_context[:18000]
 
+        topic_only = (request.data.get('topic') or '').strip()
+        assessment_title = (request.data.get('title') or topic_only or '').strip()
+
         combined_context_parts = []
         if transcript:
             combined_context_parts.append(transcript)
         if pdf_context:
             combined_context_parts.append(f"[PDF Context]\n{pdf_context}")
         combined_context = "\n\n---\n\n".join(combined_context_parts).strip()
+
+        # Topic-only mode: no transcript or PDF — generate from topic name alone
+        if not combined_context and topic_only:
+            combined_context = (
+                f"TOPIC-ONLY MODE: Generate {num_questions} questions about \"{topic_only}\".\n"
+                f"Draw on standard academic knowledge of this subject. "
+                f"Vary question depth: include factual recall, conceptual understanding, and application. "
+                f"Title: {assessment_title or topic_only}"
+            )
 
         # Bound total context to keep generation latency predictable.
         # For larger question sets, use less context to leave more room for output.
@@ -486,7 +498,7 @@ def generate_quiz(request):
 
         if not combined_context:
             return Response(
-                {'error': 'Provide transcript text or upload a PDF context file.'},
+                {'error': 'Provide a topic, transcript text, or upload a PDF context file.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -732,9 +744,16 @@ def chat(request):
 
         # Check if user wants detailed response (from message)
         wants_detailed = any(keyword in message.lower() for keyword in [
-            'explain more', 'tell me more', 'detailed', 'deep dive', 
+            'explain more', 'tell me more', 'detailed', 'deep dive',
             'elaborate', 'in depth', 'expand', 'comprehensive'
         ])
+
+        # Deep-solve mode: detect multi-part problems (numbered lists, lettered sub-parts)
+        import re as _re_check
+        is_deep_solve = (
+            len(_re_check.findall(r'(?m)^\s*(?:\d+[\.\)]|[a-d][\.\)])', message)) >= 2
+            or message.count('\n') >= 4
+        )
         
         # Construct the full prompt with context and system instructions
         system_instruction = """You are Edu, an expert AI tutor on the EduReach platform. You help students genuinely understand and solve problems — and you can take actions on the platform on their behalf.
@@ -791,7 +810,7 @@ When quizzing the student: ask questions only — no answers until they attempt.
         parts.append(f"Student: {message}")
         full_prompt = '\n\n'.join(parts)
 
-        max_tokens = 1200 if wants_detailed else 800
+        max_tokens = 2000 if is_deep_solve else (1200 if wants_detailed else 800)
         response_text = call_ai(full_prompt, max_tokens=max_tokens)
         _increment_ai_usage(request.user)
 

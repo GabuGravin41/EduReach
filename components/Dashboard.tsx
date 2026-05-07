@@ -44,9 +44,16 @@ interface RecentActivity {
   xp_earned: number;
 }
 
+interface TopicPerformance {
+  topic: string;
+  count: number;
+  average_score: number;
+}
+
 interface LearnerAnalytics {
   summary: LearnerSummary;
   recent_activity: RecentActivity[];
+  assessment_by_topic: TopicPerformance[];
   course_progress: {
     course_id: number;
     course_title: string;
@@ -285,6 +292,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartSession, onSelectCo
   const analytics = analyticsQuery.data ?? null;
   const summary = analytics?.summary ?? null;
   const recentActivity = analytics?.recent_activity ?? [];
+  const topicPerformance = useMemo(() => {
+    if (!analytics?.assessment_by_topic?.length) return [];
+    return [...analytics.assessment_by_topic]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+  }, [analytics]);
   const courseProgressMap = useMemo(() => {
     const map = new Map<number, { pct: number; done: number; total: number; lastAccessed: string | null }>();
     if (analytics?.course_progress) {
@@ -533,7 +546,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartSession, onSelectCo
                   <p className="text-xs text-slate-400 dark:text-slate-500">Take your first quiz to see your results here.</p>
                 </div>
               ) : (
-                recentActivity.slice(0, 5).map((a) => (
+                <>
+                  {recentActivity.slice(0, 5).map((a) => (
                   <div key={a.id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                     <div className="flex-shrink-0">
                       <span className={`inline-flex items-center justify-center w-9 h-9 rounded-xl text-xs font-extrabold ${scoreTextColor(a.score_percentage)}`}>
@@ -549,7 +563,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartSession, onSelectCo
                     </div>
                     <div className={`w-1.5 h-8 rounded-full flex-shrink-0 ${scoreColor(a.score_percentage)}`} />
                   </div>
-                ))
+                  ))}
+                  {/* Usage-triggered upgrade nudge — shown after ≥3 assessments on free tier */}
+                  {userTier === 'free' && assessmentsTaken >= 3 && (
+                    <div className="mx-5 mb-3 rounded-xl bg-gradient-to-r from-indigo-50 to-violet-50 dark:from-indigo-900/20 dark:to-violet-900/20 border border-indigo-200 dark:border-indigo-700 p-3 flex items-start gap-3">
+                      <SparklesIcon className="w-4 h-4 text-indigo-500 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">You're on a roll!</p>
+                        <p className="text-[10px] text-indigo-600 dark:text-indigo-400 mt-0.5">Upgrade to Learner for unlimited assessments, AI tutoring & more.</p>
+                      </div>
+                      <button
+                        onClick={() => navigate(ROUTES.billing)}
+                        className="flex-shrink-0 text-[10px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg px-2.5 py-1.5 transition-colors"
+                      >
+                        Upgrade
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -608,6 +639,41 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartSession, onSelectCo
               )}
             </ul>
           </div>
+
+          {/* Subject Mastery */}
+          {topicPerformance.length > 0 && (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                <h3 className="font-bold text-sm text-slate-800 dark:text-white">Subject Mastery</h3>
+                <TrophyIcon className="w-4 h-4 text-amber-400" />
+              </div>
+              <div className="px-5 py-4 space-y-3">
+                {topicPerformance.map((t) => (
+                  <div key={t.topic}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate max-w-[65%]">{t.topic}</span>
+                      <span className={`text-xs font-bold ${
+                        t.average_score >= 80 ? 'text-emerald-600 dark:text-emerald-400'
+                        : t.average_score >= 60 ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-rose-600 dark:text-rose-400'
+                      }`}>{Math.round(t.average_score)}%</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-700 ${
+                          t.average_score >= 80 ? 'bg-emerald-500'
+                          : t.average_score >= 60 ? 'bg-amber-500'
+                          : 'bg-rose-500'
+                        }`}
+                        style={{ width: `${Math.min(100, t.average_score)}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{t.count} attempt{t.count !== 1 ? 's' : ''}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

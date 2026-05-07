@@ -35,6 +35,7 @@ import { courseService, Course } from './src/services/courseService';
 import { useToast } from './src/contexts/ToastContext';
 import { notificationService, type AppNotification } from './src/services/notificationService';
 import { FloatingAIAssistant } from './components/FloatingAIAssistant';
+import { OnboardingModal, hasCompletedOnboarding } from './components/OnboardingModal';
 
 // Lazy load heavy components for better performance
 const CreateCoursePage = lazy(() => import('./components/CreateCoursePage').then(module => ({ default: module.CreateCoursePage })));
@@ -213,6 +214,7 @@ const AppContent: React.FC = () => {
     const { user, logout, isLoading } = useAuth();
     const { isGuest, isReady: guestReady, guestTrialExpired, guestDaysRemaining, shouldShowReminder, dismissReminder, exitGuestMode, enterGuestMode } = useGuest();
     const [guestModal, setGuestModal] = useState<{ action: string } | null>(null);
+    const [showOnboarding, setShowOnboarding] = useState(false);
     const location = useLocation();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
@@ -239,6 +241,13 @@ const AppContent: React.FC = () => {
       fetchNotifs();
       const interval = setInterval(fetchNotifs, 30000);
       return () => clearInterval(interval);
+    }, [user]);
+
+    // Show onboarding modal for newly-logged-in users who haven't completed it
+    useEffect(() => {
+      if (user && !hasCompletedOnboarding()) {
+        setShowOnboarding(true);
+      }
     }, [user]);
 
     // Close notification dropdown when clicking outside
@@ -1246,6 +1255,10 @@ const AppContent: React.FC = () => {
           onLogin={() => { setGuestModal(null); exitGuestMode(); navigate('/', { replace: true }); }}
           onDismiss={() => setGuestModal(null)}
         />
+      )}
+      {/* Intent-first onboarding — shown once on first login */}
+      {showOnboarding && (
+        <OnboardingModal onComplete={() => setShowOnboarding(false)} />
       )}
       {/* Daily reminder — shown once per day to active guest users */}
       {shouldShowReminder && !user && !guestModal && (
