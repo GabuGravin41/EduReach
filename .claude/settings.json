@@ -7,7 +7,21 @@
       "Bash(python3 manage.py seed_kenyan_users --reset)",
       "Bash(python3 manage.py seed_community_data)",
       "Bash(python3 manage.py seed_analytics_data)",
-      "Bash(python3 manage.py makemigrations assessments)"
+      "Bash(python3 manage.py makemigrations assessments)",
+      "Bash(git commit -m ' *)",
+      "Bash(scp -o StrictHostKeyChecking=no \"/home/lindah/Desktop/projects/coding/visual studio/django website tutorials/EduReach/backend/ai_service/views.py\" root@37.60.227.186:/opt/edureach/backend/ai_service/views.py)",
+      "Bash(ssh -o StrictHostKeyChecking=no root@37.60.227.186 \"systemctl restart edureach.service && sleep 2 && systemctl is-active edureach.service\")",
+      "Bash(ssh root@37.60.227.186 \"cd /opt/edureach/backend && git pull origin main && /opt/edureach/venv/bin/pip install -q -r requirements.txt && systemctl restart edureach.service && echo 'Deployed OK'\")",
+      "Bash(ssh root@37.60.227.186 \"cd /opt/edureach/backend && git stash && git pull origin main && /opt/edureach/venv/bin/pip install -q -r requirements.txt && systemctl restart edureach.service && echo 'Deployed OK'\")",
+      "Bash(ssh root@37.60.227.186 \"cd /opt/edureach/backend && mv backend/courses/management/commands/enrich_missing_transcripts.py /tmp/ 2>/dev/null; git pull origin main && /opt/edureach/venv/bin/pip install -q -r requirements.txt && systemctl restart edureach.service && echo 'Deployed OK'\")",
+      "Bash(ssh root@37.60.227.186 \"cd /opt/edureach/backend && git status\")",
+      "Bash(ssh root@37.60.227.186 \"cd /opt/edureach/backend && git add courses/management/commands/enrich_missing_transcripts.py payments/migrations/0009_alter_subscription_tier.py users/migrations/0012_alter_notification_notif_type_and_more.py && git stash drop 2>/dev/null; git pull origin main && /opt/edureach/venv/bin/pip install -q -r requirements.txt && systemctl restart edureach.service && echo 'Deployed OK'\")",
+      "Bash(ssh root@37.60.227.186 \"systemctl is-active edureach.service\")",
+      "Bash(ssh root@37.60.227.186 \"cd /opt/edureach/backend && git pull origin main && systemctl restart edureach.service && echo 'Deployed'\")",
+      "Bash(ssh root@37.60.227.186 \"cd /opt/edureach/backend && git pull origin main && systemctl restart edureach.service && echo OK\")",
+      "Bash(python manage.py makemigrations users --name=\"add_site_visit\")",
+      "Bash(python3 manage.py makemigrations users --name=\"add_site_visit\")",
+      "Bash(python3 manage.py showmigrations users)"
     ]
   }
 }

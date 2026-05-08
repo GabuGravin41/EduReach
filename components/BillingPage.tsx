@@ -9,6 +9,7 @@ import { XIcon } from './icons/XIcon';
 import { XCircleIcon } from './icons/XCircleIcon';
 import { Button } from './ui/Button';
 import { UserTier } from '../App';
+import { useAuth } from '../src/contexts/useAuth';
 
 interface BillingPageProps {
   currentTier?: UserTier;
@@ -202,6 +203,8 @@ const FeatureCell: React.FC<{ value: string | boolean; isActive: boolean }> = ({
 
 // ── Main Component ─────────────────────────────────────────────────────────
 export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', onSubscriptionActivated, learnerType }) => {
+  const { user } = useAuth();
+  const isAdmin = (user as any)?.tier === 'admin' || (user as any)?.is_staff || (user as any)?.is_superuser;
   const isEducator = learnerType === 'teacher' || learnerType === 'professional';
 
   // Educators pay more — KES 399/mo starter, KES 999/mo pro
@@ -240,6 +243,14 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     paymentId: number;
   } | null>(null);
   const [paystackReference, setPaystackReference] = useState('');
+  // Payment modal tab
+  const [payMethodTab, setPayMethodTab] = useState<'mpesa' | 'paystack'>('mpesa');
+  // Paystack state inside modal
+  const [modalPaystackPending, setModalPaystackPending] = useState<{
+    url: string;
+    reference: string;
+    paymentId: number;
+  } | null>(null);
   const [isEnterpriseModalOpen, setIsEnterpriseModalOpen] = useState(false);
   const [enterpriseName, setEnterpriseName] = useState('');
   const [enterpriseEmail, setEnterpriseEmail] = useState('');
@@ -333,9 +344,19 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
       setPaystackReference('');
       setPaymentMessage(data.detail || 'Payment verified successfully! Click "Activate Subscription" to complete.');
       historyQuery.refetch();
+      // If triggered from the modal, show success state
+      if (modalPaystackPending) {
+        setModalPaystackPending(null);
+        setStkSuccess(true);
+        if (paymentModalTier) setActivatedTier(paymentModalTier);
+        queryClient.invalidateQueries({ queryKey: ['subscription'] });
+        if (onSubscriptionActivated && paymentModalTier) onSubscriptionActivated(paymentModalTier);
+      }
     },
     onError: (error: any) => {
-      setPaymentMessage(error?.response?.data?.detail || 'Verification failed. Please try again.');
+      const msg = error?.response?.data?.detail || 'Verification failed. Please check that you completed the payment and try again.';
+      setPaymentMessage(msg);
+      setModalPaymentMessage(msg);
     },
   });
 
@@ -435,6 +456,11 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     return methods.find((m) => m.name === 'mpesa') ?? null;
   }, [methodsQuery.data]);
 
+  const paystackMethod = useMemo(() => {
+    const methods = Array.isArray(methodsQuery.data) ? methodsQuery.data : [];
+    return methods.find((m) => m.name === 'paystack') ?? null;
+  }, [methodsQuery.data]);
+
   const handleStartPayment = () => {
     if (!selectedMethodId) {
       setPaymentMessage('Select a payment method first.');
@@ -475,6 +501,8 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     setStkPushPaymentId(null);
     setModalPaymentMessage('');
     setActivatedTier(null);
+    setPayMethodTab('mpesa');
+    setModalPaystackPending(null);
   };
 
   const closePaymentModal = () => {
@@ -484,6 +512,33 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     setStkSuccess(false);
     setStkPushPaymentId(null);
     setModalPaymentMessage('');
+    setPayMethodTab('mpesa');
+    setModalPaystackPending(null);
+  };
+
+  const handlePayWithPaystack = async () => {
+    if (!paystackMethod) { setModalPaymentMessage('Paystack is not currently available. Please try M-Pesa.'); return; }
+    if (!paymentModalTier) return;
+    setModalPaymentMessage('');
+    try {
+      const payAmount = activeBillingCycle === 'biweekly' && paymentModalTier === 'learner' && effectiveTiers.learner.biweeklyPrice
+        ? effectiveTiers.learner.biweeklyPrice.KES
+        : effectiveTiers[paymentModalTier].monthlyPrice.KES;
+      const response = await initiatePaymentMutation.mutateAsync({
+        payment_method_id: paystackMethod.id,
+        amount: payAmount,
+        currency: 'KES',
+        metadata: { tier: paymentModalTier, display_currency: 'KES', billing_cycle: activeBillingCycle },
+      } as any);
+      if (response.paystack_url) {
+        setModalPaystackPending({ url: response.paystack_url, reference: response.reference ?? '', paymentId: response.payment.id });
+        window.open(response.paystack_url, '_blank', 'noopener,noreferrer');
+      } else {
+        setModalPaymentMessage('Could not get a Paystack payment link. Please try again.');
+      }
+    } catch (err: any) {
+      setModalPaymentMessage(err?.response?.data?.detail || 'Paystack error. Please try again.');
+    }
   };
 
   const handleSendStkPush = async () => {
@@ -954,14 +1009,31 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                   </svg>
                 </button>
 
-                {/* Coming Soon methods — collapsible */}
+                {/* Other methods — collapsible */}
                 {showMoreMethods && (
                   <div className="space-y-2">
+                    {isAdmin ? (
+                      <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800">
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-lg">💳</span>
+                          <div>
+                            <span className="text-sm font-semibold text-indigo-800 dark:text-indigo-200">Card / Paystack</span>
+                            <p className="text-xs text-indigo-500 dark:text-indigo-400">Visa, Mastercard, bank</p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-600 text-white">Active</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 opacity-60">
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-lg">💳</span>
+                          <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Card</span>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400">Coming Soon</span>
+                      </div>
+                    )}
                     {[
-                      { icon: '💳', label: 'Paystack' },
-                      { icon: '🏦', label: 'Bank Transfer' },
                       { icon: '🅿️', label: 'PayPal' },
-                      { icon: '💳', label: 'Card' },
                     ].map(({ icon, label }) => (
                       <div key={label} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 opacity-60">
                         <div className="flex items-center gap-2.5">
@@ -1090,23 +1162,43 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
 
             {/* Payment method tabs */}
             <div className="flex border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-              {/* M-Pesa — active */}
               <button
                 type="button"
-                className="flex-1 py-3 text-sm font-bold border-b-2 border-green-500 text-green-700 dark:text-green-400 bg-white dark:bg-slate-900 flex flex-col items-center gap-0.5"
+                onClick={() => { setPayMethodTab('mpesa'); setModalPaymentMessage(''); }}
+                className={`flex-1 py-3 text-sm font-bold flex flex-col items-center gap-0.5 transition-colors ${
+                  payMethodTab === 'mpesa'
+                    ? 'border-b-2 border-green-500 text-green-700 dark:text-green-400 bg-white dark:bg-slate-900'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
               >
                 <span>📱</span>
                 <span>M-Pesa</span>
               </button>
-              {/* Coming soon tabs */}
-              {[
-                { label: 'Paystack', icon: '💳' },
-                { label: 'Card', icon: '🏦' },
-                { label: 'PayPal', icon: '🅿️' },
-              ].map(({ label, icon }) => (
+              {isAdmin ? (
+                <button
+                  type="button"
+                  onClick={() => { setPayMethodTab('paystack'); setModalPaymentMessage(''); }}
+                  className={`flex-1 py-3 text-sm font-bold flex flex-col items-center gap-0.5 transition-colors ${
+                    payMethodTab === 'paystack'
+                      ? 'border-b-2 border-indigo-500 text-indigo-700 dark:text-indigo-400 bg-white dark:bg-slate-900'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                >
+                  <span>💳</span>
+                  <span>Card / Paystack</span>
+                </button>
+              ) : (
+                <div className="flex-1 py-3 text-center cursor-not-allowed flex flex-col items-center gap-0.5 opacity-40" title="Coming soon">
+                  <span className="text-sm">💳</span>
+                  <span className="text-xs text-slate-400">Card</span>
+                  <span className="text-[9px] text-slate-300 dark:text-slate-600 font-semibold uppercase tracking-wide">Soon</span>
+                </div>
+              )}
+              {/* Coming soon */}
+              {[{ label: 'PayPal', icon: '🅿️' }].map(({ label, icon }) => (
                 <div
                   key={label}
-                  className="flex-1 py-3 text-center cursor-not-allowed flex flex-col items-center gap-0.5 opacity-50"
+                  className="flex-1 py-3 text-center cursor-not-allowed flex flex-col items-center gap-0.5 opacity-40"
                   title="Coming soon"
                 >
                   <span className="text-sm">{icon}</span>
@@ -1116,7 +1208,91 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
               ))}
             </div>
 
-            {/* M-Pesa body */}
+            {/* ── Paystack body (admin-only during testing) ─────────────── */}
+            {payMethodTab === 'paystack' && isAdmin && !stkSuccess && (
+              <div className="p-6 space-y-5">
+                {!modalPaystackPending ? (
+                  <>
+                    <div className="flex items-start gap-3 p-3.5 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800">
+                      <span className="text-2xl flex-shrink-0">💳</span>
+                      <p className="text-sm text-indigo-800 dark:text-indigo-200">
+                        Pay securely with your Visa, Mastercard, or bank account via Paystack. You'll be redirected to a secure payment page — once paid, come back and click <strong>I've Paid</strong>.
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                      <span className="text-sm text-slate-600 dark:text-slate-400">You will be charged</span>
+                      <span className="font-extrabold text-lg text-slate-900 dark:text-slate-100">
+                        KES {paymentModalTier ? (activeBillingCycle === 'biweekly' && paymentModalTier === 'learner' && effectiveTiers.learner.biweeklyPrice ? effectiveTiers.learner.biweeklyPrice.KES : effectiveTiers[paymentModalTier].monthlyPrice.KES).toLocaleString() : '—'}
+                        <span className="text-sm font-normal text-slate-400 ml-1">{activeBillingCycle === 'biweekly' ? '/ 2 wks' : '/ mo'}</span>
+                      </span>
+                    </div>
+                    {modalPaymentMessage && (
+                      <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-sm text-rose-700 dark:text-rose-300">
+                        {modalPaymentMessage}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handlePayWithPaystack}
+                      disabled={initiatePaymentMutation.isPending}
+                      className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold text-base shadow-md transition-colors flex items-center justify-center gap-2"
+                    >
+                      {initiatePaymentMutation.isPending ? (
+                        <><ClockIcon className="w-5 h-5 animate-spin" /><span>Opening Paystack...</span></>
+                      ) : (
+                        <><span>💳</span><span>Pay with Card / Bank — KES {paymentModalTier ? (activeBillingCycle === 'biweekly' && paymentModalTier === 'learner' && effectiveTiers.learner.biweeklyPrice ? effectiveTiers.learner.biweeklyPrice.KES : effectiveTiers[paymentModalTier].monthlyPrice.KES).toLocaleString() : ''}</span></>
+                      )}
+                    </button>
+                    <p className="text-xs text-center text-slate-400 dark:text-slate-500">
+                      Powered by Paystack · SSL secured · Cancel anytime
+                    </p>
+                  </>
+                ) : (
+                  <div className="text-center space-y-5 py-2">
+                    <div className="w-20 h-20 mx-auto rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center animate-pulse">
+                      <span className="text-4xl">💳</span>
+                    </div>
+                    <div>
+                      <p className="text-lg font-extrabold text-slate-800 dark:text-white">Complete payment in the new tab</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        A Paystack page was opened. Complete the payment there, then click verify below.
+                      </p>
+                    </div>
+                    <a
+                      href={modalPaystackPending.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 underline hover:no-underline"
+                    >
+                      Re-open payment page ↗
+                    </a>
+                    {modalPaymentMessage && (
+                      <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-sm text-rose-700 dark:text-rose-300">
+                        {modalPaymentMessage}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => verifyPaystackMutation.mutate({ reference: modalPaystackPending.reference })}
+                      disabled={verifyPaystackMutation.isPending}
+                      className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors text-sm"
+                    >
+                      {verifyPaystackMutation.isPending ? 'Verifying...' : '✓ I\'ve Paid — Verify Payment'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setModalPaystackPending(null); setModalPaymentMessage(''); }}
+                      className="text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline transition-colors"
+                    >
+                      Cancel — start over
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── M-Pesa body ─────────────────────────────────────────────── */}
+            {payMethodTab === 'mpesa' && (
             <div className="p-6">
               {/* Success state */}
               {stkSuccess && (
@@ -1256,6 +1432,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
                 </div>
               )}
             </div>
+            )}
           </div>
         </div>
       )}
