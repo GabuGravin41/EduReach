@@ -25,6 +25,7 @@ urlpatterns = [
     path('recommendations/', recommendations_views.recommendations, name='recommendations'),
 
     # Analytics endpoints
+    path('analytics/track/', analytics_views.track_visit, name='track_visit'),
     path('analytics/learner/', analytics_views.learner_analytics, name='learner_analytics'),
     path('analytics/instructor/', analytics_views.instructor_analytics, name='instructor_analytics'),
     path('analytics/admin/', analytics_views.admin_analytics, name='admin_analytics'),

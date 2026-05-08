@@ -391,3 +391,36 @@ class PushSubscription(models.Model):
 
     def __str__(self):
         return f"PushSub({self.user.username}) — {'active' if self.is_active else 'inactive'}"
+
+
+class SiteVisit(models.Model):
+    """
+    Tracks every visitor session — registered users, guests, and anonymous.
+    Keyed by a session_id generated in the browser (localStorage UUID).
+    One row per session; last_seen is updated on subsequent pings.
+    """
+    session_id = models.CharField(max_length=64, db_index=True, unique=True)
+    user = models.ForeignKey(
+        'users.User', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='site_visits'
+    )
+    is_guest = models.BooleanField(default=False)
+    # Whether this session started as guest and the user later created an account
+    converted = models.BooleanField(default=False)
+    # Most recent page/view visited
+    page = models.CharField(max_length=100, blank=True)
+    referrer = models.CharField(max_length=500, blank=True)
+    first_seen = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-last_seen']
+        indexes = [
+            models.Index(fields=['first_seen']),
+            models.Index(fields=['is_guest']),
+            models.Index(fields=['converted']),
+        ]
+
+    def __str__(self):
+        who = self.user.username if self.user_id else ('guest' if self.is_guest else 'anon')
+        return f"SiteVisit({who}, {self.session_id[:8]}…)"

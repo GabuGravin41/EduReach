@@ -11,9 +11,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
+from rest_framework.permissions import AllowAny
+
 from courses.models import Course, Lesson, UserProgress, ContentPurchase, CreatorTip
 from assessments.models import Assessment, UserAttempt
-from users.models import User, XPTransaction
+from users.models import User, XPTransaction, SiteVisit
 
 
 # ---------------------------------------------------------------------------
@@ -65,6 +67,57 @@ def _calculate_streak(user):
         streak += 1
         check_date -= timedelta(days=1)
     return streak
+
+
+# ---------------------------------------------------------------------------
+# Visitor tracking  (no auth required — works for guests and anon users)
+# ---------------------------------------------------------------------------
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def track_visit(request):
+    """
+    POST /api/analytics/track/
+    Lightweight session ping. Called by the frontend on load and navigation.
+    Body: { session_id, is_guest, page, referrer? }
+    Creates a new SiteVisit row or updates last_seen + page on an existing one.
+    """
+    session_id = (request.data.get('session_id') or '').strip()[:64]
+    if not session_id:
+        return Response({'ok': False}, status=400)
+
+    is_guest = bool(request.data.get('is_guest', False))
+    page = (request.data.get('page') or '')[:100]
+    referrer = (request.data.get('referrer') or '')[:500]
+    user = request.user if request.user.is_authenticated else None
+
+    visit, created = SiteVisit.objects.get_or_create(
+        session_id=session_id,
+        defaults={
+            'user': user,
+            'is_guest': is_guest,
+            'page': page,
+            'referrer': referrer,
+        }
+    )
+
+    if not created:
+        # Update mutable fields; detect conversion (was guest, now registered)
+        update_fields = ['page', 'last_seen']
+        visit.page = page
+        if user and not visit.user_id:
+            visit.user = user
+            update_fields.append('user')
+        if is_guest != visit.is_guest and not is_guest and visit.is_guest:
+            # Session transitioned from guest → registered
+            visit.converted = True
+            update_fields.append('converted')
+        if user and not is_guest and visit.is_guest:
+            visit.is_guest = False
+            update_fields.append('is_guest')
+        visit.save(update_fields=update_fields)
+
+    return Response({'ok': True, 'created': created})
 
 
 # ---------------------------------------------------------------------------
@@ -630,10 +683,73 @@ def admin_analytics(request):
         for row in tier_counts
     ]
 
+    # ------------------------------------------------------------------
+    # Visitor / traffic stats (SiteVisit)
+    # ------------------------------------------------------------------
+    seven_days_ago = now - timedelta(days=7)
+
+    total_sessions_30d = SiteVisit.objects.filter(first_seen__gte=thirty_days_ago).count()
+    total_sessions_7d  = SiteVisit.objects.filter(first_seen__gte=seven_days_ago).count()
+
+    guest_sessions_30d = SiteVisit.objects.filter(first_seen__gte=thirty_days_ago, is_guest=True).count()
+    anon_sessions_30d  = SiteVisit.objects.filter(
+        first_seen__gte=thirty_days_ago, is_guest=False, user__isnull=True
+    ).count()
+    registered_sessions_30d = SiteVisit.objects.filter(
+        first_seen__gte=thirty_days_ago, user__isnull=False
+    ).count()
+
+    conversions_30d = SiteVisit.objects.filter(
+        first_seen__gte=thirty_days_ago, converted=True
+    ).count()
+    conversion_rate = round(conversions_30d / guest_sessions_30d * 100, 1) if guest_sessions_30d else 0.0
+
+    # Top pages last 30 days
+    top_pages = list(
+        SiteVisit.objects
+        .filter(first_seen__gte=thirty_days_ago)
+        .exclude(page='')
+        .values('page')
+        .annotate(visits=Count('id'))
+        .order_by('-visits')[:8]
+    )
+
+    # Daily visitor trend last 14 days
+    daily_visits: dict[str, dict] = {}
+    for i in range(13, -1, -1):
+        d = (now - timedelta(days=i)).strftime('%Y-%m-%d')
+        daily_visits[d] = {'date': d, 'total': 0, 'guests': 0, 'registered': 0, 'anon': 0}
+
+    for sv in SiteVisit.objects.filter(first_seen__gte=now - timedelta(days=14)).values(
+        'first_seen', 'is_guest', 'user_id'
+    ):
+        d = sv['first_seen'].strftime('%Y-%m-%d')
+        if d in daily_visits:
+            daily_visits[d]['total'] += 1
+            if sv['user_id']:
+                daily_visits[d]['registered'] += 1
+            elif sv['is_guest']:
+                daily_visits[d]['guests'] += 1
+            else:
+                daily_visits[d]['anon'] += 1
+
+    visitor_stats = {
+        'total_sessions_30d': total_sessions_30d,
+        'total_sessions_7d': total_sessions_7d,
+        'guest_sessions_30d': guest_sessions_30d,
+        'anon_sessions_30d': anon_sessions_30d,
+        'registered_sessions_30d': registered_sessions_30d,
+        'conversions_30d': conversions_30d,
+        'conversion_rate': conversion_rate,
+        'top_pages': top_pages,
+        'daily_trend': list(daily_visits.values()),
+    }
+
     return Response({
         'user_stats': user_stats,
         'content_stats': content_stats,
         'revenue_stats': revenue_stats,
         'activity_trend': activity_trend,
         'tier_distribution': tier_distribution,
+        'visitor_stats': visitor_stats,
     })

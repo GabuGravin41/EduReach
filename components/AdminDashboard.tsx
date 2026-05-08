@@ -27,6 +27,31 @@ interface ActivityTrendPoint {
     lessons_completed: number;
 }
 
+interface DailyTrendPoint {
+    date: string;
+    total: number;
+    guests: number;
+    registered: number;
+    anon: number;
+}
+
+interface TopPage {
+    page: string;
+    visits: number;
+}
+
+interface VisitorStats {
+    total_sessions_30d: number;
+    total_sessions_7d: number;
+    guest_sessions_30d: number;
+    anon_sessions_30d: number;
+    registered_sessions_30d: number;
+    conversions_30d: number;
+    conversion_rate: number;
+    top_pages: TopPage[];
+    daily_trend: DailyTrendPoint[];
+}
+
 interface AdminAnalytics {
     user_stats: {
         total: number;
@@ -47,6 +72,7 @@ interface AdminAnalytics {
     };
     activity_trend: ActivityTrendPoint[];
     tier_distribution: TierDistribution[];
+    visitor_stats?: VisitorStats;
 }
 
 // Legacy fallback shape from users/admin/stats endpoint
@@ -97,9 +123,186 @@ const Skeleton: React.FC<{ className?: string }> = ({ className = '' }) => (
 );
 
 // ---------------------------------------------------------------------------
+// PAGE_LABELS — friendly names for tracked page keys
+// ---------------------------------------------------------------------------
+const PAGE_LABELS: Record<string, string> = {
+    landing: 'Landing page',
+    dashboard: 'Dashboard',
+    courses: 'Courses',
+    learning: 'Learning',
+    assessments: 'Assessments',
+    community: 'Community',
+    profile: 'Profile',
+    admin: 'Admin',
+};
+
+// ---------------------------------------------------------------------------
+// MiniBar — simple inline bar for Top Pages table
+// ---------------------------------------------------------------------------
+const MiniBar: React.FC<{ value: number; max: number }> = ({ value, max }) => (
+    <div className="flex items-center gap-2">
+        <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+            <div
+                className="h-full rounded-full bg-indigo-500 transition-all duration-700"
+                style={{ width: `${Math.round((value / max) * 100)}%` }}
+            />
+        </div>
+        <span className="text-xs text-slate-500 dark:text-slate-400 w-8 text-right">{value}</span>
+    </div>
+);
+
+// ---------------------------------------------------------------------------
+// TrafficPanel
+// ---------------------------------------------------------------------------
+const TrafficPanel: React.FC<{ vs: VisitorStats | undefined; loading: boolean }> = ({ vs, loading }) => {
+    const total30 = vs?.total_sessions_30d ?? 0;
+    const total7   = vs?.total_sessions_7d ?? 0;
+    const anon30   = vs?.anon_sessions_30d ?? 0;
+    const guest30  = vs?.guest_sessions_30d ?? 0;
+    const reg30    = vs?.registered_sessions_30d ?? 0;
+    const conv30   = vs?.conversions_30d ?? 0;
+    const convRate = vs?.conversion_rate ?? 0;
+    const topPages = vs?.top_pages ?? [];
+    const dailyTrend = vs?.daily_trend ?? [];
+
+    const maxPageVisits = Math.max(...topPages.map(p => p.visits), 1);
+
+    // Build stacked bar chart data for daily trend
+    const trendBars = dailyTrend.map(pt => ({
+        label: pt.date.slice(5), // MM-DD
+        value: pt.total,
+    }));
+
+    if (loading) {
+        return (
+            <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {[1,2,3,4].map(i => <Skeleton key={i} className="h-28" />)}
+                </div>
+                <Skeleton className="h-64" />
+                <Skeleton className="h-48" />
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6">
+
+            {/* Funnel stat cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-5">
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Total Sessions (30d)</p>
+                    <p className="text-3xl font-bold text-slate-800 dark:text-slate-100">{total30.toLocaleString()}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{total7.toLocaleString()} in last 7 days</p>
+                </div>
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-5">
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Anonymous Visitors</p>
+                    <p className="text-3xl font-bold text-slate-600 dark:text-slate-300">{anon30.toLocaleString()}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                        {total30 > 0 ? `${Math.round(anon30/total30*100)}% of all sessions` : '—'}
+                    </p>
+                </div>
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-5">
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Guest Trials</p>
+                    <p className="text-3xl font-bold text-amber-500">{guest30.toLocaleString()}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                        {total30 > 0 ? `${Math.round(guest30/total30*100)}% of all sessions` : '—'}
+                    </p>
+                </div>
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-5">
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Registered Users</p>
+                    <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{reg30.toLocaleString()}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                        {total30 > 0 ? `${Math.round(reg30/total30*100)}% of all sessions` : '—'}
+                    </p>
+                </div>
+            </div>
+
+            {/* Conversion funnel + rate */}
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-6">
+                <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100 mb-1">Visitor Funnel</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">How visitors move from anonymous to registered (last 30 days)</p>
+
+                <div className="flex flex-col sm:flex-row items-stretch gap-0">
+                    {[
+                        { label: 'Anonymous', count: anon30, color: 'bg-slate-400', pct: total30 > 0 ? anon30/total30 : 0 },
+                        { label: 'Guest Trial', count: guest30, color: 'bg-amber-400', pct: total30 > 0 ? guest30/total30 : 0 },
+                        { label: 'Registered', count: reg30, color: 'bg-emerald-500', pct: total30 > 0 ? reg30/total30 : 0 },
+                    ].map((step, i, arr) => (
+                        <React.Fragment key={step.label}>
+                            <div className="flex-1 flex flex-col items-center gap-2 px-3">
+                                <div
+                                    className={`w-full rounded-xl ${step.color} bg-opacity-20 dark:bg-opacity-30 flex flex-col items-center py-4 px-2 border border-opacity-30 ${step.color.replace('bg-', 'border-')}`}
+                                >
+                                    <span className="text-2xl font-bold text-slate-800 dark:text-slate-100">{step.count.toLocaleString()}</span>
+                                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400 mt-0.5">{step.label}</span>
+                                    <span className="text-xs text-slate-500 dark:text-slate-500 mt-0.5">{(step.pct * 100).toFixed(1)}%</span>
+                                </div>
+                            </div>
+                            {i < arr.length - 1 && (
+                                <div className="hidden sm:flex items-center text-slate-300 dark:text-slate-600 text-2xl px-1">›</div>
+                            )}
+                        </React.Fragment>
+                    ))}
+                </div>
+
+                <div className="mt-5 flex items-center gap-3 p-4 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-5 h-5 text-indigo-500 shrink-0">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                    <div>
+                        <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+                            {conv30} guest-to-registered conversions this month
+                        </span>
+                        <span className="ml-2 text-sm text-indigo-500 dark:text-indigo-400">
+                            ({convRate}% conversion rate)
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Daily trend chart */}
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-5">
+                <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100 mb-1">Daily Sessions (14 days)</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Total unique browser sessions per day</p>
+                {trendBars.length > 0 ? (
+                    <BarChart data={trendBars} color="#6366f1" height={200} unit="" />
+                ) : (
+                    <div className="flex items-center justify-center h-40 text-slate-400 dark:text-slate-500 text-sm">
+                        No session data yet.
+                    </div>
+                )}
+            </div>
+
+            {/* Top pages */}
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-5">
+                <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100 mb-1">Top Pages (30d)</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Most visited sections of the platform</p>
+                {topPages.length === 0 ? (
+                    <p className="text-sm text-slate-400 dark:text-slate-500">No page data yet.</p>
+                ) : (
+                    <div className="space-y-3">
+                        {topPages.map(pg => (
+                            <div key={pg.page} className="flex items-center gap-3">
+                                <span className="w-32 text-sm text-slate-700 dark:text-slate-300 truncate">
+                                    {PAGE_LABELS[pg.page] ?? pg.page}
+                                </span>
+                                <div className="flex-1">
+                                    <MiniBar value={pg.visits} max={maxPageVisits} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// ---------------------------------------------------------------------------
 // AdminDashboard
 // ---------------------------------------------------------------------------
-type AdminTab = 'overview' | 'youtube' | 'upload' | 'courses';
+type AdminTab = 'overview' | 'traffic' | 'youtube' | 'upload' | 'courses';
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ stats: propsStats }) => {
     const [activeTab, setActiveTab] = useState<AdminTab>('overview');
@@ -190,7 +393,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ stats: propsStat
             {/* Tab bar                                                             */}
             {/* ------------------------------------------------------------------ */}
             <div className="flex gap-1 border-b border-slate-200 dark:border-slate-700">
-                {([['overview', 'Overview'], ['courses', 'Courses & Transcripts'], ['youtube', 'YouTube Ingestion'], ['upload', 'Upload Past Papers']] as [AdminTab, string][]).map(([tab, label]) => (
+                {([['overview', 'Overview'], ['traffic', 'Traffic & Marketing'], ['courses', 'Courses & Transcripts'], ['youtube', 'YouTube Ingestion'], ['upload', 'Upload Past Papers']] as [AdminTab, string][]).map(([tab, label]) => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
@@ -208,6 +411,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ stats: propsStat
             {activeTab === 'courses' && <AdminCoursesTab />}
             {activeTab === 'youtube' && <AdminYouTubeIngestion />}
             {activeTab === 'upload' && <AdminAssessmentUpload />}
+
+            {/* ------------------------------------------------------------------ */}
+            {/* Traffic & Marketing tab                                             */}
+            {/* ------------------------------------------------------------------ */}
+            {activeTab === 'traffic' && (
+                <TrafficPanel vs={analytics?.visitor_stats} loading={analyticsLoading} />
+            )}
+
             {activeTab === 'overview' && <>
 
             {/* ------------------------------------------------------------------ */}

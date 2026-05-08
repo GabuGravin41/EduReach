@@ -10,6 +10,7 @@ import { useAuth } from './src/contexts/useAuth';
 import { useGuest } from './src/contexts/GuestContext';
 import { GuestSignUpModal } from './components/GuestSignUpModal';
 import { authService } from './src/services/authService';
+import { API_CONFIG } from './src/config/api';
 import { useCourses, useCreateCourse, useCourse, COURSE_KEYS, useMyCourses } from './src/hooks/useCourses';
 import { useAssessments, useCreateAssessment, useAssessment, ASSESSMENT_KEYS } from './src/hooks/useAssessments';
 import { useUsage, USAGE_QUERY_KEY } from './src/hooks/useUsage';
@@ -265,6 +266,34 @@ const AppContent: React.FC = () => {
     const currentView = route.view;
     const selectedCourseId = route.courseId;
     const selectedExamId = route.examId;
+
+    // ── Session tracking — fires on load and every view change ──────────────
+    useEffect(() => {
+      const SESSION_KEY = 'edureach:session-id';
+      let sessionId = '';
+      try {
+        sessionId = localStorage.getItem(SESSION_KEY) || '';
+        if (!sessionId) {
+          sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+          localStorage.setItem(SESSION_KEY, sessionId);
+        }
+      } catch {}
+      if (!sessionId) return;
+
+      // Fire and forget — never block UX on tracking
+      fetch(`${API_CONFIG.BASE_URL}/analytics/track/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          is_guest: isGuest && !user,
+          page: currentView || 'landing',
+          referrer: typeof document !== 'undefined' ? document.referrer : '',
+        }),
+        credentials: 'include',
+      }).catch(() => {}); // silent
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentView, user?.id, isGuest]);
 
     useEffect(() => {
       const path = location.pathname || '/';
