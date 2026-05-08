@@ -727,13 +727,43 @@ def chat(request):
         # Get request data
         message = request.data.get('message', '')
         context = request.data.get('context', '')
-        
+        lesson_id = request.data.get('lesson_id')
+
         if not message:
             return Response(
                 {'error': 'Message is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
+        # ── Lesson context enrichment ─────────────────────────────────────────
+        # When caller passes a lesson_id, enrich context with transcript or
+        # description/metadata even if no transcript text was sent by the client.
+        if lesson_id and len(context.strip()) < 50:
+            try:
+                from courses.models import Lesson as _Lesson
+                from services.youtube_service import YouTubeTranscriptService as _YTS
+                _lesson = _Lesson.objects.select_related('course').get(pk=lesson_id)
+                _transcript = _lesson.get_transcript()
+                if _transcript:
+                    context = f"Video: {_lesson.title}\nCourse: {_lesson.course.title}\n\nTranscript:\n{_transcript[:10000]}"
+                else:
+                    _svc = _YTS()
+                    _desc = _lesson.description or ''
+                    if not _desc and _lesson.video_id:
+                        _desc = _svc.get_video_description(_lesson.video_id) or ''
+                        if _desc:
+                            _lesson.description = _desc
+                            _lesson.save(update_fields=['description'])
+                    _meta = _svc.get_video_metadata(_lesson.video_id) if _lesson.video_id else {}
+                    _parts = [f"Video: {_lesson.title}", f"Course: {_lesson.course.title}"]
+                    if _meta.get('author'):
+                        _parts.append(f"Channel: {_meta['author']}")
+                    if _desc:
+                        _parts.append(f"Description:\n{_desc[:4000]}")
+                    context = '\n\n'.join(_parts)
+            except Exception:
+                pass  # silently proceed with whatever context was sent
+
         can_use_ai, usage = _check_ai_usage_quota(request.user)
         if not can_use_ai:
             limits = usage.get_tier_limits() if usage else {'ai_queries': 0}

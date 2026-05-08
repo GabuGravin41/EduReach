@@ -1189,6 +1189,69 @@ class LessonViewSet(viewsets.ModelViewSet):
                 'error': f'AI error: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=True, methods=['get'])
+    def summarize(self, request, pk=None):
+        """
+        GET /api/lessons/{id}/summarize/
+        Returns a short summary + key topics for the video.
+        Uses transcript if available, else description/metadata.
+        Caches result in lesson.description when first generated.
+        """
+        lesson = self.get_object()
+
+        # Check quota
+        try:
+            usage = request.user.get_current_usage()
+            if not usage.can_use_ai():
+                return Response({'error': 'Monthly AI limit reached.'}, status=429)
+        except Exception:
+            usage = None
+
+        transcript = lesson.get_transcript()
+        context_text = ''
+        has_transcript = bool(transcript)
+
+        if transcript:
+            context_text = transcript[:8000]
+        else:
+            from services.youtube_service import YouTubeTranscriptService as _YTS
+            _svc = _YTS()
+            desc = lesson.description or ''
+            if not desc and lesson.video_id:
+                desc = _svc.get_video_description(lesson.video_id) or ''
+                if desc:
+                    lesson.description = desc
+                    lesson.save(update_fields=['description'])
+            meta = _svc.get_video_metadata(lesson.video_id) if lesson.video_id else {}
+            parts = [f"Video title: {lesson.title}", f"Course: {lesson.course.title}"]
+            if meta.get('author'):
+                parts.append(f"Channel: {meta['author']}")
+            if desc:
+                parts.append(f"Description:\n{desc[:4000]}")
+            context_text = '\n\n'.join(parts)
+
+        if not context_text.strip():
+            return Response({'summary': None, 'has_transcript': False})
+
+        prompt = (
+            f"You are summarising an educational video for a student who is about to watch it.\n\n"
+            f"{context_text}\n\n"
+            f"Write a 3-4 sentence summary of what this video covers and what the student will learn. "
+            f"Then list 4-6 key topics as bullet points.\n\n"
+            f"Format your response exactly like this:\n"
+            f"SUMMARY:\n[your summary here]\n\nKEY TOPICS:\n• [topic]\n• [topic]\n..."
+        )
+
+        try:
+            from ai_service.ai_utils import call_ai
+            summary_text = call_ai(prompt, max_tokens=400)
+            if usage:
+                usage.ai_queries_used += 1
+                usage.save(update_fields=['ai_queries_used', 'updated_at'])
+            return Response({'summary': summary_text, 'has_transcript': has_transcript})
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
 
 class UserProgressViewSet(viewsets.ModelViewSet):
     """ViewSet for managing user progress."""

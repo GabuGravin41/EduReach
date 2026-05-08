@@ -69,6 +69,9 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   const [transcriptSaving, setTranscriptSaving] = useState(false);
   const [transcriptSaveMsg, setTranscriptSaveMsg] = useState<string | null>(null);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
+  const [videoSummary, setVideoSummary] = useState<string | null>(null);
+  const [summaryExpanded, setSummaryExpanded] = useState(true);
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   // ── Personal-session save / course assignment ──
   const [savedSessionId, setSavedSessionId] = useState<number | null>(initialSavedSessionId);
@@ -344,19 +347,26 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
     loadNotes();
   }, [currentLesson?.id]);
 
+  // ── Video summary — fetch once per lesson ────────────────────────────────
+  useEffect(() => {
+    if (!currentLesson?.id) return;
+    setVideoSummary(null);
+    setSummaryExpanded(true);
+    setSummaryLoading(true);
+    apiClient.get(`lessons/${currentLesson.id}/summarize/`)
+      .then(res => {
+        if (res.data?.summary) setVideoSummary(res.data.summary);
+      })
+      .catch(() => {}) // silent
+      .finally(() => setSummaryLoading(false));
+  }, [currentLesson?.id]);
+
   // Initial Welcome Message if no history
   useEffect(() => {
     if (messages.length === 0) {
-      const hasTranscript = effectiveTranscript && effectiveTranscript.trim().length > 0;
-      if (!hasTranscript) {
-        setMessages([
-          { role: 'model', content: "Hello! I'm Edu, your AI assistant. It looks like this video doesn't have a transcript available, so I won't be able to answer questions specific to its content. However, I can still answer general questions or explain concepts if you provide some context!" }
-        ]);
-      } else {
-        setMessages([
-          { role: 'model', content: "Hello! I'm Edu, your AI assistant. Ask me anything about this video, or ask me to generate a quiz for you.\n\n💡 **Tip**: I give concise answers by default. Ask me to 'explain more' or 'elaborate' for detailed responses!" }
-        ]);
-      }
+      setMessages([
+        { role: 'model', content: "Hi! I'm Edu, your AI tutor. Ask me anything about this video — I can explain concepts, solve problems, and generate a quiz for you." }
+      ]);
     }
   }, [transcript]);
 
@@ -448,24 +458,30 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   }
 
   const handleGenerateQuiz = async () => {
-    const hasTranscript = effectiveTranscript && effectiveTranscript.trim().length > 0;
-    if (!hasTranscript) {
-      setMessages(prev => [...prev, { role: 'model', content: "I cannot generate a quiz because this video doesn't have a transcript." }]);
-      return;
-    }
     setIsLoading(true);
     setQuizSaved(false);
     setQuizError(null);
     try {
-      let quizTranscript = effectiveTranscript;
-      if (effectiveTranscript.length > 10000) {
-        const chunks = chunkTranscript(effectiveTranscript, 4000);
-        const mid = Math.floor(chunks.length / 2);
-        quizTranscript = [chunks[0], chunks[mid], chunks[chunks.length - 1]].filter(Boolean).join('\n...\n');
+      const hasTranscript = effectiveTranscript && effectiveTranscript.trim().length > 0;
+      let quizTranscript = '';
+      let quizTopic = '';
+
+      if (hasTranscript) {
+        quizTranscript = effectiveTranscript;
+        if (effectiveTranscript.length > 10000) {
+          const chunks = chunkTranscript(effectiveTranscript, 4000);
+          const mid = Math.floor(chunks.length / 2);
+          quizTranscript = [chunks[0], chunks[mid], chunks[chunks.length - 1]].filter(Boolean).join('\n...\n');
+        }
+      } else {
+        // No transcript — use video title / summary as topic for generation
+        quizTopic = currentLesson?.title || 'the video topic';
+        if (videoSummary) quizTranscript = `Video: ${quizTopic}\n\n${videoSummary}`;
       }
 
       const response = await aiClient.post('/ai/generate-quiz/', {
-        transcript: quizTranscript,
+        ...(quizTranscript ? { transcript: quizTranscript } : {}),
+        ...(quizTopic && !quizTranscript ? { topic: quizTopic } : {}),
         num_questions: 5,
         difficulty: 'medium'
       });
@@ -524,15 +540,23 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
     setLastPrompt(message);
 
     try {
-      let context = effectiveTranscript && effectiveTranscript.trim().length > 0 ? effectiveTranscript : "No transcript available for this video.";
+      let context = '';
       let optimizedMessage = message;
       const wantsDetailed = /explain more|tell me more|detailed|deep dive|elaborate/i.test(message);
 
-      if (effectiveTranscript && effectiveTranscript.trim().length > 0 && effectiveTranscript.length > 5000) {
-        const chunks = chunkTranscript(effectiveTranscript, 3000);
-        const relevantChunks = findRelevantChunks(chunks, message, wantsDetailed ? 4 : 2);
-        context = relevantChunks.join('\n\n---\n\n');
+      if (effectiveTranscript && effectiveTranscript.trim().length > 0) {
+        if (effectiveTranscript.length > 5000) {
+          const chunks = chunkTranscript(effectiveTranscript, 3000);
+          const relevantChunks = findRelevantChunks(chunks, message, wantsDetailed ? 4 : 2);
+          context = relevantChunks.join('\n\n---\n\n');
+        } else {
+          context = effectiveTranscript;
+        }
+      } else if (videoSummary) {
+        // Use pre-fetched summary as lightweight context fallback
+        context = `Video: ${currentLesson?.title || ''}\n\n${videoSummary}`;
       }
+      // If context is still empty, lesson_id is passed below so backend fetches description live
 
       if (!wantsDetailed) {
         optimizedMessage = `${message}\n\n[System: Keep response concise (2-3 sentences) unless asked for details.]`;
@@ -540,7 +564,8 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
 
       const response = await aiClient.post('/ai/chat/', {
         message: optimizedMessage,
-        context: context
+        context: context,
+        ...(currentLesson?.id ? { lesson_id: currentLesson.id } : {}),
       });
 
       const responseText = response.data.response || response.data;
@@ -912,6 +937,42 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
                   {quizError}
                 </div>
               )}
+
+              {/* ── Video summary card ── */}
+              {(summaryLoading || videoSummary) && (
+                <div className="mx-2 mt-2 rounded-xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 overflow-hidden flex-shrink-0">
+                  <button
+                    onClick={() => setSummaryExpanded(v => !v)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-left"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Video Summary</span>
+                    </div>
+                    <svg className={`w-3.5 h-3.5 text-indigo-500 transition-transform ${summaryExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {summaryExpanded && (
+                    <div className="px-3 pb-3">
+                      {summaryLoading ? (
+                        <div className="flex gap-1 items-center py-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                        </div>
+                      ) : (
+                        <div className="text-xs text-indigo-800 dark:text-indigo-200 whitespace-pre-line leading-relaxed">
+                          {videoSummary}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <AIAssistant
                 messages={messages}
                 isLoading={isLoading}
@@ -1044,6 +1105,21 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
               {quizError && (
                 <div className="px-3 py-2 text-xs text-rose-800 bg-rose-50 border-b border-rose-200">
                   {quizError}
+                </div>
+              )}
+              {/* Summary card in focus mode */}
+              {videoSummary && (
+                <div className="mx-3 mt-2 rounded-xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 flex-shrink-0 overflow-hidden">
+                  <button onClick={() => setSummaryExpanded(v => !v)} className="w-full flex items-center justify-between px-3 py-2 text-left">
+                    <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                      Video Summary
+                    </span>
+                    <svg className={`w-3.5 h-3.5 text-indigo-500 transition-transform ${summaryExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                  </button>
+                  {summaryExpanded && (
+                    <div className="px-3 pb-3 text-xs text-indigo-800 dark:text-indigo-200 whitespace-pre-line leading-relaxed">{videoSummary}</div>
+                  )}
                 </div>
               )}
               <div className="h-full flex flex-col">
