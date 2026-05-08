@@ -99,12 +99,10 @@ export const saveLastActivity = (topic: string) => {
   try { localStorage.setItem(LAST_ACTIVITY_KEY, JSON.stringify({ topic, ts: Date.now() })); } catch {}
 };
 
-function buildProactiveGreeting(username?: string): string | null {
+function buildProactiveGreeting(username?: string): string {
   try {
     const onboardingRaw = localStorage.getItem('edureach:onboarding-data');
     const activityRaw = localStorage.getItem(LAST_ACTIVITY_KEY);
-    const greeted = localStorage.getItem(PROACTIVE_GREETED_KEY);
-    if (greeted) return null; // only once per session
 
     const name = username ? `, ${username}` : '';
     const onboarding = onboardingRaw ? JSON.parse(onboardingRaw) : null;
@@ -121,8 +119,10 @@ function buildProactiveGreeting(username?: string): string | null {
         : '';
       return `Hi${name}! I see you're studying **${onboarding.subject}**.${examPart} What would you like to work on today?`;
     }
-    return null;
-  } catch { return null; }
+    return `Hi${name}! I'm Edu, your AI tutor. What are you working on today?`;
+  } catch {
+    return `Hi! I'm Edu, your AI tutor. What are you working on today?`;
+  }
 }
 
 export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username, onToggleLearningAI, isLearningAIPanelOpen, onNavigate }) => {
@@ -148,15 +148,16 @@ export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username, on
     }
   }, [isOpen, messages]);
 
-  // Proactive greeting — inject once on first open if context is available
+  // Proactive greeting — inject once per browser session on first open
   useEffect(() => {
     if (!isOpen || messages.length > 0) return;
+    // Use sessionStorage so the greeting resets on each new login/tab session
+    if (sessionStorage.getItem(PROACTIVE_GREETED_KEY)) return;
     const greeting = buildProactiveGreeting(username);
-    if (greeting) {
-      setMessages([{ role: 'assistant', content: greeting }]);
-      try { localStorage.setItem(PROACTIVE_GREETED_KEY, '1'); } catch {}
-    }
-  }, [isOpen]);
+    setMessages([{ role: 'assistant', content: greeting }]);
+    try { sessionStorage.setItem(PROACTIVE_GREETED_KEY, '1'); } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, username]);
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     if (isOpen) return; // don't drag while open
@@ -333,7 +334,10 @@ export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username, on
       </div>
       <div className="flex items-center gap-1">
         <button
-          onClick={() => setMessages([])}
+          onClick={() => {
+            setMessages([]);
+            try { sessionStorage.removeItem(PROACTIVE_GREETED_KEY); } catch {}
+          }}
           className="text-white/70 hover:text-white text-xs px-2 py-0.5 rounded hover:bg-white/10 transition-colors"
           title="Clear chat"
         >
@@ -361,20 +365,13 @@ export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username, on
   const chatMessages = (maxH: string) => (
     <div className={`flex-1 overflow-y-auto px-4 py-3 space-y-3 ${maxH} min-h-[160px]`}>
       {messages.length === 0 && (
-        <div className="text-center py-6">
-          <SparkleIcon className="w-8 h-8 text-indigo-400 mx-auto mb-2" />
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Hi{username ? ` ${username}` : ''}! I'm Edu, your AI tutor.</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Ask me anything — I'm here to help you learn.</p>
-          <div className="mt-3 flex flex-col gap-1.5">
-            {['Explain a concept', 'Help me prepare for exams', 'Summarize my notes'].map(s => (
-              <button
-                key={s}
-                onClick={() => { setInput(s); inputRef.current?.focus(); }}
-                className="text-xs text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-700 rounded-full px-3 py-1 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
-              >
-                {s}
-              </button>
-            ))}
+        <div className="flex justify-start py-2">
+          <div className="bg-slate-100 dark:bg-slate-700 rounded-2xl rounded-bl-sm px-3 py-2">
+            <div className="flex gap-1 items-center h-4">
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
           </div>
         </div>
       )}
