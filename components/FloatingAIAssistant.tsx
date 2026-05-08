@@ -2,10 +2,25 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { aiClient } from '../src/services/api';
 import apiClient from '../src/services/api';
 import { type View } from '../App';
+import MathMarkdown from './MathMarkdown';
+
+interface QuizQuestion {
+  id: string;
+  question: string;
+  type: 'mcq' | 'true_false' | 'short_answer' | 'essay';
+  options?: string[];
+  correct_answer?: string;
+  explanation?: string;
+  points?: number;
+}
 
 interface Message {
-  role: 'user' | 'assistant' | 'action';
+  role: 'user' | 'assistant' | 'action' | 'quiz';
   content: string;
+  // quiz-only fields
+  quizTitle?: string;
+  quizQuestions?: QuizQuestion[];
+  quizSavedId?: number;
 }
 
 interface AgentAction {
@@ -125,6 +140,163 @@ function buildProactiveGreeting(username?: string): string {
   }
 }
 
+// ── Inline quiz rendered inside the chat ────────────────────────────────────
+const InlineQuiz: React.FC<{
+  title: string;
+  questions: QuizQuestion[];
+  savedId?: number;
+  onSave: (questions: QuizQuestion[], title: string) => Promise<number>;
+  onNavigate?: (view: View, params?: Record<string, unknown>) => void;
+}> = ({ title, questions, savedId: initialSavedId, onSave, onNavigate }) => {
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [submitted, setSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedId, setSavedId] = useState<number | undefined>(initialSavedId);
+
+  const score = submitted
+    ? questions.filter(q => {
+        const a = (answers[q.id] || '').trim().toLowerCase();
+        const c = (q.correct_answer || '').trim().toLowerCase();
+        return a && c && a === c;
+      }).length
+    : 0;
+
+  const handleSubmit = () => setSubmitted(true);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const id = await onSave(questions, title);
+      setSavedId(id);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="w-full rounded-2xl border border-indigo-200 dark:border-indigo-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
+      {/* Header */}
+      <div className="px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 flex items-center justify-between">
+        <div>
+          <p className="text-[10px] text-white/70 uppercase tracking-wide font-medium">Practice Quiz</p>
+          <p className="text-sm font-bold text-white truncate">{title}</p>
+        </div>
+        <span className="text-xs text-white/80 bg-white/20 rounded-full px-2 py-0.5">{questions.length} Qs</span>
+      </div>
+
+      {/* Questions */}
+      <div className="divide-y divide-slate-100 dark:divide-slate-700">
+        {questions.map((q, idx) => {
+          const isCorrect = submitted && (answers[q.id] || '').trim().toLowerCase() === (q.correct_answer || '').trim().toLowerCase();
+          const isWrong = submitted && answers[q.id] && !isCorrect;
+          return (
+            <div key={q.id} className="px-4 py-4 space-y-3">
+              <div className="flex gap-2">
+                <span className={`flex-shrink-0 w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center ${
+                  submitted ? (isCorrect ? 'bg-emerald-100 text-emerald-700' : isWrong ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500')
+                  : 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300'
+                }`}>{idx + 1}</span>
+                <div className="text-sm text-slate-800 dark:text-slate-100 flex-1">
+                  <MathMarkdown>{q.question}</MathMarkdown>
+                </div>
+              </div>
+
+              {/* MCQ / true-false options */}
+              {(q.type === 'mcq' || q.type === 'true_false') && q.options && q.options.length > 0 ? (
+                <div className="pl-8 space-y-1.5">
+                  {q.options.map((opt, oi) => {
+                    const isSelected = answers[q.id] === opt;
+                    const isRightOpt = submitted && opt.trim().toLowerCase() === (q.correct_answer || '').trim().toLowerCase();
+                    const isWrongOpt = submitted && isSelected && !isRightOpt;
+                    return (
+                      <button
+                        key={oi}
+                        disabled={submitted}
+                        onClick={() => setAnswers(prev => ({ ...prev, [q.id]: opt }))}
+                        className={`w-full text-left text-xs px-3 py-2 rounded-lg border transition-all ${
+                          isRightOpt ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-200 font-medium'
+                          : isWrongOpt ? 'border-rose-400 bg-rose-50 dark:bg-rose-900/20 text-rose-800 dark:text-rose-200'
+                          : isSelected ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200'
+                          : 'border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-600'
+                        }`}
+                      >
+                        <MathMarkdown>{`${String.fromCharCode(65 + oi)}. ${opt}`}</MathMarkdown>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                // Short answer / essay
+                <div className="pl-8">
+                  <textarea
+                    disabled={submitted}
+                    value={answers[q.id] || ''}
+                    onChange={e => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                    rows={2}
+                    placeholder="Your answer…"
+                    className="w-full text-xs rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-slate-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                  />
+                  {submitted && q.correct_answer && (
+                    <div className="mt-1 text-xs text-emerald-700 dark:text-emerald-400">
+                      <span className="font-medium">Answer: </span>
+                      <MathMarkdown>{q.correct_answer}</MathMarkdown>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Explanation */}
+              {submitted && q.explanation && (
+                <div className="pl-8 text-xs text-slate-500 dark:text-slate-400 italic">
+                  <MathMarkdown>{q.explanation}</MathMarkdown>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Footer */}
+      <div className="px-4 py-3 bg-slate-50 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-3">
+        {submitted ? (
+          <>
+            <span className="text-sm font-bold text-slate-800 dark:text-slate-100">
+              Score: {score}/{questions.length} ({Math.round((score / questions.length) * 100)}%)
+            </span>
+            <div className="flex gap-2">
+              {savedId ? (
+                <button
+                  onClick={() => onNavigate?.('exam_detail' as View, { examId: savedId })}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium transition-colors"
+                >
+                  Open in Assessments
+                </button>
+              ) : (
+                <button
+                  disabled={saving}
+                  onClick={handleSave}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium transition-colors flex items-center gap-1.5"
+                >
+                  {saving && <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
+                  {saving ? 'Saving…' : 'Save to Assessments'}
+                </button>
+              )}
+            </div>
+          </>
+        ) : (
+          <button
+            onClick={handleSubmit}
+            disabled={Object.keys(answers).length === 0}
+            className="ml-auto text-xs px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold transition-colors"
+          >
+            Submit
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username, onToggleLearningAI, isLearningAIPanelOpen, onNavigate }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -159,6 +331,34 @@ export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username, on
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, username]);
 
+  const saveQuizToAssessments = async (questions: QuizQuestion[], title: string): Promise<number> => {
+    const saveResp = await apiClient.post('assessments/', {
+      title,
+      topic: title,
+      description: 'Generated by Edu AI.',
+      assessment_type: 'exam',
+      is_public: false,
+      time_limit_minutes: Math.max(30, questions.length * 3),
+      questions: questions.map((q, idx) => ({
+        question_text: q.question,
+        question_type: q.type === 'true_false' ? 'mcq' : (q.type || 'short_answer'),
+        options: q.options || [],
+        correct_answer: q.correct_answer || '',
+        explanation: q.explanation || '',
+        points: q.points ?? 5,
+        order: idx + 1,
+      })),
+    });
+    const id = saveResp.data?.id;
+    // Update the quiz message to carry the saved ID so the button changes to "Open in Assessments"
+    setMessages(prev => prev.map(m =>
+      m.role === 'quiz' && m.quizTitle === title && !m.quizSavedId
+        ? { ...m, quizSavedId: id }
+        : m
+    ));
+    return id;
+  };
+
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     if (isOpen) return; // don't drag while open
     e.preventDefault();
@@ -187,9 +387,9 @@ export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username, on
     }
 
     if (action.type === 'create_assessment') {
-      const title = action.title || 'AI Generated Assessment';
+      const title = action.title || 'AI Practice Quiz';
       const numQ = action.num_questions || 10;
-      setActionInProgress(`Creating "${title}"…`);
+      setActionInProgress(`Generating "${title}"…`);
       try {
         const resp = await apiClient.post('ai/generate-quiz/', {
           transcript: conversationContext || undefined,
@@ -199,43 +399,32 @@ export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username, on
           assessment_type: 'exam',
           title,
         });
-        const questions = resp.data?.questions ?? [];
-        if (questions.length === 0) throw new Error('No questions returned');
+        const rawQs: any[] = resp.data?.questions ?? [];
+        if (rawQs.length === 0) throw new Error('No questions returned');
 
-        // Save as a draft assessment
-        const saveResp = await apiClient.post('assessments/', {
-          title,
-          topic: title,
-          description: `Generated by Edu AI from your study material.`,
-          assessment_type: 'exam',
-          is_public: false,
-          time_limit_minutes: Math.max(30, numQ * 3),
-          questions: questions.map((q: any, idx: number) => ({
-            question_text: q.question,
-            question_type: q.type === 'true_false' ? 'mcq' : (q.type || 'mcq'),
-            options: q.options || [],
-            correct_answer: q.correct_answer || '',
-            explanation: q.explanation || '',
-            points: q.type === 'short_answer' ? 10 : 5,
-            order: idx + 1,
-          })),
-        });
-        const assessmentId = saveResp.data?.id;
+        const questions: QuizQuestion[] = rawQs.map((q: any, i: number) => ({
+          id: `q-${i}`,
+          question: q.question || q.question_text || '',
+          type: q.type || 'short_answer',
+          options: q.options || [],
+          correct_answer: q.correct_answer || '',
+          explanation: q.explanation || '',
+          points: q.points ?? (q.type === 'short_answer' ? 10 : 5),
+        }));
+
         setActionInProgress(null);
+        // Inject quiz inline — no navigation, no backend save yet
         setMessages(prev => [...prev, {
-          role: 'action',
-          content: `✓ Created "${title}" with ${questions.length} questions.`,
+          role: 'quiz',
+          content: title,
+          quizTitle: title,
+          quizQuestions: questions,
         }]);
-        if (assessmentId && onNavigate) {
-          setTimeout(() => onNavigate('exam_detail' as View, { examId: assessmentId }), 600);
-        } else if (onNavigate) {
-          setTimeout(() => onNavigate('assessments' as View), 600);
-        }
       } catch (e: any) {
         setActionInProgress(null);
         setMessages(prev => [...prev, {
-          role: 'action',
-          content: `Could not create the assessment automatically. Head to Assessments → Generate Quiz and paste your content there.`,
+          role: 'assistant',
+          content: `I had trouble generating that quiz. Could you paste the topic or some content and I'll try again?`,
         }]);
       }
     }
@@ -376,7 +565,7 @@ export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username, on
         </div>
       )}
       {messages.map((m, i) => (
-        <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+        <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
           {m.role === 'action' ? (
             <div className="max-w-[90%] rounded-xl px-3 py-2 text-xs font-medium bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 flex items-center gap-2">
               <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -384,15 +573,24 @@ export const FloatingAIAssistant: React.FC<Props> = ({ currentView, username, on
               </svg>
               {m.content}
             </div>
-          ) : (
-            <div
-              className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap leading-relaxed ${
-                m.role === 'user'
-                  ? 'bg-indigo-600 text-white rounded-br-sm'
-                  : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-100 rounded-bl-sm'
-              }`}
-            >
+          ) : m.role === 'quiz' && m.quizQuestions ? (
+            <div className="w-full">
+              <InlineQuiz
+                title={m.quizTitle || m.content}
+                questions={m.quizQuestions}
+                savedId={m.quizSavedId}
+                onSave={saveQuizToAssessments}
+                onNavigate={onNavigate}
+              />
+            </div>
+          ) : m.role === 'user' ? (
+            <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm bg-indigo-600 text-white rounded-br-sm">
               {m.content}
+            </div>
+          ) : (
+            // assistant — render markdown + LaTeX
+            <div className="max-w-[85%] rounded-2xl px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-bl-sm text-slate-800 dark:text-slate-100 text-sm">
+              <MathMarkdown className="[&_.prose]:text-slate-800 dark:[&_.prose]:text-slate-100">{m.content}</MathMarkdown>
             </div>
           )}
         </div>
