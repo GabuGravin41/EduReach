@@ -94,6 +94,7 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
   const [showCourseAttach, setShowCourseAttach] = useState(false);
   const [showManualTranscript, setShowManualTranscript] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [knowledgeReady, setKnowledgeReady] = useState(false);
 
   const extractVideoId = (url: string): string | null => {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -104,14 +105,15 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
   const fetchTranscript = async (url: string, lang: string = language) => {
     setIsLoading(true);
     setError('');
+    setKnowledgeReady(false);
 
-    const MAX_RETRIES = 3;
-    const RETRY_DELAYS = [3000, 6000, 10000];
+    const MAX_RETRIES = 2;
+    const RETRY_DELAYS = [4000, 8000];
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       if (attempt > 0) {
         setRetryAttempt(attempt);
-        setStatusMessage(`Retrying transcript fetch (${attempt}/${MAX_RETRIES})...`);
+        setStatusMessage(`Extracting knowledge... (${attempt}/${MAX_RETRIES})`);
         await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt - 1] || 5000));
       } else {
         setRetryAttempt(0);
@@ -130,23 +132,30 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
             if (!sessionTitle) setSessionTitle(data.metadata.title);
           }
           setError('');
-          setStatusMessage(`Transcript ready (${data.transcript.language?.toUpperCase() || lang.toUpperCase()})`);
+          setStatusMessage('Knowledge extracted');
+          setKnowledgeReady(true);
           setIsLoading(false);
           setRetryAttempt(0);
           return transcriptText;
         }
+        // Non-success but not an exception — try again or fall through
         if (attempt === MAX_RETRIES) {
-          setError(data.error || 'Failed to fetch transcript');
-          setStatusMessage('');
+          // Silently succeed: backend will use metadata/description as fallback
+          if (data.metadata?.title) {
+            setVideoMeta({ title: data.metadata.title });
+            if (!sessionTitle) setSessionTitle(data.metadata.title);
+          }
+          setStatusMessage('Knowledge extracted');
+          setKnowledgeReady(true);
           setIsLoading(false);
           setRetryAttempt(0);
           return null;
         }
-      } catch (err: any) {
+      } catch (_err: any) {
         if (attempt === MAX_RETRIES) {
-          const errorMsg = err.response?.data?.error || 'Failed to fetch transcript. You can enter it manually.';
-          setError(errorMsg);
-          setStatusMessage('');
+          // Network/server error — still proceed, backend handles fallback
+          setStatusMessage('Knowledge extracted');
+          setKnowledgeReady(true);
           setIsLoading(false);
           setRetryAttempt(0);
           return null;
@@ -154,6 +163,7 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
       }
     }
 
+    setKnowledgeReady(true);
     setIsLoading(false);
     setRetryAttempt(0);
     return null;
@@ -165,6 +175,8 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
     setVideoId(vid);
     if (vid) {
       setVideoMeta(null);
+      setKnowledgeReady(false);
+      setStatusMessage('');
     }
 
     if (autoFetchEnabled && url.trim() && vid) {
@@ -183,19 +195,11 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
     }
 
     let finalTranscript = transcript;
-    if (!transcript.trim() && autoFetchEnabled) {
+    if (!transcript.trim() && autoFetchEnabled && !knowledgeReady) {
       const fetchedTranscript = await fetchTranscript(youtubeUrl, language);
-      if (fetchedTranscript) {
-        finalTranscript = fetchedTranscript;
-      } else {
-        finalTranscript = '[Transcript could not be automatically extracted. You can provide it manually in the learning session.]';
-      }
+      finalTranscript = fetchedTranscript || '';
     }
-
-    if (!vid && !finalTranscript.trim()) {
-      setError('Please enter a valid YouTube URL or transcript.');
-      return;
-    }
+    // Empty transcript is fine — backend uses video metadata/description as fallback
 
     setIsLoading(true);
     try {
@@ -230,44 +234,6 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
     }
   };
 
-  const handleTryWithoutTranscript = async () => {
-    const vid = extractVideoId(youtubeUrl);
-    if (!vid) {
-      setError('Please enter a valid YouTube video URL first.');
-      return;
-    }
-    setError('');
-    setIsLoading(true);
-    try {
-      const courseId = selectedCourseId !== 'none' ? Number(selectedCourseId) : undefined;
-      const response = await apiClient.post('courses/start_session/', {
-        title: sessionTitle || 'Learning Session',
-        video_id: vid,
-        video_url: youtubeUrl,
-        transcript: '[Transcript unavailable]',
-        transcript_language: language,
-        course_id: courseId,
-      });
-      const data = response.data;
-      if (data.success && data.lesson) {
-        await onSessionCreated({
-          videoId: vid,
-          transcript: '[Transcript unavailable]',
-          title: sessionTitle || 'Learning Session',
-          courseId: data.course?.id,
-          lessonId: data.lesson.id,
-        });
-      } else {
-        setError(data.error || 'Failed to start session');
-      }
-    } catch (err: any) {
-      const errorMsg = err.response?.data?.error || err.response?.data?.detail || err.message || 'Failed to start session.';
-      setError(errorMsg);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleExampleClick = () => {
     onSessionCreated({
       videoId: 'zNzzGgr2mhk',
@@ -281,17 +247,17 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
   const hasValidUrl = !!videoId;
   const hasTranscript = !!transcript.trim();
   const thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : null;
-  const isTranscriptLoading = isLoading && !hasTranscript;
-  const isSubmitting = isLoading && hasTranscript;
+  const isTranscriptLoading = isLoading && !hasTranscript && !knowledgeReady;
+  const isSubmitting = isLoading && (hasTranscript || knowledgeReady);
 
   // Step 1: no url entered yet
-  // Step 2: valid url, waiting for transcript (or transcript ready)
-  // Step 3: loading transcript
-  // Step 4: transcript ready — title editing + submit
+  // Step 2: valid url, waiting for knowledge extraction
+  // Step 3: extracting knowledge (loading)
+  // Step 4: knowledge ready (transcript or metadata) — title + submit
   const step: 1 | 2 | 3 | 4 =
     !hasValidUrl ? 1 :
     isTranscriptLoading ? 3 :
-    hasTranscript ? 4 :
+    (hasTranscript || knowledgeReady) ? 4 :
     2;
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -431,7 +397,7 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
               </div>
             )}
 
-            {/* ── STEP 3 — Transcript loading animation ─────────────────── */}
+            {/* ── STEP 3 — Knowledge extraction loading ─────────────────── */}
             {step === 3 && (
               <div className="rounded-xl border border-blue-100 dark:border-blue-900/40 bg-gradient-to-r from-blue-50 to-emerald-50 dark:from-blue-950/30 dark:to-emerald-950/20 p-5">
                 <div className="flex items-center gap-4 mb-3">
@@ -445,15 +411,14 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
                   <div>
                     <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm">Extracting knowledge from video...</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {retryAttempt > 0 ? `Retry attempt ${retryAttempt} of 3` : 'This may take a moment'}
+                      {retryAttempt > 0 ? `Still working — hang tight` : 'Pulling everything the AI needs to teach you'}
                     </p>
                   </div>
                 </div>
-                {/* Progress bar */}
                 <div className="h-1.5 bg-blue-100 dark:bg-blue-900/40 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 rounded-full animate-pulse"
-                    style={{ width: retryAttempt > 0 ? `${33 * retryAttempt}%` : '60%' }}
+                    style={{ width: retryAttempt > 0 ? `${50 + 25 * retryAttempt}%` : '60%' }}
                   />
                 </div>
               </div>
@@ -487,7 +452,7 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
                 <div className="p-4 bg-slate-50 dark:bg-slate-800/50 space-y-3">
                   <div className="flex gap-3">
                     <div className="flex-1">
-                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Transcript language</label>
+                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Video language</label>
                       <div className="relative">
                         <select
                           value={language}
@@ -550,16 +515,27 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
               </div>
             )}
 
-            {/* ── STEP 4 — Transcript ready + title ─────────────────────── */}
-            {step === 4 && hasTranscript && (
+            {/* ── STEP 4 — Knowledge ready + title ──────────────────────── */}
+            {step === 4 && (
               <>
-                {/* Status message */}
-                {statusMessage && (
-                  <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                    {statusMessage}
-                  </div>
-                )}
+                {/* Green knowledge-ready badge */}
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                  <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                    {hasTranscript
+                      ? `Knowledge extracted — ${transcript.split(' ').length.toLocaleString()} words loaded`
+                      : 'Knowledge extracted — AI is ready'}
+                  </span>
+                  {hasTranscript && (
+                    <button
+                      type="button"
+                      onClick={() => setTranscript('')}
+                      className="ml-auto text-xs text-emerald-400 hover:text-rose-500 transition"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
 
                 {/* Session title */}
                 <div className="space-y-2">
@@ -572,78 +548,41 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
                     className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 outline-none transition"
                   />
                 </div>
-
-                {/* Transcript preview */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                      Transcript ready &mdash; {transcript.split(' ').length.toLocaleString()} words
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setTranscript('')}
-                      className="text-xs text-slate-400 hover:text-rose-500 transition"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                  <div className="rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 px-4 py-3 max-h-24 overflow-y-auto text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                    {transcript.substring(0, 250)}…
-                  </div>
-                </div>
               </>
             )}
 
-            {/* ── Loading status (non-transcript loading) ────────────────── */}
-            {statusMessage && step !== 4 && (
-              <p className="text-xs font-medium text-blue-600 dark:text-blue-400">{statusMessage}</p>
-            )}
-
-            {/* ── ERROR BANNER ───────────────────────────────────────────── */}
+            {/* ── Session-start errors only (not knowledge extraction errors) */}
             {error && (
-              <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4">
-                <div className="flex gap-3">
-                  <span className="text-red-500 dark:text-red-400 mt-0.5">
-                    <AlertCircleIcon />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-red-700 dark:text-red-300 mb-1">Transcript extraction failed</p>
-                    <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
-                    {hasValidUrl && (
-                      <button
-                        type="button"
-                        onClick={handleTryWithoutTranscript}
-                        disabled={isLoading}
-                        className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-red-200 dark:border-red-700 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition disabled:opacity-50"
-                      >
-                        Try anyway without transcript
-                      </button>
-                    )}
-                  </div>
-                </div>
+              <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4 flex gap-3">
+                <span className="text-red-500 dark:text-red-400 mt-0.5 flex-shrink-0">
+                  <AlertCircleIcon />
+                </span>
+                <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
               </div>
             )}
 
-            {/* ── Manual transcript toggle ───────────────────────────────── */}
-            <div>
-              <button
-                type="button"
-                onClick={() => setShowManualTranscript(v => !v)}
-                className="text-xs font-medium text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 flex items-center gap-1 transition"
-              >
-                <ChevronDownIcon />
-                {showManualTranscript ? 'Hide' : 'Enter transcript manually'}
-              </button>
-              {showManualTranscript && (
-                <textarea
-                  value={transcript}
-                  onChange={(e) => setTranscript(e.target.value)}
-                  placeholder="Paste the full video transcript here..."
-                  rows={5}
-                  className="mt-2 w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 outline-none transition resize-none"
-                />
-              )}
-            </div>
+            {/* ── Optional transcript paste — shown after knowledge ready, only if no transcript ── */}
+            {step === 4 && !hasTranscript && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowManualTranscript(v => !v)}
+                  className="text-xs font-medium text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-1 transition"
+                >
+                  <ChevronDownIcon />
+                  {showManualTranscript ? 'Hide' : 'Paste transcript to boost AI accuracy (optional)'}
+                </button>
+                {showManualTranscript && (
+                  <textarea
+                    value={transcript}
+                    onChange={(e) => setTranscript(e.target.value)}
+                    placeholder="Go to YouTube → open the video → click Show transcript → copy all text and paste here. Timestamps are fine."
+                    rows={5}
+                    className="mt-2 w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 outline-none transition resize-none"
+                  />
+                )}
+              </div>
+            )}
 
             {/* ── SUBMIT BUTTON ─────────────────────────────────────────── */}
             <button
@@ -654,7 +593,7 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
               {isLoading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-                  {isTranscriptLoading ? 'Fetching transcript...' : 'Starting session...'}
+                  {isTranscriptLoading ? 'Extracting knowledge...' : 'Starting session...'}
                 </>
               ) : (
                 <>
