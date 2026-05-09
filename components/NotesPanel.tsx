@@ -4,6 +4,9 @@ import { useToast } from '../src/contexts/ToastContext';
 import { DownloadIcon } from './icons/DownloadIcon';
 import apiClient from '../src/services/api';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { useGuest } from '../src/contexts/GuestContext';
+import { useAuth } from '../src/contexts/useAuth';
+import { useNavigate } from 'react-router-dom';
 
 interface NotesPanelProps {
   notes: string;
@@ -25,6 +28,10 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
   onAutoSaveStatusChange,
 }) => {
   const toast = useToast();
+  const { isGuest } = useGuest();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const isGuestUser = isGuest && !user;
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [isPreview, setIsPreview] = useState(false);
   const { downloadAsText, downloadAsMarkdown, downloadAsPDF, isDownloading, downloadError, clearDownloadError } = useNotesDownload();
@@ -42,9 +49,15 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
     setSaveStatus(value.trim() ? 'saving' : 'idle');
   };
 
-  // Autosave notes to backend
+  // Autosave notes to backend — skipped for guests (notes are local-only)
   useEffect(() => {
     if (!videoId || !notes.trim()) {
+      setSaveStatus('idle');
+      return;
+    }
+
+    // Guests can write notes but they won't persist
+    if (isGuestUser) {
       setSaveStatus('idle');
       return;
     }
@@ -57,7 +70,6 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
 
     saveTimeoutRef.current = setTimeout(async () => { // 2-second debounce
       try {
-        // Use lesson endpoint if available, otherwise fall back to YouTube notes endpoint
         if (lessonId) {
           await apiClient.post(`lessons/${lessonId}/save_notes/`, {
             notes,
@@ -172,7 +184,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
       {/* Word Count & Auto-save Status */}
       <div className="px-4 py-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center text-xs text-slate-400 dark:text-slate-500">
         <span>{notes.trim() ? notes.trim().split(/\s+/).length : 0} words</span>
-        {videoId && (
+        {videoId && !isGuestUser && (
           <span className="flex items-center gap-1.5">
             {saveStatus === 'saving' && <span className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />}
             {saveStatus === 'saved' && <span className="h-2 w-2 rounded-full bg-emerald-500" />}
@@ -181,6 +193,18 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
               {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Auto-saved' : saveStatus === 'error' ? 'Save failed' : ''}
             </span>
           </span>
+        )}
+        {isGuestUser && notes.trim() && (
+          <button
+            onClick={() => { navigate('/'); }}
+            className="flex items-center gap-1 text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-medium transition-colors"
+            title="Create a free account to save your notes"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            Not saved — create account
+          </button>
         )}
       </div>
     </div>

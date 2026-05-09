@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useToast } from '../src/contexts/ToastContext';
+import { useGuestNudge } from '../src/hooks/useGuestNudge';
+import { GuestNudge } from './GuestNudge';
 import { PlusCircleIcon } from './icons/PlusCircleIcon';
 import { ClipboardCheckIcon } from './icons/ClipboardCheckIcon';
 import { PencilIcon as DocumentTextIcon } from './icons/PencilIcon';
@@ -79,6 +81,7 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
 }) => {
     const location = useLocation();
     const toast = useToast();
+    const { guardAction, nudgeProps } = useGuestNudge();
     const editExamId = (location.state as { editExamId?: number } | null)?.editExamId;
 
     const [title, setTitle] = useState('');
@@ -232,6 +235,7 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
             toast.error('Please enter an exam title');
             return;
         }
+        if (guardAction('save this assessment')) return;
 
         if (questions.length === 0) {
             toast.error('Please add at least one question');
@@ -795,6 +799,7 @@ export const CreateExamPage: React.FC<CreateExamPageProps> = ({
                     </button>
                 </div>
             </div>
+            <GuestNudge {...nudgeProps} />
         </div>
     );
 };

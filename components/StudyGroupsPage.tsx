@@ -38,6 +38,8 @@ import { LightbulbIcon } from './icons/LightbulbIcon';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ROUTES } from '../src/routes';
 import { useToast } from '../src/contexts/ToastContext';
+import { useGuestNudge } from '../src/hooks/useGuestNudge';
+import { GuestNudge } from './GuestNudge';
 
 interface StudyGroupsPageProps {
   isGuest?: boolean;
@@ -45,6 +47,7 @@ interface StudyGroupsPageProps {
 }
 
 export const StudyGroupsPage: React.FC<StudyGroupsPageProps> = ({ isGuest = false, onGuestBlock }) => {
+  const { guardAction, nudgeProps } = useGuestNudge();
   const navigate = useNavigate();
   const toast = useToast();
   const location = useLocation();
@@ -209,10 +212,7 @@ export const StudyGroupsPage: React.FC<StudyGroupsPageProps> = ({ isGuest = fals
 
   const handleJoinToggle = (group: StudyGroup, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (isGuest) {
-      onGuestBlock?.('join a study group — you need an account so the group can track you');
-      return;
-    }
+    if (guardAction('join a study group — you need an account so the group can track you')) return;
     if (group.is_member) {
       leaveGroupMutation.mutate(Number(group.id));
     } else {
@@ -1407,12 +1407,13 @@ export const StudyGroupsPage: React.FC<StudyGroupsPageProps> = ({ isGuest = fals
             </button>
           </div>
         ) : (
-          <Button onClick={() => isGuest ? onGuestBlock?.('create a study group') : setIsCreateOpen(true)} className="flex items-center gap-2">
+          <Button onClick={() => guardAction('create a study group') || setIsCreateOpen(true)} className="flex items-center gap-2">
             <PlusCircleIcon className="w-4 h-4" />
             Create group
           </Button>
         )}
       </div>
+      <GuestNudge {...nudgeProps} />
 
       {isCreateOpen && !atCreateLimit && (
         <form
@@ -1467,7 +1468,7 @@ export const StudyGroupsPage: React.FC<StudyGroupsPageProps> = ({ isGuest = fals
               Upgrade to create groups
             </button>
           ) : (
-            <Button onClick={() => isGuest ? onGuestBlock?.('create a study group') : setIsCreateOpen(true)} className="inline-flex items-center gap-2">
+            <Button onClick={() => guardAction('create a study group') || setIsCreateOpen(true)} className="inline-flex items-center gap-2">
               <PlusCircleIcon className="w-4 h-4" />
               Start a group
             </Button>

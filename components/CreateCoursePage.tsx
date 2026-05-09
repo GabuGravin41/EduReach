@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useToast } from '../src/contexts/ToastContext';
+import { useGuestNudge } from '../src/hooks/useGuestNudge';
+import { GuestNudge } from './GuestNudge';
 import { PlusCircleIcon } from './icons/PlusCircleIcon';
 import { TrashIcon } from './icons/TrashIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
@@ -37,6 +39,7 @@ interface Lesson {
 
 export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCreated, onCancel, lessonLimit, setView }) => {
   const toast = useToast();
+  const { guardAction, nudgeProps } = useGuestNudge();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(true);
@@ -136,6 +139,7 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+    if (guardAction('create a course')) return;
     
     // Auto-validate all videos before submission (same spirit as New Session flow).
     const pendingIndexes = lessons
@@ -306,6 +310,7 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
             {isSubmitting ? 'Saving course...' : 'Save Course'}
           </button>
         </div>
+        <GuestNudge {...nudgeProps} />
       </form>
     </div>
   );

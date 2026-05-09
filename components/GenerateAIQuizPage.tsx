@@ -4,6 +4,8 @@ import type { Question, MultipleChoiceQuestion, ShortAnswerQuestion, EssayQuesti
 import { BookOpenIcon } from './icons/BookOpenIcon';
 import { SwordsIcon } from './icons/SwordsIcon';
 import { aiClient } from '../src/services/api';
+import { useGuestNudge } from '../src/hooks/useGuestNudge';
+import { GuestNudge } from './GuestNudge';
 
 type QuestionType = 'multiple-choice' | 'essay' | 'short-answer' | 'passage' | 'cloze' | 'true-false';
 type Difficulty = 'easy' | 'medium' | 'hard';
@@ -15,6 +17,7 @@ interface GenerateAIQuizPageProps {
 }
 
 export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCreated, onCancel, courses }) => {
+  const { guardAction, nudgeProps } = useGuestNudge();
   const [topic, setTopic] = useState('');
   const [sourceText, setSourceText] = useState('');
   const [contextPdf, setContextPdf] = useState<File | null>(null);
@@ -149,6 +152,7 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
       setError('Please provide a topic and either source text or a PDF context file.');
       return;
     }
+    if (guardAction('generate and save a quiz')) return;
     setError('');
     setIsLoading(true);
     setPdfInfoMessage('');
@@ -684,6 +688,7 @@ export const GenerateAIQuizPage: React.FC<GenerateAIQuizPageProps> = ({ onQuizCr
             )}
           </button>
         </div>
+        <GuestNudge {...nudgeProps} />
       </form>
     </div>
   );

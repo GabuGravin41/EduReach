@@ -780,30 +780,19 @@ const AppContent: React.FC = () => {
       );
     }
   
-    // Routes that require a real account — guests get a sign-up prompt instead
-    const GUEST_BLOCKED: Partial<Record<View, string>> = {
-      create_course: 'create a course',
-      create_exam: 'create an assessment',
-      generate_ai_quiz: 'generate an AI quiz',
-      bulk_create_exam: 'bulk create assessments',
-      profile: 'view your profile',
-      analytics: 'view analytics',
-      admin_panel: 'access the admin panel',
-      personal_sessions: 'view personal sessions',
-    };
+    // Only admin panel is fully blocked for guests — all other routes are accessible
+    // Write actions within each page show an inline nudge instead of blocking navigation
 
     const renderContent = () => {
-      // Intercept blocked routes for guests
-      if (isGuest && !user && currentView in GUEST_BLOCKED) {
-        const action = GUEST_BLOCKED[currentView]!;
-        // Show modal and fall back to dashboard
-        if (!guestModal) setTimeout(() => setGuestModal({ action }), 0);
-        return <Dashboard onStartSession={() => setView('setup_session')} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onGoToCreateExam={() => setGuestModal({ action: 'create an assessment' })} userTier={userTier} username="Guest" />;
+      // Hard block only the admin panel
+      if (isGuest && !user && currentView === 'admin_panel') {
+        if (!guestModal) setTimeout(() => setGuestModal({ action: 'access the admin panel' }), 0);
+        return <Dashboard onStartSession={() => setView('setup_session')} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onGoToCreateExam={() => setView('create_exam')} userTier={userTier} username="Guest" />;
       }
 
       switch (currentView) {
         case 'dashboard':
-          return <Dashboard onStartSession={() => setView('setup_session')} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onGoToCreateExam={() => isGuest && !user ? setGuestModal({ action: 'create an assessment' }) : setView('create_exam')} userTier={userTier} username={user?.username ?? (user as any)?.email ?? undefined} />;
+          return <Dashboard onStartSession={() => setView('setup_session')} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onGoToCreateExam={() => setView('create_exam')} userTier={userTier} username={user?.username ?? (user as any)?.email ?? undefined} />;
         case 'courses':
           return <MyCoursesPage courses={courses} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onNewCourse={() => isGuest && !user ? setGuestModal({ action: 'create a course' }) : setView('create_course')} userTier={userTier} currentUserId={user?.id} highlightedCourseId={recentlyCreatedCourseId ?? undefined} />;
         case 'create_course':

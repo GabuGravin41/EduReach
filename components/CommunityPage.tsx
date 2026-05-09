@@ -12,6 +12,8 @@ import { TrendingIcon } from './icons/TrendingIcon';
 import { UserTier } from '../App';
 import { useCommunityLeaderboard, useCommunityTrendingTopics } from '../src/hooks/useCommunityAnalytics';
 import { usePosts, useCreatePost, useToggleLike, useAddComment, useDeletePost } from '../src/hooks/useCommunity';
+import { useGuestNudge } from '../src/hooks/useGuestNudge';
+import { GuestNudge } from './GuestNudge';
 
 // ---------------------------------------------------------------------------
 // Time-ago helper
@@ -361,6 +363,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
     username,
 }) => {
     const [newPostContent, setNewPostContent] = useState('');
+    const { guardAction, nudgeProps } = useGuestNudge();
 
     // Discussion channels
     const [communityChannel, setCommunityChannel] = useState<CourseChannel | null>(null);
@@ -454,6 +457,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
 
     const handleCreatePost = async (content: string) => {
         if (!content.trim()) return;
+        if (guardAction('post to the community')) return;
         try {
             if (createPostMutation.mutateAsync) {
                 await createPostMutation.mutateAsync({ content });
@@ -474,6 +478,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
     };
 
     const handleAddComment = async (postId: number, comment: string) => {
+        if (guardAction('comment on posts')) return;
         if (addCommentMutation.mutateAsync) {
             await addCommentMutation.mutateAsync({ postId, data: { content: comment } });
         } else {
@@ -491,6 +496,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
 
     const handleCreateThread = async () => {
         if (!newThreadTitle.trim() || !newThreadContent.trim() || !selectedChannelId) return;
+        if (guardAction('start a discussion thread')) return;
         setComposerLoading(true);
         setComposerError('');
         try {
@@ -578,6 +584,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
 
                 {/* Post composer */}
                 <PostComposer username={username} onSubmit={handleCreatePost} />
+                <GuestNudge {...nudgeProps} />
 
                 {/* Threads section */}
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-4">
