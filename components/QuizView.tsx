@@ -5,6 +5,7 @@ import { SparklesIcon } from './icons/SparklesIcon';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import MathMarkdown from './MathMarkdown';
 import { aiClient } from '../src/services/api';
+import apiClient from '../src/services/api';
 import { assessmentService, type QuestionResult } from '../src/services/assessmentService';
 import type {
   Question,
@@ -222,14 +223,10 @@ export const QuizView: React.FC<QuizViewProps> = ({
     setMarkError('');
     try {
       await ensureAttemptStarted();
-      const data = await assessmentService.submitAssessment(assessmentId, answers as Record<number, string>);
-      setAttemptStatusFromServer(data?.status ?? null);
-      if (data?.status === 'graded') {
-        setServerAttempt({ status: data.status, score: data.score, percentage: data.percentage, question_results: data.question_results });
-      } else {
-        // status === 'submitted' — wait for user to explicitly click "Grade with AI"
-        setServerAttempt(null);
-      }
+      await assessmentService.submitAssessment(assessmentId, answers as Record<number, string>);
+      // Always treat submit as saved-only — grading only happens when user clicks Grade with AI
+      setAttemptStatusFromServer('submitted');
+      setServerAttempt(null);
       setIsSubmitted(true);
       if (imageUploadGraceMinutes && imageUploadGraceMinutes > 0) {
         setImageUploadSecondsLeft(Math.max(0, Math.round(imageUploadGraceMinutes * 60)));
@@ -256,6 +253,19 @@ export const QuizView: React.FC<QuizViewProps> = ({
         if (attempt?.status === 'graded') {
           setServerAttempt({ status: attempt.status, score: attempt.score, percentage: attempt.percentage, question_results: attempt.question_results });
           setAttemptStatusFromServer('graded');
+          // Sync backend AI grades into gradingResults so the unified calculateScore() picks them up
+          const qr = attempt.question_results || {};
+          const aiGrades: Record<string, { score: number; feedback: string }> = {};
+          for (const [qid, res] of Object.entries(qr)) {
+            const r = res as any;
+            if (r.ai_score != null) {
+              aiGrades[qid] = { score: r.ai_score, feedback: r.ai_feedback || '' };
+            }
+          }
+          if (Object.keys(aiGrades).length > 0) {
+            // Per-question grades (prev) take priority — don't overwrite user-initiated grades
+            setGradingResults(prev => ({ ...aiGrades, ...prev }));
+          }
           setIsMarking(false);
           return;
         }
@@ -285,15 +295,20 @@ export const QuizView: React.FC<QuizViewProps> = ({
     if (!assessmentId || reviewMode) return;
     assessmentService.getMyAttempt(assessmentId).then((attempt) => {
       if (!attempt) return;
-      if (attempt.status === 'graded') {
+      if (attempt.status === 'graded' || attempt.status === 'submitted') {
         setServerAttempt({ status: attempt.status, score: attempt.score, percentage: attempt.percentage, question_results: attempt.question_results });
-        setAttemptStatusFromServer('graded');
+        setAttemptStatusFromServer(attempt.status as any);
         setIsSubmitted(true);
-        return;
-      }
-      if (attempt.status === 'submitted') {
-        setAttemptStatusFromServer('submitted');
-        setIsSubmitted(true);
+        // Restore any previously saved AI feedback from question_results
+        const qr = attempt.question_results || {};
+        const restored: Record<string, { score: number; feedback: string }> = {};
+        for (const [qid, res] of Object.entries(qr)) {
+          const r = res as any;
+          if (r.ai_score != null && r.ai_feedback) {
+            restored[qid] = { score: r.ai_score, feedback: r.ai_feedback };
+          }
+        }
+        if (Object.keys(restored).length > 0) setGradingResults(prev => ({ ...restored, ...prev }));
       }
     }).catch(() => {});
   }, [assessmentId, reviewMode]);
@@ -364,6 +379,12 @@ Format: {"score": number, "feedback": "string"}`;
       const responseText = response.data.response || response.data;
       const result = parseGradingResponse(responseText);
       setGradingResults(prev => ({ ...prev, [q.id]: result }));
+      // Persist AI grade to server so it survives page refresh
+      if (assessmentId) {
+        apiClient.post(`assessments/${assessmentId}/save-ai-feedback/`, {
+          question_id: q.id, score: result.score, feedback: result.feedback,
+        }).catch(() => { /* non-blocking */ });
+      }
     } catch {
       setGradingResults(prev => ({ ...prev, [q.id]: { score: 0, feedback: 'Error grading essay. Please try again.' } }));
     }
@@ -405,6 +426,11 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
           const text = response.data.response || '';
           const result = parseGradingResponse(text);
           setGradingResults(prev => ({ ...prev, [qId]: result }));
+          if (assessmentId) {
+            apiClient.post(`assessments/${assessmentId}/save-ai-feedback/`, {
+              question_id: qId, score: result.score, feedback: result.feedback,
+            }).catch(() => { /* non-blocking */ });
+          }
         } catch {
           setGradingResults(prev => ({ ...prev, [qId]: { score: 0, feedback: 'Could not connect. Try again.' } }));
         } finally {
@@ -438,11 +464,16 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
         } else if (q.type === 'true_false') {
           if (answers[q.id] === q.correct_answer) earnedPoints += q.points;
         } else if (q.type === 'short_answer') {
-          const userText = (answers[q.id] || '').trim();
-          const isCorrect = q.correct_answers.some(ans =>
-            q.case_sensitive ? ans === userText : ans.toLowerCase() === userText.toLowerCase()
-          );
-          if (isCorrect) earnedPoints += q.points;
+          if (gradingResults[q.id]) {
+            // AI has graded this question — use AI score
+            earnedPoints += (gradingResults[q.id].score / 100) * q.points;
+          } else {
+            const userText = (answers[q.id] || '').trim();
+            const isCorrect = q.correct_answers.some(ans =>
+              q.case_sensitive ? ans === userText : ans.toLowerCase() === userText.toLowerCase()
+            );
+            if (isCorrect) earnedPoints += q.points;
+          }
         } else if (q.type === 'cloze') {
           const parts: string[] = q.question_text?.match(/\[(.*?)\]/g) || [];
           let correctBlanks = 0;
@@ -465,8 +496,10 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
   const results = isSubmitted ? calculateScore() : { earned: 0, total: 0 };
   const hasLocalGrades = Object.keys(gradingResults).length > 0;
   const isFullyGraded = serverAttempt?.status === 'graded';
-  // showResults: in practice mode (no server), reveal immediately; otherwise only after AI grading
+  // showResults: reveal correct answers after grading or in practice mode (no server)
   const showResults = isFullyGraded || !assessmentId;
+  // showScore: show the score header once any grading has happened
+  const showScore = isSubmitted && (isFullyGraded || hasLocalGrades || !assessmentId);
 
   if (questions.length === 0) {
     return (
@@ -620,11 +653,9 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
                 Time left: {formatTime(timeLeftSeconds)}
               </div>
             )}
-            {isSubmitted && showResults && (
+            {showScore && (
               <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
-                {isFullyGraded && !hasLocalGrades && (serverAttempt?.score != null || serverAttempt?.percentage != null)
-                  ? `Score: ${serverAttempt!.score ?? '—'}${serverAttempt!.percentage != null ? ` (${Math.round(serverAttempt!.percentage)}%)` : ''}`
-                  : `Score: ${results.earned} / ${results.total}`}
+                Score: {results.earned} / {results.total}
               </div>
             )}
           </div>
