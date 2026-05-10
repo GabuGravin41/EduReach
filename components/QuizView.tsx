@@ -18,6 +18,25 @@ import type {
 } from '../types';
 import { Button } from './ui/Button';
 
+// Robustly parse an AI grading response that may contain LaTeX {} braces
+// inside the feedback string, which breaks greedy regex matching.
+function parseGradingResponse(text: string): { score: number; feedback: string } {
+  // 1. Try direct parse first (model returned clean JSON)
+  try { return JSON.parse(text); } catch { /* fall through */ }
+  // 2. Extract score and feedback individually using targeted patterns
+  const scoreMatch = text.match(/"score"\s*:\s*(\d+(?:\.\d+)?)/);
+  const feedbackMatch = text.match(/"feedback"\s*:\s*"([\s\S]*?)"\s*[,}]/);
+  if (scoreMatch) {
+    const score = Math.min(100, Math.max(0, parseFloat(scoreMatch[1])));
+    const feedback = feedbackMatch
+      ? feedbackMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"')
+      : text;
+    return { score, feedback };
+  }
+  // 3. Fallback — score 0 so a bad answer never gets free points
+  return { score: 0, feedback: text };
+}
+
 interface QuizViewProps {
   quiz: QuizQuestion[] | Question[] | null;
   timeLimitMinutes?: number;
@@ -337,17 +356,7 @@ Format: {"score": number, "feedback": "string"}`;
         context: q.question_text
       });
       const responseText = response.data.response || response.data;
-      let result = { score: 0, feedback: 'Could not parse grading response' };
-      try {
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          result = JSON.parse(jsonMatch[0]);
-        } else {
-          result = { score: 75, feedback: responseText };
-        }
-      } catch {
-        result = { score: 75, feedback: responseText };
-      }
+      const result = parseGradingResponse(responseText);
       setGradingResults(prev => ({ ...prev, [q.id]: result }));
     } catch {
       setGradingResults(prev => ({ ...prev, [q.id]: { score: 0, feedback: 'Error grading essay. Please try again.' } }));
@@ -388,11 +397,7 @@ Student's answer: ${studentAnswer}
 Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
           const response = await aiClient.post('/ai/chat/', { message: gradePrompt, context: sq.question_text });
           const text = response.data.response || '';
-          let result = { score: 0, feedback: text };
-          try {
-            const m = text.match(/\{[\s\S]*\}/);
-            if (m) result = JSON.parse(m[0]);
-          } catch { /* use raw text */ }
+          const result = parseGradingResponse(text);
           setGradingResults(prev => ({ ...prev, [qId]: result }));
         } catch {
           setGradingResults(prev => ({ ...prev, [qId]: { score: 0, feedback: 'Could not connect. Try again.' } }));
