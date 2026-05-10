@@ -154,6 +154,12 @@ export const QuizView: React.FC<QuizViewProps> = ({
   const [easyMode, setEasyMode] = useState(false);
   const [easyGraded, setEasyGraded] = useState<Set<string>>(new Set());
   const [easyGrading, setEasyGrading] = useState<Record<string, boolean>>({});
+  // Easy mode: "Show Answer" without grading (student skipped)
+  const [shownAnswers, setShownAnswers] = useState<Set<string>>(new Set());
+
+  const handleShowAnswer = (qId: string) => {
+    setShownAnswers(prev => new Set(prev).add(qId));
+  };
 
   // Contest mode: track tab visibility changes
   useEffect(() => {
@@ -875,15 +881,25 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
                     className="w-full p-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none dark:text-slate-100 resize-none font-mono text-sm"
                     placeholder="Write your response here... (Supports LaTeX: $x^2$, $$\\int_0^1 f(x)\\,dx$$)"
                   />
-                  {(isSubmitted || easyMode) && !gradingResults[q.id] && (answers[q.id]?.trim() || uploadedImages[q.id]) && (
-                    <div className="mt-3">
-                      <Button onClick={() => handleGradeEssay(q as EssayQuestion)} disabled={isGrading[q.id]} variant="secondary" className="gap-2">
-                        {isGrading[q.id] ? (
-                          <><div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />AI Grading...</>
-                        ) : (
-                          <><SparklesIcon className="w-4 h-4 text-indigo-600" />Grade with AI</>
-                        )}
-                      </Button>
+                  {(isSubmitted || easyMode) && !gradingResults[q.id] && !shownAnswers.has(String(q.id)) && (
+                    <div className="mt-3 flex items-center gap-3 flex-wrap">
+                      {(answers[q.id]?.trim() || uploadedImages[q.id]) && (
+                        <Button onClick={() => handleGradeEssay(q as EssayQuestion)} disabled={isGrading[q.id]} variant="secondary" className="gap-2">
+                          {isGrading[q.id] ? (
+                            <><div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />AI Grading...</>
+                          ) : (
+                            <><SparklesIcon className="w-4 h-4 text-indigo-600" />Grade with AI</>
+                          )}
+                        </Button>
+                      )}
+                      {easyMode && (
+                        <button
+                          onClick={() => handleShowAnswer(String(q.id))}
+                          className="text-sm text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 underline transition-colors"
+                        >
+                          Show answer
+                        </button>
+                      )}
                     </div>
                   )}
                   {gradingResults[q.id] && (
@@ -935,21 +951,29 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
               )}
             </div>
 
-            {/* Easy mode: per-question Grade with AI button (for non-essay types) */}
-            {easyMode && !isSubmitted && q.type !== 'essay' && !easyGraded.has(String(q.id)) && (
-              <div className="mt-4 ml-11">
-                <Button
-                  onClick={() => handleEasyGradeQuestion(q)}
-                  disabled={!answers[q.id] || easyGrading[String(q.id)]}
-                  variant="secondary"
-                  className="gap-2"
+            {/* Easy mode: Grade with AI + Show Answer buttons (for non-essay types) */}
+            {easyMode && !isSubmitted && q.type !== 'essay' && !easyGraded.has(String(q.id)) && !shownAnswers.has(String(q.id)) && (
+              <div className="mt-4 ml-11 flex items-center gap-3 flex-wrap">
+                {answers[q.id]?.trim() && (
+                  <Button
+                    onClick={() => handleEasyGradeQuestion(q)}
+                    disabled={easyGrading[String(q.id)]}
+                    variant="secondary"
+                    className="gap-2"
+                  >
+                    {easyGrading[String(q.id)] ? (
+                      <><div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />Grading...</>
+                    ) : (
+                      <><SparklesIcon className="w-4 h-4 text-indigo-600" />Grade with AI</>
+                    )}
+                  </Button>
+                )}
+                <button
+                  onClick={() => handleShowAnswer(String(q.id))}
+                  className="text-sm text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 underline transition-colors"
                 >
-                  {easyGrading[String(q.id)] ? (
-                    <><div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />Grading...</>
-                  ) : (
-                    <><SparklesIcon className="w-4 h-4 text-indigo-600" />Grade with AI</>
-                  )}
-                </Button>
+                  Show answer
+                </button>
               </div>
             )}
             {/* Easy mode: reset button after grading (allow retry) */}
@@ -983,7 +1007,34 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
                 </div>
               </div>
             )}
-            {(showResults || easyGraded.has(String(q.id))) && (q as any).explanation && (
+            {/* Show Answer: correct answers + model solution for skip path */}
+            {shownAnswers.has(String(q.id)) && (
+              <div className="mt-4 ml-11 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-200 dark:border-emerald-800 text-sm text-slate-700 dark:text-slate-300 space-y-3">
+                {(q as ShortAnswerQuestion).correct_answers?.length > 0 && (
+                  <div>
+                    <div className="font-semibold text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-400 mb-1">Correct Answer</div>
+                    <div className="font-medium">{(q as ShortAnswerQuestion).correct_answers?.join(' / ')}</div>
+                  </div>
+                )}
+                {((q as EssayQuestion).model_solution) && (
+                  <div>
+                    <div className="font-semibold text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-400 mb-1">Model Solution</div>
+                    <MarkdownRenderer content={(q as EssayQuestion).model_solution!} />
+                  </div>
+                )}
+                {(q as any).explanation && (
+                  <div className="pt-2 border-t border-emerald-200 dark:border-emerald-800">
+                    <div className="font-semibold text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Explanation</div>
+                    {(q as any).images?.length > 0 ? (
+                      <MathMarkdown images={(q as any).images}>{(q as any).explanation}</MathMarkdown>
+                    ) : (
+                      <MarkdownRenderer content={(q as any).explanation} />
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            {(showResults || easyGraded.has(String(q.id))) && !shownAnswers.has(String(q.id)) && (q as any).explanation && (
               <div className="mt-4 ml-11 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300">
                 <div className="font-semibold text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">
                   {q.type === 'essay' ? 'Model Solution' : 'Explanation'}
