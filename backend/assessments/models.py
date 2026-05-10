@@ -330,11 +330,14 @@ class UserAttempt(models.Model):
                         total_xp += int((pts / question.points) * xp_weight) if question.points else 0
                     except Exception:
                         pass
+                    ai_pct = round((pts / question.points * 100)) if question.points else 0
                     per_question[str(question.id)] = {
                         'score': pts,
                         'max_score': question.points,
                         'is_correct': pts >= question.points,
                         'ai_graded': True,
+                        'ai_score': ai_pct,
+                        'ai_feedback': '',
                     }
                     continue
                 if user_answer.lower() == str(question.correct_answer).lower().strip():
@@ -356,11 +359,14 @@ class UserAttempt(models.Model):
                         total_xp += int((pts / question.points) * xp_weight) if question.points else 0
                     except Exception:
                         pass
+                ai_pct = round((pts / question.points * 100)) if question.points else 0
                 per_question[str(question.id)] = {
                     'score': pts,
                     'max_score': question.points,
                     'is_correct': pts >= question.points,
                     'ai_graded': True,
+                    'ai_score': ai_pct,
+                    'ai_feedback': '',
                 }
                 continue
 

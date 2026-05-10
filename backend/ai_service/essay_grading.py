@@ -18,6 +18,8 @@ def grade_essay_answer(reference_solution: str, student_answer: str, max_points:
     """
     if not reference_solution or not reference_solution.strip():
         return 0
+    if not student_answer or not student_answer.strip():
+        return 0
     if max_points <= 0:
         return 0
 

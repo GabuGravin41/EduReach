@@ -42,11 +42,24 @@ export default function JoinExamPage() {
   const [currentQ, setCurrentQ] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Pre-fill PIN from URL query param
+  // Pre-fill PIN from URL query param, and restore results from sessionStorage on refresh
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const pinParam = params.get('pin');
     if (pinParam) setPin(pinParam);
+
+    const stored = sessionStorage.getItem('join_exam_last_result');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed.results && parsed.session) {
+          setResults(parsed.results);
+          setSession(parsed.session);
+          setDisplayName(parsed.displayName || '');
+          setStage('submitted');
+        }
+      } catch { /* ignore corrupt storage */ }
+    }
   }, []);
 
   // Timer
@@ -101,6 +114,12 @@ export default function JoinExamPage() {
       const res = await apiClient.post('assessments/exam-sessions/submit/', payload);
       setResults(res.data);
       setStage('submitted');
+      // Persist results so a page refresh doesn't wipe them
+      try {
+        sessionStorage.setItem('join_exam_last_result', JSON.stringify({
+          results: res.data, session, displayName,
+        }));
+      } catch { /* storage quota — non-critical */ }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Submission failed. Please try again.');
     } finally {
@@ -397,7 +416,7 @@ export default function JoinExamPage() {
           </div>
 
           <button
-            onClick={() => { setStage('enter_pin'); setPin(''); setDisplayName(''); setSession(null); setAnswers({}); setResults(null); }}
+            onClick={() => { sessionStorage.removeItem('join_exam_last_result'); setStage('enter_pin'); setPin(''); setDisplayName(''); setSession(null); setAnswers({}); setResults(null); }}
             className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors"
           >
             Join Another Exam

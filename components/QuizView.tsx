@@ -299,13 +299,17 @@ export const QuizView: React.FC<QuizViewProps> = ({
         setServerAttempt({ status: attempt.status, score: attempt.score, percentage: attempt.percentage, question_results: attempt.question_results });
         setAttemptStatusFromServer(attempt.status as any);
         setIsSubmitted(true);
-        // Restore any previously saved AI feedback from question_results
+        // Restore AI grades from question_results (per-question frontend grades take priority)
         const qr = attempt.question_results || {};
         const restored: Record<string, { score: number; feedback: string }> = {};
         for (const [qid, res] of Object.entries(qr)) {
           const r = res as any;
-          if (r.ai_score != null && r.ai_feedback) {
-            restored[qid] = { score: r.ai_score, feedback: r.ai_feedback };
+          if (r.ai_score != null) {
+            // Prefer explicit ai_score (set by save-ai-feedback or updated calculate_score)
+            restored[qid] = { score: r.ai_score, feedback: r.ai_feedback || '' };
+          } else if (r.ai_graded && r.score != null && r.max_score) {
+            // Fallback: backend-graded result — convert raw score to 0-100 percentage
+            restored[qid] = { score: Math.round((r.score / r.max_score) * 100), feedback: '' };
           }
         }
         if (Object.keys(restored).length > 0) setGradingResults(prev => ({ ...restored, ...prev }));
