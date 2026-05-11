@@ -109,13 +109,34 @@ def infer_discipline(unit_code: str, unit_name: str) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="EduReach Solution Generator")
-    parser.add_argument("--csv",     required=True, help="Path to engineering_questions.csv")
-    parser.add_argument("--api-key", required=True, help="Google Gemini API key")
-    parser.add_argument("--unit",    default="",    help="Only process rows with this unit_code")
-    parser.add_argument("--limit",   type=int, default=0, help="Max solutions to generate (0=all)")
+    parser.add_argument("--csv",      required=True, help="Path to engineering_questions.csv")
+    parser.add_argument("--api-key",  default="",   help="OpenRouter API key")
+    parser.add_argument("--env-file", default="",   help="Path to .env file containing OPENROUTER_API_KEY")
+    parser.add_argument("--unit",     default="",   help="Only process rows with this unit_code")
+    parser.add_argument("--limit",    type=int, default=0, help="Max solutions to generate (0=all)")
     args = parser.parse_args()
 
-    client = OpenAI(api_key=args.api_key, base_url=OPENROUTER_BASE_URL)
+    api_key = args.api_key
+    if not api_key and args.env_file:
+        env_path = Path(args.env_file)
+        if env_path.exists():
+            for line in env_path.read_text().splitlines():
+                line = line.strip()
+                if line.startswith("#") or "=" not in line:
+                    continue
+                key_name, _, val = line.partition("=")
+                if key_name.strip() in ("OPENROUTER_API_KEY", "GEMINI_API_KEY"):
+                    candidate = val.strip().strip('"').strip("'")
+                    if candidate:
+                        api_key = candidate
+                        break
+    if not api_key:
+        api_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        print("[ERROR] No API key found. Use --api-key or --env-file.")
+        sys.exit(1)
+
+    client = OpenAI(api_key=api_key, base_url=OPENROUTER_BASE_URL)
 
     csv_path = Path(args.csv)
     if not csv_path.exists():

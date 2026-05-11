@@ -70,7 +70,7 @@ RATE_LIMIT_DELAY = 3.0  # seconds between calls
 MAX_RETRIES = 3
 RETRY_BASE_DELAY = 15   # seconds (doubles on each retry)
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-MODEL = "google/gemini-2.0-flash-exp:free"  # free tier on OpenRouter
+MODEL = "google/gemini-2.0-flash-001"  # set via OPENROUTER_MODEL in .env to override
 
 CSV_COLUMNS = [
     "question_id",
@@ -474,16 +474,26 @@ def main():
 
     # Resolve API key: flag > .env file > environment variable
     api_key = args.api_key
-    if not api_key and args.env_file:
+    global MODEL
+    if args.env_file:
         env_path = Path(args.env_file)
         if env_path.exists():
             for line in env_path.read_text().splitlines():
                 line = line.strip()
-                if line.startswith("GEMINI_API_KEY="):
-                    api_key = line.split("=", 1)[1].strip().strip('"').strip("'")
-                    break
+                if line.startswith("#") or "=" not in line:
+                    continue
+                key_name, _, val = line.partition("=")
+                val = val.strip().strip('"').strip("'")
+                if not val:
+                    continue
+                if key_name.strip() in ("OPENROUTER_API_KEY", "GEMINI_API_KEY") and not api_key:
+                    api_key = val
+                    print(f" Key source : {key_name.strip()} from {args.env_file}")
+                elif key_name.strip() == "OPENROUTER_MODEL":
+                    MODEL = val
+                    print(f" Model override: {MODEL}")
     if not api_key:
-        api_key = os.environ.get("GEMINI_API_KEY", "")
+        api_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
         print("[ERROR] No API key provided. Use --api-key, --env-file, or set GEMINI_API_KEY env var.")
         sys.exit(1)
