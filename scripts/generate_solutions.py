@@ -30,13 +30,13 @@ from pathlib import Path
 
 def check_deps():
     try:
-        import google.generativeai
+        import openai
     except ImportError:
-        print("Run: pip install google-generativeai")
+        print("Run: pip install openai")
         sys.exit(1)
 
 check_deps()
-import google.generativeai as genai
+from openai import OpenAI
 
 RATE_LIMIT_DELAY = 5.0   # seconds between calls
 MAX_RETRIES = 3
@@ -63,14 +63,24 @@ RULES:
 Solution:"""
 
 
-def call_gemini(model, prompt: str, retries: int = MAX_RETRIES) -> str:
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+MODEL = "google/gemini-2.0-flash-exp:free"
+
+def call_ai(client: OpenAI, prompt: str, retries: int = MAX_RETRIES) -> str:
     for attempt in range(retries):
         try:
-            response = model.generate_content(prompt)
-            return response.text.strip()
+            response = client.chat.completions.create(
+                model=MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=4096,
+            )
+            return response.choices[0].message.content.strip()
         except Exception as e:
             err = str(e).lower()
-            if "quota" in err or "rate" in err or "429" in err:
+            if "401" in err or "403" in err or "unauthorized" in err:
+                print(f"      [AUTH ERROR] {e}")
+                return ""
+            elif "429" in err or "rate" in err or "quota" in err:
                 wait = RETRY_BASE_DELAY * (2 ** attempt)
                 print(f"      [RATE LIMIT] Waiting {wait}s...")
                 time.sleep(wait)
@@ -105,8 +115,7 @@ def main():
     parser.add_argument("--limit",   type=int, default=0, help="Max solutions to generate (0=all)")
     args = parser.parse_args()
 
-    genai.configure(api_key=args.api_key)
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    client = OpenAI(api_key=args.api_key, base_url=OPENROUTER_BASE_URL)
 
     csv_path = Path(args.csv)
     if not csv_path.exists():
@@ -159,7 +168,7 @@ def main():
             question_type=row.get("question_type", ""),
         )
 
-        solution = call_gemini(model, prompt)
+        solution = call_ai(client, prompt)
         if solution:
             rows[idx]["model_solution"] = solution
             rows[idx]["status"] = "solution_generated"

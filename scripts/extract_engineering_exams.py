@@ -3,13 +3,16 @@
 EduReach Engineering Dataset Extractor
 ========================================
 Batch-extracts exam questions from PDFs, images (PNG/JPEG/JPG), and ZIP archives
-using Google Gemini 1.5 Flash (free tier: 1,500 requests/day, 15 RPM).
+using Gemini 2.0 Flash via OpenRouter (free tier available).
 
 Usage:
-    python extract_engineering_exams.py --input ./papers --output ./dataset --api-key YOUR_KEY
+    python extract_engineering_exams.py --input ./papers --output ./dataset --api-key YOUR_OPENROUTER_KEY
 
-    # Resume interrupted run:
-    python extract_engineering_exams.py --input ./papers --output ./dataset --api-key KEY --resume
+    # Read key from backend .env automatically:
+    python extract_engineering_exams.py --input ./papers --output ./dataset --env-file ../backend/.env
+
+    # Resume an interrupted run:
+    python extract_engineering_exams.py --input ./papers --output ./dataset --env-file ../backend/.env --resume
 
 Output:
     dataset/
@@ -37,7 +40,7 @@ import io
 def check_deps():
     missing = []
     for pkg, import_name in [
-        ("google-generativeai", "google.generativeai"),
+        ("openai", "openai"),
         ("PyMuPDF", "fitz"),
         ("Pillow", "PIL"),
     ]:
@@ -52,19 +55,22 @@ def check_deps():
 
 check_deps()
 
-import google.generativeai as genai
+from openai import OpenAI
 import fitz  # PyMuPDF
 from PIL import Image
+import base64
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
 SUPPORTED_EXTS = {".pdf", ".png", ".jpg", ".jpeg"}
-PDF_DPI = 200          # render resolution — high enough for clarity, not too slow
+PDF_DPI = 200           # render resolution — high enough for clarity, not too slow
 JPEG_QUALITY = 85
-MAX_PAGES_PER_CALL = 5  # pages sent per Gemini call (keep under image limits)
-RATE_LIMIT_DELAY = 5.0  # seconds between calls — stays well under 15 RPM free limit
+MAX_PAGES_PER_CALL = 5  # pages per API call (OpenRouter handles up to ~10 images)
+RATE_LIMIT_DELAY = 3.0  # seconds between calls
 MAX_RETRIES = 3
-RETRY_BASE_DELAY = 10  # seconds (doubles on each retry)
+RETRY_BASE_DELAY = 15   # seconds (doubles on each retry)
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+MODEL = "google/gemini-2.0-flash-exp:free"  # free tier on OpenRouter
 
 CSV_COLUMNS = [
     "question_id",
@@ -169,16 +175,11 @@ def load_image_file(img_path: Path) -> Image.Image:
     return img
 
 
-def pil_to_gemini_part(img: Image.Image) -> Dict:
-    """Convert a PIL Image to an inline_data part for the Gemini API."""
+def pil_to_b64(img: Image.Image) -> str:
+    """Convert a PIL Image to a base64-encoded JPEG string for the OpenAI vision format."""
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=JPEG_QUALITY)
-    return {
-        "inline_data": {
-            "mime_type": "image/jpeg",
-            "data": buf.getvalue(),
-        }
-    }
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 
 def crop_diagram(
@@ -213,34 +214,45 @@ def crop_diagram(
 
 # ── Gemini API ────────────────────────────────────────────────────────────────
 
-def gemini_call(model, parts: List, prompt: str, retries: int = MAX_RETRIES) -> Optional[str]:
+def ai_call(client: OpenAI, images: List[Image.Image], prompt: str, retries: int = MAX_RETRIES) -> Optional[str]:
     """
-    Send a multimodal request to Gemini. Returns the text response or None.
-    Handles rate-limit errors with exponential backoff.
+    Send a multimodal request to Gemini via OpenRouter.
+    Images are sent as base64 data URLs in the OpenAI vision format.
+    Returns the text response or None on failure.
     """
-    content = parts + [{"text": prompt}]
+    # Build content: one image block per page, then the text prompt
+    content: List[Dict] = []
+    for img in images:
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/jpeg;base64,{pil_to_b64(img)}"},
+        })
+    content.append({"type": "text", "text": prompt})
+
     for attempt in range(retries):
         try:
-            response = model.generate_content(content)
-            return response.text
+            response = client.chat.completions.create(
+                model=MODEL,
+                messages=[{"role": "user", "content": content}],
+                max_tokens=4096,
+            )
+            return response.choices[0].message.content
         except Exception as e:
             err = str(e).lower()
-            # Hard failures — no point retrying
-            if "permission_denied" in err or "api key" in err or "leaked" in err or "401" in err or "403" in err:
+            if "401" in err or "403" in err or "invalid" in err or "unauthorized" in err:
                 print(f"      [AUTH ERROR] {e}")
-                print(f"      Your API key may be invalid, leaked, or missing billing. Get a fresh key at aistudio.google.com/app/apikey")
+                print(f"      Check your OpenRouter API key at openrouter.ai/keys")
                 return None
-            elif "quota" in err or "rate" in err or "429" in err or "resource_exhausted" in err:
+            elif "429" in err or "rate" in err or "quota" in err or "limit" in err:
                 wait = RETRY_BASE_DELAY * (2 ** attempt)
-                print(f"      [RATE LIMIT] {e}")
-                print(f"      Waiting {wait}s before retry {attempt + 1}/{retries}...")
+                print(f"      [RATE LIMIT] Waiting {wait}s before retry {attempt + 1}/{retries}...")
                 time.sleep(wait)
             elif attempt < retries - 1:
                 wait = RETRY_BASE_DELAY * (attempt + 1)
                 print(f"      [ERROR] {e} — retrying in {wait}s...")
                 time.sleep(wait)
             else:
-                print(f"      [FAILED] Gemini call failed after {retries} attempts: {e}")
+                print(f"      [FAILED] after {retries} attempts: {e}")
                 return None
     return None
 
@@ -268,10 +280,9 @@ def parse_json_response(text: str) -> Any:
 
 # ── Paper metadata extraction ─────────────────────────────────────────────────
 
-def get_paper_metadata(model, first_page_img: Image.Image) -> Dict:
+def get_paper_metadata(client: OpenAI, first_page_img: Image.Image) -> Dict:
     """Extract metadata (unit code, year, institution, etc.) from the first page."""
-    parts = [pil_to_gemini_part(first_page_img)]
-    raw = gemini_call(model, parts, METADATA_PROMPT)
+    raw = ai_call(client, [first_page_img], METADATA_PROMPT)
     time.sleep(RATE_LIMIT_DELAY)
     if not raw:
         return {}
@@ -284,16 +295,15 @@ def get_paper_metadata(model, first_page_img: Image.Image) -> Dict:
 # ── Question extraction ───────────────────────────────────────────────────────
 
 def extract_questions_from_pages(
-    model,
+    client: OpenAI,
     pages: List[Image.Image],
     page_offset: int = 0,
 ) -> List[Dict]:
     """
-    Send up to MAX_PAGES_PER_CALL pages to Gemini and return extracted questions.
+    Send up to MAX_PAGES_PER_CALL pages to Gemini via OpenRouter and return extracted questions.
     page_offset is added to diagram_page indices so they refer to the correct original page.
     """
-    parts = [pil_to_gemini_part(p) for p in pages]
-    raw = gemini_call(model, parts, EXTRACTION_PROMPT)
+    raw = ai_call(client, pages, EXTRACTION_PROMPT)
     time.sleep(RATE_LIMIT_DELAY)
     if not raw:
         return []
@@ -310,7 +320,7 @@ def extract_questions_from_pages(
 # ── Per-paper processing ──────────────────────────────────────────────────────
 
 def process_paper(
-    model,
+    client: OpenAI,
     pages: List[Image.Image],
     source_name: str,
     diagrams_dir: Path,
@@ -322,7 +332,7 @@ def process_paper(
 
     # Step 1: Metadata from first page
     print("   Extracting metadata...")
-    meta = get_paper_metadata(model, pages[0])
+    meta = get_paper_metadata(client, pages[0])
     print(f"   Metadata: {meta.get('unit_code', '?')} | {meta.get('unit_name', '?')} | {meta.get('year', '?')}")
 
     # Step 2: Extract questions in page batches
@@ -331,7 +341,7 @@ def process_paper(
     while batch_start < len(pages):
         batch = pages[batch_start: batch_start + MAX_PAGES_PER_CALL]
         print(f"   Extracting questions from pages {batch_start + 1}–{batch_start + len(batch)}...")
-        questions = extract_questions_from_pages(model, batch, page_offset=batch_start)
+        questions = extract_questions_from_pages(client, batch, page_offset=batch_start)
         print(f"   → {len(questions)} questions extracted")
         all_questions.extend(questions)
         batch_start += MAX_PAGES_PER_CALL
@@ -480,8 +490,11 @@ def main():
     args.api_key = api_key
 
     # ── Setup ─────────────────────────────────────────────────────────────────
-    genai.configure(api_key=args.api_key)
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    client = OpenAI(
+        api_key=args.api_key,
+        base_url=OPENROUTER_BASE_URL,
+    )
+    print(f" Model: {MODEL}")
 
     input_path  = Path(args.input)
     output_path = Path(args.output)
@@ -540,7 +553,7 @@ def main():
                     if not pages:
                         continue
                     print(f"   Paper: {source_name}")
-                    rows = process_paper(model, pages, source_name, diagrams_dir)
+                    rows = process_paper(client, pages, source_name, diagrams_dir)
                     for row in rows:
                         writer.writerow(row)
                     csv_file.flush()
