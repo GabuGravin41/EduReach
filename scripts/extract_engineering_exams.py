@@ -84,7 +84,7 @@ CSV_COLUMNS = [
     "diagram_file",
     "diagram_description",
     "tags",
-    "model_solution",
+    "model_solution",   # blank at extraction time — filled by generate_solutions.py
     "status",
 ]
 
@@ -117,12 +117,13 @@ STRICT RULES:
    - Set has_diagram = true
    - In diagram_bbox provide [ymin, xmin, ymax, xmax] on a 0-1000 scale relative to the page
    - diagram_page = 0-based index of which image (page) the diagram appears on
-4. Write model_solution as a complete, detailed step-by-step worked solution with all math shown.
-5. Infer difficulty: easy (recall/definition, 1-3 marks), medium (application, 4-8 marks), hard (design/analysis, 9+ marks or complex derivation).
-6. Tags should be specific engineering topics, e.g. ["KVL", "mesh analysis", "Thevenin theorem"].
-7. If a question continues across multiple pages, combine it into one entry.
-8. Marks are usually shown as [X marks], (X marks), or in a marks column — extract them as a number.
-9. Do NOT include instructions, section headers, or cover page text as questions.
+   - diagram_description = what the diagram shows (e.g. "Series RLC circuit with voltage source")
+4. Infer difficulty: easy (recall/definition, 1-3 marks), medium (application, 4-8 marks), hard (design/analysis, 9+ marks or complex derivation).
+5. Tags should be specific engineering topics, e.g. ["KVL", "mesh analysis", "Thevenin theorem"].
+6. If a question continues across multiple pages, combine it into one entry.
+7. Marks are usually shown as [X marks], (X marks), or in a marks column — extract as a number.
+8. Do NOT include instructions, section headers, or cover page text as questions.
+9. If a question gives data values (resistances, voltages, frequencies, etc.) include them exactly.
 
 Return ONLY a valid JSON array. If no questions are on these pages return [].
 
@@ -137,8 +138,7 @@ Return ONLY a valid JSON array. If no questions are on these pages return [].
     "diagram_description": null,
     "diagram_page": null,
     "diagram_bbox": null,
-    "tags": ["KVL", "mesh analysis"],
-    "model_solution": "Step 1: ...\n\nStep 2: ...\n\n$$final = answer$$"
+    "tags": ["KVL", "mesh analysis"]
   }
 ]
 
@@ -377,7 +377,7 @@ def process_paper(
             "diagram_file":      diagram_file,
             "diagram_description": q.get("diagram_description") or "",
             "tags":              tags,
-            "model_solution":    q.get("model_solution") or "",
+            "model_solution":    "",   # filled later by generate_solutions.py
             "status":            "extracted",
         })
 
