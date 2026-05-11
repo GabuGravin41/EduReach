@@ -225,9 +225,15 @@ def gemini_call(model, parts: List, prompt: str, retries: int = MAX_RETRIES) -> 
             return response.text
         except Exception as e:
             err = str(e).lower()
-            if "quota" in err or "rate" in err or "429" in err:
+            # Hard failures — no point retrying
+            if "permission_denied" in err or "api key" in err or "leaked" in err or "401" in err or "403" in err:
+                print(f"      [AUTH ERROR] {e}")
+                print(f"      Your API key may be invalid, leaked, or missing billing. Get a fresh key at aistudio.google.com/app/apikey")
+                return None
+            elif "quota" in err or "rate" in err or "429" in err or "resource_exhausted" in err:
                 wait = RETRY_BASE_DELAY * (2 ** attempt)
-                print(f"      [RATE LIMIT] Waiting {wait}s before retry {attempt + 1}/{retries}...")
+                print(f"      [RATE LIMIT] {e}")
+                print(f"      Waiting {wait}s before retry {attempt + 1}/{retries}...")
                 time.sleep(wait)
             elif attempt < retries - 1:
                 wait = RETRY_BASE_DELAY * (attempt + 1)
@@ -448,16 +454,34 @@ def main():
     parser = argparse.ArgumentParser(
         description="EduReach Engineering Exam Question Extractor"
     )
-    parser.add_argument("--input",   required=True,  help="Input folder or file (PDF/PNG/JPG/ZIP)")
-    parser.add_argument("--output",  required=True,  help="Output folder (will be created)")
-    parser.add_argument("--api-key", required=True,  help="Google Gemini API key")
-    parser.add_argument("--resume",  action="store_true", help="Skip already-processed files")
-    parser.add_argument("--limit",   type=int, default=0, help="Max papers to process (0 = all)")
+    parser.add_argument("--input",    required=True,  help="Input folder or file (PDF/PNG/JPG/ZIP)")
+    parser.add_argument("--output",   required=True,  help="Output folder (will be created)")
+    parser.add_argument("--api-key",  default="",     help="Google Gemini API key (or set via GEMINI_API_KEY env var)")
+    parser.add_argument("--env-file", default="",     help="Path to .env file to load GEMINI_API_KEY from")
+    parser.add_argument("--resume",   action="store_true", help="Skip already-processed files")
+    parser.add_argument("--limit",    type=int, default=0, help="Max papers to process (0 = all)")
     args = parser.parse_args()
+
+    # Resolve API key: flag > .env file > environment variable
+    api_key = args.api_key
+    if not api_key and args.env_file:
+        env_path = Path(args.env_file)
+        if env_path.exists():
+            for line in env_path.read_text().splitlines():
+                line = line.strip()
+                if line.startswith("GEMINI_API_KEY="):
+                    api_key = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    break
+    if not api_key:
+        api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        print("[ERROR] No API key provided. Use --api-key, --env-file, or set GEMINI_API_KEY env var.")
+        sys.exit(1)
+    args.api_key = api_key
 
     # ── Setup ─────────────────────────────────────────────────────────────────
     genai.configure(api_key=args.api_key)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-2.0-flash")
 
     input_path  = Path(args.input)
     output_path = Path(args.output)
