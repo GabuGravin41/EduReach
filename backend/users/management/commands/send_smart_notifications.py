@@ -302,13 +302,13 @@ class Command(BaseCommand):
 
             count = 0
             # Find users who are within 10% of the next XP level
-            for user in User.objects.filter(is_active=True, xp__gt=0):
-                xp_needed = _xp_to_next_level(user.xp or 0)
+            for user in User.objects.filter(is_active=True, xp_points__gt=0):
+                xp_needed = _xp_to_next_level(user.xp_points or 0)
                 if xp_needed is None:
                     continue  # max level
-                current_level = _level_for_xp(user.xp or 0)
+                current_level = _level_for_xp(user.xp_points or 0)
                 # Next threshold
-                next_threshold = (user.xp or 0) + xp_needed
+                next_threshold = (user.xp_points or 0) + xp_needed
                 # Within 10% of next level
                 if xp_needed <= next_threshold * 0.10:
                     title = f'⚡ You\'re almost Level {current_level + 1}, {user.first_name or user.username}!'
