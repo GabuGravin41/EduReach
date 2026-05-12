@@ -21,7 +21,19 @@
       "Bash(ssh root@37.60.227.186 \"cd /opt/edureach/backend && git pull origin main && systemctl restart edureach.service && echo OK\")",
       "Bash(python manage.py makemigrations users --name=\"add_site_visit\")",
       "Bash(python3 manage.py makemigrations users --name=\"add_site_visit\")",
-      "Bash(python3 manage.py showmigrations users)"
+      "Bash(python3 manage.py showmigrations users)",
+      "Bash(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@37.60.227.186 \"echo connected && whoami && pwd\")",
+      "Bash(ssh -o StrictHostKeyChecking=no root@37.60.227.186 \"find / -name 'manage.py' 2>/dev/null | grep -v proc | head -5\")",
+      "Bash(ssh -o StrictHostKeyChecking=no root@37.60.227.186 \"cd /opt/edureach && git pull origin main 2>&1\")",
+      "Bash(ssh -o StrictHostKeyChecking=no root@37.60.227.186 \"cd /opt/edureach/backend && python3 manage.py migrate users --noinput 2>&1\")",
+      "Bash(ssh -o StrictHostKeyChecking=no root@37.60.227.186 \"find /opt/edureach -name 'activate' 2>/dev/null | head -5; find /root -name 'activate' 2>/dev/null | head -3\")",
+      "Bash(ssh -o StrictHostKeyChecking=no root@37.60.227.186 \"source /opt/edureach/venv/bin/activate && cd /opt/edureach/backend && python manage.py migrate users --noinput 2>&1\")",
+      "Bash(ssh -o StrictHostKeyChecking=no root@37.60.227.186 \"source /opt/edureach/venv/bin/activate && cd /opt/edureach/backend && python manage.py makemigrations --merge users --noinput 2>&1\")",
+      "Bash(ssh -o StrictHostKeyChecking=no root@37.60.227.186 \"source /opt/edureach/venv/bin/activate && cd /opt/edureach/backend && python manage.py migrate --noinput 2>&1\")",
+      "Bash(ssh -o StrictHostKeyChecking=no root@37.60.227.186 \"cat /opt/edureach/backend/users/migrations/0013_merge_20260508_1523.py\")",
+      "Bash(ssh -o StrictHostKeyChecking=no root@37.60.227.186 \"systemctl list-units --type=service --state=running 2>/dev/null | grep -i 'edureach\\\\|gunicorn\\\\|django\\\\|celery' | head -10; ls /etc/systemd/system/ 2>/dev/null | grep -i 'edureach\\\\|gunicorn'\")",
+      "Bash(ssh -o StrictHostKeyChecking=no root@37.60.227.186 \"systemctl restart edureach && sleep 3 && systemctl status edureach --no-pager | tail -8\")",
+      "Bash(ssh -o StrictHostKeyChecking=no root@37.60.227.186 \"source /opt/edureach/venv/bin/activate && cd /opt/edureach/backend && python manage.py shell -c \\\\\"from payments.models import PaymentMethod; print\\(list\\(PaymentMethod.objects.values\\('id','name','is_active'\\)\\)\\)\\\\\" 2>&1 | grep -v Warning\")"
     ]
   }
 }

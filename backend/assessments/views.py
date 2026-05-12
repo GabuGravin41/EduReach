@@ -694,6 +694,39 @@ class AssessmentViewSet(viewsets.ModelViewSet):
             'count': len(submitted),
         }, status=status.HTTP_202_ACCEPTED)
 
+    @action(detail=True, methods=['post'], url_path='save-ai-feedback',
+            permission_classes=[permissions.IsAuthenticated])
+    def save_ai_feedback(self, request, pk=None):
+        """
+        POST /api/assessments/<id>/save-ai-feedback/
+        Body: { question_id, score (0-100), feedback }
+        Saves client-side AI grading result into the user's attempt so it
+        persists across page refreshes.
+        """
+        assessment = self.get_object()
+        question_id = str(request.data.get('question_id', '')).strip()
+        score = request.data.get('score')
+        feedback = request.data.get('feedback', '')
+
+        if not question_id or score is None:
+            return Response({'detail': 'question_id and score required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        attempt = (
+            UserAttempt.objects
+            .filter(assessment=assessment, user=request.user,
+                    status__in=[UserAttempt.Status.SUBMITTED, UserAttempt.Status.GRADED])
+            .order_by('-submitted_at')
+            .first()
+        )
+        if not attempt:
+            return Response({'detail': 'No submitted attempt found'}, status=status.HTTP_404_NOT_FOUND)
+
+        qr = dict(attempt.question_results or {})
+        qr[question_id] = {**qr.get(question_id, {}), 'ai_score': score, 'ai_feedback': feedback, 'pending_review': False}
+        attempt.question_results = qr
+        attempt.save(update_fields=['question_results'])
+        return Response({'saved': True})
+
     @action(detail=False, methods=['get'])
     def my_assessments(self, request):
         """Get assessments created by the current user."""

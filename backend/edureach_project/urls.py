@@ -19,6 +19,7 @@ urlpatterns = [
     path('api/', include('notes.urls')),
     path('api/payments/', include('payments.urls')),
     path('api/', include('api.urls')),  # YouTube, analytics, and other API endpoints
+    path('api/engineering/', include('engineering.urls')),
 ]
 
 if settings.DEBUG or getattr(settings, 'SERVE_MEDIA_FILES', False):

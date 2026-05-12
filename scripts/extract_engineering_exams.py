@@ -234,7 +234,7 @@ def ai_call(client: OpenAI, images: List[Image.Image], prompt: str, retries: int
             response = client.chat.completions.create(
                 model=MODEL,
                 messages=[{"role": "user", "content": content}],
-                max_tokens=4096,
+                max_tokens=1200,
             )
             return response.choices[0].message.content
         except Exception as e:

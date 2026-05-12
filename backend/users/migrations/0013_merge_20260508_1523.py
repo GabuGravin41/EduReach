@@ -7,7 +7,6 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('users', '0012_add_site_visit'),
-        ('users', '0012_alter_notification_notif_type_and_more'),
     ]
 
     operations = [

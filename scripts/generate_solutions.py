@@ -64,15 +64,15 @@ Solution:"""
 
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-MODEL = "google/gemini-2.0-flash-exp:free"
+MODEL = "google/gemini-2.0-flash-001"
 
-def call_ai(client: OpenAI, prompt: str, retries: int = MAX_RETRIES) -> str:
+def call_ai(client: OpenAI, prompt: str, model: str = MODEL, retries: int = MAX_RETRIES) -> str:
     for attempt in range(retries):
         try:
             response = client.chat.completions.create(
-                model=MODEL,
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=4096,
+                max_tokens=1500,
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
@@ -117,7 +117,8 @@ def main():
     args = parser.parse_args()
 
     api_key = args.api_key
-    if not api_key and args.env_file:
+    model = MODEL
+    if args.env_file:
         env_path = Path(args.env_file)
         if env_path.exists():
             for line in env_path.read_text().splitlines():
@@ -125,11 +126,12 @@ def main():
                 if line.startswith("#") or "=" not in line:
                     continue
                 key_name, _, val = line.partition("=")
-                if key_name.strip() in ("OPENROUTER_API_KEY", "GEMINI_API_KEY"):
-                    candidate = val.strip().strip('"').strip("'")
-                    if candidate:
-                        api_key = candidate
-                        break
+                key_name = key_name.strip()
+                val = val.strip().strip('"').strip("'")
+                if not api_key and key_name in ("OPENROUTER_API_KEY", "GEMINI_API_KEY") and val:
+                    api_key = val
+                if key_name == "OPENROUTER_MODEL" and val:
+                    model = val
     if not api_key:
         api_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
@@ -137,6 +139,7 @@ def main():
         sys.exit(1)
 
     client = OpenAI(api_key=api_key, base_url=OPENROUTER_BASE_URL)
+    print(f" Model           : {model}")
 
     csv_path = Path(args.csv)
     if not csv_path.exists():
@@ -189,7 +192,7 @@ def main():
             question_type=row.get("question_type", ""),
         )
 
-        solution = call_ai(client, prompt)
+        solution = call_ai(client, prompt, model=model)
         if solution:
             rows[idx]["model_solution"] = solution
             rows[idx]["status"] = "solution_generated"
