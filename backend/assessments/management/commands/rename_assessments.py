@@ -129,11 +129,18 @@ class Command(BaseCommand):
                 continue
 
             old_title = assessment.title
-            assessment.title = result['title'][:200]
+            new_title = result['title'][:200]
+            # Disambiguate if a duplicate title exists for the same creator
+            from assessments.models import Assessment as Ass  # noqa: PLC0415
+            suffix = 2
+            candidate = new_title
+            while Ass.objects.filter(creator=assessment.creator, title=candidate).exclude(pk=assessment.pk).exists():
+                candidate = f'{new_title} ({suffix})'
+                suffix += 1
+            assessment.title = candidate
             if result.get('description'):
                 assessment.description = result['description']
             if result.get('tags'):
-                # Merge new AI tags with existing tags
                 existing = set(t.lower() for t in (assessment.tags or []))
                 new_tags = set(t.lower().strip() for t in result['tags'])
                 assessment.tags = sorted(existing | new_tags)
