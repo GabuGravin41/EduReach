@@ -322,6 +322,17 @@ Respond ONLY with valid JSON (no markdown, no extra text):
 }}"""
 
 
+def _clean_json(text: str) -> str:
+    """Strip markdown fences and fix common LLM JSON issues (trailing commas, comments)."""
+    text = re.sub(r'^```(?:json)?\s*', '', text)
+    text = re.sub(r'\s*```$', '', text)
+    # Remove trailing commas before ] or }
+    text = re.sub(r',\s*([}\]])', r'\1', text)
+    # Remove single-line // comments
+    text = re.sub(r'//[^\n]*', '', text)
+    return text.strip()
+
+
 def _generate_mcq_questions(field_display, title, hint):
     from ai_service.views import call_openrouter  # noqa: PLC0415
 
@@ -333,8 +344,7 @@ def _generate_mcq_questions(field_display, title, hint):
         read_timeout_override=90,
     )
     text = result.text.strip()
-    text = re.sub(r'^```(?:json)?\s*', '', text)
-    text = re.sub(r'\s*```$', '', text)
+    text = _clean_json(text)
     return json.loads(text).get('questions', [])
 
 
@@ -349,8 +359,7 @@ def _generate_exam_questions(field_display, title, hint):
         read_timeout_override=120,
     )
     text = result.text.strip()
-    text = re.sub(r'^```(?:json)?\s*', '', text)
-    text = re.sub(r'\s*```$', '', text)
+    text = _clean_json(text)
     return json.loads(text).get('questions', [])
 
 
