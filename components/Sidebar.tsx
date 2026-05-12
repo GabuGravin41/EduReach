@@ -89,7 +89,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
     { id: 'analytics',        label: 'Analytics',       icon: AnalyticsIcon,      adminOnly: false, educatorOnly: false },
     { id: 'community',        label: 'Community',       icon: UsersIcon,          adminOnly: false, educatorOnly: false },
     { id: 'study_groups',     label: 'Study Groups',    icon: UsersIcon,          adminOnly: false, educatorOnly: false },
-    { id: 'engineering',      label: 'Eng. Problems',   icon: BookOpenIcon,       adminOnly: false, educatorOnly: false },
     { id: 'billing',          label: 'Billing & Plans', icon: PriceTagIcon,       adminOnly: false, educatorOnly: false },
   ];
 

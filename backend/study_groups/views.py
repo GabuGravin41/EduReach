@@ -248,17 +248,11 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
         if not member_ids:
             return Response([])
 
-        assessments = Assessment.objects.filter(
-            group_challenges__group=group,
-        ).distinct()
-        if not assessments.exists():
-            return Response([])
-
+        # Include ALL graded attempts by group members (not just challenge-linked ones)
         attempts_qs = UserAttempt.objects.filter(
-            assessment__in=assessments,
             user_id__in=member_ids,
             status=UserAttempt.Status.GRADED,
-        ).select_related('user', 'assessment')
+        ).select_related('user', 'assessment').order_by('-submitted_at')
 
         by_user = {}
         for attempt in attempts_qs:

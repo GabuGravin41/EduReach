@@ -53,7 +53,6 @@ const PrivacyPolicyPage = lazy(() => import('./components/PrivacyPolicyPage').th
 const JoinExamPage = lazy(() => import('./components/JoinExamPage'));
 const ExamSessionsPage = lazy(() => import('./components/ExamSessionsPage'));
 const PersonalSessionsPage = lazy(() => import('./components/PersonalSessionsPage').then(m => ({ default: m.PersonalSessionsPage })));
-const EngineeringProblemsPage = lazy(() => import('./components/EngineeringProblemsPage').then(m => ({ default: m.EngineeringProblemsPage })));
 
   
 export type UserTier = 'free' | 'learner' | 'pro' | 'pro_plus' | 'admin';
@@ -996,8 +995,6 @@ const AppContent: React.FC = () => {
           if (!isEducator) { setView('dashboard'); return null; }
           return <ExamSessionsPage userAssessments={assessments.map(a => ({ id: a.id, title: a.title }))} />;
         }
-        case 'engineering':
-          return <EngineeringProblemsPage />;
         default:
           return (
             <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-10 text-center">
