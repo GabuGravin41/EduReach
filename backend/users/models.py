@@ -337,6 +337,10 @@ class Notification(models.Model):
         STUDY_REMINDER = 'study_reminder', 'Study Reminder'
         ASSESSMENT_GRADED = 'assessment_graded', 'Assessment Graded'
         MISSING_TRANSCRIPT = 'missing_transcript', 'Missing Transcript'
+        FEATURE_ANNOUNCEMENT = 'feature_announcement', 'Feature Announcement'
+        CONTINUE_LEARNING = 'continue_learning', 'Continue Learning'
+        NEW_CONTENT = 'new_content', 'New Content Available'
+        ACHIEVEMENT_NEAR = 'achievement_near', 'Achievement Near'
 
     recipient = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name='notifications'
