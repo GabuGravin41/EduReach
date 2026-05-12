@@ -330,12 +330,12 @@ def _generate_mcq_questions(field_display, title, hint):
 
     prompt = MCQ_PROMPT.format(field_display=field_display, title=title, hint=hint)
     result = call_openrouter(
-        messages=[{"role": "user", "content": prompt}],
+        prompt,
         model_name=MCQ_MODEL,
         max_tokens=2500,
-        temperature=0.4,
+        read_timeout_override=90,
     )
-    text = result.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+    text = result.text.strip()
     text = re.sub(r'^```(?:json)?\s*', '', text)
     text = re.sub(r'\s*```$', '', text)
     return json.loads(text).get('questions', [])
@@ -346,12 +346,12 @@ def _generate_exam_questions(field_display, title, hint):
 
     prompt = EXAM_PROMPT.format(field_display=field_display, title=title, hint=hint)
     result = call_openrouter(
-        messages=[{"role": "user", "content": prompt}],
+        prompt,
         model_name=EXAM_MODEL,
         max_tokens=3500,
-        temperature=0.3,
+        read_timeout_override=120,
     )
-    text = result.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+    text = result.text.strip()
     text = re.sub(r'^```(?:json)?\s*', '', text)
     text = re.sub(r'\s*```$', '', text)
     return json.loads(text).get('questions', [])

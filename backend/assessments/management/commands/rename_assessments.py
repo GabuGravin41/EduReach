@@ -54,12 +54,11 @@ Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
 
     try:
         result = call_openrouter(
-            messages=[{"role": "user", "content": prompt}],
+            prompt,
             model_name='google/gemini-2.0-flash-001',
             max_tokens=300,
-            temperature=0.2,
         )
-        text = result.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+        text = result.text.strip()
         # Strip markdown fences if present
         text = re.sub(r'^```(?:json)?\s*', '', text)
         text = re.sub(r'\s*```$', '', text)
