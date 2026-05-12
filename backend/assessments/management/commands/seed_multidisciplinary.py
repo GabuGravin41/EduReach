@@ -250,7 +250,7 @@ Subject focus: {hint}
 
 Generate exactly 10 multiple-choice questions. Requirements:
 - Clearly worded, educationally accurate, appropriately challenging for university level
-- Each question must have exactly 4 options labelled A, B, C, D
+- Each question must have exactly 4 options as a JSON list
 - One option must be correct; the other three must be plausible (not obviously wrong)
 - Include a brief explanation (1–2 sentences) for the correct answer
 - Cover different subtopics within the subject focus
@@ -261,11 +261,8 @@ Respond ONLY with valid JSON (no markdown, no extra text):
   "questions": [
     {{
       "question_text": "...",
-      "option_a": "...",
-      "option_b": "...",
-      "option_c": "...",
-      "option_d": "...",
-      "correct_answer": "A",
+      "options": ["Option A text", "Option B text", "Option C text", "Option D text"],
+      "correct_answer": "Option A text",
       "explanation": "..."
     }}
   ]
@@ -280,19 +277,19 @@ Subject focus: {hint}
 Create an examination paper with THREE sections:
 
 SECTION A — Multiple Choice (5 questions, 2 marks each = 10 marks, ALL compulsory)
-- Short, direct MCQ questions with 4 options (A, B, C, D)
-- Include correct_answer and explanation
+- Short, direct MCQ questions with exactly 4 options as a JSON list
+- Include correct_answer (full text of the correct option) and explanation
 
 SECTION B — Short Answer Questions (3 questions, 10 marks each — student attempts ANY 2 = 20 marks)
 - Each question should have 2–3 sub-parts (i, ii, iii)
 - Requires written explanation, calculation, or short paragraphs
 - Marks allocation shown per sub-part
-- No options; correct_answer should be a model answer (3–5 sentences)
+- No options (empty list []); correct_answer should be a model answer (3–5 sentences)
 
 SECTION C — Essay / Long Answer (2 questions, 20 marks each — student attempts ANY 1 = 20 marks)
 - Broad, analytical questions requiring extended written response
 - Include marking guidance in the explanation
-- No options; correct_answer should be a comprehensive model answer
+- No options (empty list []); correct_answer should be a comprehensive model answer
 
 Respond ONLY with valid JSON (no markdown, no extra text):
 {{
@@ -300,15 +297,15 @@ Respond ONLY with valid JSON (no markdown, no extra text):
     {{
       "section": "A",
       "question_text": "...",
-      "option_a": "...", "option_b": "...", "option_c": "...", "option_d": "...",
-      "correct_answer": "A",
+      "options": ["Option A text", "Option B text", "Option C text", "Option D text"],
+      "correct_answer": "Option A text",
       "explanation": "...",
       "points": 2
     }},
     {{
       "section": "B",
       "question_text": "(a) ... [4 marks]\\n(b) ... [3 marks]\\n(c) ... [3 marks]",
-      "option_a": "", "option_b": "", "option_c": "", "option_d": "",
+      "options": [],
       "correct_answer": "Model answer: ...",
       "explanation": "Marking guidance: ...",
       "points": 10
@@ -316,7 +313,7 @@ Respond ONLY with valid JSON (no markdown, no extra text):
     {{
       "section": "C",
       "question_text": "...",
-      "option_a": "", "option_b": "", "option_c": "", "option_d": "",
+      "options": [],
       "correct_answer": "Model answer: ...",
       "explanation": "Marking guidance: ...",
       "points": 20
@@ -358,11 +355,12 @@ def _generate_exam_questions(field_display, title, hint):
 
 
 def _validate_question(q):
+    opts = q.get('options', [])
     return (
         q.get('question_text') and
-        q.get('option_a') and q.get('option_b') and
-        q.get('option_c') and q.get('option_d') and
-        q.get('correct_answer', '').upper() in ('A', 'B', 'C', 'D')
+        isinstance(opts, list) and len(opts) == 4 and
+        q.get('correct_answer') and
+        q['correct_answer'] in opts
     )
 
 
@@ -471,16 +469,12 @@ class Command(BaseCommand):
                             action = 'Created'
 
                         for order, q in enumerate(valid_mcqs, start=1):
-                            correct_letter = q['correct_answer'].upper()
-                            options_map = {'A': q['option_a'], 'B': q['option_b'],
-                                           'C': q['option_c'], 'D': q['option_d']}
                             Question.objects.create(
                                 assessment=quiz,
                                 question_text=q['question_text'],
                                 question_type=Question.QuestionType.MCQ,
-                                option_a=q['option_a'], option_b=q['option_b'],
-                                option_c=q['option_c'], option_d=q['option_d'],
-                                correct_answer=options_map.get(correct_letter, q['option_a']),
+                                options=q.get('options', []),
+                                correct_answer=q['correct_answer'],
                                 explanation=q.get('explanation', ''),
                                 points=1,
                                 order=order,
@@ -546,16 +540,12 @@ class Command(BaseCommand):
                         for order, q in enumerate(exam_qs, start=1):
                             sec = q.get('section', 'A')
                             if sec == 'A' and _validate_question(q):
-                                correct_letter = q['correct_answer'].upper()
-                                options_map = {'A': q['option_a'], 'B': q['option_b'],
-                                               'C': q['option_c'], 'D': q['option_d']}
                                 Question.objects.create(
                                     assessment=exam,
                                     question_text=f'[Section A] {q["question_text"]}',
                                     question_type=Question.QuestionType.MCQ,
-                                    option_a=q['option_a'], option_b=q['option_b'],
-                                    option_c=q['option_c'], option_d=q['option_d'],
-                                    correct_answer=options_map.get(correct_letter, q['option_a']),
+                                    options=q.get('options', []),
+                                    correct_answer=q['correct_answer'],
                                     explanation=q.get('explanation', ''),
                                     points=int(q.get('points', 2)),
                                     order=order,
@@ -567,6 +557,7 @@ class Command(BaseCommand):
                                     assessment=exam,
                                     question_text=f'[{section_label}] {q["question_text"]}',
                                     question_type=Question.QuestionType.ESSAY,
+                                    options=[],
                                     correct_answer=q.get('correct_answer', ''),
                                     explanation=q.get('explanation', ''),
                                     points=int(q.get('points', 10)),
