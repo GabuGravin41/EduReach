@@ -1094,6 +1094,28 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
         ))}
       </div>
 
+      {/* Grade with AI — bottom repeat (visible after scrolling through all questions) */}
+      {isSubmitted && !isFullyGraded && assessmentId && (
+        <div className="max-w-4xl mx-auto mt-4">
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-700 px-5 py-4 flex flex-wrap gap-3 items-center">
+            <SparklesIcon className="w-5 h-5 text-indigo-500 flex-none" />
+            <span className="text-sm font-medium text-indigo-800 dark:text-indigo-200 flex-1">Ready to grade your written answers?</span>
+            <Button
+              onClick={handleMarkWithAI}
+              disabled={isMarking}
+              className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white border-0"
+            >
+              {isMarking ? (
+                <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />AI Grading…</>
+              ) : (
+                <><SparklesIcon className="w-4 h-4" />Grade All with AI</>
+              )}
+            </Button>
+            {markError && <p className="w-full text-sm text-rose-600 dark:text-rose-400 mt-1">{markError}</p>}
+          </div>
+        </div>
+      )}
+
       {/* Submit button */}
       {!isSubmitted && (
         <div className="max-w-4xl mx-auto mt-8 flex justify-end">

@@ -273,8 +273,8 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         attempt = UserAttempt.objects.filter(
             assessment=assessment,
             user=request.user,
-            status=UserAttempt.Status.SUBMITTED
-        ).first()
+            status__in=[UserAttempt.Status.SUBMITTED, UserAttempt.Status.GRADED]
+        ).order_by('-submitted_at').first()
         if not attempt:
             return Response(
                 {'detail': 'No submitted attempt found to grade.'},
@@ -284,8 +284,7 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         def grade_in_background():
             try:
                 attempt.refresh_from_db()
-                if attempt.status == UserAttempt.Status.SUBMITTED:
-                    attempt.calculate_score()
+                attempt.calculate_score()
             except Exception:
                 pass
 
