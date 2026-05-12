@@ -239,8 +239,8 @@ SUBJECTS = {
 
 # ── AI Question Generator ─────────────────────────────────────────────────────
 
-MCQ_MODEL   = 'google/gemini-2.0-flash-001'       # fast, cheap — good for quizzes
-EXAM_MODEL  = 'google/gemini-2.5-flash-preview'   # stronger — better for exam-quality essay Qs
+MCQ_MODEL   = 'google/gemini-2.0-flash-001'
+EXAM_MODEL  = 'google/gemini-2.0-flash-001'
 
 MCQ_PROMPT = """You are an expert educator creating a high-quality multiple-choice practice quiz for university students.
 
@@ -477,7 +477,7 @@ class Command(BaseCommand):
                             Question.objects.create(
                                 assessment=quiz,
                                 question_text=q['question_text'],
-                                question_type=Question.QuestionType.MULTIPLE_CHOICE,
+                                question_type=Question.QuestionType.MCQ,
                                 option_a=q['option_a'], option_b=q['option_b'],
                                 option_c=q['option_c'], option_d=q['option_d'],
                                 correct_answer=options_map.get(correct_letter, q['option_a']),
@@ -552,7 +552,7 @@ class Command(BaseCommand):
                                 Question.objects.create(
                                     assessment=exam,
                                     question_text=f'[Section A] {q["question_text"]}',
-                                    question_type=Question.QuestionType.MULTIPLE_CHOICE,
+                                    question_type=Question.QuestionType.MCQ,
                                     option_a=q['option_a'], option_b=q['option_b'],
                                     option_c=q['option_c'], option_d=q['option_d'],
                                     correct_answer=options_map.get(correct_letter, q['option_a']),
