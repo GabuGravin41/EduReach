@@ -244,12 +244,12 @@ const AppContent: React.FC = () => {
       return () => clearInterval(interval);
     }, [user]);
 
-    // Show onboarding modal for newly-logged-in users who haven't completed it
+    // Show onboarding modal for any first-time visitor (guest or logged-in)
     useEffect(() => {
-      if (user && !hasCompletedOnboarding()) {
+      if (!hasCompletedOnboarding()) {
         setShowOnboarding(true);
       }
-    }, [user]);
+    }, [user, isGuest]);
 
     // Close notification dropdown when clicking outside
     useEffect(() => {
@@ -745,6 +745,28 @@ const AppContent: React.FC = () => {
     }
 
     if (!user && !isGuest) {
+      // First-time visitor: show the onboarding modal over the landing page
+      if (!hasCompletedOnboarding()) {
+        return (
+          <>
+            <LandingPage onEnterAsGuest={() => { enterGuestMode(); navigate(ROUTES.dashboard, { replace: true }); }} />
+            <OnboardingModal
+              mode="visitor"
+              onComplete={() => setShowOnboarding(false)}
+              onContinueAsGuest={() => {
+                setShowOnboarding(false);
+                enterGuestMode();
+                navigate(ROUTES.dashboard, { replace: true });
+              }}
+              onSignUp={() => {
+                setShowOnboarding(false);
+                navigate('/login', { replace: true });
+              }}
+            />
+          </>
+        );
+      }
+
       if (location.pathname === '/') {
         return <LandingPage onEnterAsGuest={() => { enterGuestMode(); navigate(ROUTES.dashboard, { replace: true }); }} />;
       }
@@ -951,7 +973,7 @@ const AppContent: React.FC = () => {
                   videoId={learningSessionData.videoId}
                   transcript={learningSessionData.transcript}
                   courseId={learningSessionData.courseId || 0}
-                  currentLesson={null}
+                  currentLesson={undefined}
                   onUpdateLesson={(cId, lId, updates) => {
                       queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() });
                   }}
@@ -1274,9 +1296,12 @@ const AppContent: React.FC = () => {
           onDismiss={() => setGuestModal(null)}
         />
       )}
-      {/* Intent-first onboarding — shown once on first login */}
-      {showOnboarding && (
-        <OnboardingModal onComplete={() => setShowOnboarding(false)} />
+      {/* Onboarding for logged-in users who haven't completed it (3-slide, no CTA) */}
+      {showOnboarding && user && (
+        <OnboardingModal
+          mode="returning"
+          onComplete={() => setShowOnboarding(false)}
+        />
       )}
       {/* Daily reminder — shown once per day to active guest users */}
       {shouldShowReminder && !user && !guestModal && (

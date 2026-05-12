@@ -16,6 +16,7 @@ import { useCourses, useMyCourses } from '../src/hooks/useCourses';
 import { useMyAssessments } from '../src/hooks/useAssessments';
 import apiClient from '../src/services/api';
 import { FeatureSpotlight } from './FeatureSpotlight';
+import { getOnboardingPrefs, FIELD_LABELS } from '../src/hooks/useOnboardingPrefs';
 
 interface DashboardProps {
   onStartSession: () => void;
@@ -723,7 +724,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartSession, onSelectCo
         </div>
       )}
 
-      {/* ── Discover section ──────────────────────────────────────────── */}
+      {/* ── Study Areas ───────────────────────────────────────────────── */}
+      <StudyAreasWidget onGoToAssessments={() => navigate(ROUTES.assessments)} />
+
+      {/* ── Discover Courses ──────────────────────────────────────────── */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -753,6 +757,91 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartSession, onSelectCo
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+};
+
+// ── StudyAreasWidget ────────────────────────────────────────────────────────
+const ALL_STUDY_AREAS = Object.entries(FIELD_LABELS).filter(([k]) => k !== 'other');
+
+const StudyAreasWidget: React.FC<{ onGoToAssessments: () => void }> = ({ onGoToAssessments }) => {
+  const prefs = getOnboardingPrefs();
+  const userFields = prefs?.fields ?? [];
+  const hasPrefs = userFields.length > 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-slate-800 dark:text-white">
+            {hasPrefs ? 'Your Study Areas' : 'Study Areas — EduReach is for every field'}
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            {hasPrefs
+              ? `Showing content for ${userFields.map(f => FIELD_LABELS[f]?.label ?? f).join(', ')} — explore everything below`
+              : 'Practice exams, quizzes, and AI tutoring for all disciplines'}
+          </p>
+        </div>
+        <button
+          onClick={onGoToAssessments}
+          className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline flex-shrink-0"
+        >
+          Browse all →
+        </button>
+      </div>
+
+      {/* User's chosen fields — highlighted */}
+      {hasPrefs && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {userFields.map(key => {
+            const info = FIELD_LABELS[key];
+            if (!info) return null;
+            return (
+              <button
+                key={key}
+                onClick={onGoToAssessments}
+                className={`rounded-2xl border-2 p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98] ${info.color}`}
+              >
+                <div className="text-2xl mb-2">{info.emoji}</div>
+                <div className="text-sm font-bold leading-tight">{info.label}</div>
+                <div className="text-xs opacity-70 mt-1">Exams & quizzes →</div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* All other fields — compact grid */}
+      <div className={`grid gap-2 ${hasPrefs ? 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-5' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'}`}>
+        {ALL_STUDY_AREAS
+          .filter(([key]) => !userFields.includes(key))
+          .map(([key, info]) => (
+            <button
+              key={key}
+              onClick={onGoToAssessments}
+              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-left text-xs hover:border-indigo-300 dark:hover:border-indigo-600 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all flex items-center gap-2"
+            >
+              <span className="text-base leading-none flex-shrink-0">{info.emoji}</span>
+              <span className="text-slate-700 dark:text-slate-300 font-medium leading-tight">{info.label}</span>
+            </button>
+          ))}
+      </div>
+
+      {/* "Don't see your field?" notice */}
+      <div className="rounded-xl bg-gradient-to-r from-indigo-50 to-violet-50 dark:from-indigo-900/20 dark:to-violet-900/20 border border-indigo-200 dark:border-indigo-700/50 px-4 py-3 flex items-start gap-3">
+        <span className="text-lg flex-shrink-0">🤖</span>
+        <div className="text-sm">
+          <span className="font-semibold text-indigo-800 dark:text-indigo-200">Don't see your exact subject?</span>
+          <span className="text-indigo-700 dark:text-indigo-300"> The AI tutor works for any topic — start a learning session with any YouTube video in your field.</span>
+          {' '}
+          <button
+            onClick={onGoToAssessments}
+            className="text-indigo-600 dark:text-indigo-400 font-semibold underline text-xs"
+          >
+            Explore content →
+          </button>
+        </div>
       </div>
     </div>
   );
