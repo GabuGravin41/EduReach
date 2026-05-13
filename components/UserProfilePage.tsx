@@ -137,6 +137,7 @@ export const UserProfilePage: React.FC = () => {
       await refreshUser();
       setSaveState('saved');
       setSaveMessage('Profile updated.');
+      setUploadState('idle'); // clear any lingering photo toast so only one message shows
       setIsEditing(false);
     } catch (error: any) {
       setSaveState('error');

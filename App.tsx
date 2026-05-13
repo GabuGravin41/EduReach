@@ -314,6 +314,16 @@ const AppContent: React.FC = () => {
       }
     }, [location.pathname, navigate]);
 
+    // After login: redirect to the page the user was trying to reach before being sent to LoginScreen
+    useEffect(() => {
+      if (!user) return;
+      const saved = sessionStorage.getItem('edureach:post_login_redirect');
+      if (saved) {
+        sessionStorage.removeItem('edureach:post_login_redirect');
+        navigate(saved, { replace: true });
+      }
+    }, [user, navigate]);
+
     const setView = (view: View, opts?: { courseId?: number; examId?: number; state?: object }) => {
       const path = viewToPath(view, { courseId: opts?.courseId ?? (view === 'course_detail' ? selectedCourseId ?? undefined : undefined), examId: opts?.examId ?? (view === 'exam_detail' ? selectedExamId ?? undefined : undefined) });
       navigate(path, opts?.state ? { state: opts.state } : undefined);
@@ -774,6 +784,14 @@ const AppContent: React.FC = () => {
         (location.pathname?.startsWith('/study-groups') && (location.search?.includes('join_group=') || location.search?.includes('join_token='))) ||
         /^\/study-groups\/\d+$/.test(location.pathname || '') ||
         (location.pathname === '/invite' && location.search?.includes('t='));
+
+      // Save intended URL so we can redirect back after login
+      const intendedPath = location.pathname + (location.search || '');
+      const skipRedirectPaths = ['/', '/login', '/register', '/terms', '/privacy', '/join'];
+      if (!skipRedirectPaths.includes(location.pathname)) {
+        sessionStorage.setItem('edureach:post_login_redirect', intendedPath);
+      }
+
       return (
         <>
           {sessionExpiredNotice && (
@@ -784,6 +802,11 @@ const AppContent: React.FC = () => {
           {isStudyGroupInvite && (
             <div className="mx-4 mt-4 mb-2 rounded-lg border border-indigo-200 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-3 text-sm text-indigo-800 dark:text-indigo-200 text-center">
               Log in to join this study group. You will be added automatically after signing in.
+            </div>
+          )}
+          {!isStudyGroupInvite && location.search?.includes('share_token=') && (
+            <div className="mx-4 mt-4 mb-2 rounded-lg border border-indigo-200 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-3 text-sm text-indigo-800 dark:text-indigo-200 text-center">
+              Log in or create an account to access this shared quiz. You will be taken there automatically after signing in.
             </div>
           )}
           <LoginScreen />

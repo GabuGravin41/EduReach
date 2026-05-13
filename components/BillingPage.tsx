@@ -1,4 +1,20 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+
+/**
+ * Normalizes any Kenyan phone number format to 254XXXXXXXXX (12 digits).
+ * Accepts: 07xx, 01xx, 2547xx, 2541xx, +2547xx, +2541xx
+ * Returns null if the number can't be normalized to a valid 12-digit Kenya number.
+ */
+function normalizeKenyanPhone(raw: string): string | null {
+  const digits = raw.replace(/\D/g, '');
+  // +254XXXXXXXXX or 254XXXXXXXXX → already in long form
+  if (/^254\d{9}$/.test(digits)) return digits;
+  // 0XXXXXXXXX → replace leading 0 with 254
+  if (/^0\d{9}$/.test(digits)) return '254' + digits.slice(1);
+  // 7XXXXXXXX or 1XXXXXXXX (9 digits starting with 7 or 1) → prepend 254
+  if (/^[71]\d{8}$/.test(digits)) return '254' + digits;
+  return null;
+}
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { paymentService, PaymentMethod, Payment, Subscription, InitiatePaymentResponse } from '../src/services/paymentService';
 import apiClient from '../src/services/apiClient';
@@ -477,7 +493,9 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
     };
     if (selectedMethod?.name === 'mpesa') {
       if (!mpesaPhone) { setPaymentMessage('Enter the phone number linked to your M-Pesa account.'); return; }
-      payload.phone_number = mpesaPhone;
+      const normalized = normalizeKenyanPhone(mpesaPhone);
+      if (!normalized) { setPaymentMessage('Enter a valid Kenyan number (e.g. 0712345678 or 254712345678).'); return; }
+      payload.phone_number = normalized;
     }
     if (selectedMethod?.name === 'card') {
       if (!cardToken) { setPaymentMessage('Enter a valid card token (demo only).'); return; }
@@ -544,8 +562,10 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
   const handleSendStkPush = async () => {
     if (!mpesaMethod) { setModalPaymentMessage('M-Pesa is not currently available. Please try again later.'); return; }
     if (!paymentModalTier) return;
-    const phone = modalMpesaPhone.trim();
-    if (!phone) { setModalPaymentMessage('Please enter your M-Pesa phone number.'); return; }
+    const rawPhone = modalMpesaPhone.trim();
+    if (!rawPhone) { setModalPaymentMessage('Please enter your M-Pesa phone number.'); return; }
+    const phone = normalizeKenyanPhone(rawPhone);
+    if (!phone) { setModalPaymentMessage('Enter a valid Kenyan number (e.g. 0712345678 or 254712345678).'); return; }
     setModalPaymentMessage('');
     try {
       const payAmount = activeBillingCycle === 'biweekly' && paymentModalTier === 'learner' && effectiveTiers.learner.biweeklyPrice
@@ -566,9 +586,8 @@ export const BillingPage: React.FC<BillingPageProps> = ({ currentTier = 'free', 
       const detail =
         err?.response?.data?.detail ||
         err?.response?.data?.error ||
-        err?.message ||
-        'Failed to send STK push. Please check your number and try again.';
-      setModalPaymentMessage(`Error: ${detail}`);
+        'Failed to initiate payment. Please check your number and try again.';
+      setModalPaymentMessage(detail);
     }
   };
 

@@ -165,10 +165,10 @@ class PaymentInitiateView(APIView):
                 payment.mark_failed({'error': 'Missing phone number'})
                 return Response({'detail': 'phone_number is required for M-Pesa payments'}, status=status.HTTP_400_BAD_REQUEST)
             normalized_phone = str(phone_number).strip()
-            # Kenya MSISDN in E.164-like format without plus (e.g. 2547XXXXXXXX)
-            if not re.match(r'^2547\d{8}$', normalized_phone):
+            # Accept 254XXXXXXXXX (both 2547xx and 2541xx Safaricom/Airtel)
+            if not re.match(r'^254[71]\d{8}$', normalized_phone):
                 payment.mark_failed({'error': 'Invalid phone number format'})
-                return Response({'detail': 'phone_number must be in format 2547XXXXXXXX'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'detail': 'Enter a valid Kenyan number starting with 254 (e.g. 254712345678 or 254112345678)'}, status=status.HTTP_400_BAD_REQUEST)
             try:
                 mpesa_service = MPesaService()
                 response_payload = mpesa_service.initiate_stk_push(
@@ -182,8 +182,18 @@ class PaymentInitiateView(APIView):
                 payment.save(update_fields=['reference_code', 'metadata', 'updated_at'])
                 message = 'STK Push initiated. Approve the request on your phone.'
             except Exception as exc:
+                logger.error('MPesa STK push failed: %s', exc)
                 payment.mark_failed({'error': str(exc)})
-                return Response({'detail': f'MPesa error: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
+                error_str = str(exc).lower()
+                if '404' in error_str or 'not found' in error_str:
+                    friendly = 'M-Pesa is temporarily unavailable. Please try again in a few minutes or use Paybill instead.'
+                elif '401' in error_str or 'unauthorized' in error_str or 'access token' in error_str.lower():
+                    friendly = 'M-Pesa authentication failed. Please contact support.'
+                elif 'timeout' in error_str or 'connection' in error_str:
+                    friendly = 'Could not reach M-Pesa. Check your internet connection and try again.'
+                else:
+                    friendly = 'M-Pesa payment could not be initiated. Please try again or use a different payment method.'
+                return Response({'detail': friendly}, status=status.HTTP_502_BAD_GATEWAY)
 
         elif method.name == PaymentMethod.Method.CARD:
             token = request.data.get('card_token')
@@ -253,8 +263,9 @@ class PaymentInitiateView(APIView):
                 payment.save(update_fields=['metadata', 'updated_at'])
                 message = f'Complete your payment using Paystack. Reference: {ref}. Use the payment link or enter your reference when asked.'
             except Exception as exc:
+                logger.error('Paystack init failed: %s', exc)
                 payment.mark_failed({'error': str(exc)})
-                return Response({'detail': f'Paystack error: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
+                return Response({'detail': 'Card payment could not be initiated. Please try again or use a different payment method.'}, status=status.HTTP_502_BAD_GATEWAY)
 
         serializer = PaymentSerializer(payment)
         response_data = {'payment': serializer.data, 'message': message}
@@ -368,7 +379,7 @@ class MPesaQueryView(APIView):
             result = mpesa.query_stk_push(checkout_id)
         except Exception as exc:
             logger.error('MPesa query failed: %s', exc)
-            return Response({'detail': f'Query failed: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
+            return Response({'detail': 'Could not verify payment status. Please wait a moment and try again.'}, status=status.HTTP_502_BAD_GATEWAY)
 
         result_code = result.get('ResultCode')
         result_desc = result.get('ResultDesc', '')
@@ -699,7 +710,8 @@ class PaystackVerifyView(APIView):
             paystack = PaystackService()
             tx = paystack.verify_transaction(reference)
         except Exception as exc:
-            return Response({'detail': f'Verification failed: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
+            logger.error('Paystack verify failed: %s', exc)
+            return Response({'detail': 'Payment verification failed. Please try again or contact support.'}, status=status.HTTP_502_BAD_GATEWAY)
 
         if tx.get('status') == 'success':
             payment.mark_completed({'paystack_verification': tx})
