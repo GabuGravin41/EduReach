@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ClockIcon } from './icons/ClockIcon';
 import { ClipboardCheckIcon } from './icons/ClipboardCheckIcon';
 import { SwordsIcon } from './icons/SwordsIcon';
@@ -181,6 +181,44 @@ const getQuestionTypeIcon = (types?: string[]) => {
     return <ClipboardCheckIcon className="w-4 h-4" />;
 };
 
+// ── Synonym map: expands a search/filter term to related terms ────────────────
+const SYNONYMS: Record<string, string[]> = {
+    medicine: ['medical', 'clinical', 'mbbs', 'anatomy', 'physiology', 'pharmacology', 'pathology', 'healthcare', 'biochemistry'],
+    nursing: ['nurse', 'midwifery', 'patient care', 'healthcare', 'clinical'],
+    pharmacy: ['pharmaceutics', 'drug', 'pharmacology', 'healthcare'],
+    engineering: ['electrical', 'mechanical', 'civil', 'circuit', 'engineering', 'ku', 'electronics'],
+    electrical: ['circuit', 'electronics', 'electromagnetics', 'power', 'electrical engineering'],
+    circuits: ['circuit theory', 'electrical', 'electronics', 'network analysis'],
+    computer: ['programming', 'algorithms', 'data structures', 'software', 'databases', 'networks', 'computer science'],
+    law: ['legal', 'constitutional', 'contract', 'criminal', 'kenya law'],
+    business: ['management', 'marketing', 'strategy', 'entrepreneurship', 'finance'],
+    accounting: ['financial accounting', 'taxation', 'bookkeeping', 'finance'],
+    chemistry: ['organic chemistry', 'analytical', 'physical chemistry', 'inorganic'],
+    biology: ['cell biology', 'genetics', 'microbiology', 'ecology', 'life sciences'],
+    mathematics: ['calculus', 'algebra', 'statistics', 'math', 'olympiad', 'geometry'],
+    physics: ['mechanics', 'electromagnetism', 'thermodynamics', 'optics'],
+    agriculture: ['crop science', 'animal science', 'soil science', 'farming', 'agronomy'],
+    education: ['pedagogy', 'curriculum', 'teaching', 'learning'],
+    architecture: ['design', 'construction', 'structural', 'built environment'],
+};
+
+/** Expand a query term into all synonyms + itself */
+function expandTerms(query: string): string[] {
+    const q = query.toLowerCase().trim();
+    const terms = new Set<string>([q]);
+    for (const [key, synonyms] of Object.entries(SYNONYMS)) {
+        if (key.includes(q) || q.includes(key)) {
+            synonyms.forEach(s => terms.add(s.toLowerCase()));
+            terms.add(key);
+        }
+        if (synonyms.some(s => s.toLowerCase().includes(q) || q.includes(s.toLowerCase()))) {
+            synonyms.forEach(s => terms.add(s.toLowerCase()));
+            terms.add(key);
+        }
+    }
+    return Array.from(terms);
+}
+
 export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = ({
     assessments,
     onSelectExam,
@@ -192,6 +230,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
     isLoading = false,
 }) => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [isChallengeModalOpen, setIsChallengeModalOpen] = useState(false);
     const [selectedExam, setSelectedExam] = useState<{ id: number; title: string; share_token?: string } | null>(null);
     const [challengeLinkInput, setChallengeLinkInput] = useState('');
@@ -203,6 +242,16 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
     const [filterAssessmentType, setFilterAssessmentType] = useState<'all' | 'quiz' | 'exam' | 'recommended'>('all');
     const [filterSubject, setFilterSubject] = useState<string>('all');
     const [filterTag, setFilterTag] = useState<string>('all');
+
+    // Read URL params on mount — ?tag=medicine or ?q=electrical pre-populates filters
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const tagParam = params.get('tag');
+        const qParam = params.get('q');
+        if (tagParam) setFilterTag(tagParam.toLowerCase());
+        if (qParam) setSearchQuery(qParam);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     useEffect(() => {
         let mounted = true;
@@ -403,16 +452,42 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
 
         const matchesSubject = filterSubject === 'all' || exam.topic === filterSubject;
 
+        const searchTerms = searchQuery.trim() ? expandTerms(searchQuery) : [];
         const matchesSearch = !searchQuery.trim() ||
-            exam.displayTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            exam.topic.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (exam.description || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            examTags.some((t: string) => t.toLowerCase().includes(searchQuery.toLowerCase()));
+            searchTerms.some(term =>
+                exam.displayTitle.toLowerCase().includes(term) ||
+                exam.topic.toLowerCase().includes(term) ||
+                (exam.description || '').toLowerCase().includes(term) ||
+                examTags.some((t: string) => t.toLowerCase().includes(term))
+            );
 
-        const matchesTag = filterTag === 'all' || examTags.includes(filterTag);
+        // Tag filter: fuzzy — match any expanded synonym against title/tags/topic
+        const tagTerms = filterTag !== 'all' ? expandTerms(filterTag) : [];
+        const matchesTag = filterTag === 'all' ||
+            tagTerms.some(term =>
+                examTags.some((t: string) => t.toLowerCase().includes(term) || term.includes(t.toLowerCase())) ||
+                exam.displayTitle.toLowerCase().includes(term) ||
+                exam.topic.toLowerCase().includes(term) ||
+                (exam.description || '').toLowerCase().includes(term)
+            );
 
         return matchesStatus && matchesAssessmentType && matchesSubject && matchesSearch && matchesTag;
     });
+
+    // Soft fallback: if hard filter returns 0, widen by dropping tag/search constraint
+    // and show "related" content so users never see a completely empty screen
+    const fallbackAssessments = useMemo(() => {
+        if (filteredAssessments.length > 0) return [];
+        const hasActiveFilter = filterTag !== 'all' || searchQuery.trim();
+        if (!hasActiveFilter) return [];
+        // Widen: only apply status + assessment type filters, drop search/tag
+        return processedAssessments.filter(exam => {
+            const matchesStatus = filterType === 'all' ? true
+                : filterType === 'completed' ? exam.status === 'completed' : exam.status !== 'completed';
+            const matchesAssessmentType = filterAssessmentType === 'all' || exam.assessment_type === filterAssessmentType;
+            return matchesStatus && matchesAssessmentType;
+        }).slice(0, 12);
+    }, [filteredAssessments.length, filterTag, searchQuery, processedAssessments, filterType, filterAssessmentType]);
 
     const sortedAssessments = [...filteredAssessments].sort((a, b) => {
         if (sortBy === 'relevance') {
@@ -833,12 +908,40 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
 
             {/* Assessments Grid or Empty State */}
             {sortedAssessments.length === 0 ? (
-                filterType !== 'all' || searchQuery || filterAssessmentType !== 'all' ? (
-                    /* Filtered empty — simple message */
-                    <div className="text-center py-16 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-                        <ClipboardCheckIcon className="w-14 h-14 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-                        <h3 className="text-lg font-semibold text-slate-600 dark:text-slate-400 mb-1">No results</h3>
-                        <p className="text-sm text-slate-400 dark:text-slate-500">Try adjusting your filters or search query.</p>
+                filterType !== 'all' || searchQuery || filterAssessmentType !== 'all' || filterTag !== 'all' ? (
+                    /* Filtered empty — show fallback related content */
+                    <div>
+                        <div className="text-center py-6 bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-100 dark:border-amber-800 mb-4">
+                            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                                No exact matches for <span className="font-bold">"{searchQuery || filterTag}"</span>
+                            </p>
+                            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                                Showing related content you might find useful
+                            </p>
+                            <button
+                                onClick={() => { setSearchQuery(''); setFilterTag('all'); setFilterSubject('all'); }}
+                                className="mt-2 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                            >
+                                Clear filters →
+                            </button>
+                        </div>
+                        {fallbackAssessments.length > 0 && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {fallbackAssessments.map(exam => (
+                                    <button
+                                        key={exam.id}
+                                        onClick={() => onSelectExam(exam.id)}
+                                        className="text-left bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition-all"
+                                    >
+                                        <p className="font-semibold text-sm text-slate-800 dark:text-slate-100 line-clamp-2 mb-1">{exam.displayTitle}</p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">{exam.assessment_type || 'assessment'} · {exam.questions} questions</p>
+                                        {((exam as any).tags || []).slice(0, 3).map((t: string) => (
+                                            <span key={t} className="inline-block mr-1 mt-1 px-2 py-0.5 rounded-full text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">{t}</span>
+                                        ))}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 ) : (
                     /* True empty — full discovery UI */

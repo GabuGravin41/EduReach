@@ -725,7 +725,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartSession, onSelectCo
       )}
 
       {/* ── Study Areas ───────────────────────────────────────────────── */}
-      <StudyAreasWidget onGoToAssessments={() => navigate(ROUTES.assessments)} />
+      <StudyAreasWidget onGoToAssessments={(tag) => navigate(tag ? `${ROUTES.assessments}?tag=${tag}` : ROUTES.assessments)} />
 
       {/* ── Discover Courses ──────────────────────────────────────────── */}
       <div className="space-y-4">
@@ -765,7 +765,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartSession, onSelectCo
 // ── StudyAreasWidget ────────────────────────────────────────────────────────
 const ALL_STUDY_AREAS = Object.entries(FIELD_LABELS).filter(([k]) => k !== 'other');
 
-const StudyAreasWidget: React.FC<{ onGoToAssessments: () => void }> = ({ onGoToAssessments }) => {
+const StudyAreasWidget: React.FC<{ onGoToAssessments: (tag?: string) => void }> = ({ onGoToAssessments }) => {
   const prefs = getOnboardingPrefs();
   const userFields = prefs?.fields ?? [];
   const hasPrefs = userFields.length > 0;
@@ -784,7 +784,7 @@ const StudyAreasWidget: React.FC<{ onGoToAssessments: () => void }> = ({ onGoToA
           </p>
         </div>
         <button
-          onClick={onGoToAssessments}
+          onClick={() => onGoToAssessments()}
           className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline flex-shrink-0"
         >
           Browse all →
@@ -800,7 +800,7 @@ const StudyAreasWidget: React.FC<{ onGoToAssessments: () => void }> = ({ onGoToA
             return (
               <button
                 key={key}
-                onClick={onGoToAssessments}
+                onClick={() => onGoToAssessments(key)}
                 className={`rounded-2xl border-2 p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98] ${info.color}`}
               >
                 <div className="text-2xl mb-2">{info.emoji}</div>
@@ -819,7 +819,7 @@ const StudyAreasWidget: React.FC<{ onGoToAssessments: () => void }> = ({ onGoToA
           .map(([key, info]) => (
             <button
               key={key}
-              onClick={onGoToAssessments}
+              onClick={() => onGoToAssessments(key)}
               className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-left text-xs hover:border-indigo-300 dark:hover:border-indigo-600 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all flex items-center gap-2"
             >
               <span className="text-base leading-none flex-shrink-0">{info.emoji}</span>
@@ -836,7 +836,7 @@ const StudyAreasWidget: React.FC<{ onGoToAssessments: () => void }> = ({ onGoToA
           <span className="text-indigo-700 dark:text-indigo-300"> The AI tutor works for any topic — start a learning session with any YouTube video in your field.</span>
           {' '}
           <button
-            onClick={onGoToAssessments}
+            onClick={() => onGoToAssessments()}
             className="text-indigo-600 dark:text-indigo-400 font-semibold underline text-xs"
           >
             Explore content →
