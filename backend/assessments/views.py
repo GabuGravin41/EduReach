@@ -726,6 +726,90 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         attempt.save(update_fields=['question_results'])
         return Response({'saved': True})
 
+    @action(detail=True, methods=['post'], url_path='generate-solution',
+            permission_classes=[permissions.IsAuthenticated])
+    def generate_solution(self, request, pk=None):
+        """
+        POST /api/assessments/<id>/generate-solution/
+        Body: { question_id: <int> }
+        Uses AI to generate a model solution for a question that doesn't have one stored.
+        Rate-limited via existing AI quota. Returns { solution: "..." }.
+        """
+        from ai_service.views import call_openrouter, _check_ai_usage_quota, _increment_ai_usage
+        import logging
+        log = logging.getLogger(__name__)
+
+        assessment = self.get_object()
+        question_id = request.data.get('question_id')
+        if not question_id:
+            return Response({'detail': 'question_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            question = Question.objects.get(id=question_id, assessment=assessment)
+        except Question.DoesNotExist:
+            return Response({'detail': 'Question not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Return stored solution immediately if available
+        stored = (question.explanation or '').strip()
+        if stored:
+            return Response({'solution': stored, 'cached': True})
+
+        # Check AI quota
+        try:
+            if not _check_ai_usage_quota(request.user):
+                return Response(
+                    {'detail': 'You have reached your AI query limit for this month. Upgrade for more.'},
+                    status=status.HTTP_429_TOO_MANY_REQUESTS
+                )
+        except Exception:
+            pass
+
+        q_text = question.question_text or ''
+        q_type = question.question_type or ''
+        points = question.points or 1
+        options_block = ''
+        if question.options:
+            opts = question.options if isinstance(question.options, list) else []
+            options_block = '\nOptions:\n' + '\n'.join(f'  {chr(65+i)}. {o}' for i, o in enumerate(opts))
+        correct_hint = ''
+        if question.correct_answer:
+            correct_hint = f'\nCorrect answer: {question.correct_answer}'
+
+        context = f'Assessment: {assessment.title}\nTopic: {assessment.topic or assessment.subject or ""}'
+        prompt = (
+            f'{context}\n\n'
+            f'Question ({q_type}, {points} pts):\n{q_text}'
+            f'{options_block}'
+            f'{correct_hint}\n\n'
+            'Write a clear, step-by-step model solution for this question. '
+            'Use mathematical notation where needed (LaTeX inline: $...$, display: $$...$$). '
+            'Be thorough but concise — a student reading this should understand exactly how to arrive at the answer.'
+        )
+
+        try:
+            result = call_openrouter(prompt, max_tokens=800, read_timeout_override=45)
+            solution = (result.text or '').strip()
+        except Exception as exc:
+            log.error('generate-solution AI error: %s', exc)
+            return Response(
+                {'detail': 'AI solution generation failed. Please try again shortly.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
+        if not solution:
+            return Response({'detail': 'AI returned an empty solution.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        # Persist to DB so future requests are instant
+        question.explanation = solution
+        question.save(update_fields=['explanation'])
+
+        try:
+            _increment_ai_usage(request.user)
+        except Exception:
+            pass
+
+        return Response({'solution': solution, 'cached': False})
+
     @action(detail=False, methods=['get'])
     def my_assessments(self, request):
         """Get assessments created by the current user."""

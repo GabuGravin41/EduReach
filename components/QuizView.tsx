@@ -157,9 +157,34 @@ export const QuizView: React.FC<QuizViewProps> = ({
   const [easyGrading, setEasyGrading] = useState<Record<string, boolean>>({});
   // Easy mode: "Show Answer" without grading (student skipped)
   const [shownAnswers, setShownAnswers] = useState<Set<string>>(new Set());
+  const [generatingSolution, setGeneratingSolution] = useState<Set<string>>(new Set());
+  const [generatedSolutions, setGeneratedSolutions] = useState<Record<string, string>>({});
+  const [solutionErrors, setSolutionErrors] = useState<Record<string, string>>({});
 
-  const handleShowAnswer = (qId: string) => {
+  const handleShowAnswer = async (qId: string, q?: any) => {
     setShownAnswers(prev => new Set(prev).add(qId));
+
+    // If this question already has a stored solution/explanation, nothing more to do
+    const hasSolution = q?.explanation || q?.model_solution ||
+      (q?.type === 'short_answer' && q?.correct_answers?.length > 0) ||
+      (q?.type === 'multiple_choice') || (q?.type === 'true_false');
+    if (hasSolution || !assessmentId || generatedSolutions[qId]) return;
+
+    // For essay / short_answer without stored solution — generate with AI
+    if (q?.type === 'essay' || q?.type === 'short_answer') {
+      setGeneratingSolution(prev => new Set(prev).add(qId));
+      setSolutionErrors(prev => { const r = { ...prev }; delete r[qId]; return r; });
+      try {
+        const res = await apiClient.post(`assessments/${assessmentId}/generate-solution/`, { question_id: parseInt(qId) });
+        const solution: string = res.data?.solution || '';
+        setGeneratedSolutions(prev => ({ ...prev, [qId]: solution }));
+      } catch (err: any) {
+        const msg = err?.response?.data?.detail || 'Could not generate solution. Please try again.';
+        setSolutionErrors(prev => ({ ...prev, [qId]: msg }));
+      } finally {
+        setGeneratingSolution(prev => { const s = new Set(prev); s.delete(qId); return s; });
+      }
+    }
   };
 
   // Contest mode: track tab visibility changes
@@ -929,7 +954,7 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
                       )}
                       {easyMode && (
                         <button
-                          onClick={() => handleShowAnswer(String(q.id))}
+                          onClick={() => handleShowAnswer(String(q.id), q)}
                           className="text-sm text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 underline transition-colors"
                         >
                           Show answer
@@ -1004,7 +1029,7 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
                   </Button>
                 )}
                 <button
-                  onClick={() => handleShowAnswer(String(q.id))}
+                  onClick={() => handleShowAnswer(String(q.id), q)}
                   className="text-sm text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 underline transition-colors"
                 >
                   Show answer
@@ -1066,6 +1091,25 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
                       <MarkdownRenderer content={(q as any).explanation} />
                     )}
                   </div>
+                )}
+                {/* AI-generated solution (when no stored solution exists) */}
+                {generatingSolution.has(String(q.id)) && (
+                  <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 py-2">
+                    <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin flex-none" />
+                    <span className="text-sm">Generating model solution with AI…</span>
+                  </div>
+                )}
+                {!generatingSolution.has(String(q.id)) && generatedSolutions[String(q.id)] && !(q as any).explanation && (
+                  <div>
+                    <div className="font-semibold text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-400 mb-1 flex items-center gap-1">
+                      <SparklesIcon className="w-3.5 h-3.5" />
+                      AI Model Solution
+                    </div>
+                    <MarkdownRenderer content={generatedSolutions[String(q.id)]} />
+                  </div>
+                )}
+                {solutionErrors[String(q.id)] && (
+                  <p className="text-sm text-rose-600 dark:text-rose-400">{solutionErrors[String(q.id)]}</p>
                 )}
               </div>
             )}
