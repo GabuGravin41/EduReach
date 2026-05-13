@@ -1030,6 +1030,8 @@ const AppContent: React.FC = () => {
     return (
       <>
       <div className="flex h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-y-hidden">
+        {/* Spacer that reserves sidebar width so content doesn't slide under the fixed sidebar */}
+        <div className={`hidden lg:block flex-shrink-0 ${isSidebarCollapsed ? 'w-20' : 'w-64'} transition-all duration-300`} />
         <Sidebar
           currentView={currentView}
           setView={setView}
