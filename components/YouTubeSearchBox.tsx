@@ -30,6 +30,7 @@ export interface YouTubeSearchResult {
 
 interface Props {
   onSelect: (result: YouTubeSearchResult) => void;
+  onSwitchToUrl?: () => void;
   placeholder?: string;
   className?: string;
 }
@@ -58,6 +59,7 @@ const XIcon = () => (
 
 export const YouTubeSearchBox: React.FC<Props> = ({
   onSelect,
+  onSwitchToUrl,
   placeholder = 'Search YouTube — e.g. "calculus derivatives explained"',
   className = '',
 }) => {
@@ -170,9 +172,18 @@ export const YouTubeSearchBox: React.FC<Props> = ({
 
       {/* ── Error ────────────────────────────────────────────────────── */}
       {error && (
-        <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
-          {error}
-        </p>
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2.5 space-y-1.5">
+          <p className="text-xs text-amber-600 dark:text-amber-400">{error}</p>
+          {onSwitchToUrl && (
+            <button
+              type="button"
+              onClick={onSwitchToUrl}
+              className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              ← Go back to paste a URL
+            </button>
+          )}
+        </div>
       )}
 
       {/* ── Results list ─────────────────────────────────────────────── */}

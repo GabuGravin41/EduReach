@@ -406,7 +406,8 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
         const matchesSearch = !searchQuery.trim() ||
             exam.displayTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
             exam.topic.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (exam.description || '').toLowerCase().includes(searchQuery.toLowerCase());
+            (exam.description || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            examTags.some((t: string) => t.toLowerCase().includes(searchQuery.toLowerCase()));
 
         const matchesTag = filterTag === 'all' || examTags.includes(filterTag);
 

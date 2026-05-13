@@ -325,6 +325,7 @@ export const SetupSession: React.FC<SetupSessionProps> = ({ onSessionCreated, co
                   setShowSearch(false);
                   handleUrlChange(result.url);
                 }}
+                onSwitchToUrl={() => setShowSearch(false)}
               />
             )}
 

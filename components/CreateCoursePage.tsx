@@ -240,9 +240,9 @@ export const CreateCoursePage: React.FC<CreateCoursePageProps> = ({ onCourseCrea
                         onSelect={(result: YouTubeSearchResult) => {
                           handleLessonChange(index, 'videoId', result.url);
                           setSearchOpenForLesson(null);
-                          // Auto-validate after selecting
                           setTimeout(() => validateVideo(index), 100);
                         }}
+                        onSwitchToUrl={() => setSearchOpenForLesson(null)}
                         placeholder={`Search YouTube for lesson ${index + 1}…`}
                       />
                     </div>

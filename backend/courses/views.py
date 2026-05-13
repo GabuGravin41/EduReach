@@ -515,6 +515,12 @@ class CourseViewSet(viewsets.ModelViewSet):
                 _os.environ['PATH'] = deno_bin + ':' + env_path
 
             cookies_path = _os.environ.get('YOUTUBE_COOKIES_FILE', '').strip()
+            # Fallback: look for cookies file next to manage.py
+            if not cookies_path:
+                _base = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+                _candidate = _os.path.join(_base, 'youtube_cookies.txt')
+                if _os.path.isfile(_candidate) and _os.path.getsize(_candidate) > 200:
+                    cookies_path = _candidate
 
             ydl_opts = {
                 'quiet': True,
