@@ -30,22 +30,6 @@ const GoogleIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-const INTEREST_TAGS = [
-  'Programming', 'Mathematics', 'Science', 'History', 'English', 'Business',
-  'Medicine', 'Law', 'Engineering', 'Economics', 'Arts', 'Philosophy',
-  'Chemistry', 'Biology', 'Physics', 'Geography',
-];
-
-const UNIVERSITY_FIELDS = [
-  'Computer Science', 'Engineering', 'Medicine', 'Law', 'Business & Finance',
-  'Arts & Humanities', 'Natural Sciences', 'Social Sciences', 'Education', 'Other',
-];
-
-const HIGH_SCHOOL_SUBJECTS = [
-  'Mathematics', 'English', 'Sciences', 'History & Geography', 'Business Studies',
-  'Computer Studies', 'Art & Design', 'Languages', 'Physical Education',
-];
-
 declare global {
   interface Window {
     google?: {
@@ -63,15 +47,10 @@ declare global {
 export const LoginScreen: React.FC = () => {
   const [showAuth, setShowAuth] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
-  const [signupStep, setSignupStep] = useState<1 | 2>(1);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [learningGoal, setLearningGoal] = useState<'school' | 'career' | 'exams' | 'curious' | ''>('');
-  const [learnerType, setLearnerType] = useState<'high_school' | 'university' | 'teacher' | 'professional' | ''>('');
-  const [fieldOfStudy, setFieldOfStudy] = useState('');
-  const [interests, setInterests] = useState<string[]>([]);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -183,29 +162,13 @@ export const LoginScreen: React.FC = () => {
 
   const resetForm = () => {
     setUsername(''); setEmail(''); setFirstName(''); setLastName('');
-    setLearningGoal(''); setLearnerType(''); setFieldOfStudy(''); setInterests([]);
-    setSignupStep(1); setPassword(''); setShowPassword(false); setError('');
+    setPassword(''); setShowPassword(false); setError('');
     setShowForgotPwd(false); setFpEmail(''); setFpSent(false); setFpError('');
   };
 
   const openLogin = () => { resetForm(); setIsLogin(true); setShowAuth(true); };
   const openSignup = () => { resetForm(); setIsLogin(false); setShowAuth(true); };
   const closeAuth = () => { if (!isLoading && !fpLoading) { setShowAuth(false); resetForm(); } };
-
-  const canGoToStep2 = username.trim() && firstName.trim() && lastName.trim() && email.trim();
-
-  const handleNextStep = () => {
-    if (!username.trim()) { setError('Please enter a username.'); return; }
-    if (!firstName.trim() || !lastName.trim()) { setError('Please enter your first and last name.'); return; }
-    if (!email.trim()) { setError('Please enter your email address.'); return; }
-    if (password.length < 8) { setError('Password must be at least 8 characters.'); return; }
-    setError('');
-    setSignupStep(2);
-  };
-
-  const toggleInterest = (tag: string) => {
-    setInterests(prev => prev.includes(tag) ? prev.filter(i => i !== tag) : [...prev, tag]);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -225,17 +188,6 @@ export const LoginScreen: React.FC = () => {
       if (!trimmedFirstName || !trimmedLastName) { setError('Please enter your first and last name.'); return; }
       if (password.length < 8) {
         setError('Password must be at least 8 characters.');
-        setSignupStep(1);
-        return;
-      }
-      if (!learningGoal) {
-        setError('Please tell us what brings you to EduReach.');
-        setSignupStep(2);
-        return;
-      }
-      if (!learnerType) {
-        setError('Please choose the option that best describes you.');
-        setSignupStep(2);
         return;
       }
     }
@@ -249,19 +201,12 @@ export const LoginScreen: React.FC = () => {
       if (isLogin) {
         await login(trimmedUsername, password);
       } else {
-        // Combine field of study with interests for richer context
-        const allInterests = fieldOfStudy
-          ? [fieldOfStudy, ...interests].filter(Boolean)
-          : interests;
         await register({
           username: trimmedUsername,
           email: trimmedEmail,
           password,
           firstName: trimmedFirstName,
           lastName: trimmedLastName,
-          learningGoal,
-          learnerType,
-          interests: allInterests,
         });
       }
       setShowAuth(false);
@@ -289,24 +234,6 @@ export const LoginScreen: React.FC = () => {
   };
 
   const inputClass = "w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-all text-sm";
-
-  const goalOptions = [
-    { value: 'school', icon: '🎓', label: 'School & university', desc: 'Stay on top of coursework' },
-    { value: 'career', icon: '💼', label: 'Career growth', desc: 'Build professional skills' },
-    { value: 'exams', icon: '📝', label: 'Exam preparation', desc: 'Ace certifications & tests' },
-    { value: 'curious', icon: '🔭', label: 'Personal curiosity', desc: 'Explore topics I love' },
-  ] as const;
-
-  const typeOptions = [
-    { value: 'high_school', icon: '🏫', label: 'High school student' },
-    { value: 'university', icon: '🎓', label: 'University student' },
-    { value: 'teacher', icon: '👨‍🏫', label: 'Teacher or coach' },
-    { value: 'professional', icon: '💼', label: 'Working professional' },
-  ] as const;
-
-  const fieldOptions = learnerType === 'university' ? UNIVERSITY_FIELDS
-    : learnerType === 'high_school' ? HIGH_SCHOOL_SUBJECTS
-      : null;
 
   return (
     <div className="relative flex items-center justify-center min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 overflow-hidden">
@@ -447,28 +374,14 @@ export const LoginScreen: React.FC = () => {
                       <img src="/logo.jpeg" className="h-12 object-contain" alt="EduReach" />
                     </div>
                     <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                      {isLogin ? 'Welcome back' : signupStep === 1 ? 'Create your account' : 'Tell us about yourself'}
+                      {isLogin ? 'Welcome back' : 'Create your account'}
                     </h2>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                       {isLogin
                         ? 'Sign in to continue your learning journey'
-                        : signupStep === 1
-                          ? 'Step 1 of 2 — Account details'
-                          : 'Step 2 of 2 — Personalise your experience'}
+                        : 'Enter your details to get started'}
                     </p>
                   </div>
-
-                  {!isLogin && (
-                    <div className="flex items-center gap-2 mb-6">
-                      <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-all ${signupStep >= 1 ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
-                        {signupStep > 1 ? <CheckIcon className="w-3.5 h-3.5" /> : '1'}
-                      </div>
-                      <div className={`flex-1 h-0.5 rounded-full transition-all ${signupStep > 1 ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'}`} />
-                      <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-all ${signupStep === 2 ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
-                        2
-                      </div>
-                    </div>
-                  )}
 
                   {error && (
                     <div className="mb-5 p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800/60 text-red-700 dark:text-red-400 rounded-xl text-sm flex items-start gap-2">
@@ -524,8 +437,8 @@ export const LoginScreen: React.FC = () => {
                       </div>
                     )}
 
-                    {/* SIGNUP STEP 1 */}
-                    {!isLogin && signupStep === 1 && (
+                    {/* SIGNUP */}
+                    {!isLogin && (
                       <div className="space-y-4">
                         <input
                           type="text"
@@ -618,147 +531,19 @@ export const LoginScreen: React.FC = () => {
                       </div>
                     )}
 
-                    {/* SIGNUP STEP 2 — Personalisation */}
-                    {!isLogin && signupStep === 2 && (
-                      <div className="space-y-5 max-h-[55vh] overflow-y-auto pr-1">
-                        {/* What brings you here */}
-                        <div>
-                          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">What brings you here?</p>
-                          <div className="grid grid-cols-2 gap-2">
-                            {goalOptions.map((g) => (
-                              <button
-                                key={g.value}
-                                type="button"
-                                onClick={() => setLearningGoal(g.value)}
-                                disabled={isLoading}
-                                className={`text-left p-3 rounded-xl border-2 transition-all ${learningGoal === g.value
-                                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/50'
-                                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800/50'
-                                  }`}
-                              >
-                                <div className="text-xl mb-1">{g.icon}</div>
-                                <div className="text-xs font-semibold text-slate-800 dark:text-slate-100 leading-snug">{g.label}</div>
-                                <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{g.desc}</div>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Which best describes you */}
-                        <div>
-                          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Which best describes you?</p>
-                          <div className="grid grid-cols-2 gap-2">
-                            {typeOptions.map((t) => (
-                              <button
-                                key={t.value}
-                                type="button"
-                                onClick={() => { setLearnerType(t.value); setFieldOfStudy(''); }}
-                                disabled={isLoading}
-                                className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all ${learnerType === t.value
-                                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/50'
-                                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800/50'
-                                  }`}
-                              >
-                                <span className="text-lg">{t.icon}</span>
-                                <span className="text-xs font-medium text-slate-700 dark:text-slate-200">{t.label}</span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Field of study — shown only for university / high school */}
-                        {fieldOptions && (
-                          <div>
-                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                              {learnerType === 'university' ? 'Field of study' : 'Main subjects'}
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {fieldOptions.map((f) => (
-                                <button
-                                  key={f}
-                                  type="button"
-                                  onClick={() => setFieldOfStudy(prev => prev === f ? '' : f)}
-                                  disabled={isLoading}
-                                  className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${fieldOfStudy === f
-                                      ? 'border-indigo-500 bg-indigo-500 text-white'
-                                      : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-indigo-400'
-                                    }`}
-                                >
-                                  {f}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Interests — shown for everyone */}
-                        <div>
-                          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                            Topics you're interested in <span className="font-normal normal-case text-slate-400">(optional — pick any)</span>
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {INTEREST_TAGS.map((tag) => (
-                              <button
-                                key={tag}
-                                type="button"
-                                onClick={() => toggleInterest(tag)}
-                                disabled={isLoading}
-                                className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${interests.includes(tag)
-                                    ? 'border-purple-500 bg-purple-500 text-white'
-                                    : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-purple-400'
-                                  }`}
-                              >
-                                {tag}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
                     {/* Footer actions */}
                     <div className="mt-6 space-y-3">
-                      {!isLogin && signupStep === 1 ? (
-                        <button
-                          type="button"
-                          onClick={handleNextStep}
-                          disabled={isLoading || !canGoToStep2}
-                          className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl shadow-md shadow-indigo-500/20 transition-all"
-                        >
-                          Continue
-                        </button>
-                      ) : !isLogin && signupStep === 2 ? (
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => { setSignupStep(1); setError(''); }}
-                            disabled={isLoading}
-                            className="flex-1 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm"
-                          >
-                            Back
-                          </button>
-                          <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="flex-[2] bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2"
-                          >
-                            {isLoading && <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                            {isLoading ? 'Creating account…' : 'Create account'}
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="submit"
-                          disabled={isLoading}
-                          className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2"
-                        >
-                          {isLoading && <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                          {isLoading ? 'Signing in…' : 'Sign in'}
-                        </button>
-                      )}
+                      <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2"
+                      >
+                        {isLoading && <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                        {isLoading ? (isLogin ? 'Signing in…' : 'Creating account…') : (isLogin ? 'Sign in' : 'Create account')}
+                      </button>
 
-                      {/* Google Sign-In — shown on login and step 1 of signup */}
-                      {(isLogin || signupStep === 1) && (
+                      {/* Google Sign-In */}
+                      {(
                         <>
                           <div className="relative flex items-center py-1">
                             <div className="flex-grow border-t border-slate-200 dark:border-slate-700" />
@@ -788,7 +573,7 @@ export const LoginScreen: React.FC = () => {
                         {isLogin ? "Don't have an account? " : 'Already have an account? '}
                         <button
                           type="button"
-                          onClick={() => { setIsLogin(!isLogin); setError(''); setSignupStep(1); }}
+                          onClick={() => { setIsLogin(!isLogin); setError(''); }}
                           className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
                           disabled={isLoading}
                         >

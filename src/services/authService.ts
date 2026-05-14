@@ -43,6 +43,12 @@ export interface User {
   is_trial_active?: boolean;
   trial_ends_at?: string | null;
   trial_days_remaining?: number | null;
+  // Onboarding & extended profile
+  onboarding_completed?: boolean;
+  degree_course?: string;
+  year_of_study?: string;
+  phone_number?: string;
+  country?: string;
 }
 
 export interface LeaderboardData {

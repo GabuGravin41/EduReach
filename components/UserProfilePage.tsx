@@ -107,6 +107,10 @@ export const UserProfilePage: React.FC = () => {
     learner_type: user?.learner_type || '',
     interests: user?.interests || '',
     show_xp_publicly: user?.show_xp_publicly ?? true,
+    degree_course: (user as any)?.degree_course || '',
+    year_of_study: (user as any)?.year_of_study || '',
+    phone_number: (user as any)?.phone_number || '',
+    country: (user as any)?.country || '',
   });
 
   useEffect(() => {
@@ -120,6 +124,10 @@ export const UserProfilePage: React.FC = () => {
         learner_type: user.learner_type || '',
         interests: user.interests || '',
         show_xp_publicly: user.show_xp_publicly,
+        degree_course: (user as any).degree_course || '',
+        year_of_study: (user as any).year_of_study || '',
+        phone_number: (user as any).phone_number || '',
+        country: (user as any).country || '',
       });
     }
   }, [user]);
@@ -159,6 +167,10 @@ export const UserProfilePage: React.FC = () => {
         learner_type: user.learner_type || '',
         interests: user.interests || '',
         show_xp_publicly: user.show_xp_publicly,
+        degree_course: (user as any).degree_course || '',
+        year_of_study: (user as any).year_of_study || '',
+        phone_number: (user as any).phone_number || '',
+        country: (user as any).country || '',
       });
     }
   };
@@ -549,6 +561,50 @@ export const UserProfilePage: React.FC = () => {
               }
               input={<textarea value={formData.bio} onChange={e => setFormData({ ...formData, bio: e.target.value })} rows={4} placeholder="Bio…" className={`${inputCls} resize-none`} />}
             />
+
+            {/* Divider */}
+            <div className="border-t border-slate-100 dark:border-slate-700 pt-2">
+              <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Academic Info</h3>
+              <div className="space-y-4">
+                <FieldRow
+                  label="Degree / Course" editing={isEditing}
+                  display={displayVal((user as any).degree_course, 'Not set')}
+                  input={<input type="text" value={formData.degree_course} onChange={e => setFormData({ ...formData, degree_course: e.target.value })} placeholder="e.g. BSc Computer Science" className={inputCls} />}
+                />
+                <FieldRow
+                  label="Year of Study" editing={isEditing}
+                  display={displayVal((user as any).year_of_study, 'Not set')}
+                  input={
+                    <select value={formData.year_of_study} onChange={e => setFormData({ ...formData, year_of_study: e.target.value })} className={inputCls}>
+                      <option value="">Select year…</option>
+                      <option value="1st Year">1st Year</option>
+                      <option value="2nd Year">2nd Year</option>
+                      <option value="3rd Year">3rd Year</option>
+                      <option value="4th Year">4th Year</option>
+                      <option value="5th Year">5th Year</option>
+                      <option value="Postgraduate">Postgraduate</option>
+                      <option value="High School">High School</option>
+                    </select>
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-slate-100 dark:border-slate-700 pt-2">
+              <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Personal Info</h3>
+              <div className="space-y-4">
+                <FieldRow
+                  label="Phone Number" editing={isEditing}
+                  display={displayVal((user as any).phone_number, 'Not set')}
+                  input={<input type="tel" value={formData.phone_number} onChange={e => setFormData({ ...formData, phone_number: e.target.value })} placeholder="e.g. 0712345678" className={inputCls} />}
+                />
+                <FieldRow
+                  label="Country" editing={isEditing}
+                  display={displayVal((user as any).country, 'Not set')}
+                  input={<input type="text" value={formData.country} onChange={e => setFormData({ ...formData, country: e.target.value })} placeholder="e.g. Kenya" className={inputCls} />}
+                />
+              </div>
+            </div>
           </div>
         </div>
 

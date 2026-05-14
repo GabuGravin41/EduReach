@@ -83,6 +83,30 @@ class User(AbstractUser):
         blank=True,
         help_text='Comma-separated list of interest tags (e.g. math, programming, languages, exams).',
     )
+    onboarding_completed = models.BooleanField(
+        default=False,
+        help_text='Set to True once the user has completed the post-signup onboarding flow.',
+    )
+    degree_course = models.CharField(
+        max_length=150,
+        blank=True,
+        help_text='Specific degree or course name, e.g. BSc Computer Science.',
+    )
+    year_of_study = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text='Year/form in study, e.g. Year 2, Form 3.',
+    )
+    phone_number = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text='Phone number in E.164-like format, e.g. 254712345678.',
+    )
+    country = models.CharField(
+        max_length=60,
+        blank=True,
+        help_text='Country of residence.',
+    )
 
     # ── Personalisation / recommendation engine ──────────────────────────────
     topic_mastery = models.JSONField(

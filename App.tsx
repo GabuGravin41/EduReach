@@ -37,6 +37,7 @@ import { useToast } from './src/contexts/ToastContext';
 import { notificationService, type AppNotification } from './src/services/notificationService';
 import { FloatingAIAssistant } from './components/FloatingAIAssistant';
 import { OnboardingModal, hasCompletedOnboarding } from './components/OnboardingModal';
+import { PostAuthOnboardingModal } from './components/PostAuthOnboardingModal';
 
 // Lazy load heavy components for better performance
 const CreateCoursePage = lazy(() => import('./components/CreateCoursePage').then(module => ({ default: module.CreateCoursePage })));
@@ -212,10 +213,11 @@ const useDarkMode = () => {
 };
 
 const AppContent: React.FC = () => {
-    const { user, logout, isLoading } = useAuth();
+    const { user, logout, isLoading, refreshUser } = useAuth();
     const { isGuest, isReady: guestReady, guestTrialExpired, guestDaysRemaining, shouldShowReminder, dismissReminder, exitGuestMode, enterGuestMode } = useGuest();
     const [guestModal, setGuestModal] = useState<{ action: string } | null>(null);
     const [showOnboarding, setShowOnboarding] = useState(false);
+    const [showPostAuthOnboarding, setShowPostAuthOnboarding] = useState(false);
     const location = useLocation();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
@@ -242,6 +244,11 @@ const AppContent: React.FC = () => {
       fetchNotifs();
       const interval = setInterval(fetchNotifs, 30000);
       return () => clearInterval(interval);
+    }, [user]);
+
+    // Post-auth onboarding: show for newly registered users who haven't completed it
+    useEffect(() => {
+      setShowPostAuthOnboarding(!!user && user.onboarding_completed === false);
     }, [user]);
 
     // Show onboarding modal for any first-time visitor (guest or logged-in)
@@ -1321,8 +1328,19 @@ const AppContent: React.FC = () => {
           onDismiss={() => setGuestModal(null)}
         />
       )}
+      {/* Post-auth onboarding: new users who haven't filled in their profile yet */}
+      {showPostAuthOnboarding && user && (
+        <PostAuthOnboardingModal
+          initialFirstName={user.first_name || ''}
+          initialLastName={user.last_name || ''}
+          onComplete={async () => {
+            setShowPostAuthOnboarding(false);
+            await refreshUser();
+          }}
+        />
+      )}
       {/* Onboarding for logged-in users who haven't completed it (3-slide, no CTA) */}
-      {showOnboarding && user && (
+      {showOnboarding && user && !showPostAuthOnboarding && (
         <OnboardingModal
           mode="returning"
           onComplete={() => setShowOnboarding(false)}
