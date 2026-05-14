@@ -379,6 +379,7 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView, o
             correct_answer: q.correct_answer,
             points: q.points || 1,
             explanation: q.explanation || '',
+            images: q.images || [],
             case_sensitive: false,
             exact_match: false,
             max_length: 400,
