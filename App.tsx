@@ -40,20 +40,35 @@ import { OnboardingModal, hasCompletedOnboarding } from './components/Onboarding
 import { PostAuthOnboardingModal } from './components/PostAuthOnboardingModal';
 
 // Lazy load heavy components for better performance
-const CreateCoursePage = lazy(() => import('./components/CreateCoursePage').then(module => ({ default: module.CreateCoursePage })));
-const CreateExamPage = lazy(() => import('./components/CreateExamPage').then(module => ({ default: module.CreateExamPage })));
-const GenerateAIQuizPage = lazy(() => import('./components/GenerateAIQuizPage').then(module => ({ default: module.GenerateAIQuizPage })));
-const AdminDashboard = lazy(() => import('./components/AdminDashboard').then(module => ({ default: module.AdminDashboard })));
-const UserProfilePage = lazy(() => import('./components/UserProfilePage').then(module => ({ default: module.UserProfilePage })));
-const EnhancedAssessmentsPage = lazy(() => import('./components/EnhancedAssessmentsPage').then(module => ({ default: module.EnhancedAssessmentsPage })));
-const StudyGroupsPage = lazy(() => import('./components/StudyGroupsPage').then(module => ({ default: module.StudyGroupsPage })));
-const BulkCreateExamPage = lazy(() => import('./components/BulkCreateExamPage').then(module => ({ default: module.BulkCreateExamPage })));
-const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard').then(module => ({ default: module.AnalyticsDashboard })));
-const TermsOfServicePage = lazy(() => import('./components/TermsOfServicePage').then(module => ({ default: module.TermsOfServicePage })));
-const PrivacyPolicyPage = lazy(() => import('./components/PrivacyPolicyPage').then(module => ({ default: module.PrivacyPolicyPage })));
-const JoinExamPage = lazy(() => import('./components/JoinExamPage'));
-const ExamSessionsPage = lazy(() => import('./components/ExamSessionsPage'));
-const PersonalSessionsPage = lazy(() => import('./components/PersonalSessionsPage').then(m => ({ default: m.PersonalSessionsPage })));
+// Wraps a lazy import so a stale-chunk 404 (post-deploy cache) auto-reloads instead of crashing
+const lazyWithReload = <T extends React.ComponentType<any>>(
+  factory: () => Promise<{ default: T }>
+) =>
+  lazy(() =>
+    factory().catch((err: Error) => {
+      const isChunk =
+        err.name === 'ChunkLoadError' ||
+        /Loading chunk \d+ failed/i.test(err.message) ||
+        /Failed to fetch dynamically imported module/i.test(err.message);
+      if (isChunk) { window.location.reload(); }
+      throw err;
+    })
+  );
+
+const CreateCoursePage = lazyWithReload(() => import('./components/CreateCoursePage').then(m => ({ default: m.CreateCoursePage })));
+const CreateExamPage = lazyWithReload(() => import('./components/CreateExamPage').then(m => ({ default: m.CreateExamPage })));
+const GenerateAIQuizPage = lazyWithReload(() => import('./components/GenerateAIQuizPage').then(m => ({ default: m.GenerateAIQuizPage })));
+const AdminDashboard = lazyWithReload(() => import('./components/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const UserProfilePage = lazyWithReload(() => import('./components/UserProfilePage').then(m => ({ default: m.UserProfilePage })));
+const EnhancedAssessmentsPage = lazyWithReload(() => import('./components/EnhancedAssessmentsPage').then(m => ({ default: m.EnhancedAssessmentsPage })));
+const StudyGroupsPage = lazyWithReload(() => import('./components/StudyGroupsPage').then(m => ({ default: m.StudyGroupsPage })));
+const BulkCreateExamPage = lazyWithReload(() => import('./components/BulkCreateExamPage').then(m => ({ default: m.BulkCreateExamPage })));
+const AnalyticsDashboard = lazyWithReload(() => import('./components/AnalyticsDashboard').then(m => ({ default: m.AnalyticsDashboard })));
+const TermsOfServicePage = lazyWithReload(() => import('./components/TermsOfServicePage').then(m => ({ default: m.TermsOfServicePage })));
+const PrivacyPolicyPage = lazyWithReload(() => import('./components/PrivacyPolicyPage').then(m => ({ default: m.PrivacyPolicyPage })));
+const JoinExamPage = lazyWithReload(() => import('./components/JoinExamPage'));
+const ExamSessionsPage = lazyWithReload(() => import('./components/ExamSessionsPage'));
+const PersonalSessionsPage = lazyWithReload(() => import('./components/PersonalSessionsPage').then(m => ({ default: m.PersonalSessionsPage })));
 
   
 export type UserTier = 'free' | 'learner' | 'pro' | 'pro_plus' | 'admin';
