@@ -767,9 +767,9 @@ export const LoginScreen: React.FC = () => {
                           </div>
 
                           {googleLoading ? (
-                            <div className="w-full flex items-center justify-center gap-3 bg-white dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700 py-3 rounded-xl text-sm">
-                              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                              Signing in with Google…
+                            <div className="w-full flex items-center justify-center gap-2 bg-white dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 py-3 rounded-xl text-sm font-medium">
+                              <svg className="w-4 h-4 animate-spin flex-none" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                              <span>Signing in…</span>
                             </div>
                           ) : googleClientId ? (
                             <div ref={googleDivRef} className="w-full min-h-[44px] flex items-center justify-center">
