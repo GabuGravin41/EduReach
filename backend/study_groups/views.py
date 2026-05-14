@@ -490,6 +490,29 @@ class StudyGroupChallengeViewSet(viewsets.ModelViewSet):
         serializer = ChallengeParticipationSerializer(participation)
         return Response({'created': created, 'participation': serializer.data})
 
+    @action(detail=True, methods=['patch'], url_path='release-results', permission_classes=[permissions.IsAuthenticated])
+    def release_results(self, request, pk=None):
+        challenge = self.get_object()
+        group = challenge.group
+        if request.user != group.creator and not group.memberships.filter(user=request.user, role__in=['teacher', 'admin']).exists():
+            return Response({'detail': 'Only the group creator or teacher can release results.'}, status=403)
+        challenge.results_released = not challenge.results_released  # toggle
+        challenge.save(update_fields=['results_released'])
+        return Response({'results_released': challenge.results_released})
+
+    @action(detail=True, methods=['get'], url_path='submissions', permission_classes=[permissions.IsAuthenticated])
+    def submissions(self, request, pk=None):
+        challenge = self.get_object()
+        group = challenge.group
+        if request.user != group.creator and not group.memberships.filter(user=request.user, role__in=['teacher', 'admin']).exists():
+            return Response({'detail': 'Only the group creator or teacher can view submissions.'}, status=403)
+        if not challenge.assessment:
+            return Response([])
+        from assessments.models import UserAttempt
+        from assessments.serializers import UserAttemptSerializer
+        attempts = UserAttempt.objects.filter(assessment=challenge.assessment).select_related('user').order_by('-submitted_at')
+        return Response(UserAttemptSerializer(attempts, many=True).data)
+
 
 class ChallengeParticipationViewSet(viewsets.ModelViewSet):
     """

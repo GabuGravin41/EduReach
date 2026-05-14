@@ -155,6 +155,18 @@ class StudyGroupChallenge(models.Model):
         default=False,
         help_text='If True, this challenge appears in the platform Public challenges list for all users to discover.',
     )
+    exam_mode = models.BooleanField(
+        default=False,
+        help_text='When True, Easy Mode/AI hints are disabled and tab switches are logged.',
+    )
+    results_released = models.BooleanField(
+        default=False,
+        help_text='When False, only the creator can see student results.',
+    )
+    tab_switch_limit = models.PositiveIntegerField(
+        default=3,
+        help_text='Number of tab switches before the exam auto-submits.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

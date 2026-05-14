@@ -139,6 +139,7 @@ export const studyGroupService = {
     assessment?: number | null;
     start_date?: string;
     end_date?: string | null;
+    exam_mode?: boolean;
   }) {
     const { data } = await apiClient.post('study-groups/challenges/', payload);
     return data;

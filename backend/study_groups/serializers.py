@@ -93,6 +93,10 @@ class StudyGroupChallengeSerializer(serializers.ModelSerializer):
             'assessment_title',
             'start_date',
             'end_date',
+            'is_public_listing',
+            'exam_mode',
+            'results_released',
+            'tab_switch_limit',
             'participations',
             'created_at',
         ]

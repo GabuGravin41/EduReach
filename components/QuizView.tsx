@@ -248,7 +248,10 @@ export const QuizView: React.FC<QuizViewProps> = ({
     setMarkError('');
     try {
       await ensureAttemptStarted();
-      await assessmentService.submitAssessment(assessmentId, answers as Record<number, string>);
+      const tabData = contestMode && tabSwitches > 0
+        ? { tab_switches: tabSwitches, tab_events: tabEventsRef.current }
+        : undefined;
+      await assessmentService.submitAssessment(assessmentId, answers as Record<number, string>, tabData);
       // Always treat submit as saved-only — grading only happens when user clicks Grade with AI
       setAttemptStatusFromServer('submitted');
       setServerAttempt(null);

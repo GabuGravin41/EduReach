@@ -261,6 +261,8 @@ class UserAttempt(models.Model):
     time_taken_minutes = models.PositiveIntegerField(null=True, blank=True)
     time_taken_seconds = models.PositiveIntegerField(null=True, blank=True)
     xp_earned = models.PositiveIntegerField(default=0)
+    tab_switches = models.PositiveIntegerField(default=0)
+    tab_events = models.JSONField(default=list, blank=True)
 
     XP_WEIGHTS = {
         'mcq': 10,

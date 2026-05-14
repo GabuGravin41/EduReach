@@ -317,9 +317,13 @@ export const assessmentService = {
     }
   },
 
-  async submitAssessment(assessmentId: number, answers: Record<number, string>): Promise<AssessmentAttempt> {
+  async submitAssessment(
+    assessmentId: number,
+    answers: Record<number, string>,
+    tabData?: { tab_switches: number; tab_events: { time: string; count: number }[] }
+  ): Promise<AssessmentAttempt> {
     try {
-      const response = await apiClient.post(API_ENDPOINTS.SUBMIT_ASSESSMENT(assessmentId), { answers });
+      const response = await apiClient.post(API_ENDPOINTS.SUBMIT_ASSESSMENT(assessmentId), { answers, ...tabData });
       return response.data as AssessmentAttempt;
     } catch (error) {
       console.error('Error submitting assessment:', error);

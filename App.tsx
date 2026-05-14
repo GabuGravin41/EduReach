@@ -317,6 +317,11 @@ const AppContent: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentView, user?.id, isGuest]);
 
+    // Reset focus mode when leaving exam_detail
+    useEffect(() => {
+      if (currentView !== 'exam_detail') setExamFocusMode(false);
+    }, [currentView]);
+
     useEffect(() => {
       const path = location.pathname || '/';
       // Only auto-redirect logged-in users away from '/'; unauthenticated users see the landing page
@@ -351,6 +356,7 @@ const AppContent: React.FC = () => {
       navigate(path, opts?.state ? { state: opts.state } : undefined);
     };
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [examFocusMode, setExamFocusMode] = useState(false);
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [userTier, setUserTier] = useState<UserTier>('free');
     const [learnerType, setLearnerType] = useState<string>('');
@@ -953,7 +959,7 @@ const AppContent: React.FC = () => {
            // Pass both the list-item fallback (for title/meta) and the detail query state
            // ExamDetailPage handles its own detail fetch + error/retry UI internally
            return exam ? (
-             <ExamDetailPage exam={exam} setView={setView} />
+             <ExamDetailPage exam={exam} setView={setView} onFocusModeChange={setExamFocusMode} />
            ) : (
              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-10 text-center">
                <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-2">Assessment not found</h2>
@@ -1076,13 +1082,13 @@ const AppContent: React.FC = () => {
       <>
       <div className="flex h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-y-hidden">
         {/* Spacer that reserves sidebar width so content doesn't slide under the fixed sidebar */}
-        <div className={`hidden lg:block flex-shrink-0 ${isSidebarCollapsed ? 'w-20' : 'w-64'} transition-all duration-300`} />
+        <div className={`hidden lg:block flex-shrink-0 ${examFocusMode ? 'w-0' : isSidebarCollapsed ? 'w-20' : 'w-64'} transition-all duration-300`} />
         <Sidebar
           currentView={currentView}
           setView={setView}
           onLogout={async () => { await logout(); }}
           onNewSession={() => setView('setup_session')}
-          isCollapsed={isSidebarCollapsed}
+          isCollapsed={isSidebarCollapsed || examFocusMode}
           setIsCollapsed={setIsSidebarCollapsed}
           userTier={userTier}
           onTierChange={setUserTier}

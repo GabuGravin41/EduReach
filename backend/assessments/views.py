@@ -210,6 +210,17 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         
         attempt.answers = serializer.validated_data['answers']
 
+        # Accept tab tracking fields if provided by the client
+        tab_switches = request.data.get('tab_switches')
+        tab_events = request.data.get('tab_events')
+        if tab_switches is not None:
+            try:
+                attempt.tab_switches = int(tab_switches)
+            except (TypeError, ValueError):
+                pass
+        if tab_events is not None and isinstance(tab_events, list):
+            attempt.tab_events = tab_events
+
         # Determine if any questions need AI grading (essay or short_answer with model solution).
         # This is true regardless of assessment_type (quiz or exam) — grading mode is determined
         # by question types, not by the quiz/exam distinction.
@@ -220,7 +231,7 @@ class AssessmentViewSet(viewsets.ModelViewSet):
             attempt.status = UserAttempt.Status.SUBMITTED
             if not attempt.submitted_at:
                 attempt.submitted_at = timezone.now()
-            attempt.save(update_fields=['answers', 'status', 'submitted_at'])
+            attempt.save(update_fields=['answers', 'status', 'submitted_at', 'tab_switches', 'tab_events'])
 
             # Attempt synchronous AI grading within the same request.
             # If it succeeds the status is promoted to GRADED by calculate_score().

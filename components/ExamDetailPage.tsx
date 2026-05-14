@@ -15,9 +15,10 @@ import { useAuth } from '../src/contexts/useAuth';
 interface ExamDetailPageProps {
     exam: Assessment;
     setView: (view: View, opts?: { examId?: number; state?: { editExamId?: number } }) => void;
+    onFocusModeChange?: (focused: boolean) => void;
 }
 
-export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView }) => {
+export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView, onFocusModeChange }) => {
     const { user } = useAuth();
     const toast = useToast();
     const location = useLocation();
@@ -44,6 +45,18 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
     const [gradingMap, setGradingMap] = React.useState<Record<number, { score: string; percentage: string }>>({});
     const [copyState, setCopyState] = React.useState<'idle' | 'copied' | 'error'>('idle');
     const [sidebarTab, setSidebarTab] = React.useState<'grading' | 'analytics' | 'proctor'>('grading');
+
+    // Focus mode — hides right panel and signals App.tsx to hide left sidebar
+    const [focusMode, setFocusMode] = React.useState(false);
+    const toggleFocusMode = () => {
+        setFocusMode(v => {
+            const next = !v;
+            onFocusModeChange?.(next);
+            return next;
+        });
+    };
+    // Exit focus mode when navigating away
+    React.useEffect(() => () => onFocusModeChange?.(false), []);
 
     // Learner side panel
     const [learnerTab, setLearnerTab] = React.useState<'info' | 'monitor'>('info');
@@ -461,8 +474,27 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                         </>
                     )}
                 </div>
-                <div className="text-sm font-medium text-slate-500">
-                    {liveExam.time || liveExam.time_limit_minutes || 30} Minutes Limit
+                <div className="flex items-center gap-3">
+                    <div className="text-sm font-medium text-slate-500">
+                        {liveExam.time || liveExam.time_limit_minutes || 30} Minutes Limit
+                    </div>
+                    <button
+                        onClick={toggleFocusMode}
+                        title={focusMode ? 'Exit Focus Mode' : 'Enter Focus Mode'}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+                            focusMode
+                                ? 'bg-indigo-600 border-indigo-600 text-white'
+                                : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-indigo-400 hover:text-indigo-600'
+                        }`}
+                    >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            {focusMode
+                                ? <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                                : <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                            }
+                        </svg>
+                        {focusMode ? 'Exit Focus' : 'Focus Mode'}
+                    </button>
                 </div>
             </div>
 
@@ -505,7 +537,7 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                         </button>
                     )}
                 </div>
-                <div className="flex-1 min-h-0 overflow-hidden grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
+                <div className={`flex-1 min-h-0 overflow-hidden grid grid-cols-1 ${focusMode ? '' : 'xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]'}`}>
                     <div className="min-h-0">
                         {isLoadingDetail ? (
                             <div className="h-full flex flex-col items-center justify-center gap-3 text-slate-500">
@@ -641,6 +673,7 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                                         timeLimitMinutes={liveExam.time || liveExam.time_limit_minutes || 30}
                                         assessmentId={liveExam.id}
                                         imageUploadGraceMinutes={imageUploadGraceMinutes}
+                                        contestMode={!!(liveExam as any)?.exam_mode}
                                         forceSubmit={isProctored && tabSwitchCount >= tabLimit}
                                         reviewMode={quizMode === 'review'}
                                         initialAnswers={quizMode === 'review' ? (previousAttempt?.answers as Record<string, any> | undefined) : undefined}
@@ -654,8 +687,8 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView })
                             </div>
                         )}
                     </div>
-                    {/* ── Right sidebar — always visible ───────────────────── */}
-                    <div className="border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col overflow-hidden">
+                    {/* ── Right sidebar — hidden in focus mode ─────────────── */}
+                    <div className={`border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col overflow-hidden ${focusMode ? 'hidden' : ''}`}>
 
                         {isCreator ? (
                             /* ── CREATOR SIDEBAR ── */
