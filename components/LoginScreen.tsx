@@ -90,7 +90,7 @@ export const LoginScreen: React.FC = () => {
   const googleDivRef = useRef<HTMLDivElement>(null);
   const googleClientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
-  const { login, register } = useAuth();
+  const { login, register, googleLogin } = useAuth();
 
   const passwordStrength = password.length === 0 ? null : password.length < 8 ? 'weak' : password.length < 12 ? 'good' : 'strong';
 
@@ -98,7 +98,7 @@ export const LoginScreen: React.FC = () => {
     setGoogleLoading(true);
     setError('');
     try {
-      await authService.googleLogin(response.credential);
+      await googleLogin(response.credential);
       setShowAuth(false);
       resetForm();
     } catch (err: any) {

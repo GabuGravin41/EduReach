@@ -6,6 +6,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<void>;
+  googleLogin: (idToken: string) => Promise<void>;
   register: (payload: {
     username: string;
     email: string;
@@ -73,6 +74,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const googleLogin = async (idToken: string) => {
+    await authService.googleLogin(idToken);
+    const userData = await authService.getCurrentUser();
+    setUser(userData);
+  };
+
   const register: AuthContextType['register'] = async (payload) => {
     const { username, email, password, firstName, lastName, learningGoal, learnerType, interests } = payload;
     const interestsValue = Array.isArray(interests) ? interests.join(',') : '';
@@ -117,6 +124,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isLoading,
         isAuthenticated: !!user,
         login,
+        googleLogin,
         register,
         logout,
         refreshUser,
