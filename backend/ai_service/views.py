@@ -493,26 +493,13 @@ def generate_quiz(request):
             combined_context_parts.append(f"[PDF Context]\n{pdf_context}")
         combined_context = "\n\n---\n\n".join(combined_context_parts).strip()
 
-        # Topic-only mode: no transcript or PDF — generate from a unit syllabus
-        # (preferred) or a bare topic name.
-        if not combined_context and unit_obj:
-            combined_context = (
-                f"TOPIC-ONLY MODE: Generate {num_questions} real exam questions for the "
-                f"university unit \"{unit_obj.name}\".\n"
-                f"{unit_obj.ai_context()}\n"
-                f"Write specific, answerable exam questions drawn from this syllabus. "
-                f"Include realistic values, formulas and scenarios. Vary depth: factual "
-                f"recall, conceptual understanding, and application/calculation. "
-                f"NEVER write placeholder text. "
-                f"Title: {assessment_title or unit_obj.name}"
-            )
-        elif not combined_context and topic_only:
-            combined_context = (
-                f"TOPIC-ONLY MODE: Generate {num_questions} questions about \"{topic_only}\".\n"
-                f"Draw on standard academic knowledge of this subject. "
-                f"Vary question depth: include factual recall, conceptual understanding, and application. "
-                f"Title: {assessment_title or topic_only}"
-            )
+        # Topic-only mode: no transcript or PDF — use separate prompt, not content-mirroring.
+        # A scoped curriculum unit is also topic-only and supplies a real syllabus.
+        is_topic_only = bool(not combined_context and (topic_only or unit_obj))
+        if is_topic_only:
+            # Placeholder so downstream length checks pass; the real prompt is
+            # built in the batch loop below from topic_only / unit_obj.
+            combined_context = topic_only or (unit_obj.name if unit_obj else '')
 
         # Bound total context to keep generation latency predictable.
         # For larger question sets, use less context to leave more room for output.
@@ -564,7 +551,51 @@ def generate_quiz(request):
                 existing_qs = "; ".join([q.get("question", "")[:60] for q in all_questions[-5:]])
                 avoid_clause = f"\n\nDo NOT repeat these questions you already generated: {existing_qs}"
 
-            prompt = f"""You are generating assessment questions from the following study material. Read it carefully — it may be an exam paper, lecture notes, textbook content, or worked examples.
+            if is_topic_only:
+                # When scoped to a curriculum unit, give the lecturer the real
+                # syllabus so questions stay on-subject (e.g. Electrical Machines 3).
+                if unit_obj:
+                    topic_header = (
+                        f"Unit: {unit_obj.name}"
+                        + (f" ({unit_obj.code})" if unit_obj.code else "")
+                        + f"\nSyllabus this unit covers: {unit_obj.syllabus_summary}"
+                    )
+                else:
+                    topic_header = f"Topic: {topic_only}"
+                prompt = f"""You are an expert university lecturer writing exam questions.
+
+{topic_header}
+Level: Third-year university, {difficulty} difficulty
+Generate exactly {batch_count} questions drawn strictly from the material above.{avoid_clause}
+
+RULES:
+1. Write real, specific exam questions. NEVER write placeholder text or describe what a question "would" cover.
+2. Mix question types appropriately:
+   - Calculations, circuits, derivations: type "short_answer" with a precise numerical/algebraic answer
+   - Concepts, definitions, theory: type "mcq" with 4 distinct options
+3. For engineering/science: include realistic component values, specific formulas, worked numerical examples.
+4. correct_answer must be the actual answer, NOT a description.
+5. explanation must show full reasoning or working steps.
+6. LaTeX: $...$ inline, $$...$$ block. Use for all mathematics.
+
+Return ONLY valid JSON:
+{{"questions": [
+  {{
+    "question": "An NPN BJT CE amplifier has $\\\\beta = 120$, $V_{{CC}} = 15\\\\,\\\\text{{V}}$, $R_C = 3.3\\\\,\\\\text{{k}}\\\\Omega$, $R_E = 1\\\\,\\\\text{{k}}\\\\Omega$. Find $I_C$ if $V_B = 3\\\\,\\\\text{{V}}$.",
+    "type": "short_answer",
+    "correct_answer": "2.3 mA",
+    "explanation": "$V_E = V_B - 0.7 = 2.3\\\\,\\\\text{{V}}$. $I_E = V_E/R_E = 2.3\\\\,\\\\text{{mA}}$. $I_C \\\\approx I_E = 2.3\\\\,\\\\text{{mA}}$."
+  }},
+  {{
+    "question": "What effect does negative feedback have on amplifier bandwidth?",
+    "type": "mcq",
+    "options": ["Decreases bandwidth", "Increases bandwidth", "Has no effect on bandwidth", "Makes bandwidth zero"],
+    "correct_answer": "Increases bandwidth",
+    "explanation": "Negative feedback trades gain for bandwidth; the gain-bandwidth product stays constant."
+  }}
+]}}"""
+            else:
+                prompt = f"""You are generating assessment questions from the following study material. Read it carefully.
 
 CONTENT:
 {batch_context}
@@ -573,42 +604,40 @@ Generate exactly {batch_count} {difficulty} difficulty questions.{avoid_clause}
 
 CRITICAL RULES:
 
-RULE 1 — FORMAT MIRRORING (most important):
+RULE 1 - FORMAT MIRRORING (most important):
 Analyse the structure of the content above. If it is an exam paper or structured problem set, mirror its format exactly:
 - If it has multi-part questions (i, ii, iii), reproduce that structure
 - If it has data tables, those exact tables must appear in your questions
 - If it uses a specific notation or formula style, use the same
-- If problems say "using Method X, find Y for the following data", keep that phrasing
 - Each question should feel like it came from the same exam paper, not a generic quiz
 
-RULE 2 — USE EXACT DATA:
-Never invent or substitute numbers. The specific values in the content (data points, tables, integrals, polynomials, coefficients) must appear in your questions verbatim.
+RULE 2 - USE EXACT DATA:
+Never invent or substitute numbers. The specific values in the content must appear verbatim.
 
-RULE 3 — QUESTION TYPE by subject:
-- Computation, mathematics, engineering, science → "short_answer" with a specific numerical/algebraic answer
-- Definitions, concepts, theory → "mcq" with 4 meaningful options
+RULE 3 - QUESTION TYPE by subject:
+- Computation, mathematics, engineering, science: "short_answer" with a specific numerical/algebraic answer
+- Definitions, concepts, theory: "mcq" with 4 meaningful options
 - NEVER use true/false for computational or derivation problems
-- If the source is an exam paper with long-form problems, use "short_answer" for all of them
 
-RULE 4 — COMPLETENESS:
-Each short_answer question must include all data the student needs to solve it (full tables, limits, formulas). The correct_answer must be the exact numerical or algebraic result. The explanation must show the full working.
+RULE 4 - COMPLETENESS:
+Each question must include all data the student needs. The correct_answer must be the exact result. Explanation must show full working.
 
-RULE 5 — LaTeX: $...$ inline, $$...$$ block. Use for all mathematics.
+RULE 5 - LaTeX: $...$ inline, $$...$$ block. Use for all mathematics.
 
 Return ONLY valid JSON:
 {{"questions": [
   {{
-    "question": "Using Newton's divided difference formula with $x$: [1,3,6,11] and $f(x)$: [4,32,224,1344], find the divided difference $f[1,3]$.",
+    "question": "A series RC circuit has $R = 4.7\\\\,\\\\text{{k}}\\\\Omega$ and $C = 10\\\\,\\\\mu\\\\text{{F}}$. Find the time constant $\\\\tau$.",
     "type": "short_answer",
-    "correct_answer": "14",
-    "explanation": "$$f[1,3] = \\frac{{f(3)-f(1)}}{{3-1}} = \\frac{{32-4}}{{2}} = 14$$"
+    "correct_answer": "47 ms",
+    "explanation": "$\\\\tau = RC = 4700 \\\\times 10 \\\\times 10^{{-6}} = 47\\\\,\\\\text{{ms}}$"
   }},
   {{
-    "question": "Sample multiple choice question?",
+    "question": "What is the main advantage of negative feedback in an amplifier?",
     "type": "mcq",
-    "options": ["Correct Option", "Wrong Option 1", "Wrong Option 2", "Wrong Option 3"],
-    "correct_answer": "Correct Option",
-    "explanation": "Explanation of why this is correct."
+    "options": ["Increases gain", "Reduces distortion and improves stability", "Increases input impedance only", "Eliminates the power supply"],
+    "correct_answer": "Reduces distortion and improves stability",
+    "explanation": "Negative feedback reduces gain but improves linearity, bandwidth, and stability."
   }}
 ]}}"""
 
