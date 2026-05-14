@@ -2,19 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 
 // ─── Inline SVG Icons (self-contained, no app dependency) ────────────────────
 
-const Logo: React.FC<{ className?: string }> = ({ className = 'w-8 h-8' }) => (
-  <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-    <rect width="40" height="40" rx="10" fill="url(#logoGrad)" />
-    <path d="M10 28L20 12L30 28" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M14 22H26" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-    <defs>
-      <linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#6366f1" />
-        <stop offset="1" stopColor="#7c3aed" />
-      </linearGradient>
-    </defs>
-  </svg>
-);
 
 const Icon: React.FC<{ path: string; className?: string }> = ({ path, className = 'w-6 h-6' }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -391,7 +378,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterAsGuest }) => {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <div className="flex items-center gap-2.5">
-              <Logo className="w-8 h-8" />
+              <img src="/logo-no-name.jpeg" alt="EduReach" className="w-8 h-8 rounded-lg object-contain" />
               <span className="text-white font-bold text-lg tracking-tight">EduReach</span>
             </div>
 
@@ -946,7 +933,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterAsGuest }) => {
             {/* Brand */}
             <div className="col-span-2 md:col-span-1 space-y-4">
               <div className="flex items-center gap-2.5">
-                <Logo className="w-7 h-7" />
+                <img src="/logo-no-name.jpeg" alt="EduReach" className="w-7 h-7 rounded-lg object-contain" />
                 <span className="text-white font-bold text-base">EduReach</span>
               </div>
               <p className="text-slate-500 text-sm leading-relaxed max-w-[200px]">
