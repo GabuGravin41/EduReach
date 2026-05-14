@@ -1333,10 +1333,8 @@ const AppContent: React.FC = () => {
         <PostAuthOnboardingModal
           initialFirstName={user.first_name || ''}
           initialLastName={user.last_name || ''}
-          onComplete={async () => {
-            setShowPostAuthOnboarding(false);
-            await refreshUser();
-          }}
+          refreshUser={refreshUser}
+          onComplete={() => setShowPostAuthOnboarding(false)}
         />
       )}
       {/* Onboarding for logged-in users who haven't completed it (3-slide, no CTA) */}

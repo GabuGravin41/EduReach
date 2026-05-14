@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import apiClient from '../src/services/api';
+import { authService } from '../src/services/authService';
 import { FIELD_LABELS } from '../src/hooks/useOnboardingPrefs';
 
 const ALL_FIELDS = Object.entries(FIELD_LABELS).map(([key, val]) => ({ key, ...val }));
@@ -25,12 +25,14 @@ interface Props {
   initialFirstName?: string;
   initialLastName?: string;
   onComplete: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 export const PostAuthOnboardingModal: React.FC<Props> = ({
   initialFirstName = '',
   initialLastName = '',
   onComplete,
+  refreshUser,
 }) => {
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState<'forward' | 'back'>('forward');
@@ -96,10 +98,13 @@ export const PostAuthOnboardingModal: React.FC<Props> = ({
       }
       if (bio.trim()) payload.bio = bio.trim();
 
-      await apiClient.patch('users/profile/', payload);
+      await authService.updateProfile(payload);
+      await refreshUser();
       onComplete();
     } catch {
       setError('Could not save your profile — you can update it later in Settings.');
+      // Still refresh and dismiss so the user isn't stuck
+      try { await refreshUser(); } catch { /* ignore */ }
       onComplete();
     } finally {
       setSaving(false);
