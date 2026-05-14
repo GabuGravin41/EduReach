@@ -122,6 +122,42 @@ export const QuizView: React.FC<QuizViewProps> = ({
     });
   }, [quiz]);
 
+  // Detect shared preamble across multi-part problems (e.g. olympiad papers where
+  // every sub-question repeats the same long context). Only activates when ≥2
+  // questions share a common prefix of 200+ chars.
+  const { sharedPreamble, preambleImages } = useMemo(() => {
+    const texts = questions.map(q => (q as any).question_text as string ?? '');
+    if (texts.length < 2) return { sharedPreamble: '', preambleImages: [] };
+
+    let prefix = texts[0];
+    for (let i = 1; i < texts.length; i++) {
+      let j = 0;
+      while (j < prefix.length && j < texts[i].length && prefix[j] === texts[i][j]) j++;
+      prefix = prefix.slice(0, j);
+      if (!prefix) return { sharedPreamble: '', preambleImages: [] };
+    }
+
+    if (prefix.length < 200) return { sharedPreamble: '', preambleImages: [] };
+
+    // Trim to a clean paragraph boundary
+    const lastDouble = prefix.lastIndexOf('\n\n');
+    if (lastDouble > 100) prefix = prefix.slice(0, lastDouble).trim();
+    else {
+      const lastDot = prefix.lastIndexOf('. ');
+      if (lastDot > 100) prefix = prefix.slice(0, lastDot + 1).trim();
+    }
+
+    // Collect images referenced in the preamble (same across all questions)
+    const firstImages: any[] = (questions[0] as any).images ?? [];
+    const preambleImageFilenames = new Set<string>();
+    const imgRegex = /!\[\]\(([^)]+)\)/g;
+    let m: RegExpExecArray | null;
+    while ((m = imgRegex.exec(prefix)) !== null) preambleImageFilenames.add(m[1]);
+    const preambleImgs = firstImages.filter((img: any) => preambleImageFilenames.has(img.filename));
+
+    return { sharedPreamble: prefix, preambleImages: preambleImgs };
+  }, [questions]);
+
   const [answers, setAnswers] = useState<Record<string, any>>(initialAnswers ?? {});
   const [isSubmitted, setIsSubmitted] = useState<boolean>(reviewMode);
   const [timeLeftSeconds, setTimeLeftSeconds] = useState<number | null>(
@@ -787,6 +823,24 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
         )}
       </div>
 
+      {/* Shared problem context (multi-part papers like olympiads) */}
+      {sharedPreamble && (
+        <div className="max-w-4xl mx-auto mb-2">
+          <div className="bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-xl p-6">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs font-bold uppercase tracking-widest text-indigo-500 dark:text-indigo-400">Problem Context</span>
+            </div>
+            <div className="text-sm text-slate-700 dark:text-slate-300 overflow-visible">
+              {preambleImages.length > 0 ? (
+                <MathMarkdown images={preambleImages}>{sharedPreamble}</MathMarkdown>
+              ) : (
+                <MarkdownRenderer content={sharedPreamble} />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Question list */}
       <div className="space-y-8 max-w-4xl mx-auto">
         {questions.map((q, index) => (
@@ -802,13 +856,20 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
                 <div className="flex-1 min-w-0 overflow-visible">
                   {q.type !== 'cloze' && (
                     <div className="text-base font-medium text-slate-800 dark:text-slate-100 overflow-visible break-words">
-                      {(q as any).images?.length > 0 ? (
-                        <MathMarkdown images={(q as any).images}>
-                          {q.type === 'essay' ? (q as EssayQuestion).question_text : (q as any).question_text}
-                        </MathMarkdown>
-                      ) : (
-                        <MarkdownRenderer content={q.type === 'essay' ? (q as EssayQuestion).question_text : (q as any).question_text} />
-                      )}
+                      {(() => {
+                        const rawText = q.type === 'essay' ? (q as EssayQuestion).question_text : (q as any).question_text;
+                        const displayText = (sharedPreamble && rawText?.startsWith(sharedPreamble))
+                          ? rawText.slice(sharedPreamble.length).trimStart()
+                          : rawText;
+                        const remainingImages = (q as any).images?.filter(
+                          (img: any) => !preambleImages.some((pi: any) => pi.filename === img.filename)
+                        ) ?? [];
+                        return remainingImages.length > 0 ? (
+                          <MathMarkdown images={remainingImages}>{displayText}</MathMarkdown>
+                        ) : (
+                          <MarkdownRenderer content={displayText} />
+                        );
+                      })()}
                     </div>
                   )}
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
