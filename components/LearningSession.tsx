@@ -364,11 +364,15 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   // Initial Welcome Message if no history
   useEffect(() => {
     if (messages.length === 0) {
-      setMessages([
-        { role: 'model', content: "Hi! I'm Edu, your AI tutor. Ask me anything about this video — I can explain concepts, solve problems, and generate a quiz for you." }
-      ]);
+      const hasTranscript = !isPlaceholderTranscript(liveTranscript || transcript);
+      const videoTitle = currentLesson?.title ? `"${currentLesson.title}"` : 'this video';
+      const greeting = hasTranscript
+        ? `Hi! I'm Edu, your AI tutor. I have the transcript for ${videoTitle} loaded. Ask me anything — I can explain concepts, answer questions, and generate a quiz.`
+        : `Hi! I'm Edu, your AI tutor. I'm watching ${videoTitle} with you, but I don't have a transcript for it yet, so I can't summarise or quote the video directly.\n\nTell me what topic you're studying and I'll help you understand it, answer questions, and create practice questions.`;
+      setMessages([{ role: 'model', content: greeting }]);
     }
-  }, [transcript]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Responsive Layout
   useEffect(() => {
@@ -544,27 +548,38 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
       let optimizedMessage = message;
       const wantsDetailed = /explain more|tell me more|detailed|deep dive|elaborate/i.test(message);
 
+      // Always include video title so the AI knows what we're studying
+      const titleLine = currentLesson?.title ? `Video: "${currentLesson.title}"\n\n` : '';
+
       if (effectiveTranscript && effectiveTranscript.trim().length > 0) {
         if (effectiveTranscript.length > 5000) {
           const chunks = chunkTranscript(effectiveTranscript, 3000);
           const relevantChunks = findRelevantChunks(chunks, message, wantsDetailed ? 4 : 2);
-          context = relevantChunks.join('\n\n---\n\n');
+          context = titleLine + relevantChunks.join('\n\n---\n\n');
         } else {
-          context = effectiveTranscript;
+          context = titleLine + effectiveTranscript;
         }
       } else if (videoSummary) {
-        // Use pre-fetched summary as lightweight context fallback
-        context = `Video: ${currentLesson?.title || ''}\n\n${videoSummary}`;
+        context = `${titleLine}${videoSummary}`;
+      } else {
+        // No transcript at all — still give the AI the title so it can be helpful
+        context = titleLine || '';
       }
-      // If context is still empty, lesson_id is passed below so backend fetches description live
 
       if (!wantsDetailed) {
         optimizedMessage = `${message}\n\n[System: Keep response concise (2-3 sentences) unless asked for details.]`;
       }
 
+      // Build conversation history — last 10 exchanges (skip empty placeholders)
+      const historyPayload = messages
+        .filter(m => m.content && m.content.trim().length > 0)
+        .slice(-10)
+        .map(m => ({ role: m.role === 'model' ? 'assistant' : 'user', content: m.content }));
+
       const response = await aiClient.post('/ai/chat/', {
         message: optimizedMessage,
         context: context,
+        history: historyPayload,
         ...(currentLesson?.id ? { lesson_id: currentLesson.id } : {}),
       });
 
@@ -573,18 +588,22 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
       setMessages(prev => prev.map((msg, mapIdx) =>
         mapIdx === placeholderIndex ? { ...msg, content: responseText } : msg
       ));
-    } catch (err) {
+    } catch (err: any) {
       console.error('Chat error:', err);
-      const isTimeout = (err as any)?.code === 'ECONNABORTED';
+      const status = err?.response?.status;
+      const isTimeout = err?.code === 'ECONNABORTED';
+      let errorMsg = "Something went wrong. Please try again in a moment.";
+      if (isTimeout) {
+        errorMsg = "That took too long — try a shorter or more specific question.";
+      } else if (status === 429) {
+        errorMsg = err?.response?.data?.error || "You've reached your monthly AI limit. Upgrade your plan to continue.";
+      } else if (status === 503 || status === 502) {
+        errorMsg = "The AI service is temporarily busy — try again in a few seconds.";
+      } else if (!navigator.onLine) {
+        errorMsg = "You appear to be offline. Check your connection and try again.";
+      }
       setMessages(prev => prev.map((msg, mapIdx) =>
-        mapIdx === placeholderIndex
-          ? {
-            ...msg,
-            content: isTimeout
-              ? "Response took too long. Try a shorter question, or ask for a concise answer."
-              : "I'm having trouble connecting right now. Please try again.",
-          }
-          : msg
+        mapIdx === placeholderIndex ? { ...msg, content: errorMsg } : msg
       ));
     } finally {
       setIsLoading(false);
@@ -986,6 +1005,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
                 isSavingQuiz={isSavingQuiz}
                 quizSaved={quizSaved}
                 onSeekTo={handleSeekTo}
+                hasTranscript={!!(effectiveTranscript && effectiveTranscript.trim().length > 0)}
               />
             </div>
           </div>
@@ -1136,6 +1156,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
                   isSavingQuiz={isSavingQuiz}
                   quizSaved={quizSaved}
                   onSeekTo={handleSeekTo}
+                  hasTranscript={!!(effectiveTranscript && effectiveTranscript.trim().length > 0)}
                 />
               </div>
             </div>

@@ -33,6 +33,7 @@ interface AIAssistantProps {
   isSavingQuiz?: boolean;
   quizSaved?: boolean;
   onSeekTo?: (seconds: number) => void;
+  hasTranscript?: boolean;
 }
 
 type ActiveTab = 'chat' | 'quiz';
@@ -50,6 +51,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   isSavingQuiz,
   quizSaved,
   onSeekTo,
+  hasTranscript = false,
 }) => {
   const [input, setInput] = useState('');
   const [activeTab, setActiveTab] = useState<ActiveTab>('chat');
@@ -70,11 +72,16 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
 
   useEffect(scrollToBottom, [messages]);
 
-  const quickPrompts = [
+  // Transcript-dependent prompts only make sense when we have the video content
+  const quickPrompts = hasTranscript ? [
     { label: 'Summarize', prompt: 'Summarize the key points covered so far in 3 bullet points.' },
     { label: 'Key terms', prompt: 'List the key terms and define each one briefly.' },
     { label: 'Explain simply', prompt: 'Explain the main concept like I am completely new to the topic.' },
     { label: 'What to study', prompt: 'What are the most important topics I should focus on for an exam on this?' },
+  ] : [
+    { label: 'Explain simply', prompt: 'Explain the main concept like I am completely new to the topic.' },
+    { label: 'Give me examples', prompt: 'Give me 2-3 concrete examples to help me understand this topic.' },
+    { label: 'Quiz me', prompt: 'Ask me 3 short questions to test my understanding of what I just told you I am studying.' },
   ];
 
   const handleQuickPrompt = (prompt: string) => {
@@ -197,8 +204,8 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                 </div>
 
                 <div className="p-4 border-t border-slate-200 dark:border-slate-700">
-                    <div className="mb-3 flex flex-wrap gap-2">
-                        <Button 
+                    <div className="mb-3 flex flex-wrap gap-2 items-center">
+                        <Button
                             onClick={handleGenerateQuizClick}
                             disabled={isLoading}
                             variant="secondary"
@@ -206,8 +213,13 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                             className="gap-2"
                         >
                             <LightbulbIcon className="w-4 h-4" />
-                            {quiz ? 'Regenerate quiz' : 'Generate quiz from transcript'}
+                            {quiz ? 'Regenerate quiz' : hasTranscript ? 'Generate quiz from transcript' : 'Generate quiz on this topic'}
                         </Button>
+                        {!hasTranscript && (
+                          <span className="text-xs text-amber-600 dark:text-amber-400">
+                            No transcript — tell me what you're studying first
+                          </span>
+                        )}
                     </div>
                     <form onSubmit={handleSendMessage} className="flex gap-2">
                     <input
