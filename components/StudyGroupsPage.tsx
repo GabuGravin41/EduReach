@@ -395,10 +395,10 @@ export const StudyGroupsPage: React.FC<StudyGroupsPageProps> = ({ isGuest = fals
   const userCreatedGroups = groups.filter(g => user && g.creator && g.creator.id === user.id);
   const userMemberGroups = groups.filter(g => g.is_member);
 
-  // Tier create limits: free=0, starter=3, pro/admin=unlimited
-  const CREATE_LIMITS: Record<string, number | null> = { free: 0, starter: 3, pro: null, admin: null };
-  // Tier join limits: free=2, starter=7, pro/admin=unlimited
-  const JOIN_LIMITS: Record<string, number | null>   = { free: 2, starter: 7, pro: null, admin: null };
+  // Tier create limits: free=0, starter=3, paid tiers=unlimited
+  const CREATE_LIMITS: Record<string, number | null> = { free: 0, starter: 3, learner: null, pro: null, pro_plus: null, admin: null };
+  // Tier join limits: free=2, starter=7, paid tiers=unlimited
+  const JOIN_LIMITS: Record<string, number | null>   = { free: 2, starter: 7, learner: null, pro: null, pro_plus: null, admin: null };
 
   const createLimit = CREATE_LIMITS[userTier] ?? 0;
   const joinLimit   = JOIN_LIMITS[userTier] ?? null;

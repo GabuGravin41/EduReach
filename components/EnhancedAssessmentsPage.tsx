@@ -394,6 +394,21 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
         const title = (exam.displayTitle || '').toLowerCase();
         const desc = (exam.description || '').toLowerCase();
 
+        // Search query match boost — when user searches, rank by match quality first
+        if (searchQuery.trim()) {
+            const searchTerms = expandTerms(searchQuery);
+            searchTerms.forEach(term => {
+                if (title.includes(term)) score += 200;          // title match = highest
+                if (topic.includes(term)) score += 150;          // topic match = second
+                if (examTags.some(t => t.toLowerCase().includes(term))) score += 100; // tag match
+                if (desc.includes(term)) score += 50;            // description match = lowest
+            });
+            // Exact query word in title is strongest possible signal
+            const rawQuery = searchQuery.trim().toLowerCase();
+            if (title.includes(rawQuery)) score += 300;
+            if (topic.includes(rawQuery)) score += 200;
+        }
+
         // Backend personalised recommendation → strong boost
         if (recommendations.some(r => r.id === exam.id)) score += 120;
 
