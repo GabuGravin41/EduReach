@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { viewToPath, pathnameToView, ROUTES, type View } from './src/routes';
 
@@ -136,6 +136,7 @@ const mapApiAssessmentToUi = (assessment: any): Assessment => ({
     correct_answer: q.correct_answer,
     points: q.points || 1,
     explanation: q.explanation || '',
+    images: q.images || [],
     case_sensitive: false,
     exact_match: false,
     max_length: 400,
@@ -261,9 +262,17 @@ const AppContent: React.FC = () => {
       return () => clearInterval(interval);
     }, [user]);
 
-    // Post-auth onboarding: show for newly registered users who haven't completed it
+    // Post-auth onboarding: show ONCE per session for users who haven't completed it.
+    // A ref prevents refreshUser() calls from re-triggering the modal after the user
+    // has already seen and dismissed it (or after a failed save in the modal itself).
+    const onboardingShownRef = useRef(false);
     useEffect(() => {
-      setShowPostAuthOnboarding(!!user && user.onboarding_completed === false);
+      if (!user) { onboardingShownRef.current = false; return; } // reset on logout
+      if (onboardingShownRef.current) return;                    // already decided this session
+      if (user.onboarding_completed === false) {
+        onboardingShownRef.current = true;
+        setShowPostAuthOnboarding(true);
+      }
     }, [user]);
 
     // Show onboarding modal for any first-time visitor (guest or logged-in)

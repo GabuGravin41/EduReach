@@ -274,9 +274,10 @@ export const LoginScreen: React.FC = () => {
           </button>
           <button
             onClick={openLogin}
-            className="w-full bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold py-3.5 px-6 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
+            className="text-sm text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors mt-1"
           >
-            Sign in
+            Already have an account?{' '}
+            <span className="font-semibold text-indigo-600 dark:text-indigo-400">Sign in</span>
           </button>
         </div>
       </div>
