@@ -545,6 +545,37 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterAsGuest }) => {
         </div>
       </section>
 
+      {/* ── MISSION ───────────────────────────────────────────────────── */}
+      <section className="py-20 sm:py-28 bg-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <p className="text-sm font-semibold uppercase tracking-widest text-indigo-500 mb-5">Our mission</p>
+          <h2 className="text-4xl sm:text-5xl font-extrabold text-slate-900 tracking-tight leading-[1.1] mb-7">
+            Democratise the<br className="hidden sm:block" />{' '}
+            <span className="bg-gradient-to-r from-indigo-500 via-violet-500 to-cyan-500 bg-clip-text text-transparent">
+              learning experience.
+            </span>
+          </h2>
+          <p className="text-lg sm:text-xl text-slate-500 leading-relaxed max-w-2xl mx-auto mb-10">
+            High-quality learning material, AI tutorship, and a community to grow with should not be a privilege.
+            We built EduReach so every student — regardless of financial, geographic, or ideological background — has access to the tools that help them succeed.
+          </p>
+          <div className="flex flex-wrap justify-center gap-8 text-sm text-slate-600">
+            {[
+              { icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', label: 'Affordable pricing for every budget' },
+              { icon: 'M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z', label: 'Built for students everywhere' },
+              { icon: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z', label: 'AI-powered, not AI-gated' },
+            ].map(({ icon, label }) => (
+              <span key={label} className="flex items-center gap-2">
+                <span className="inline-flex p-1.5 rounded-lg bg-indigo-50">
+                  <Icon path={icon} className="w-4 h-4 text-indigo-500" />
+                </span>
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── FEATURES ──────────────────────────────────────────────────── */}
       <section id="features" className="py-24 sm:py-32 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
