@@ -399,8 +399,9 @@ export const StudyGroupsPage: React.FC<StudyGroupsPageProps> = ({ isGuest = fals
   const CREATE_LIMITS: Record<string, number | null> = { free: 0, starter: 3, learner: null, pro: null, pro_plus: null, admin: null };
   // Tier join limits: free=2, starter=7, paid tiers=unlimited
   const JOIN_LIMITS: Record<string, number | null>   = { free: 2, starter: 7, learner: null, pro: null, pro_plus: null, admin: null };
+  const PAID_TIERS = new Set(['learner', 'pro', 'pro_plus', 'admin']);
 
-  const createLimit = CREATE_LIMITS[userTier] ?? 0;
+  const createLimit = CREATE_LIMITS[userTier] ?? null; // unknown tier → treat as unlimited (safe default)
   const joinLimit   = JOIN_LIMITS[userTier] ?? null;
 
   const canCreate  = (user as any)?.is_staff || (createLimit === null) || (createLimit > 0 && userCreatedGroups.length < createLimit);
@@ -1654,19 +1655,19 @@ export const StudyGroupsPage: React.FC<StudyGroupsPageProps> = ({ isGuest = fals
           <p className="mt-1 text-sm sm:text-base text-slate-600 dark:text-slate-400">
             Join peers learning the same topics, share questions, and stay accountable.
           </p>
-          {/* Tier usage hint */}
-          {user && !((user as any)?.is_staff) && userTier !== 'pro' && userTier !== 'admin' && (
+          {/* Tier usage hint — only show for free/starter, not paid tiers */}
+          {user && !((user as any)?.is_staff) && !PAID_TIERS.has(userTier) && (
             <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
               {userTier === 'free'
                 ? `Free plan · ${userMemberGroups.length}/${JOIN_LIMITS.free} groups joined · creating groups requires Starter`
-                : `Starter plan · ${userMemberGroups.length}/${JOIN_LIMITS.starter} joined · ${userCreatedGroups.length}/${createLimit} created`}
+                : `Starter plan · ${userMemberGroups.length}/${JOIN_LIMITS.starter} joined · ${userCreatedGroups.length}/${createLimit ?? '∞'} created`}
             </p>
           )}
         </div>
         {atCreateLimit ? (
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1.5 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-2.5">
             <span className="text-sm text-amber-700 dark:text-amber-300">
-              {userTier === 'free' ? 'Free plan: create groups not available' : `Starter limit: ${createLimit} groups reached`}
+              {userTier === 'free' ? 'Free plan: create groups not available' : `Starter plan: ${createLimit} group limit reached`}
             </span>
             <button
               onClick={() => navigate('/billing')}

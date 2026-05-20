@@ -77,7 +77,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
     { label: 'Summarize', prompt: 'Summarize the key points covered so far in 3 bullet points.' },
     { label: 'Key terms', prompt: 'List the key terms and define each one briefly.' },
     { label: 'Explain simply', prompt: 'Explain the main concept like I am completely new to the topic.' },
-    { label: 'What to study', prompt: 'What are the most important topics I should focus on for an exam on this?' },
+    { label: 'What to study', prompt: 'Based on the content of this video, what are the most important topics I should focus on for an exam? List them in priority order.' },
   ] : [
     { label: 'Explain simply', prompt: 'Explain the main concept like I am completely new to the topic.' },
     { label: 'Give me examples', prompt: 'Give me 2-3 concrete examples to help me understand this topic.' },
