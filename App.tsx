@@ -69,6 +69,8 @@ const PrivacyPolicyPage = lazyWithReload(() => import('./components/PrivacyPolic
 const JoinExamPage = lazyWithReload(() => import('./components/JoinExamPage'));
 const ExamSessionsPage = lazyWithReload(() => import('./components/ExamSessionsPage'));
 const PersonalSessionsPage = lazyWithReload(() => import('./components/PersonalSessionsPage').then(m => ({ default: m.PersonalSessionsPage })));
+const MySemesterPage = lazyWithReload(() => import('./components/MySemesterPage').then(m => ({ default: m.MySemesterPage })));
+const UnitDetailPage = lazyWithReload(() => import('./components/UnitDetailPage').then(m => ({ default: m.UnitDetailPage })));
 
   
 export type UserTier = 'free' | 'learner' | 'pro' | 'pro_plus' | 'admin';
@@ -297,6 +299,7 @@ const AppContent: React.FC = () => {
     const currentView = route.view;
     const selectedCourseId = route.courseId;
     const selectedExamId = route.examId;
+    const selectedUnitId = route.unitId;
 
     // ── Session tracking — fires on load and every view change ──────────────
     useEffect(() => {
@@ -360,8 +363,12 @@ const AppContent: React.FC = () => {
       }
     }, [user, navigate]);
 
-    const setView = (view: View, opts?: { courseId?: number; examId?: number; state?: object }) => {
-      const path = viewToPath(view, { courseId: opts?.courseId ?? (view === 'course_detail' ? selectedCourseId ?? undefined : undefined), examId: opts?.examId ?? (view === 'exam_detail' ? selectedExamId ?? undefined : undefined) });
+    const setView = (view: View, opts?: { courseId?: number; examId?: number; unitId?: number; state?: object }) => {
+      const path = viewToPath(view, {
+        courseId: opts?.courseId ?? (view === 'course_detail' ? selectedCourseId ?? undefined : undefined),
+        examId: opts?.examId ?? (view === 'exam_detail' ? selectedExamId ?? undefined : undefined),
+        unitId: opts?.unitId ?? (view === 'unit_detail' ? selectedUnitId ?? undefined : undefined),
+      });
       navigate(path, opts?.state ? { state: opts.state } : undefined);
     };
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -874,7 +881,12 @@ const AppContent: React.FC = () => {
 
       switch (currentView) {
         case 'dashboard':
-          return <Dashboard onStartSession={() => setView('setup_session')} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onGoToCreateExam={() => setView('create_exam')} userTier={userTier} username={user?.username ?? (user as any)?.email ?? undefined} />;
+          return <MySemesterPage onSelectUnit={(id) => setView('unit_detail', { unitId: id })} username={user?.username ?? (user as any)?.email ?? undefined} />;
+        case 'unit_detail':
+          if (!selectedUnitId) {
+            return <MySemesterPage onSelectUnit={(id) => setView('unit_detail', { unitId: id })} username={user?.username ?? (user as any)?.email ?? undefined} />;
+          }
+          return <UnitDetailPage unitId={selectedUnitId} onBack={() => setView('dashboard')} />;
         case 'courses':
           return <MyCoursesPage courses={courses} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onNewCourse={() => isGuest && !user ? setGuestModal({ action: 'create a course' }) : setView('create_course')} userTier={userTier} currentUserId={user?.id} highlightedCourseId={recentlyCreatedCourseId ?? undefined} />;
         case 'create_course':

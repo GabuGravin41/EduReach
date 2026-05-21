@@ -1,5 +1,6 @@
 export type View =
   | 'dashboard'
+  | 'unit_detail'
   | 'courses'
   | 'create_course'
   | 'course_detail'
@@ -25,6 +26,7 @@ export type View =
 
 export const ROUTES = {
   dashboard: '/dashboard',
+  unitDetail: (id: number) => `/units/${id}`,
   courses: '/courses',
   createCourse: '/courses/new',
   courseDetail: (id: number) => `/courses/${id}`,
@@ -50,8 +52,11 @@ export const ROUTES = {
   joinGroup: '/invite',
 } as const;
 
-const VIEW_TO_PATH: Record<View, string | ((opts?: { courseId?: number; examId?: number }) => string)> = {
+type RouteOpts = { courseId?: number; examId?: number; unitId?: number };
+
+const VIEW_TO_PATH: Record<View, string | ((opts?: RouteOpts) => string)> = {
   dashboard: ROUTES.dashboard,
+  unit_detail: (opts) => (opts?.unitId != null ? ROUTES.unitDetail(opts.unitId) : ROUTES.dashboard),
   courses: ROUTES.courses,
   create_course: ROUTES.createCourse,
   course_detail: (opts) => (opts?.courseId != null ? ROUTES.courseDetail(opts.courseId) : ROUTES.courses),
@@ -76,48 +81,55 @@ const VIEW_TO_PATH: Record<View, string | ((opts?: { courseId?: number; examId?:
   join_group: ROUTES.joinGroup,
 };
 
-export function viewToPath(
-  view: View,
-  opts?: { courseId?: number; examId?: number }
-): string {
+export function viewToPath(view: View, opts?: RouteOpts): string {
   const path = VIEW_TO_PATH[view];
   if (path == null) return ROUTES.dashboard;
   if (typeof path === 'function') return path(opts);
   return path;
 }
 
-export function pathnameToView(pathname: string): { view: View; courseId: number | null; examId: number | null } {
+export interface ParsedRoute {
+  view: View;
+  courseId: number | null;
+  examId: number | null;
+  unitId: number | null;
+}
+
+export function pathnameToView(pathname: string): ParsedRoute {
   const raw = (pathname || '/').replace(/\/+/g, '/');
   const p = raw.replace(/\/$/, '') || '/';
   const segments = p.split('/').filter(Boolean);
+  const base: ParsedRoute = { view: 'dashboard', courseId: null, examId: null, unitId: null };
 
-  if (p === '/' || p === '/dashboard') return { view: 'dashboard', courseId: null, examId: null };
-  if (p === '/courses') return { view: 'courses', courseId: null, examId: null };
-  if (p === '/courses/new') return { view: 'create_course', courseId: null, examId: null };
+  if (p === '/' || p === '/dashboard') return base;
+  if (segments[0] === 'units' && segments[1] && /^\d+$/.test(segments[1]))
+    return { ...base, view: 'unit_detail', unitId: parseInt(segments[1], 10) };
+  if (p === '/courses') return { ...base, view: 'courses' };
+  if (p === '/courses/new') return { ...base, view: 'create_course' };
   if (segments[0] === 'courses' && segments[1] && /^\d+$/.test(segments[1]))
-    return { view: 'course_detail', courseId: parseInt(segments[1], 10), examId: null };
-  if (p === '/assessments') return { view: 'assessments', courseId: null, examId: null };
-  if (p === '/assessments/new') return { view: 'create_exam', courseId: null, examId: null };
-  if (p === '/assessments/ai') return { view: 'generate_ai_quiz', courseId: null, examId: null };
-  if (p === '/assessments/bulk') return { view: 'bulk_create_exam', courseId: null, examId: null };
+    return { ...base, view: 'course_detail', courseId: parseInt(segments[1], 10) };
+  if (p === '/assessments') return { ...base, view: 'assessments' };
+  if (p === '/assessments/new') return { ...base, view: 'create_exam' };
+  if (p === '/assessments/ai') return { ...base, view: 'generate_ai_quiz' };
+  if (p === '/assessments/bulk') return { ...base, view: 'bulk_create_exam' };
   if (segments[0] === 'assessments' && segments[1] && /^\d+$/.test(segments[1]))
-    return { view: 'exam_detail', courseId: null, examId: parseInt(segments[1], 10) };
-  if (segments[0] === 'courses') return { view: 'courses', courseId: null, examId: null };
-  if (segments[0] === 'assessments') return { view: 'assessments', courseId: null, examId: null };
-  if (p === '/community') return { view: 'community', courseId: null, examId: null };
-  if (segments[0] === 'study-groups') return { view: 'study_groups', courseId: null, examId: null };
-  if (p === '/pricing' || p === '/billing') return { view: 'billing', courseId: null, examId: null };
-  if (p === '/profile') return { view: 'profile', courseId: null, examId: null };
-  if (p === '/admin') return { view: 'admin_panel', courseId: null, examId: null };
-  if (p === '/session') return { view: 'setup_session', courseId: null, examId: null };
-  if (p === '/my-sessions') return { view: 'personal_sessions', courseId: null, examId: null };
-  if (p === '/learn') return { view: 'learning_session', courseId: null, examId: null };
-  if (p === '/analytics') return { view: 'analytics', courseId: null, examId: null };
-  if (p === '/terms') return { view: 'terms', courseId: null, examId: null };
-  if (p === '/privacy') return { view: 'privacy', courseId: null, examId: null };
-  if (p === '/join') return { view: 'join_exam', courseId: null, examId: null };
-  if (p === '/exam-sessions') return { view: 'exam_sessions', courseId: null, examId: null };
-  if (p === '/invite') return { view: 'join_group', courseId: null, examId: null };
+    return { ...base, view: 'exam_detail', examId: parseInt(segments[1], 10) };
+  if (segments[0] === 'courses') return { ...base, view: 'courses' };
+  if (segments[0] === 'assessments') return { ...base, view: 'assessments' };
+  if (p === '/community') return { ...base, view: 'community' };
+  if (segments[0] === 'study-groups') return { ...base, view: 'study_groups' };
+  if (p === '/pricing' || p === '/billing') return { ...base, view: 'billing' };
+  if (p === '/profile') return { ...base, view: 'profile' };
+  if (p === '/admin') return { ...base, view: 'admin_panel' };
+  if (p === '/session') return { ...base, view: 'setup_session' };
+  if (p === '/my-sessions') return { ...base, view: 'personal_sessions' };
+  if (p === '/learn') return { ...base, view: 'learning_session' };
+  if (p === '/analytics') return { ...base, view: 'analytics' };
+  if (p === '/terms') return { ...base, view: 'terms' };
+  if (p === '/privacy') return { ...base, view: 'privacy' };
+  if (p === '/join') return { ...base, view: 'join_exam' };
+  if (p === '/exam-sessions') return { ...base, view: 'exam_sessions' };
+  if (p === '/invite') return { ...base, view: 'join_group' };
 
-  return { view: 'dashboard', courseId: null, examId: null };
+  return base;
 }

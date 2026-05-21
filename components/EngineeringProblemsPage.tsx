@@ -37,7 +37,13 @@ interface PaginatedResponse {
 const DIFFICULTIES = ['', 'easy', 'medium', 'hard'] as const;
 const QUESTION_TYPES = ['', 'calculation', 'derivation', 'explanation', 'design', 'proof', 'sketch', 'mcq'] as const;
 
-export function EngineeringProblemsPage() {
+interface EngineeringProblemsPageProps {
+  /** When set, papers are filtered to this curriculum unit and the unit
+   *  picker + standalone page header are hidden (embedded in UnitDetailPage). */
+  unitId?: number;
+}
+
+export function EngineeringProblemsPage({ unitId }: EngineeringProblemsPageProps = {}) {
   const [problems, setProblems] = useState<EngineeringProblem[]>([]);
   const [units, setUnits] = useState<UnitOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,7 +68,8 @@ export function EngineeringProblemsPage() {
 
     const params: Record<string, string> = {};
     if (search) params.search = search;
-    if (unitFilter) params.unit_code = unitFilter;
+    if (unitId) params.unit = String(unitId);
+    else if (unitFilter) params.unit_code = unitFilter;
     if (difficultyFilter) params.difficulty = difficultyFilter;
     if (typeFilter) params.question_type = typeFilter;
 
@@ -82,7 +89,7 @@ export function EngineeringProblemsPage() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [search, unitFilter, difficultyFilter, typeFilter]);
+  }, [search, unitFilter, unitId, difficultyFilter, typeFilter]);
 
   useEffect(() => {
     const t = setTimeout(() => fetchProblems(true), 300);
@@ -103,16 +110,20 @@ export function EngineeringProblemsPage() {
     }
   };
 
+  const embedded = unitId != null;
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Page header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Engineering Past Papers</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Kenyatta University past paper questions — browse, search, and study with step-by-step solutions.
-          </p>
-        </div>
+    <div className={embedded ? '' : 'min-h-screen bg-gray-50'}>
+      <div className={embedded ? '' : 'max-w-4xl mx-auto px-4 py-8'}>
+        {/* Page header — hidden when embedded inside a unit page */}
+        {!embedded && (
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-gray-900">Engineering Past Papers</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Kenyatta University past paper questions — browse, search, and study with step-by-step solutions.
+            </p>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex flex-wrap gap-3">
@@ -124,18 +135,20 @@ export function EngineeringProblemsPage() {
             className="flex-1 min-w-48 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
           />
 
-          <select
-            value={unitFilter}
-            onChange={(e) => setUnitFilter(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
-          >
-            <option value="">All units</option>
-            {units.map((u) => (
-              <option key={u.unit_code} value={u.unit_code}>
-                {u.unit_code} — {u.unit_name}
-              </option>
-            ))}
-          </select>
+          {!embedded && (
+            <select
+              value={unitFilter}
+              onChange={(e) => setUnitFilter(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+            >
+              <option value="">All units</option>
+              {units.map((u) => (
+                <option key={u.unit_code} value={u.unit_code}>
+                  {u.unit_code} — {u.unit_name}
+                </option>
+              ))}
+            </select>
+          )}
 
           <select
             value={difficultyFilter}
