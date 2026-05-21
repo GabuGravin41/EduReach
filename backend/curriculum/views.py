@@ -14,7 +14,7 @@ class UnitViewSet(viewsets.ModelViewSet):
     http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
 
     def get_permissions(self):
-        if self.action in ('list', 'retrieve'):
+        if self.action in ('list', 'retrieve', 'papers'):
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
