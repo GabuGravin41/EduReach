@@ -54,6 +54,8 @@ class Command(BaseCommand):
                             help='Time limit set on each resulting paper.')
         parser.add_argument('--id', type=int, default=None,
                             help='Process only this assessment id.')
+        parser.add_argument('--force', action='store_true',
+                            help='Bypass the essay-only safety guard.')
         parser.add_argument('--apply', action='store_true',
                             help='Write changes. Without this the command only previews.')
 
@@ -78,20 +80,32 @@ class Command(BaseCommand):
         self.stdout.write(self.style.WARNING(f'== {mode} =='))
 
         for assessment in qs:
-            self._process(assessment, chunk_size, time_minutes, apply)
+            self._process(assessment, chunk_size, time_minutes, apply, opts['force'])
 
         if not apply:
             self.stdout.write(self.style.WARNING(
                 '\nNothing was changed. Re-run with --apply to perform the split.'))
 
-    def _process(self, assessment, chunk_size, time_minutes, apply):
+    def _process(self, assessment, chunk_size, time_minutes, apply, force):
         questions = list(assessment.questions.all().order_by('order', 'id'))
-        junk = [q for q in questions if is_junk_header(q.question_text)]
-        real = [q for q in questions if not is_junk_header(q.question_text)]
 
         self.stdout.write('')
         self.stdout.write(self.style.MIGRATE_HEADING(
             f'#{assessment.id}  "{assessment.title[:60]}"'))
+
+        # Safety guard — only essay-heavy papers are concatenation candidates.
+        # A real MCQ / short-answer paper legitimately has many questions; an
+        # essay exam never has 30+, so essay-heavy + long == concatenated.
+        essay = sum(1 for q in questions if q.question_type == 'essay')
+        essay_frac = essay / len(questions) if questions else 0
+        if essay_frac < 0.8 and not force:
+            self.stdout.write(self.style.WARNING(
+                f'  SKIPPED — only {essay_frac:.0%} essay questions; looks like a '
+                f'genuine paper, not a concatenation. (Use --force to override.)'))
+            return
+
+        junk = [q for q in questions if is_junk_header(q.question_text)]
+        real = [q for q in questions if not is_junk_header(q.question_text)]
         self.stdout.write(
             f'  {len(questions)} questions  →  {len(junk)} junk header(s) removed, '
             f'{len(real)} real questions')
