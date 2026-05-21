@@ -146,7 +146,7 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
       <div className="max-w-5xl mx-auto px-4 py-16 text-center">
         <p className="text-slate-500 dark:text-slate-400 mb-4">This unit could not be found.</p>
         <button onClick={onBack} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-          Back to My Semester
+          Back to Courses
         </button>
       </div>
     );
@@ -159,7 +159,7 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
         onClick={onBack}
         className="text-sm text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 mb-3"
       >
-        ← My Semester
+        ← Courses
       </button>
       <div className={`bg-gradient-to-br ${themeForTrack(unit.track).headerGradient} rounded-2xl p-6 text-white mb-6`}>
         <div className="flex items-center gap-2 text-xs font-medium text-white/70 mb-1">
