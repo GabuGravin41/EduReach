@@ -38,19 +38,36 @@ class Course(models.Model):
 
 
 class Lesson(models.Model):
-    """Model for lessons within courses."""
+    """A video lesson. Belongs to a curriculum unit; the legacy course FK is
+    kept (nullable) for back-compatibility with pre-unit content."""
     course = models.ForeignKey(
         Course,
         related_name='lessons',
-        on_delete=models.CASCADE
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
     )
     unit = models.ForeignKey(
         'curriculum.Unit',
         related_name='lessons',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text='Curriculum unit this lesson belongs to.',
+    )
+    added_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='added_lessons',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        help_text='Curriculum unit this lesson belongs to (mirrors its course).',
+        help_text='User who added this lesson (for edit/delete permission).',
+    )
+    completed_by = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        related_name='completed_unit_lessons',
+        blank=True,
+        help_text='Users who have marked this lesson complete.',
     )
     title = models.CharField(max_length=200)
     video_id = models.CharField(max_length=50, help_text='YouTube Video ID')

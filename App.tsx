@@ -885,7 +885,16 @@ const AppContent: React.FC = () => {
           if (!selectedUnitId) {
             return <MySemesterPage onSelectUnit={(id) => setView('unit_detail', { unitId: id })} onExplore={() => setView('courses')} username={user?.username ?? (user as any)?.email ?? undefined} />;
           }
-          return <UnitDetailPage unitId={selectedUnitId} onBack={() => setView('dashboard')} onSelectPaper={(id) => setView('exam_detail', { examId: id })} onOpenCourse={(id) => setView('course_detail', { courseId: id })} />;
+          return <UnitDetailPage
+            unitId={selectedUnitId}
+            onBack={() => setView('dashboard')}
+            onSelectPaper={(id) => setView('exam_detail', { examId: id })}
+            onPlayLesson={(lesson) => {
+              const sd = { videoId: lesson.video_id, transcript: '', title: lesson.title, lessonId: lesson.id };
+              setSessionData(sd);
+              setView('learning_session', { state: { sessionData: sd } });
+            }}
+          />;
         case 'courses':
           return <ExplorePage onSelectUnit={(id) => setView('unit_detail', { unitId: id })} />;
         case 'create_course':

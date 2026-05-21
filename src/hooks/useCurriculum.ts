@@ -3,6 +3,7 @@ import {
   curriculumService,
   type UnitTrack,
   type CreateUnitData,
+  type AddLessonData,
 } from '../services/curriculumService';
 
 export const CURRICULUM_KEYS = {
@@ -79,5 +80,46 @@ export const useCreateUnit = () => {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: CURRICULUM_KEYS.all });
     },
+  });
+};
+
+// ── Unit lessons ──────────────────────────────────────────────────────────────
+
+export const useAddLesson = (unitId: number) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: AddLessonData) => curriculumService.addUnitLesson(unitId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: CURRICULUM_KEYS.lessons(unitId) });
+      qc.invalidateQueries({ queryKey: CURRICULUM_KEYS.unit(unitId) });
+    },
+  });
+};
+
+export const useUpdateLesson = (unitId: number) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ lessonId, data }: { lessonId: number; data: Partial<AddLessonData> }) =>
+      curriculumService.updateUnitLesson(lessonId, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CURRICULUM_KEYS.lessons(unitId) }),
+  });
+};
+
+export const useDeleteLesson = (unitId: number) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (lessonId: number) => curriculumService.deleteUnitLesson(lessonId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: CURRICULUM_KEYS.lessons(unitId) });
+      qc.invalidateQueries({ queryKey: CURRICULUM_KEYS.unit(unitId) });
+    },
+  });
+};
+
+export const useToggleLessonComplete = (unitId: number) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (lessonId: number) => curriculumService.toggleLessonComplete(lessonId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CURRICULUM_KEYS.lessons(unitId) }),
   });
 };

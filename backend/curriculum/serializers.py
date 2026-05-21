@@ -52,6 +52,35 @@ class UserEnrolledUnitSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class UnitLessonSerializer(serializers.ModelSerializer):
+    """A video lesson within a unit, with completion state and a thumbnail."""
+    is_completed = serializers.SerializerMethodField()
+    thumbnail_url = serializers.SerializerMethodField()
+    has_transcript = serializers.SerializerMethodField()
+
+    class Meta:
+        from courses.models import Lesson
+        model = Lesson
+        fields = [
+            'id', 'unit', 'title', 'video_id', 'video_url', 'duration',
+            'order', 'description', 'is_completed', 'thumbnail_url',
+            'has_transcript', 'added_by',
+        ]
+        read_only_fields = ['id', 'is_completed', 'thumbnail_url', 'has_transcript', 'added_by']
+
+    def get_is_completed(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+        return obj.completed_by.filter(pk=request.user.pk).exists()
+
+    def get_thumbnail_url(self, obj):
+        return f'https://img.youtube.com/vi/{obj.video_id}/hqdefault.jpg' if obj.video_id else ''
+
+    def get_has_transcript(self, obj):
+        return bool(obj.transcript or obj.manual_transcript)
+
+
 class PaperExtractionJobSerializer(serializers.ModelSerializer):
     class Meta:
         model = PaperExtractionJob

@@ -1,14 +1,26 @@
+import re
 import threading
 
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 
 from .models import Unit, UserEnrolledUnit, PaperExtractionJob
 from .serializers import (
     UnitSerializer, UserEnrolledUnitSerializer, PaperExtractionJobSerializer,
+    UnitLessonSerializer,
 )
+
+
+def _extract_video_id(url: str) -> str:
+    """Pull the 11-char YouTube video id from any common URL form."""
+    m = re.search(r'(?:v=|youtu\.be/|embed/|shorts/|/v/)([A-Za-z0-9_-]{11})', url or '')
+    if m:
+        return m.group(1)
+    bare = (url or '').strip()
+    return bare if re.fullmatch(r'[A-Za-z0-9_-]{11}', bare) else ''
 
 
 class UnitViewSet(viewsets.ModelViewSet):
@@ -122,11 +134,41 @@ class UnitViewSet(viewsets.ModelViewSet):
     def lessons(self, request, pk=None):
         """Video lessons belonging to this unit (ordered)."""
         unit = self.get_object()
-        from courses.serializers import LessonSerializer
         lessons = unit.lessons.all().order_by('order', 'id')
-        serializer = LessonSerializer(
+        serializer = UnitLessonSerializer(
             lessons, many=True, context={'request': request})
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='add-lesson',
+            permission_classes=[permissions.IsAuthenticated])
+    def add_lesson(self, request, pk=None):
+        """Add a YouTube video lesson to this unit."""
+        unit = self.get_object()
+        from courses.models import Lesson
+
+        title = (request.data.get('title') or '').strip()
+        video_url = (request.data.get('video_url') or '').strip()
+        video_id = _extract_video_id(video_url)
+        if not title:
+            return Response({'error': 'A lesson title is required.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if not video_id:
+            return Response({'error': 'Could not read a YouTube video from that link.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        next_order = (unit.lessons.count())
+        lesson = Lesson.objects.create(
+            unit=unit,
+            course=unit.source_course,  # keep legacy link when the unit came from a course
+            added_by=request.user,
+            title=title,
+            video_id=video_id,
+            video_url=f'https://www.youtube.com/watch?v={video_id}',
+            description=(request.data.get('description') or '').strip(),
+            order=next_order,
+        )
+        serializer = UnitLessonSerializer(lesson, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], url_path='extract-paper',
             permission_classes=[permissions.IsAuthenticated],
@@ -168,3 +210,56 @@ class PaperExtractionJobViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         return PaperExtractionJob.objects.filter(user=self.request.user)
+
+
+class UnitLessonViewSet(viewsets.ModelViewSet):
+    """Edit, delete, or toggle completion of a unit's video lesson."""
+    serializer_class = UnitLessonSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['patch', 'delete', 'post', 'head', 'options']
+
+    def get_queryset(self):
+        from courses.models import Lesson
+        return Lesson.objects.filter(unit__isnull=False)
+
+    def _can_manage(self, lesson, user) -> bool:
+        return bool(
+            getattr(user, 'is_staff', False)
+            or getattr(user, 'tier', '') == 'admin'
+            or lesson.added_by_id == user.id
+            or (lesson.unit and lesson.unit.created_by_id == user.id)
+        )
+
+    def partial_update(self, request, *args, **kwargs):
+        lesson = self.get_object()
+        if not self._can_manage(lesson, request.user):
+            raise PermissionDenied('You can only edit lessons you added.')
+        for field in ('title', 'description', 'order'):
+            if field in request.data:
+                setattr(lesson, field, request.data[field])
+        if 'video_url' in request.data:
+            vid = _extract_video_id(request.data['video_url'])
+            if vid:
+                lesson.video_id = vid
+                lesson.video_url = f'https://www.youtube.com/watch?v={vid}'
+        lesson.save()
+        return Response(UnitLessonSerializer(lesson, context={'request': request}).data)
+
+    def destroy(self, request, *args, **kwargs):
+        lesson = self.get_object()
+        if not self._can_manage(lesson, request.user):
+            raise PermissionDenied('You can only delete lessons you added.')
+        lesson.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'])
+    def complete(self, request, pk=None):
+        """Toggle completion of this lesson for the current user."""
+        lesson = self.get_object()
+        if lesson.completed_by.filter(pk=request.user.pk).exists():
+            lesson.completed_by.remove(request.user)
+            completed = False
+        else:
+            lesson.completed_by.add(request.user)
+            completed = True
+        return Response({'is_completed': completed})
