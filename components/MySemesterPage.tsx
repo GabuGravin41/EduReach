@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { useEnrolledUnits } from '../src/hooks/useCurriculum';
+import { themeForTrack } from '../src/utils/trackTheme';
 
 interface MySemesterPageProps {
   onSelectUnit: (unitId: number) => void;
@@ -56,30 +57,39 @@ export const MySemesterPage: React.FC<MySemesterPageProps> = ({ onSelectUnit, on
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
-          {enrolledUnits.map(unit => (
-            <button
-              key={unit.id}
-              onClick={() => onSelectUnit(unit.id)}
-              className="text-left bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md transition-all"
-            >
-              <div className="flex items-center gap-2 text-xs font-medium text-indigo-500 dark:text-indigo-400 mb-1">
-                {unit.code && <span>{unit.code}</span>}
-                {unit.level && <span className="text-slate-400">· {unit.level}</span>}
-              </div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-slate-50 mb-1">
-                {unit.name}
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-3">
-                {unit.description || unit.syllabus_summary}
-              </p>
-              <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
-                {unit.paper_count > 0 && `${unit.paper_count} paper${unit.paper_count === 1 ? '' : 's'}`}
-                {unit.paper_count > 0 && unit.lesson_count > 0 && ' · '}
-                {unit.lesson_count > 0 && `${unit.lesson_count} lesson${unit.lesson_count === 1 ? '' : 's'}`}
-                {unit.paper_count === 0 && unit.lesson_count === 0 && 'AI tutor & quizzes'}
-              </span>
-            </button>
-          ))}
+          {enrolledUnits.map(unit => {
+            const theme = themeForTrack(unit.track);
+            return (
+              <button
+                key={unit.id}
+                onClick={() => onSelectUnit(unit.id)}
+                className="text-left bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md transition-all"
+              >
+                <div className={`h-1.5 bg-gradient-to-r ${theme.headerGradient}`} />
+                <div className="p-5">
+                  <div className="flex items-center gap-2 text-xs font-semibold mb-1">
+                    {unit.code && <span className={theme.accentText}>{unit.code}</span>}
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${theme.chip}`}>
+                      {theme.label}
+                    </span>
+                    {unit.level && <span className="text-slate-400">{unit.level}</span>}
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-50 mb-1">
+                    {unit.name}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-3">
+                    {unit.description || unit.syllabus_summary}
+                  </p>
+                  <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
+                    {unit.paper_count > 0 && `${unit.paper_count} assessment${unit.paper_count === 1 ? '' : 's'}`}
+                    {unit.paper_count > 0 && unit.lesson_count > 0 && ' · '}
+                    {unit.lesson_count > 0 && `${unit.lesson_count} lesson${unit.lesson_count === 1 ? '' : 's'}`}
+                    {unit.paper_count === 0 && unit.lesson_count === 0 && 'AI tutor & quizzes'}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

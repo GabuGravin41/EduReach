@@ -6,6 +6,7 @@ import { AIAssistant } from './AIAssistant';
 import { AddPaperModal } from './AddPaperModal';
 import { AttachAssessmentModal } from './AttachAssessmentModal';
 import { UnitLessonsTab } from './UnitLessonsTab';
+import { themeForTrack } from '../src/utils/trackTheme';
 import type { UnitLesson } from '../src/services/curriculumService';
 import type { ChatMessage, QuizQuestion } from '../types';
 
@@ -157,14 +158,14 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
       >
         ← My Semester
       </button>
-      <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl p-6 text-white mb-6">
-        <div className="flex items-center gap-2 text-xs font-medium text-indigo-200 mb-1">
+      <div className={`bg-gradient-to-br ${themeForTrack(unit.track).headerGradient} rounded-2xl p-6 text-white mb-6`}>
+        <div className="flex items-center gap-2 text-xs font-medium text-white/70 mb-1">
           {unit.code && <span>{unit.code}</span>}
           {unit.level && <span>· {unit.level}</span>}
           {unit.institution && <span>· {unit.institution}</span>}
         </div>
         <h1 className="text-2xl sm:text-3xl font-bold mb-2">{unit.name}</h1>
-        <p className="text-sm text-indigo-100 leading-relaxed">{unit.syllabus_summary}</p>
+        <p className="text-sm text-white/85 leading-relaxed">{unit.syllabus_summary}</p>
       </div>
 
       {/* Tabs */}
