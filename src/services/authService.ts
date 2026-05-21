@@ -45,6 +45,7 @@ export interface User {
   trial_days_remaining?: number | null;
   // Onboarding & extended profile
   onboarding_completed?: boolean;
+  track?: string;
   degree_course?: string;
   year_of_study?: string;
   phone_number?: string;

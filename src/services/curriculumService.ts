@@ -71,6 +71,33 @@ export interface CreateUnitData {
   description?: string;
 }
 
+/** Profile fields used to tailor what a user is shown first. */
+export interface ProfileSignal {
+  track?: string;
+  learner_type?: string;
+  interests?: string;
+  learning_goal?: string;
+  degree_course?: string;
+}
+
+/**
+ * Recommend a unit track from the user's onboarding profile. The platform
+ * itself is generic — this only decides what to surface FIRST, so the
+ * experience is tailored without the catalog being hardcoded.
+ * Returns null when the profile gives no clear signal.
+ */
+export function profileTrack(user: ProfileSignal | null | undefined): UnitTrack | null {
+  if (!user) return null;
+  const explicit = (user.track || '').toLowerCase();
+  if (explicit === 'engineering' || explicit === 'olympiad') return explicit;
+
+  const blob = [user.learner_type, user.interests, user.learning_goal, user.degree_course]
+    .filter(Boolean).join(' ').toLowerCase();
+  if (/\b(olympiad|imo|pamo|eamo|competition)\b/.test(blob)) return 'olympiad';
+  if (/\b(univ|college|degree|engineer|undergrad|campus)\b/.test(blob)) return 'engineering';
+  return null;
+}
+
 export const curriculumService = {
   async getUnits(track?: UnitTrack, search?: string): Promise<Unit[]> {
     const params: Record<string, string> = {};
