@@ -168,8 +168,8 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
         <p className="text-sm text-white/85 leading-relaxed">{unit.syllabus_summary}</p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-slate-200 dark:border-slate-700 mb-5">
+      {/* Tabs — stay pinned while the tab content scrolls */}
+      <div className="flex border-b border-slate-200 dark:border-slate-700 mb-5 sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:supports-[backdrop-filter]:bg-slate-900/80">
         {([
           { id: 'papers' as Tab, label: `Assessments${papers.length ? ` (${papers.length})` : ''}` },
           { id: 'lessons' as Tab, label: unit.lesson_count > 0 ? `Lessons (${unit.lesson_count})` : 'Lessons' },

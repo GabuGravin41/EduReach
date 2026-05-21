@@ -58,7 +58,7 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ onSelectUnit }) => {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 mb-6">
+      <div className="flex flex-wrap items-center gap-3 mb-6 sticky top-0 z-20 py-3 -mt-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:supports-[backdrop-filter]:bg-slate-900/80">
         <input
           type="text"
           value={search}
