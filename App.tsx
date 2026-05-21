@@ -18,7 +18,6 @@ import { usePosts, useCreatePost, useToggleLike, useAddComment, useDeletePost } 
 import { Sidebar } from './components/Sidebar';
 import { LoginScreen } from './components/LoginScreen';
 import { LandingPage } from './components/LandingPage';
-import { Dashboard } from './components/Dashboard';
 import { LearningSession } from './components/LearningSession';
 import { SetupSession } from './components/SetupSession';
 import { MyCoursesPage } from './components/MyCoursesPage';
@@ -876,7 +875,7 @@ const AppContent: React.FC = () => {
       // Hard block only the admin panel
       if (isGuest && !user && currentView === 'admin_panel') {
         if (!guestModal) setTimeout(() => setGuestModal({ action: 'access the admin panel' }), 0);
-        return <Dashboard onStartSession={() => setView('setup_session')} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onGoToCreateExam={() => setView('create_exam')} userTier={userTier} username="Guest" />;
+        return <MySemesterPage onSelectUnit={(id) => setView('unit_detail', { unitId: id })} username="Guest" />;
       }
 
       switch (currentView) {
