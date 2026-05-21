@@ -4,7 +4,7 @@ from courses.models import Lesson
 
 
 class Note(models.Model):
-    """Model for user notes on lessons."""
+    """A user's notes, attached to either a lesson or a curriculum unit."""
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -13,15 +13,23 @@ class Note(models.Model):
     lesson = models.ForeignKey(
         Lesson,
         on_delete=models.CASCADE,
-        related_name='notes'
+        related_name='notes',
+        null=True, blank=True,
+    )
+    unit = models.ForeignKey(
+        'curriculum.Unit',
+        on_delete=models.CASCADE,
+        related_name='notes',
+        null=True, blank=True,
     )
     content = models.TextField(blank=True, help_text='User notes content')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.user.username} - {self.lesson.title}"
+        target = self.lesson.title if self.lesson_id else (
+            self.unit.name if self.unit_id else 'general')
+        return f"{self.user.username} - {target}"
 
     class Meta:
-        unique_together = ['user', 'lesson']
         ordering = ['-updated_at']

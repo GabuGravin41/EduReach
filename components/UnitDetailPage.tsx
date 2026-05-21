@@ -13,7 +13,7 @@ interface UnitDetailPageProps {
   onOpenCourse: (courseId: number) => void;
 }
 
-type Tab = 'papers' | 'lessons' | 'tutor';
+type Tab = 'papers' | 'lessons' | 'notes' | 'tutor';
 
 // Strip the trailing <action>...</action> tag the chat endpoint may append.
 const stripActionTag = (text: string): string =>
@@ -30,6 +30,34 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
   const [aiLoading, setAiLoading] = useState(false);
   const [quiz, setQuiz] = useState<QuizQuestion[] | null>(null);
   const [addPaperOpen, setAddPaperOpen] = useState(false);
+
+  // Unit notes — one notepad per user per unit.
+  const [noteContent, setNoteContent] = useState('');
+  const [noteSaving, setNoteSaving] = useState(false);
+  const [noteSaved, setNoteSaved] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .get('notes/by_unit/', { params: { unit_id: unitId } })
+      .then(res => { if (!cancelled) setNoteContent(res.data?.content ?? ''); })
+      .catch(() => { /* 404 — no note yet, leave empty */ });
+    return () => { cancelled = true; };
+  }, [unitId]);
+
+  const handleSaveNote = async () => {
+    setNoteSaving(true);
+    setNoteSaved(false);
+    try {
+      await apiClient.post('notes/save_or_update/', { unit_id: unitId, content: noteContent });
+      setNoteSaved(true);
+      setTimeout(() => setNoteSaved(false), 2500);
+    } catch {
+      /* keep the text; the user can retry */
+    } finally {
+      setNoteSaving(false);
+    }
+  };
 
   // Seed a unit-aware greeting once the unit is known.
   useEffect(() => {
@@ -143,6 +171,7 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
           ...(unit.lesson_count > 0
             ? [{ id: 'lessons' as Tab, label: `Lessons (${unit.lesson_count})` }]
             : []),
+          { id: 'notes' as Tab, label: 'My Notes' },
           { id: 'tutor' as Tab, label: 'AI Tutor & Quiz' },
         ]).map(t => (
           <button
@@ -282,6 +311,36 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* My Notes tab */}
+      {activeTab === 'notes' && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Your private notes for this unit.
+            </p>
+            <div className="flex items-center gap-2">
+              {noteSaved && (
+                <span className="text-xs text-emerald-600 dark:text-emerald-400">Saved ✓</span>
+              )}
+              <button
+                onClick={handleSaveNote}
+                disabled={noteSaving}
+                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors"
+              >
+                {noteSaving ? 'Saving…' : 'Save notes'}
+              </button>
+            </div>
+          </div>
+          <textarea
+            value={noteContent}
+            onChange={(e) => { setNoteContent(e.target.value); setNoteSaved(false); }}
+            rows={16}
+            placeholder={`Write your notes for ${unit.name} here — key formulas, things to remember, exam tips…`}
+            className="w-full px-4 py-3 text-sm rounded-xl border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y leading-relaxed"
+          />
         </div>
       )}
 
