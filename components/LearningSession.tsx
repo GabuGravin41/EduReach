@@ -499,6 +499,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
       const response = await aiClient.post('/ai/generate-quiz/', {
         ...(quizTranscript ? { transcript: quizTranscript } : {}),
         ...(quizTopic && !quizTranscript ? { topic: quizTopic } : {}),
+        ...(unitId ? { unit_id: unitId } : {}),
         num_questions: 5,
         difficulty: 'medium'
       });
@@ -594,6 +595,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
         context: context,
         history: historyPayload,
         ...(currentLesson?.id ? { lesson_id: currentLesson.id } : {}),
+        ...(unitId ? { unit_id: unitId } : {}),
       });
 
       const responseText = response.data.response || response.data;
