@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Unit, UserEnrolledUnit
+from .models import Unit, UserEnrolledUnit, PaperExtractionJob
 
 
 class UnitSerializer(serializers.ModelSerializer):
@@ -49,4 +49,14 @@ class UserEnrolledUnitSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserEnrolledUnit
         fields = ['id', 'unit', 'enrolled_at']
+        read_only_fields = fields
+
+
+class PaperExtractionJobSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PaperExtractionJob
+        fields = [
+            'id', 'unit', 'title', 'status', 'progress',
+            'assessment', 'error', 'created_at',
+        ]
         read_only_fields = fields

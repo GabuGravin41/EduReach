@@ -76,6 +76,52 @@ class Unit(models.Model):
         )
 
 
+class PaperExtractionJob(models.Model):
+    """Tracks a background PDF → past-paper extraction.
+
+    A user uploads a PDF; a worker thread renders its pages, runs vision AI to
+    extract questions and crop diagrams, and builds an Assessment attached to
+    the unit. The frontend polls this row for status.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        PROCESSING = 'processing', 'Processing'
+        DONE = 'done', 'Done'
+        FAILED = 'failed', 'Failed'
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='paper_extraction_jobs',
+    )
+    unit = models.ForeignKey(
+        Unit, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='extraction_jobs',
+    )
+    title = models.CharField(max_length=200, blank=True)
+    pdf = models.FileField(upload_to='paper_uploads/')
+    status = models.CharField(
+        max_length=12, choices=Status.choices, default=Status.PENDING,
+    )
+    progress = models.CharField(
+        max_length=200, blank=True,
+        help_text='Human-readable current step, shown to the user while waiting.',
+    )
+    assessment = models.ForeignKey(
+        'assessments.Assessment', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='+',
+    )
+    error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'ExtractionJob #{self.pk} ({self.status})'
+
+
 class UserEnrolledUnit(models.Model):
     """A unit a user is currently studying this semester / training programme."""
 

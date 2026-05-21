@@ -1,9 +1,14 @@
+import threading
+
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 
-from .models import Unit, UserEnrolledUnit
-from .serializers import UnitSerializer, UserEnrolledUnitSerializer
+from .models import Unit, UserEnrolledUnit, PaperExtractionJob
+from .serializers import (
+    UnitSerializer, UserEnrolledUnitSerializer, PaperExtractionJobSerializer,
+)
 
 
 class UnitViewSet(viewsets.ModelViewSet):
@@ -122,3 +127,44 @@ class UnitViewSet(viewsets.ModelViewSet):
         serializer = LessonSerializer(
             lessons, many=True, context={'request': request})
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='extract-paper',
+            permission_classes=[permissions.IsAuthenticated],
+            parser_classes=[MultiPartParser, FormParser])
+    def extract_paper(self, request, pk=None):
+        """Upload a PDF past paper. Starts a background extraction job and
+        returns it immediately — the client polls the job for status."""
+        unit = self.get_object()
+        pdf = request.FILES.get('pdf')
+        if not pdf:
+            return Response({'error': 'No PDF file provided.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if not pdf.name.lower().endswith('.pdf'):
+            return Response({'error': 'Please upload a PDF file.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if pdf.size > 25 * 1024 * 1024:
+            return Response({'error': 'PDF is too large (max 25 MB).'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        job = PaperExtractionJob.objects.create(
+            user=request.user,
+            unit=unit,
+            title=(request.data.get('title') or '').strip(),
+            pdf=pdf,
+        )
+        # Run extraction off the request thread; the client polls the job.
+        from .extraction import run_extraction_job
+        threading.Thread(
+            target=run_extraction_job, args=(job.id,), daemon=True,
+        ).start()
+        return Response(PaperExtractionJobSerializer(job).data,
+                        status=status.HTTP_202_ACCEPTED)
+
+
+class PaperExtractionJobViewSet(viewsets.ReadOnlyModelViewSet):
+    """Read-only — the client polls a job here for extraction status."""
+    serializer_class = PaperExtractionJobSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return PaperExtractionJob.objects.filter(user=self.request.user)
