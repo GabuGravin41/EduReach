@@ -14,6 +14,7 @@ class Unit(models.Model):
     class Track(models.TextChoices):
         ENGINEERING = 'engineering', 'University / Engineering'
         OLYMPIAD = 'olympiad', 'Olympiad Training'
+        GENERAL = 'general', 'General Course'
 
     track = models.CharField(max_length=20, choices=Track.choices, db_index=True)
     name = models.CharField(max_length=200)
@@ -43,9 +44,18 @@ class Unit(models.Model):
         default=True,
         help_text='True for seeded/curated units; False for user-created units.',
     )
+    is_public = models.BooleanField(
+        default=False,
+        help_text='True if this unit is discoverable by other users in Explore.',
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name='created_units',
+    )
+    source_course = models.ForeignKey(
+        'courses.Course', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='derived_units',
+        help_text='The Course this unit was migrated from, if any.',
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

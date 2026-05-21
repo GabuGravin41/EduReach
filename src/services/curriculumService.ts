@@ -1,6 +1,6 @@
 import apiClient from './api';
 
-export type UnitTrack = 'engineering' | 'olympiad';
+export type UnitTrack = 'engineering' | 'olympiad' | 'general';
 
 export interface Unit {
   id: number;
@@ -13,9 +13,22 @@ export interface Unit {
   description: string;
   topic_keywords: string[];
   is_official: boolean;
+  is_public: boolean;
+  source_course: number | null;
   paper_count: number;
+  lesson_count: number;
   is_enrolled: boolean;
   created_at: string;
+}
+
+export interface UnitLesson {
+  id: number;
+  title: string;
+  videoId: string;
+  duration: string;
+  description: string;
+  has_transcript: boolean;
+  order: number;
 }
 
 export interface UnitPaper {
@@ -63,6 +76,11 @@ export const curriculumService = {
 
   async getUnitPapers(id: number): Promise<UnitPaper[]> {
     const res = await apiClient.get(`curriculum/units/${id}/papers/`);
+    return Array.isArray(res.data) ? res.data : res.data.results ?? [];
+  },
+
+  async getUnitLessons(id: number): Promise<UnitLesson[]> {
+    const res = await apiClient.get(`curriculum/units/${id}/lessons/`);
     return Array.isArray(res.data) ? res.data : res.data.results ?? [];
   },
 

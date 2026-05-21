@@ -44,6 +44,14 @@ class Lesson(models.Model):
         related_name='lessons',
         on_delete=models.CASCADE
     )
+    unit = models.ForeignKey(
+        'curriculum.Unit',
+        related_name='lessons',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text='Curriculum unit this lesson belongs to (mirrors its course).',
+    )
     title = models.CharField(max_length=200)
     video_id = models.CharField(max_length=50, help_text='YouTube Video ID')
     video_url = models.URLField(max_length=500, blank=True, help_text='Full YouTube URL')

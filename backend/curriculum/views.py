@@ -14,7 +14,7 @@ class UnitViewSet(viewsets.ModelViewSet):
     http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
 
     def get_permissions(self):
-        if self.action in ('list', 'retrieve', 'papers'):
+        if self.action in ('list', 'retrieve', 'papers', 'lessons'):
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
@@ -110,4 +110,15 @@ class UnitViewSet(viewsets.ModelViewSet):
 
         serializer = AssessmentListSerializer(
             attached + suggested, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], url_path='lessons',
+            permission_classes=[permissions.AllowAny])
+    def lessons(self, request, pk=None):
+        """Video lessons belonging to this unit (ordered)."""
+        unit = self.get_object()
+        from courses.serializers import LessonSerializer
+        lessons = unit.lessons.all().order_by('order', 'id')
+        serializer = LessonSerializer(
+            lessons, many=True, context={'request': request})
         return Response(serializer.data)

@@ -11,6 +11,7 @@ export const CURRICULUM_KEYS = {
     [...CURRICULUM_KEYS.all, 'units', track ?? 'all', search ?? ''] as const,
   unit: (id: number) => [...CURRICULUM_KEYS.all, 'unit', id] as const,
   papers: (id: number) => [...CURRICULUM_KEYS.all, 'papers', id] as const,
+  lessons: (id: number) => [...CURRICULUM_KEYS.all, 'lessons', id] as const,
   enrolled: () => [...CURRICULUM_KEYS.all, 'enrolled'] as const,
 };
 
@@ -32,6 +33,14 @@ export const useUnitPapers = (id: number | null) =>
   useQuery({
     queryKey: CURRICULUM_KEYS.papers(id ?? 0),
     queryFn: () => curriculumService.getUnitPapers(id as number),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+export const useUnitLessons = (id: number | null) =>
+  useQuery({
+    queryKey: CURRICULUM_KEYS.lessons(id ?? 0),
+    queryFn: () => curriculumService.getUnitLessons(id as number),
     enabled: !!id,
     staleTime: 5 * 60 * 1000,
   });

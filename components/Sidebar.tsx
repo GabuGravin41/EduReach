@@ -82,7 +82,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
   const navItems = [
     { id: 'dashboard',        label: 'My Semester',     icon: DashboardIcon,      adminOnly: false, educatorOnly: false },
     { id: 'admin_panel',      label: 'Admin Panel',     icon: AdminPanelIcon,     adminOnly: true,  educatorOnly: false },
-    { id: 'courses',          label: 'My Courses',      icon: BookOpenIcon,       adminOnly: false, educatorOnly: false },
+    { id: 'courses',          label: 'Explore',         icon: BookOpenIcon,       adminOnly: false, educatorOnly: false },
     { id: 'personal_sessions',label: 'My Sessions',     icon: NewSessionIcon,     adminOnly: false, educatorOnly: false },
     { id: 'assessments',      label: 'Assessments',     icon: ClipboardCheckIcon, adminOnly: false, educatorOnly: false },
     { id: 'exam_sessions',    label: 'Exam Sessions',   icon: ClipboardCheckIcon, adminOnly: false, educatorOnly: true },

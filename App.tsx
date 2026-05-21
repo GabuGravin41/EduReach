@@ -20,7 +20,6 @@ import { LoginScreen } from './components/LoginScreen';
 import { LandingPage } from './components/LandingPage';
 import { LearningSession } from './components/LearningSession';
 import { SetupSession } from './components/SetupSession';
-import { MyCoursesPage } from './components/MyCoursesPage';
 import { CommunityPage } from './components/CommunityPage';
 import { CourseDetailPage } from './components/CourseDetailPage';
 import { ExamDetailPage } from './components/ExamDetailPage';
@@ -69,6 +68,7 @@ const JoinExamPage = lazyWithReload(() => import('./components/JoinExamPage'));
 const ExamSessionsPage = lazyWithReload(() => import('./components/ExamSessionsPage'));
 const PersonalSessionsPage = lazyWithReload(() => import('./components/PersonalSessionsPage').then(m => ({ default: m.PersonalSessionsPage })));
 const MySemesterPage = lazyWithReload(() => import('./components/MySemesterPage').then(m => ({ default: m.MySemesterPage })));
+const ExplorePage = lazyWithReload(() => import('./components/ExplorePage').then(m => ({ default: m.ExplorePage })));
 const UnitDetailPage = lazyWithReload(() => import('./components/UnitDetailPage').then(m => ({ default: m.UnitDetailPage })));
 
   
@@ -875,24 +875,24 @@ const AppContent: React.FC = () => {
       // Hard block only the admin panel
       if (isGuest && !user && currentView === 'admin_panel') {
         if (!guestModal) setTimeout(() => setGuestModal({ action: 'access the admin panel' }), 0);
-        return <MySemesterPage onSelectUnit={(id) => setView('unit_detail', { unitId: id })} username="Guest" />;
+        return <MySemesterPage onSelectUnit={(id) => setView('unit_detail', { unitId: id })} onExplore={() => setView('courses')} username="Guest" />;
       }
 
       switch (currentView) {
         case 'dashboard':
-          return <MySemesterPage onSelectUnit={(id) => setView('unit_detail', { unitId: id })} username={user?.username ?? (user as any)?.email ?? undefined} />;
+          return <MySemesterPage onSelectUnit={(id) => setView('unit_detail', { unitId: id })} onExplore={() => setView('courses')} username={user?.username ?? (user as any)?.email ?? undefined} />;
         case 'unit_detail':
           if (!selectedUnitId) {
-            return <MySemesterPage onSelectUnit={(id) => setView('unit_detail', { unitId: id })} username={user?.username ?? (user as any)?.email ?? undefined} />;
+            return <MySemesterPage onSelectUnit={(id) => setView('unit_detail', { unitId: id })} onExplore={() => setView('courses')} username={user?.username ?? (user as any)?.email ?? undefined} />;
           }
-          return <UnitDetailPage unitId={selectedUnitId} onBack={() => setView('dashboard')} onSelectPaper={(id) => setView('exam_detail', { examId: id })} />;
+          return <UnitDetailPage unitId={selectedUnitId} onBack={() => setView('dashboard')} onSelectPaper={(id) => setView('exam_detail', { examId: id })} onOpenCourse={(id) => setView('course_detail', { courseId: id })} />;
         case 'courses':
-          return <MyCoursesPage courses={courses} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onNewCourse={() => isGuest && !user ? setGuestModal({ action: 'create a course' }) : setView('create_course')} userTier={userTier} currentUserId={user?.id} highlightedCourseId={recentlyCreatedCourseId ?? undefined} />;
+          return <ExplorePage onSelectUnit={(id) => setView('unit_detail', { unitId: id })} />;
         case 'create_course':
           return <CreateCoursePage onCourseCreated={handleCourseCreated} onCancel={() => setView('courses')} lessonLimit={limits.lessonsPerCourse} setView={setView} />;
         case 'course_detail':
            if (!selectedCourseId) {
-             return <MyCoursesPage courses={courses} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onNewCourse={() => setView('create_course')} userTier={userTier} currentUserId={user?.id} highlightedCourseId={recentlyCreatedCourseId ?? undefined} />;
+             return <ExplorePage onSelectUnit={(id) => setView('unit_detail', { unitId: id })} />;
            }
            const courseFromList = courses.find(c => c.id === selectedCourseId);
            const course = selectedCourseQuery.data ?? courseFromList;

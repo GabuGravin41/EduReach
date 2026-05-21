@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import apiClient from '../src/services/api';
-import { useUnit, useUnitPapers, CURRICULUM_KEYS } from '../src/hooks/useCurriculum';
+import { useUnit, useUnitPapers, useUnitLessons, CURRICULUM_KEYS } from '../src/hooks/useCurriculum';
 import { AIAssistant } from './AIAssistant';
 import { AddPaperModal } from './AddPaperModal';
 import type { ChatMessage, QuizQuestion } from '../types';
@@ -10,18 +10,20 @@ interface UnitDetailPageProps {
   unitId: number;
   onBack: () => void;
   onSelectPaper: (assessmentId: number) => void;
+  onOpenCourse: (courseId: number) => void;
 }
 
-type Tab = 'papers' | 'tutor';
+type Tab = 'papers' | 'lessons' | 'tutor';
 
 // Strip the trailing <action>...</action> tag the chat endpoint may append.
 const stripActionTag = (text: string): string =>
   text.replace(/<action>[\s\S]*?<\/action>\s*$/i, '').trim();
 
-export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, onSelectPaper }) => {
+export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, onSelectPaper, onOpenCourse }) => {
   const queryClient = useQueryClient();
   const { data: unit, isLoading: unitLoading } = useUnit(unitId);
   const { data: papers = [], isLoading: papersLoading } = useUnitPapers(unitId);
+  const { data: lessons = [], isLoading: lessonsLoading } = useUnitLessons(unitId);
 
   const [activeTab, setActiveTab] = useState<Tab>('papers');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -138,6 +140,9 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
       <div className="flex border-b border-slate-200 dark:border-slate-700 mb-5">
         {([
           { id: 'papers' as Tab, label: `Past Papers${papers.length ? ` (${papers.length})` : ''}` },
+          ...(unit.lesson_count > 0
+            ? [{ id: 'lessons' as Tab, label: `Lessons (${unit.lesson_count})` }]
+            : []),
           { id: 'tutor' as Tab, label: 'AI Tutor & Quiz' },
         ]).map(t => (
           <button
@@ -224,6 +229,55 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
                       </span>
                     )}
                   </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Lessons tab */}
+      {activeTab === 'lessons' && (
+        <div>
+          {unit.source_course && (
+            <div className="flex justify-end mb-4">
+              <button
+                onClick={() => onOpenCourse(unit.source_course as number)}
+                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors"
+              >
+                Watch lessons →
+              </button>
+            </div>
+          )}
+          {lessonsLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map(n => (
+                <div key={n} className="h-16 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+              ))}
+            </div>
+          ) : lessons.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-12">No lessons in this unit yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {lessons.map((lesson, idx) => (
+                <button
+                  key={lesson.id}
+                  onClick={() => unit.source_course && onOpenCourse(unit.source_course)}
+                  className="w-full text-left flex items-center gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md transition-all"
+                >
+                  <span className="flex-none w-7 h-7 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 text-xs font-bold flex items-center justify-center">
+                    {idx + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-50 truncate">
+                      {lesson.title}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {lesson.duration}
+                      {lesson.has_transcript ? ' · transcript available' : ''}
+                    </p>
+                  </div>
+                  <span className="flex-none text-indigo-500 text-lg">▶</span>
                 </button>
               ))}
             </div>

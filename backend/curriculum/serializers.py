@@ -5,16 +5,24 @@ from .models import Unit, UserEnrolledUnit
 
 class UnitSerializer(serializers.ModelSerializer):
     paper_count = serializers.SerializerMethodField()
+    lesson_count = serializers.SerializerMethodField()
     is_enrolled = serializers.SerializerMethodField()
 
     class Meta:
         model = Unit
         fields = [
             'id', 'track', 'name', 'code', 'institution', 'level',
-            'syllabus_summary', 'description', 'topic_keywords', 'is_official',
-            'paper_count', 'is_enrolled', 'created_at',
+            'syllabus_summary', 'description', 'topic_keywords',
+            'is_official', 'is_public', 'source_course',
+            'paper_count', 'lesson_count', 'is_enrolled', 'created_at',
         ]
-        read_only_fields = ['id', 'is_official', 'paper_count', 'is_enrolled', 'created_at']
+        read_only_fields = [
+            'id', 'is_official', 'source_course',
+            'paper_count', 'lesson_count', 'is_enrolled', 'created_at',
+        ]
+
+    def get_lesson_count(self, obj):
+        return obj.lessons.count()
 
     def get_paper_count(self, obj):
         # Past papers are Assessment records matching the unit's topic_keywords.
