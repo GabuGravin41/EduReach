@@ -31,6 +31,14 @@ class Unit(models.Model):
         ),
     )
     description = models.CharField(max_length=300, blank=True)
+    topic_keywords = models.JSONField(
+        default=list, blank=True,
+        help_text=(
+            'Assessment topic strings this unit maps to. The unit\'s past '
+            'papers are the Assessment records whose topic matches one of '
+            'these (case-insensitive).'
+        ),
+    )
     is_official = models.BooleanField(
         default=True,
         help_text='True for seeded/curated units; False for user-created units.',

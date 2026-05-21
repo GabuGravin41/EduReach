@@ -11,20 +11,22 @@ class UnitSerializer(serializers.ModelSerializer):
         model = Unit
         fields = [
             'id', 'track', 'name', 'code', 'institution', 'level',
-            'syllabus_summary', 'description', 'is_official',
+            'syllabus_summary', 'description', 'topic_keywords', 'is_official',
             'paper_count', 'is_enrolled', 'created_at',
         ]
         read_only_fields = ['id', 'is_official', 'paper_count', 'is_enrolled', 'created_at']
 
     def get_paper_count(self, obj):
-        # Engineering papers linked by FK, plus legacy match on unit_code.
-        from engineering.models import EngineeringProblem
-        if obj.track != Unit.Track.ENGINEERING:
+        # Past papers are Assessment records matching the unit's topic_keywords.
+        keywords = [k for k in (obj.topic_keywords or []) if k]
+        if not keywords:
             return 0
-        qs = EngineeringProblem.objects.filter(unit=obj)
-        if obj.code:
-            qs = qs | EngineeringProblem.objects.filter(unit__isnull=True, unit_code__iexact=obj.code)
-        return qs.distinct().count()
+        from django.db.models import Q
+        from assessments.models import Assessment
+        topic_q = Q()
+        for kw in keywords:
+            topic_q |= Q(topic__iexact=kw)
+        return Assessment.objects.filter(topic_q, is_public=True).count()
 
     def get_is_enrolled(self, obj):
         request = self.context.get('request')

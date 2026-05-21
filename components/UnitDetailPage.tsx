@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import apiClient from '../src/services/api';
-import { useUnit } from '../src/hooks/useCurriculum';
-import { EngineeringProblemsPage } from './EngineeringProblemsPage';
+import { useUnit, useUnitPapers } from '../src/hooks/useCurriculum';
 import { AIAssistant } from './AIAssistant';
 import type { ChatMessage, QuizQuestion } from '../types';
 
 interface UnitDetailPageProps {
   unitId: number;
   onBack: () => void;
+  onSelectPaper: (assessmentId: number) => void;
 }
 
 type Tab = 'papers' | 'tutor';
@@ -16,19 +16,14 @@ type Tab = 'papers' | 'tutor';
 const stripActionTag = (text: string): string =>
   text.replace(/<action>[\s\S]*?<\/action>\s*$/i, '').trim();
 
-export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack }) => {
+export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, onSelectPaper }) => {
   const { data: unit, isLoading: unitLoading } = useUnit(unitId);
-  const isEngineering = unit?.track === 'engineering';
+  const { data: papers = [], isLoading: papersLoading } = useUnitPapers(unitId);
 
   const [activeTab, setActiveTab] = useState<Tab>('papers');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [quiz, setQuiz] = useState<QuizQuestion[] | null>(null);
-
-  // Olympiad units have no engineering papers — default them to the tutor tab.
-  useEffect(() => {
-    if (unit && !isEngineering) setActiveTab('tutor');
-  }, [unit, isEngineering]);
 
   // Seed a unit-aware greeting once the unit is known.
   useEffect(() => {
@@ -96,13 +91,6 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack }
     }
   };
 
-  const tabs = useMemo(() => {
-    const list: { id: Tab; label: string }[] = [];
-    if (isEngineering) list.push({ id: 'papers', label: 'Past Papers' });
-    list.push({ id: 'tutor', label: 'AI Tutor & Quiz' });
-    return list;
-  }, [isEngineering]);
-
   if (unitLoading) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-10">
@@ -144,7 +132,10 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack }
 
       {/* Tabs */}
       <div className="flex border-b border-slate-200 dark:border-slate-700 mb-5">
-        {tabs.map(t => (
+        {([
+          { id: 'papers' as Tab, label: `Past Papers${papers.length ? ` (${papers.length})` : ''}` },
+          { id: 'tutor' as Tab, label: 'AI Tutor & Quiz' },
+        ]).map(t => (
           <button
             key={t.id}
             onClick={() => setActiveTab(t.id)}
@@ -159,11 +150,64 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack }
         ))}
       </div>
 
-      {/* Tab content */}
-      {activeTab === 'papers' && isEngineering && (
-        <EngineeringProblemsPage unitId={unit.id} />
+      {/* Past Papers tab */}
+      {activeTab === 'papers' && (
+        <div>
+          {papersLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map(n => (
+                <div key={n} className="h-20 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+              ))}
+            </div>
+          ) : papers.length === 0 ? (
+            <div className="text-center py-14 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+              <p className="text-4xl mb-3">📄</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">
+                No past papers for this unit yet.
+              </p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-4 max-w-sm mx-auto">
+                Switch to the AI Tutor tab to generate practice questions from this unit's syllabus.
+              </p>
+              <button
+                onClick={() => setActiveTab('tutor')}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg"
+              >
+                Open AI Tutor
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {papers.map(paper => (
+                <button
+                  key={paper.id}
+                  onClick={() => onSelectPaper(paper.id)}
+                  className="w-full text-left bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md transition-all"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50 truncate">
+                        {paper.title}
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {paper.question_count} question{paper.question_count === 1 ? '' : 's'}
+                        {paper.competition_name ? ` · ${paper.competition_name}` : ''}
+                        {paper.source_year ? ` · ${paper.source_year}` : ''}
+                      </p>
+                    </div>
+                    {paper.difficulty_level && (
+                      <span className="flex-none text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 capitalize">
+                        {paper.difficulty_level}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
+      {/* AI Tutor tab */}
       {activeTab === 'tutor' && (
         <div className="h-[70vh]">
           <AIAssistant

@@ -78,3 +78,29 @@ class UnitViewSet(viewsets.ModelViewSet):
         unit = self.get_object()
         UserEnrolledUnit.objects.filter(user=request.user, unit=unit).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['get'], url_path='papers',
+            permission_classes=[permissions.AllowAny])
+    def papers(self, request, pk=None):
+        """Past papers for this unit — public Assessment records whose topic
+        matches one of the unit's topic_keywords (case-insensitive)."""
+        unit = self.get_object()
+        from django.db.models import Q
+        from assessments.models import Assessment
+        from assessments.serializers import AssessmentListSerializer
+
+        keywords = [k for k in (unit.topic_keywords or []) if k]
+        if not keywords:
+            return Response([])
+
+        topic_q = Q()
+        for kw in keywords:
+            topic_q |= Q(topic__iexact=kw)
+        assessments = (
+            Assessment.objects
+            .filter(topic_q, is_public=True)
+            .order_by('-created_at')
+        )
+        serializer = AssessmentListSerializer(
+            assessments, many=True, context={'request': request})
+        return Response(serializer.data)

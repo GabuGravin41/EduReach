@@ -886,7 +886,7 @@ const AppContent: React.FC = () => {
           if (!selectedUnitId) {
             return <MySemesterPage onSelectUnit={(id) => setView('unit_detail', { unitId: id })} username={user?.username ?? (user as any)?.email ?? undefined} />;
           }
-          return <UnitDetailPage unitId={selectedUnitId} onBack={() => setView('dashboard')} />;
+          return <UnitDetailPage unitId={selectedUnitId} onBack={() => setView('dashboard')} onSelectPaper={(id) => setView('exam_detail', { examId: id })} />;
         case 'courses':
           return <MyCoursesPage courses={courses} onSelectCourse={(id) => setView('course_detail', { courseId: id })} onNewCourse={() => isGuest && !user ? setGuestModal({ action: 'create a course' }) : setView('create_course')} userTier={userTier} currentUserId={user?.id} highlightedCourseId={recentlyCreatedCourseId ?? undefined} />;
         case 'create_course':

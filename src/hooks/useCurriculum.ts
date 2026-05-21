@@ -10,6 +10,7 @@ export const CURRICULUM_KEYS = {
   units: (track?: UnitTrack, search?: string) =>
     [...CURRICULUM_KEYS.all, 'units', track ?? 'all', search ?? ''] as const,
   unit: (id: number) => [...CURRICULUM_KEYS.all, 'unit', id] as const,
+  papers: (id: number) => [...CURRICULUM_KEYS.all, 'papers', id] as const,
   enrolled: () => [...CURRICULUM_KEYS.all, 'enrolled'] as const,
 };
 
@@ -25,6 +26,14 @@ export const useUnit = (id: number | null) =>
     queryKey: CURRICULUM_KEYS.unit(id ?? 0),
     queryFn: () => curriculumService.getUnit(id as number),
     enabled: !!id,
+  });
+
+export const useUnitPapers = (id: number | null) =>
+  useQuery({
+    queryKey: CURRICULUM_KEYS.papers(id ?? 0),
+    queryFn: () => curriculumService.getUnitPapers(id as number),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
   });
 
 export const useEnrolledUnits = () =>

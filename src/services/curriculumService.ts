@@ -11,9 +11,23 @@ export interface Unit {
   level: string;
   syllabus_summary: string;
   description: string;
+  topic_keywords: string[];
   is_official: boolean;
   paper_count: number;
   is_enrolled: boolean;
+  created_at: string;
+}
+
+export interface UnitPaper {
+  id: number;
+  title: string;
+  topic: string;
+  description: string;
+  assessment_type: string;
+  difficulty_level: string;
+  competition_name: string;
+  source_year: number | null;
+  question_count: number;
   created_at: string;
 }
 
@@ -45,6 +59,11 @@ export const curriculumService = {
   async getUnit(id: number): Promise<Unit> {
     const res = await apiClient.get(`curriculum/units/${id}/`);
     return res.data;
+  },
+
+  async getUnitPapers(id: number): Promise<UnitPaper[]> {
+    const res = await apiClient.get(`curriculum/units/${id}/papers/`);
+    return Array.isArray(res.data) ? res.data : res.data.results ?? [];
   },
 
   async getEnrolledUnits(): Promise<EnrolledUnit[]> {

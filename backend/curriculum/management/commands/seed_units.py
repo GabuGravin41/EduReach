@@ -7,7 +7,6 @@ rows to their Unit by matching unit_code / unit_name.
 Usage:  python manage.py seed_units
 """
 from django.core.management.base import BaseCommand
-from django.db.models import Q
 
 from curriculum.models import Unit
 
@@ -203,6 +202,13 @@ class Command(BaseCommand):
         created, updated = 0, 0
 
         for spec in ENGINEERING_UNITS:
+            # Engineering past papers are tagged with coarse Assessment topics;
+            # numerical-analysis maps to "Engineering Mathematics", everything
+            # else in the EEE programme to "Electrical Engineering".
+            if 'Mathematics' in spec['name']:
+                keywords = ['Engineering Mathematics']
+            else:
+                keywords = ['Electrical Engineering']
             obj, was_created = Unit.objects.update_or_create(
                 track=Unit.Track.ENGINEERING,
                 name=spec['name'],
@@ -212,6 +218,7 @@ class Command(BaseCommand):
                     'level': spec['level'],
                     'description': spec['description'],
                     'syllabus_summary': spec['syllabus_summary'],
+                    'topic_keywords': keywords,
                     'is_official': True,
                 },
             )
@@ -219,6 +226,11 @@ class Command(BaseCommand):
             updated += not was_created
 
         for spec in OLYMPIAD_UNITS:
+            # Olympiad assessments are bucketed directly by topic name; Number
+            # Theory exists under two casings in the data.
+            keywords = [spec['name']]
+            if spec['name'] == 'Number Theory':
+                keywords.append('Number theory')
             obj, was_created = Unit.objects.update_or_create(
                 track=Unit.Track.OLYMPIAD,
                 name=spec['name'],
@@ -228,6 +240,7 @@ class Command(BaseCommand):
                     'level': spec['level'],
                     'description': spec['description'],
                     'syllabus_summary': spec['syllabus_summary'],
+                    'topic_keywords': keywords,
                     'is_official': True,
                 },
             )
@@ -236,26 +249,3 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(
             f'Units: {created} created, {updated} updated.'))
-
-        # Best-effort link of existing engineering papers to their Unit.
-        linked = self._link_engineering_problems()
-        self.stdout.write(self.style.SUCCESS(
-            f'Linked {linked} engineering problems to units.'))
-
-    def _link_engineering_problems(self) -> int:
-        try:
-            from engineering.models import EngineeringProblem
-        except Exception:
-            return 0
-
-        linked = 0
-        for unit in Unit.objects.filter(track=Unit.Track.ENGINEERING):
-            match = Q()
-            if unit.code:
-                match |= Q(unit_code__iexact=unit.code)
-            # Also match on the unit name appearing in the paper's unit_name.
-            match |= Q(unit_name__icontains=unit.name)
-            qs = EngineeringProblem.objects.filter(unit__isnull=True).filter(match)
-            count = qs.update(unit=unit)
-            linked += count
-        return linked
