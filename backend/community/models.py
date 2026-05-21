@@ -95,11 +95,20 @@ class CourseChannel(models.Model):
         null=True,
         blank=True,
     )
+    unit = models.OneToOneField(
+        'curriculum.Unit',
+        on_delete=models.CASCADE,
+        related_name='discussion_channel',
+        null=True,
+        blank=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         if self.course:
             return f"Discussion for {self.course.title}"
+        if self.unit:
+            return f"Discussion for {self.unit.name}"
         return self.name or f"Channel {self.id}"
 
     @property
@@ -108,6 +117,8 @@ class CourseChannel(models.Model):
             return self.name
         if self.course:
             return self.course.title
+        if self.unit:
+            return self.unit.name
         return f"Channel {self.id}"
 
     class Meta:

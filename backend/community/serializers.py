@@ -158,6 +158,7 @@ class DiscussionThreadSerializer(serializers.ModelSerializer):
     reply_count = serializers.IntegerField(read_only=True)
     vote_count = serializers.IntegerField(read_only=True)
     course_id = serializers.IntegerField(write_only=True, required=False)
+    unit_id = serializers.IntegerField(write_only=True, required=False)
     channel_id = serializers.IntegerField(write_only=True, required=False)
 
     class Meta:
@@ -167,6 +168,7 @@ class DiscussionThreadSerializer(serializers.ModelSerializer):
             'channel',
             'channel_id',
             'course_id',
+            'unit_id',
             'author',
             'author_username',
             'title',
@@ -185,11 +187,12 @@ class DiscussionThreadSerializer(serializers.ModelSerializer):
         from .models import CourseChannel
 
         course_id = validated_data.pop('course_id', None)
+        unit_id = validated_data.pop('unit_id', None)
         channel_id = validated_data.pop('channel_id', None)
 
         # Also accept 'channel' from the raw request data (frontend may send it
         # even though the field is read-only on the serializer).
-        if not channel_id and not course_id:
+        if not channel_id and not course_id and not unit_id:
             channel_id = self.initial_data.get('channel')
 
         if channel_id:
@@ -197,6 +200,9 @@ class DiscussionThreadSerializer(serializers.ModelSerializer):
                 validated_data['channel'] = CourseChannel.objects.get(id=channel_id)
             except CourseChannel.DoesNotExist:
                 raise serializers.ValidationError({'channel': 'Channel not found.'})
+        elif unit_id:
+            channel, _created = CourseChannel.objects.get_or_create(unit_id=unit_id)
+            validated_data['channel'] = channel
         elif course_id:
             channel, _created = CourseChannel.objects.get_or_create(
                 course_id=course_id,

@@ -6,7 +6,9 @@ import { AIAssistant } from './AIAssistant';
 import { AddPaperModal } from './AddPaperModal';
 import { AttachAssessmentModal } from './AttachAssessmentModal';
 import { UnitLessonsTab } from './UnitLessonsTab';
+import { DiscussionsPage } from './DiscussionsPage';
 import { themeForTrack } from '../src/utils/trackTheme';
+import { useAuth } from '../src/contexts/useAuth';
 import type { UnitLesson } from '../src/services/curriculumService';
 import type { ChatMessage, QuizQuestion } from '../types';
 
@@ -17,7 +19,7 @@ interface UnitDetailPageProps {
   onPlayLesson: (lesson: UnitLesson) => void;
 }
 
-type Tab = 'papers' | 'lessons' | 'notes' | 'tutor';
+type Tab = 'papers' | 'lessons' | 'notes' | 'discussions' | 'tutor';
 
 // Strip the trailing <action>...</action> tag the chat endpoint may append.
 const stripActionTag = (text: string): string =>
@@ -25,6 +27,7 @@ const stripActionTag = (text: string): string =>
 
 export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, onSelectPaper, onPlayLesson }) => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const { data: unit, isLoading: unitLoading } = useUnit(unitId);
   const { data: papers = [], isLoading: papersLoading } = useUnitPapers(unitId);
 
@@ -174,6 +177,8 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
           { id: 'papers' as Tab, label: `Assessments${papers.length ? ` (${papers.length})` : ''}` },
           { id: 'lessons' as Tab, label: unit.lesson_count > 0 ? `Lessons (${unit.lesson_count})` : 'Lessons' },
           { id: 'notes' as Tab, label: 'My Notes' },
+          // Discussions only make sense where there are peers — public units.
+          ...(unit.is_public ? [{ id: 'discussions' as Tab, label: 'Discussions' }] : []),
           { id: 'tutor' as Tab, label: 'AI Tutor & Quiz' },
         ]).map(t => (
           <button
@@ -314,6 +319,11 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
             className="w-full px-4 py-3 text-sm rounded-xl border border-slate-300 dark:border-slate-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y leading-relaxed"
           />
         </div>
+      )}
+
+      {/* Discussions tab — public units only */}
+      {activeTab === 'discussions' && unit.is_public && (
+        <DiscussionsPage unitId={unitId} currentUserId={user?.id} />
       )}
 
       {/* AI Tutor tab */}

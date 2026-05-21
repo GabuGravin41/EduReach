@@ -54,7 +54,9 @@ interface ThreadPreview {
 }
 
 interface DiscussionsPageProps {
-  courseId: number;
+  /** Discussions are scoped to either a course or a curriculum unit. */
+  courseId?: number;
+  unitId?: number;
   currentUserId?: number;
   isInstructor?: boolean;
   apiBaseUrl?: string;
@@ -62,10 +64,15 @@ interface DiscussionsPageProps {
 
 export const DiscussionsPage: React.FC<DiscussionsPageProps> = ({
   courseId,
+  unitId,
   currentUserId,
   isInstructor = false,
   apiBaseUrl = 'http://localhost:8000/api',
 }) => {
+  // The scope sent to the threads API — unit takes precedence over course.
+  const scopeParams: Record<string, number> = unitId
+    ? { unit_id: unitId }
+    : courseId != null ? { course_id: courseId } : {};
   const [view, setView] = useState<'feed' | 'thread'>('feed');
   const [threads, setThreads] = useState<ThreadPreview[]>([]);
   const [selectedThread, setSelectedThread] = useState<ThreadData | null>(null);
@@ -77,20 +84,20 @@ export const DiscussionsPage: React.FC<DiscussionsPageProps> = ({
   const [sortBy, setSortBy] = useState<'recent' | 'popular' | 'unanswered'>('recent');
   const [error, setError] = useState<string | null>(null);
 
-  // Load threads for this course
+  // Load threads for this course / unit
   useEffect(() => {
     if (view === 'feed') {
       loadThreads();
     }
-  }, [view, courseId]);
+  }, [view, courseId, unitId]);
 
   const loadThreads = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      // Get threads directly for this course
-      const response = await apiClient.get(`threads/?course_id=${courseId}`);
+      // Get threads for this course / unit
+      const response = await apiClient.get('threads/', { params: scopeParams });
       setThreads(response.data.results || []);
     } catch (error: any) {
       console.error('Failed to load threads:', error);
@@ -107,9 +114,9 @@ export const DiscussionsPage: React.FC<DiscussionsPageProps> = ({
       setIsCreating(true);
       setError(null);
 
-      // Create the thread directly with course_id
+      // Create the thread scoped to this course / unit
       const response = await apiClient.post('threads/', {
-        course_id: courseId,
+        ...scopeParams,
         title,
         content
       });

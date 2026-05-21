@@ -241,6 +241,11 @@ class DiscussionThreadViewSet(viewsets.ModelViewSet):
         if course_id:
             queryset = queryset.filter(channel__course_id=course_id)
 
+        # Filter by unit_id (curriculum unit discussions)
+        unit_id = self.request.query_params.get('unit_id')
+        if unit_id:
+            queryset = queryset.filter(channel__unit_id=unit_id)
+
         return queryset
 
     def get_serializer_class(self):
