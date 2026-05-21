@@ -20,6 +20,9 @@ interface LearningSessionProps {
   videoId: string;
   transcript: string;
   courseId: number;
+  /** When the lesson belongs to a curriculum unit, notes sync to the unit's
+   *  single shared notepad instead of a per-lesson note. */
+  unitId?: number;
   currentLesson?: Lesson;
   onUpdateLesson: (courseId: number, lessonId: number, updates: Partial<Lesson>) => void;
   onSaveAssessment?: (assessment: Assessment) => void;
@@ -35,6 +38,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
   videoId,
   transcript,
   courseId,
+  unitId,
   currentLesson,
   onUpdateLesson,
   onSaveAssessment,
@@ -329,23 +333,28 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
     };
   }, [isResizing, startY, playerHeight]);
 
-  // Load existing notes when lesson starts
+  // Load existing notes when the lesson starts. A unit lesson uses the unit's
+  // shared notepad (synced with the unit dashboard's My Notes tab); a legacy
+  // course lesson uses its own per-lesson note.
   useEffect(() => {
-    if (!currentLesson?.id) return;
-
     const loadNotes = async () => {
       try {
-        const response = await apiClient.get(`lessons/${currentLesson.id}/get_notes/`);
-        if (response.data.success && response.data.notes) {
-          setNotes(response.data.notes.notes || '');
+        if (unitId) {
+          const res = await apiClient.get('notes/by_unit/', { params: { unit_id: unitId } });
+          setNotes(res.data?.content || '');
+        } else if (currentLesson?.id) {
+          const response = await apiClient.get(`lessons/${currentLesson.id}/get_notes/`);
+          if (response.data.success && response.data.notes) {
+            setNotes(response.data.notes.notes || '');
+          }
         }
       } catch (error) {
-        console.error('Failed to load notes:', error);
+        // 404 simply means no note exists yet — start with an empty pad.
       }
     };
 
     loadNotes();
-  }, [currentLesson?.id]);
+  }, [currentLesson?.id, unitId]);
 
   // ── Video summary — fetch once per lesson ────────────────────────────────
   useEffect(() => {
@@ -390,19 +399,23 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Autosave Notes & Chat
+  // Autosave Notes & Chat. Unit lessons persist notes to the unit's shared
+  // notepad; legacy course lessons persist via onUpdateLesson.
   useEffect(() => {
-    if (!currentLesson) return;
-
     const timeoutId = setTimeout(() => {
-      onUpdateLesson(courseId, currentLesson.id, {
-        notes: notes,
-        chatHistory: messages
-      });
+      if (unitId) {
+        apiClient.post('notes/save_or_update/', { unit_id: unitId, content: notes })
+          .catch(() => { /* transient — will retry on next edit */ });
+      } else if (currentLesson) {
+        onUpdateLesson(courseId, currentLesson.id, {
+          notes: notes,
+          chatHistory: messages,
+        });
+      }
     }, 2000); // Debounce save every 2 seconds
 
     return () => clearTimeout(timeoutId);
-  }, [notes, messages, courseId, currentLesson?.id]);
+  }, [notes, messages, courseId, currentLesson?.id, unitId]);
 
 
   // Pause video when AI modal opens; let user resume manually on close

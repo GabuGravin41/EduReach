@@ -112,6 +112,15 @@ export const curriculumService = {
     return res.data;
   },
 
+  /** Resolve the unit a legacy course was migrated into, if any. */
+  async getUnitByCourse(courseId: number): Promise<Unit | null> {
+    const res = await apiClient.get('curriculum/units/', {
+      params: { source_course: courseId },
+    });
+    const list: Unit[] = Array.isArray(res.data) ? res.data : res.data.results ?? [];
+    return list[0] ?? null;
+  },
+
   async getUnitPapers(id: number): Promise<UnitPaper[]> {
     const res = await apiClient.get(`curriculum/units/${id}/papers/`);
     return Array.isArray(res.data) ? res.data : res.data.results ?? [];

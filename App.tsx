@@ -21,7 +21,7 @@ import { LandingPage } from './components/LandingPage';
 import { LearningSession } from './components/LearningSession';
 import { SetupSession } from './components/SetupSession';
 import { CommunityPage } from './components/CommunityPage';
-import { CourseDetailPage } from './components/CourseDetailPage';
+import { CourseRedirect } from './components/CourseRedirect';
 import { ExamDetailPage } from './components/ExamDetailPage';
 import { BillingPage } from './components/BillingPage';
 import { TrialBanner } from './components/TrialBanner';
@@ -85,6 +85,7 @@ interface SessionData {
     transcript: string;
     title?: string;
     courseId?: number | null;
+    unitId?: number;
     lessonId?: number;
     attachToCourse?: boolean;
 }
@@ -890,7 +891,7 @@ const AppContent: React.FC = () => {
             onBack={() => setView('dashboard')}
             onSelectPaper={(id) => setView('exam_detail', { examId: id })}
             onPlayLesson={(lesson) => {
-              const sd = { videoId: lesson.video_id, transcript: '', title: lesson.title, lessonId: lesson.id };
+              const sd = { videoId: lesson.video_id, transcript: '', title: lesson.title, lessonId: lesson.id, unitId: lesson.unit };
               setSessionData(sd);
               setView('learning_session', { state: { sessionData: sd } });
             }}
@@ -900,36 +901,16 @@ const AppContent: React.FC = () => {
         case 'create_course':
           return <CreateCoursePage onCourseCreated={handleCourseCreated} onCancel={() => setView('courses')} lessonLimit={limits.lessonsPerCourse} setView={setView} />;
         case 'course_detail':
+           // The course dashboard was retired — a course is now a unit.
+           // Resolve the legacy /courses/:id link to its unit and redirect.
            if (!selectedCourseId) {
              return <ExplorePage onSelectUnit={(id) => setView('unit_detail', { unitId: id })} />;
            }
-           const courseFromList = courses.find(c => c.id === selectedCourseId);
-           const course = selectedCourseQuery.data ?? courseFromList;
-           return course ? (
-              <CourseDetailPage 
-                  course={course} 
-                  setView={setView} 
-                  onStartLesson={(data) => { setSessionData(data); setView('learning_session', { state: { sessionData: data } }); }} 
-                  onAddLesson={handleAddLessonToCourse}
-                  userTier={userTier} 
-                  currentUserId={user?.id}
-                  assessments={assessments} 
-                  onSelectExam={(id) => setView('exam_detail', { examId: id })} 
-                  onUpdateCourse={handleUpdateCourseDetails}
-                  onUpdateLesson={(cId, lId, updates) => {
-                    queryClient.refetchQueries({ queryKey: COURSE_KEYS.detail(cId) });
-                    queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() });
-                    queryClient.invalidateQueries({ queryKey: COURSE_KEYS.my() });
-                  }}
-                  onDeleteCourse={handleDeleteCourse}
-              />
-           ) : (
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-10 text-center">
-                <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-2">Course not found</h2>
-                <p className="text-slate-500 dark:text-slate-400 mb-4">This course may have been removed or you don&apos;t have access.</p>
-                <button onClick={() => setView('courses')} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Back to Courses</button>
-              </div>
-           );
+           return <CourseRedirect
+             courseId={selectedCourseId}
+             onResolved={(unitId) => setView('unit_detail', { unitId })}
+             onMissing={() => setView('courses')}
+           />;
         case 'assessments':
            return <EnhancedAssessmentsPage
              assessments={assessments}
@@ -1053,6 +1034,7 @@ const AppContent: React.FC = () => {
                   videoId={learningSessionData.videoId}
                   transcript={learningSessionData.transcript}
                   courseId={learningSessionData.courseId || 0}
+                  unitId={learningSessionData.unitId}
                   currentLesson={undefined}
                   onUpdateLesson={(cId, lId, updates) => {
                       queryClient.invalidateQueries({ queryKey: COURSE_KEYS.lists() });

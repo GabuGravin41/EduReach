@@ -42,6 +42,9 @@ class UnitViewSet(viewsets.ModelViewSet):
         track = self.request.query_params.get('track')
         if track:
             qs = qs.filter(track=track)
+        source_course = self.request.query_params.get('source_course')
+        if source_course:
+            qs = qs.filter(source_course_id=source_course)
         search = self.request.query_params.get('search')
         if search:
             from django.db.models import Q
