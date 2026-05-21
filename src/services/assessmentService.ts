@@ -56,6 +56,8 @@ export interface CreateAssessmentData {
   is_public?: boolean;
   /** ID of the Lesson this assessment is linked to (source_lesson FK). */
   source_lesson?: number;
+  /** ID of the curriculum Unit this paper is attached to (unit FK). */
+  unit?: number;
 }
 
 export interface QuestionResult {
@@ -274,6 +276,10 @@ export const assessmentService = {
 
       if (typeof data.source_lesson === 'number') {
         payload.source_lesson = data.source_lesson;
+      }
+
+      if (typeof data.unit === 'number') {
+        payload.unit = data.unit;
       }
 
       if (Array.isArray(data.questions_data) && data.questions_data.length > 0) {

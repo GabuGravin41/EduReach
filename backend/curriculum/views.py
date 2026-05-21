@@ -82,25 +82,32 @@ class UnitViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='papers',
             permission_classes=[permissions.AllowAny])
     def papers(self, request, pk=None):
-        """Past papers for this unit — public Assessment records whose topic
-        matches one of the unit's topic_keywords (case-insensitive)."""
+        """Past papers for this unit. Papers a user explicitly attached to the
+        unit come first; topic-keyword matches follow as suggestions."""
         unit = self.get_object()
         from django.db.models import Q
         from assessments.models import Assessment
         from assessments.serializers import AssessmentListSerializer
 
-        keywords = [k for k in (unit.topic_keywords or []) if k]
-        if not keywords:
-            return Response([])
-
-        topic_q = Q()
-        for kw in keywords:
-            topic_q |= Q(topic__iexact=kw)
-        assessments = (
+        attached = list(
             Assessment.objects
-            .filter(topic_q, is_public=True)
+            .filter(unit=unit, is_public=True)
             .order_by('-created_at')
         )
+
+        keywords = [k for k in (unit.topic_keywords or []) if k]
+        suggested = []
+        if keywords:
+            topic_q = Q()
+            for kw in keywords:
+                topic_q |= Q(topic__iexact=kw)
+            suggested = list(
+                Assessment.objects
+                .filter(topic_q, is_public=True)
+                .exclude(unit=unit)
+                .order_by('-created_at')
+            )
+
         serializer = AssessmentListSerializer(
-            assessments, many=True, context={'request': request})
+            attached + suggested, many=True, context={'request': request})
         return Response(serializer.data)

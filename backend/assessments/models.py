@@ -75,6 +75,16 @@ class Assessment(models.Model):
         help_text='List of searchable tag strings, e.g. ["calculus","engineering","KU"].',
     )
 
+    # Curriculum link — a past paper a user attached to a specific study unit.
+    unit = models.ForeignKey(
+        'curriculum.Unit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='attached_papers',
+        help_text='Study unit this paper was explicitly added to.',
+    )
+
     # Video linking - for quizzes generated from or associated with videos
     source_lesson = models.ForeignKey(
         'courses.Lesson',

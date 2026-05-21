@@ -68,7 +68,7 @@ class AssessmentSerializer(serializers.ModelSerializer):
             'difficulty_level',
             'competition_country', 'competition_name', 'competition_language',
             'questions', 'questions_data', 'share_token',
-            'question_count', 'source_lesson', 'created_at', 'updated_at'
+            'question_count', 'source_lesson', 'unit', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'creator', 'share_token', 'created_at', 'updated_at']
 
@@ -226,7 +226,7 @@ class AssessmentListSerializer(serializers.ModelSerializer):
             'institution', 'source_year', 'source_attribution', 'source_url', 'tags',
             'difficulty_level',
             'competition_country', 'competition_name', 'competition_language',
-            'source_lesson', 'question_count', 'related_lessons', 'created_at'
+            'source_lesson', 'unit', 'question_count', 'related_lessons', 'created_at'
         ]
 
     def get_question_count(self, obj):

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import apiClient from '../src/services/api';
-import { useUnit, useUnitPapers } from '../src/hooks/useCurriculum';
+import { useUnit, useUnitPapers, CURRICULUM_KEYS } from '../src/hooks/useCurriculum';
 import { AIAssistant } from './AIAssistant';
+import { AddPaperModal } from './AddPaperModal';
 import type { ChatMessage, QuizQuestion } from '../types';
 
 interface UnitDetailPageProps {
@@ -17,6 +19,7 @@ const stripActionTag = (text: string): string =>
   text.replace(/<action>[\s\S]*?<\/action>\s*$/i, '').trim();
 
 export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, onSelectPaper }) => {
+  const queryClient = useQueryClient();
   const { data: unit, isLoading: unitLoading } = useUnit(unitId);
   const { data: papers = [], isLoading: papersLoading } = useUnitPapers(unitId);
 
@@ -24,6 +27,7 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [quiz, setQuiz] = useState<QuizQuestion[] | null>(null);
+  const [addPaperOpen, setAddPaperOpen] = useState(false);
 
   // Seed a unit-aware greeting once the unit is known.
   useEffect(() => {
@@ -153,6 +157,17 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
       {/* Past Papers tab */}
       {activeTab === 'papers' && (
         <div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {papersLoading ? '' : `${papers.length} paper${papers.length === 1 ? '' : 's'}`}
+            </p>
+            <button
+              onClick={() => setAddPaperOpen(true)}
+              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors"
+            >
+              + Add a past paper
+            </button>
+          </div>
           {papersLoading ? (
             <div className="space-y-3">
               {[1, 2, 3].map(n => (
@@ -166,14 +181,23 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
                 No past papers for this unit yet.
               </p>
               <p className="text-xs text-slate-400 dark:text-slate-500 mb-4 max-w-sm mx-auto">
-                Switch to the AI Tutor tab to generate practice questions from this unit's syllabus.
+                Add a past paper to share it with everyone studying this unit, or
+                use the AI Tutor tab to generate practice questions from the syllabus.
               </p>
-              <button
-                onClick={() => setActiveTab('tutor')}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg"
-              >
-                Open AI Tutor
-              </button>
+              <div className="flex justify-center gap-2">
+                <button
+                  onClick={() => setAddPaperOpen(true)}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg"
+                >
+                  Add a past paper
+                </button>
+                <button
+                  onClick={() => setActiveTab('tutor')}
+                  className="px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-sm font-semibold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800"
+                >
+                  Open AI Tutor
+                </button>
+              </div>
             </div>
           ) : (
             <div className="space-y-3">
@@ -220,6 +244,18 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
             hasTranscript={false}
           />
         </div>
+      )}
+
+      {addPaperOpen && (
+        <AddPaperModal
+          unit={unit}
+          onClose={() => setAddPaperOpen(false)}
+          onAdded={(assessmentId) => {
+            setAddPaperOpen(false);
+            queryClient.invalidateQueries({ queryKey: CURRICULUM_KEYS.papers(unitId) });
+            onSelectPaper(assessmentId);
+          }}
+        />
       )}
     </div>
   );
