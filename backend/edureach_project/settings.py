@@ -95,6 +95,7 @@ INSTALLED_APPS = [
     'payments.apps.PaymentsConfig',
     'study_groups.apps.StudyGroupsConfig',
     'engineering.apps.EngineeringConfig',
+    'curriculum.apps.CurriculumConfig',
     # Video cache for pre-fetched YouTube transcripts
     'video_cache.apps.VideoCacheConfig',
 ]

@@ -16,6 +16,11 @@ class EngineeringProblem(models.Model):
     source_file = models.CharField(max_length=255)
     unit_code = models.CharField(max_length=20, db_index=True)
     unit_name = models.CharField(max_length=255)
+    # Curriculum link — optional FK; unit_code remains the legacy fallback match.
+    unit = models.ForeignKey(
+        'curriculum.Unit', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='engineering_problems',
+    )
     institution = models.CharField(max_length=255, blank=True)
     year = models.PositiveSmallIntegerField(null=True, blank=True, db_index=True)
     semester = models.PositiveSmallIntegerField(null=True, blank=True)

@@ -9,7 +9,7 @@ class EngineeringProblemSerializer(serializers.ModelSerializer):
     class Meta:
         model = EngineeringProblem
         fields = [
-            'id', 'source_file', 'unit_code', 'unit_name', 'institution',
+            'id', 'source_file', 'unit', 'unit_code', 'unit_name', 'institution',
             'year', 'semester', 'paper_type', 'question_number', 'question_text',
             'marks', 'question_type', 'difficulty', 'tags',
             'has_diagram', 'diagram_image', 'diagram_url', 'diagram_description',

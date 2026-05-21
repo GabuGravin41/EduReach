@@ -474,6 +474,18 @@ def generate_quiz(request):
         topic_only = (request.data.get('topic') or '').strip()
         assessment_title = (request.data.get('title') or topic_only or '').strip()
 
+        # Resolve a curriculum unit if the quiz is scoped to one — this gives the
+        # generator the real syllabus instead of a bare topic name, which fixes
+        # placeholder / wrong-subject output for units like "Electrical Machines 3".
+        unit_obj = None
+        unit_id = request.data.get('unit_id')
+        if unit_id:
+            try:
+                from curriculum.models import Unit as _Unit
+                unit_obj = _Unit.objects.get(pk=unit_id)
+            except Exception:
+                unit_obj = None
+
         combined_context_parts = []
         if transcript:
             combined_context_parts.append(transcript)
@@ -481,8 +493,20 @@ def generate_quiz(request):
             combined_context_parts.append(f"[PDF Context]\n{pdf_context}")
         combined_context = "\n\n---\n\n".join(combined_context_parts).strip()
 
-        # Topic-only mode: no transcript or PDF — generate from topic name alone
-        if not combined_context and topic_only:
+        # Topic-only mode: no transcript or PDF — generate from a unit syllabus
+        # (preferred) or a bare topic name.
+        if not combined_context and unit_obj:
+            combined_context = (
+                f"TOPIC-ONLY MODE: Generate {num_questions} real exam questions for the "
+                f"university unit \"{unit_obj.name}\".\n"
+                f"{unit_obj.ai_context()}\n"
+                f"Write specific, answerable exam questions drawn from this syllabus. "
+                f"Include realistic values, formulas and scenarios. Vary depth: factual "
+                f"recall, conceptual understanding, and application/calculation. "
+                f"NEVER write placeholder text. "
+                f"Title: {assessment_title or unit_obj.name}"
+            )
+        elif not combined_context and topic_only:
             combined_context = (
                 f"TOPIC-ONLY MODE: Generate {num_questions} questions about \"{topic_only}\".\n"
                 f"Draw on standard academic knowledge of this subject. "
@@ -728,6 +752,7 @@ def chat(request):
         message = request.data.get('message', '')
         context = request.data.get('context', '')
         lesson_id = request.data.get('lesson_id')
+        unit_id = request.data.get('unit_id')
 
         if not message:
             return Response(
@@ -763,6 +788,18 @@ def chat(request):
                     context = '\n\n'.join(_parts)
             except Exception:
                 pass  # silently proceed with whatever context was sent
+
+        # ── Curriculum unit context ───────────────────────────────────────────
+        # When the chat is scoped to a study unit, inject the unit's syllabus so
+        # the tutor understands the subject (e.g. "Electrical Machines 3")
+        # instead of falling back to generic performance-profile advice.
+        unit_context = ''
+        if unit_id:
+            try:
+                from curriculum.models import Unit as _Unit
+                unit_context = _Unit.objects.get(pk=unit_id).ai_context()
+            except Exception:
+                pass
 
         can_use_ai, usage = _check_ai_usage_quota(request.user)
         if not can_use_ai:
@@ -813,10 +850,23 @@ When to use actions:
 For mathematical / technical content: use LaTeX ($...$ inline, $$...$$ block).
 When quizzing the student: ask questions only — no answers until they attempt."""
 
-        # Inject a compact learner performance snapshot into the system prompt
-        perf_snippet = _build_performance_snippet(request.user)
-        if perf_snippet:
-            system_instruction += f"\n\n{perf_snippet}"
+        # Inject the curriculum unit context first — it defines the SUBJECT the
+        # student is studying and must take priority over generic profile data.
+        if unit_context:
+            system_instruction += (
+                f"\n\nCURRENT STUDY UNIT — answer in the context of this unit:\n"
+                f"{unit_context}\n"
+                "When the student asks what to study, which topics matter, or to "
+                "generate questions, base your answer on THIS unit's syllabus "
+                "above — not on their past performance."
+            )
+
+        # Inject a compact learner performance snapshot into the system prompt.
+        # Skipped when a unit context is present so the tutor stays on-subject.
+        if not unit_context:
+            perf_snippet = _build_performance_snippet(request.user)
+            if perf_snippet:
+                system_instruction += f"\n\n{perf_snippet}"
 
         optimized_context = context
         if optimized_context and len(optimized_context) > 12000:

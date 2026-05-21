@@ -88,6 +88,20 @@ class EngineeringProblemViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = EngineeringProblem.objects.all()
 
+        # Filter by curriculum Unit id — includes legacy rows not yet linked by
+        # FK but whose unit_code matches the unit's code.
+        unit_id = self.request.query_params.get('unit')
+        if unit_id:
+            try:
+                from curriculum.models import Unit
+                unit_obj = Unit.objects.get(pk=unit_id)
+                match = Q(unit=unit_obj)
+                if unit_obj.code:
+                    match |= Q(unit__isnull=True, unit_code__iexact=unit_obj.code)
+                qs = qs.filter(match)
+            except Exception:
+                qs = qs.filter(unit_id=unit_id)
+
         unit = self.request.query_params.get('unit_code')
         if unit:
             qs = qs.filter(unit_code__iexact=unit)

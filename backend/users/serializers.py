@@ -22,7 +22,7 @@ class UserSerializer(serializers.ModelSerializer):
             'tier', 'bio', 'avatar', 'profile_cover', 'xp_points', 'level',
             'total_time_spent_seconds', 'show_xp_publicly',
             'learning_goal', 'learner_type', 'interests',
-            'onboarding_completed', 'degree_course', 'year_of_study', 'phone_number', 'country',
+            'onboarding_completed', 'track', 'degree_course', 'year_of_study', 'phone_number', 'country',
             'institution', 'institution_role',
             'is_trial_active', 'trial_ends_at', 'trial_days_remaining',
             'created_at', 'updated_at'
@@ -66,7 +66,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'tier', 'bio', 'avatar', 'profile_cover', 'xp_points', 'level',
             'total_time_spent_seconds', 'show_xp_publicly',
             'learning_goal', 'learner_type', 'interests',
-            'onboarding_completed', 'degree_course', 'year_of_study', 'phone_number', 'country',
+            'onboarding_completed', 'track', 'degree_course', 'year_of_study', 'phone_number', 'country',
             'institution', 'institution_role',
             'is_trial_active', 'trial_ends_at', 'trial_days_remaining',
             'date_joined', 'created_at', 'updated_at'

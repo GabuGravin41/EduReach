@@ -87,6 +87,20 @@ class User(AbstractUser):
         default=False,
         help_text='Set to True once the user has completed the post-signup onboarding flow.',
     )
+
+    class StudyTrack(models.TextChoices):
+        UNSET = 'unset', 'Not set'
+        ENGINEERING = 'engineering', 'University Exam Prep'
+        OLYMPIAD = 'olympiad', 'Olympiad Training'
+        BOTH = 'both', 'Both'
+
+    track = models.CharField(
+        max_length=20,
+        choices=StudyTrack.choices,
+        default=StudyTrack.UNSET,
+        blank=True,
+        help_text='Which study experience the user picked: engineering exam prep, olympiad training, or both.',
+    )
     degree_course = models.CharField(
         max_length=150,
         blank=True,
