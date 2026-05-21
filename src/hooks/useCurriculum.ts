@@ -123,3 +123,25 @@ export const useToggleLessonComplete = (unitId: number) => {
     onSuccess: () => qc.invalidateQueries({ queryKey: CURRICULUM_KEYS.lessons(unitId) }),
   });
 };
+
+export const useAttachAssessment = (unitId: number) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (assessmentId: number) => curriculumService.attachAssessment(unitId, assessmentId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: CURRICULUM_KEYS.papers(unitId) });
+      qc.invalidateQueries({ queryKey: CURRICULUM_KEYS.unit(unitId) });
+    },
+  });
+};
+
+export const useDetachAssessment = (unitId: number) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (assessmentId: number) => curriculumService.detachAssessment(unitId, assessmentId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: CURRICULUM_KEYS.papers(unitId) });
+      qc.invalidateQueries({ queryKey: CURRICULUM_KEYS.unit(unitId) });
+    },
+  });
+};

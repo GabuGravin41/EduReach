@@ -114,6 +114,18 @@ export const curriculumService = {
     return !!res.data?.is_completed;
   },
 
+  async attachAssessment(unitId: number, assessmentId: number): Promise<void> {
+    await apiClient.post(`curriculum/units/${unitId}/attach-assessment/`, {
+      assessment_id: assessmentId,
+    });
+  },
+
+  async detachAssessment(unitId: number, assessmentId: number): Promise<void> {
+    await apiClient.post(`curriculum/units/${unitId}/detach-assessment/`, {
+      assessment_id: assessmentId,
+    });
+  },
+
   async getEnrolledUnits(): Promise<EnrolledUnit[]> {
     const res = await apiClient.get('curriculum/units/enrolled/');
     return Array.isArray(res.data) ? res.data : res.data.results ?? [];

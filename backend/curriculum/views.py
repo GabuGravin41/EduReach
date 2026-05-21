@@ -31,6 +31,8 @@ class UnitViewSet(viewsets.ModelViewSet):
     http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
 
     def get_permissions(self):
+        # Public reads; everything else (enrol, attach-assessment, add-lesson,
+        # extract-paper, …) requires auth.
         if self.action in ('list', 'retrieve', 'papers', 'lessons'):
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
@@ -128,6 +130,34 @@ class UnitViewSet(viewsets.ModelViewSet):
         serializer = AssessmentListSerializer(
             attached + suggested, many=True, context={'request': request})
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='attach-assessment',
+            permission_classes=[permissions.IsAuthenticated])
+    def attach_assessment(self, request, pk=None):
+        """Tag an existing public assessment to this unit."""
+        unit = self.get_object()
+        from assessments.models import Assessment
+        from assessments.serializers import AssessmentListSerializer
+
+        assessment_id = request.data.get('assessment_id')
+        try:
+            assessment = Assessment.objects.get(pk=assessment_id, is_public=True)
+        except (Assessment.DoesNotExist, ValueError, TypeError):
+            return Response({'error': 'Assessment not found or not public.'},
+                            status=status.HTTP_404_NOT_FOUND)
+        assessment.unit = unit
+        assessment.save(update_fields=['unit', 'updated_at'])
+        return Response(AssessmentListSerializer(assessment, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'], url_path='detach-assessment',
+            permission_classes=[permissions.IsAuthenticated])
+    def detach_assessment(self, request, pk=None):
+        """Remove an assessment's tag to this unit."""
+        unit = self.get_object()
+        from assessments.models import Assessment
+        assessment_id = request.data.get('assessment_id')
+        Assessment.objects.filter(pk=assessment_id, unit=unit).update(unit=None)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['get'], url_path='lessons',
             permission_classes=[permissions.AllowAny])

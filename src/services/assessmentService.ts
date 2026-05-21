@@ -18,6 +18,8 @@ export interface Assessment {
   score?: string;
   share_token?: string;
   creator?: { id: number; username?: string };
+  /** Curriculum unit this assessment is tagged to, if any. */
+  unit?: number | null;
   created_at: string;
   updated_at: string;
 }

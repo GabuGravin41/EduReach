@@ -4,6 +4,7 @@ import apiClient from '../src/services/api';
 import { useUnit, useUnitPapers, CURRICULUM_KEYS } from '../src/hooks/useCurriculum';
 import { AIAssistant } from './AIAssistant';
 import { AddPaperModal } from './AddPaperModal';
+import { AttachAssessmentModal } from './AttachAssessmentModal';
 import { UnitLessonsTab } from './UnitLessonsTab';
 import type { UnitLesson } from '../src/services/curriculumService';
 import type { ChatMessage, QuizQuestion } from '../types';
@@ -31,6 +32,7 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
   const [aiLoading, setAiLoading] = useState(false);
   const [quiz, setQuiz] = useState<QuizQuestion[] | null>(null);
   const [addPaperOpen, setAddPaperOpen] = useState(false);
+  const [attachOpen, setAttachOpen] = useState(false);
 
   // Unit notes — one notepad per user per unit.
   const [noteContent, setNoteContent] = useState('');
@@ -168,7 +170,7 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
       {/* Tabs */}
       <div className="flex border-b border-slate-200 dark:border-slate-700 mb-5">
         {([
-          { id: 'papers' as Tab, label: `Past Papers${papers.length ? ` (${papers.length})` : ''}` },
+          { id: 'papers' as Tab, label: `Assessments${papers.length ? ` (${papers.length})` : ''}` },
           { id: 'lessons' as Tab, label: unit.lesson_count > 0 ? `Lessons (${unit.lesson_count})` : 'Lessons' },
           { id: 'notes' as Tab, label: 'My Notes' },
           { id: 'tutor' as Tab, label: 'AI Tutor & Quiz' },
@@ -190,16 +192,24 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
       {/* Past Papers tab */}
       {activeTab === 'papers' && (
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              {papersLoading ? '' : `${papers.length} paper${papers.length === 1 ? '' : 's'}`}
+              {papersLoading ? '' : `${papers.length} assessment${papers.length === 1 ? '' : 's'}`}
             </p>
-            <button
-              onClick={() => setAddPaperOpen(true)}
-              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors"
-            >
-              + Add a past paper
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setAttachOpen(true)}
+                className="px-3.5 py-2 border border-teal-500 text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/30 text-sm font-semibold rounded-lg transition-colors"
+              >
+                Tag existing
+              </button>
+              <button
+                onClick={() => setAddPaperOpen(true)}
+                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors"
+              >
+                + Add a past paper
+              </button>
+            </div>
           </div>
           {papersLoading ? (
             <div className="space-y-3">
@@ -211,18 +221,24 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
             <div className="text-center py-14 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
               <p className="text-4xl mb-3">📄</p>
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">
-                No past papers for this unit yet.
+                No assessments for this unit yet.
               </p>
               <p className="text-xs text-slate-400 dark:text-slate-500 mb-4 max-w-sm mx-auto">
-                Add a past paper to share it with everyone studying this unit, or
-                use the AI Tutor tab to generate practice questions from the syllabus.
+                Upload a past paper, tag an existing assessment, or use the AI
+                Tutor tab to generate practice questions from the syllabus.
               </p>
-              <div className="flex justify-center gap-2">
+              <div className="flex flex-wrap justify-center gap-2">
                 <button
                   onClick={() => setAddPaperOpen(true)}
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg"
                 >
                   Add a past paper
+                </button>
+                <button
+                  onClick={() => setAttachOpen(true)}
+                  className="px-4 py-2 border border-teal-500 text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/30 text-sm font-semibold rounded-lg"
+                >
+                  Tag existing
                 </button>
                 <button
                   onClick={() => setActiveTab('tutor')}
@@ -324,6 +340,10 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
             onSelectPaper(assessmentId);
           }}
         />
+      )}
+
+      {attachOpen && (
+        <AttachAssessmentModal unit={unit} onClose={() => setAttachOpen(false)} />
       )}
     </div>
   );
