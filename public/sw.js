@@ -16,6 +16,10 @@ const APP_SHELL = [
 
 // ─── Install ────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
+  // Activate this new worker as soon as it finishes installing so cached
+  // assets from older builds don't keep being served. The page reloads
+  // automatically on controllerchange (see index.tsx).
+  self.skipWaiting();
   event.waitUntil(
     caches.open(APP_CACHE).then((cache) => cache.addAll(APP_SHELL))
   );
