@@ -13,7 +13,7 @@ export const MySemesterPage: React.FC<MySemesterPageProps> = ({ onSelectUnit, on
   const enrolledUnits = useMemo(() => enrolled.map(e => e.unit), [enrolled]);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-4 sm:py-6">
+    <div className="max-w-5xl mx-auto px-3 sm:px-4 py-3 sm:py-6">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4 sm:mb-6">
         <div>
           <h1 className="text-xl sm:text-3xl font-bold text-slate-900 dark:text-slate-50">

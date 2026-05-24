@@ -160,7 +160,7 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
     : papers;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-4 sm:py-6">
+    <div className="max-w-5xl mx-auto px-3 sm:px-4 py-3 sm:py-6">
       {/* Header */}
       <button
         onClick={onBack}
@@ -178,8 +178,11 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
         <p className="text-xs sm:text-sm text-white/85 leading-relaxed">{unit.syllabus_summary}</p>
       </div>
 
-      {/* Tabs — pinned while content scrolls, and horizontally scrollable on mobile */}
-      <div className="flex border-b border-slate-200 dark:border-slate-700 mb-4 sm:mb-5 sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:supports-[backdrop-filter]:bg-slate-900/80 overflow-x-auto -mx-4 px-4">
+      {/* Tabs — pinned while content scrolls, and horizontally scrollable on mobile.
+          Sticky lives on the OUTER element; overflow-x-auto on the INNER one,
+          so the two don't fight each other. */}
+      <div className="sticky top-0 z-20 -mx-3 sm:-mx-4 mb-4 sm:mb-5 bg-white/95 dark:bg-slate-900/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:supports-[backdrop-filter]:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700">
+        <div className="flex overflow-x-auto px-3 sm:px-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         {([
           { id: 'papers' as Tab, label: `Assessments${papers.length ? ` (${papers.length})` : ''}` },
           { id: 'lessons' as Tab, label: unit.lesson_count > 0 ? `Lessons (${unit.lesson_count})` : 'Lessons' },
@@ -200,6 +203,7 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
             {t.label}
           </button>
         ))}
+        </div>
       </div>
 
       {/* Past Papers tab */}

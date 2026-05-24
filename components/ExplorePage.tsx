@@ -59,7 +59,7 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ onSelectUnit }) => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-4 sm:py-6">
+    <div className="max-w-5xl mx-auto px-3 sm:px-4 py-3 sm:py-6">
       <div className="mb-4 sm:mb-6">
         <h1 className="text-xl sm:text-3xl font-bold text-slate-900 dark:text-slate-50">Explore</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
