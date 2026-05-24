@@ -3,6 +3,7 @@ import { aiClient } from '../src/services/api';
 import apiClient from '../src/services/api';
 import { type View } from '../App';
 import MathMarkdown from './MathMarkdown';
+import { normaliseExplanation } from '../src/utils/explanation';
 
 interface QuizQuestion {
   id: string;
@@ -248,7 +249,7 @@ const InlineQuiz: React.FC<{
               {/* Explanation */}
               {submitted && q.explanation && (
                 <div className="pl-8 text-xs text-slate-500 dark:text-slate-400 italic">
-                  <MathMarkdown>{q.explanation}</MathMarkdown>
+                  <MathMarkdown>{normaliseExplanation(q.explanation)}</MathMarkdown>
                 </div>
               )}
             </div>

@@ -4,6 +4,7 @@ import { XIcon } from './icons/XIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import MathMarkdown from './MathMarkdown';
+import { normaliseExplanation } from '../src/utils/explanation';
 import { aiClient } from '../src/services/api';
 import apiClient from '../src/services/api';
 import { assessmentService, type QuestionResult } from '../src/services/assessmentService';
@@ -1150,9 +1151,9 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
                   <div className="pt-2 border-t border-emerald-200 dark:border-emerald-800">
                     <div className="font-semibold text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Explanation</div>
                     {(q as any).images?.length > 0 ? (
-                      <MathMarkdown images={(q as any).images}>{(q as any).explanation}</MathMarkdown>
+                      <MathMarkdown images={(q as any).images}>{normaliseExplanation((q as any).explanation)}</MathMarkdown>
                     ) : (
-                      <MarkdownRenderer content={(q as any).explanation} />
+                      <MarkdownRenderer content={normaliseExplanation((q as any).explanation)} />
                     )}
                   </div>
                 )}
@@ -1183,9 +1184,9 @@ Reply with JSON: {"score": 0-100, "feedback": "1-2 sentence feedback"}`;
                   {q.type === 'essay' ? 'Model Solution' : 'Explanation'}
                 </div>
                 {(q as any).images?.length > 0 ? (
-                  <MathMarkdown images={(q as any).images}>{(q as any).explanation}</MathMarkdown>
+                  <MathMarkdown images={(q as any).images}>{normaliseExplanation((q as any).explanation)}</MathMarkdown>
                 ) : (
-                  <MarkdownRenderer content={(q as any).explanation} />
+                  <MarkdownRenderer content={normaliseExplanation((q as any).explanation)} />
                 )}
               </div>
             )}
