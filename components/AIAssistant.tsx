@@ -34,6 +34,9 @@ interface AIAssistantProps {
   quizSaved?: boolean;
   onSeekTo?: (seconds: number) => void;
   hasTranscript?: boolean;
+  /** True when the AI is scoped to a curriculum unit — it already knows the
+   *  unit's syllabus, so we suppress the "no transcript" prompts/warnings. */
+  unitContext?: boolean;
 }
 
 type ActiveTab = 'chat' | 'quiz';
@@ -52,6 +55,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   quizSaved,
   onSeekTo,
   hasTranscript = false,
+  unitContext = false,
 }) => {
   const [input, setInput] = useState('');
   const [activeTab, setActiveTab] = useState<ActiveTab>('chat');
@@ -72,8 +76,16 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
 
   useEffect(scrollToBottom, [messages]);
 
-  // Transcript-dependent prompts only make sense when we have the video content
-  const quickPrompts = hasTranscript ? [
+  // Quick prompts differ by what the AI already knows:
+  //  • video transcript loaded  → ask about the video
+  //  • curriculum unit loaded   → ask about the unit's syllabus
+  //  • nothing                  → generic "tell me what you're studying"
+  const quickPrompts = unitContext ? [
+    { label: 'Explain a topic', prompt: 'Pick one key topic from this unit and explain it as if I am new to it, with intuition and a worked example.' },
+    { label: 'Worked example', prompt: 'Walk me through a worked example on this unit, step by step.' },
+    { label: 'Quiz me', prompt: 'Ask me 3 short questions to test my understanding of this unit. Wait for my answers before showing solutions.' },
+    { label: 'Exam focus', prompt: 'Based on this unit\'s syllabus, what are the most important topics to focus on for an exam? List them in priority order.' },
+  ] : hasTranscript ? [
     { label: 'Summarize', prompt: 'Summarize the key points covered so far in 3 bullet points.' },
     { label: 'Key terms', prompt: 'List the key terms and define each one briefly.' },
     { label: 'Explain simply', prompt: 'Explain the main concept like I am completely new to the topic.' },
@@ -213,9 +225,15 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                             className="gap-2"
                         >
                             <LightbulbIcon className="w-4 h-4" />
-                            {quiz ? 'Regenerate quiz' : hasTranscript ? 'Generate quiz from transcript' : 'Generate quiz on this topic'}
+                            {quiz
+                              ? 'Regenerate quiz'
+                              : unitContext
+                                ? 'Generate quiz on this unit'
+                                : hasTranscript
+                                  ? 'Generate quiz from transcript'
+                                  : 'Generate quiz on this topic'}
                         </Button>
-                        {!hasTranscript && (
+                        {!hasTranscript && !unitContext && (
                           <span className="text-xs text-amber-600 dark:text-amber-400">
                             No transcript — tell me what you're studying first
                           </span>

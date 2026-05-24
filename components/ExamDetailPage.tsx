@@ -500,23 +500,25 @@ export const ExamDetailPage: React.FC<ExamDetailPageProps> = ({ exam, setView, o
             </div>
 
             <div className="flex-1 min-h-0 bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
-                <div className="p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                    {/* Large type badge + title */}
-                    <div className="flex items-start gap-3 flex-wrap mb-2">
+                <div className="p-3 sm:p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+                    {/* Type badge + title — compact on mobile so the question area gets real estate */}
+                    <div className="flex items-start gap-2 sm:gap-3 flex-wrap mb-1 sm:mb-2">
                         {assessmentType === 'exam' ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-extrabold uppercase tracking-widest border-2 border-amber-400 bg-amber-100 text-amber-800 dark:border-amber-600 dark:bg-amber-900/40 dark:text-amber-200 shadow-sm flex-shrink-0">
-                                <span className="w-2 h-2 rounded-full bg-amber-500 dark:bg-amber-400" />
+                            <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-0.5 sm:py-1.5 rounded-md sm:rounded-lg text-[10px] sm:text-sm font-extrabold uppercase tracking-widest border sm:border-2 border-amber-400 bg-amber-100 text-amber-800 dark:border-amber-600 dark:bg-amber-900/40 dark:text-amber-200 shadow-sm flex-shrink-0">
+                                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-500 dark:bg-amber-400" />
                                 EXAM
                             </span>
                         ) : (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-extrabold uppercase tracking-widest border-2 border-blue-400 bg-blue-100 text-blue-800 dark:border-blue-600 dark:bg-blue-900/40 dark:text-blue-200 shadow-sm flex-shrink-0">
-                                <span className="w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400" />
+                            <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-0.5 sm:py-1.5 rounded-md sm:rounded-lg text-[10px] sm:text-sm font-extrabold uppercase tracking-widest border sm:border-2 border-blue-400 bg-blue-100 text-blue-800 dark:border-blue-600 dark:bg-blue-900/40 dark:text-blue-200 shadow-sm flex-shrink-0">
+                                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-500 dark:bg-blue-400" />
                                 QUIZ
                             </span>
                         )}
-                        <h1 className="text-2xl font-bold text-slate-800 dark:text-white leading-tight">{liveExam.title}</h1>
+                        <h1 className="text-base sm:text-2xl font-bold text-slate-800 dark:text-white leading-tight">{liveExam.title}</h1>
                     </div>
-                    <p className="text-slate-600 dark:text-slate-400 mt-1">{liveExam.description}</p>
+                    {liveExam.description && (
+                        <p className="text-xs sm:text-base text-slate-600 dark:text-slate-400 mt-0.5 sm:mt-1 line-clamp-2 sm:line-clamp-none">{liveExam.description}</p>
+                    )}
 
                     {/* AI grading notice — shown before starting */}
                     {hasAiGradedQuestions && !hasStarted && (

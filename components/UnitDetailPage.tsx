@@ -370,6 +370,7 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
             quiz={quiz}
             onUpdateQuiz={setQuiz}
             hasTranscript={false}
+            unitContext
           />
         </div>
       )}
