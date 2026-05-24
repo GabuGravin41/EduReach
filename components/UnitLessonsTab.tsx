@@ -180,7 +180,7 @@ export const UnitLessonsTab: React.FC<UnitLessonsTabProps> = ({ unitId, onPlayLe
                   {/* Thumbnail */}
                   <button
                     onClick={() => onPlayLesson(lesson)}
-                    className="relative flex-none w-32 h-20 rounded-lg overflow-hidden bg-slate-200 dark:bg-slate-700 group"
+                    className="relative flex-none w-24 sm:w-32 h-16 sm:h-20 rounded-lg overflow-hidden bg-slate-200 dark:bg-slate-700 group"
                   >
                     {lesson.thumbnail_url && (
                       <img

@@ -13,10 +13,10 @@ export const MySemesterPage: React.FC<MySemesterPageProps> = ({ onSelectUnit, on
   const enrolledUnits = useMemo(() => enrolled.map(e => e.unit), [enrolled]);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+    <div className="max-w-5xl mx-auto px-4 py-4 sm:py-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4 sm:mb-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-50">
+          <h1 className="text-xl sm:text-3xl font-bold text-slate-900 dark:text-slate-50">
             Courses
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -66,7 +66,7 @@ export const MySemesterPage: React.FC<MySemesterPageProps> = ({ onSelectUnit, on
                 className="text-left bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md transition-all"
               >
                 <div className={`h-1.5 bg-gradient-to-r ${theme.headerGradient}`} />
-                <div className="p-5">
+                <div className="p-4 sm:p-5">
                   <div className="flex items-center gap-2 text-xs font-semibold mb-1">
                     {unit.code && <span className={theme.accentText}>{unit.code}</span>}
                     <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${theme.chip}`}>

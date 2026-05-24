@@ -59,9 +59,9 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ onSelectUnit }) => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6">
-      <div className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-50">Explore</h1>
+    <div className="max-w-5xl mx-auto px-4 py-4 sm:py-6">
+      <div className="mb-4 sm:mb-6">
+        <h1 className="text-xl sm:text-3xl font-bold text-slate-900 dark:text-slate-50">Explore</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           {filter === 'recommended'
             ? 'Picked for you, based on what you told us you’re studying. Add any to your semester.'
@@ -137,7 +137,7 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ onSelectUnit }) => {
               <div
                 key={unit.id}
                 onClick={() => onSelectUnit(unit.id)}
-                className="cursor-pointer bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md transition-all"
+                className="cursor-pointer bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 sm:p-5 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md transition-all"
               >
                 <div className={`flex items-center gap-2 text-xs font-semibold mb-1 ${meta.accent}`}>
                   {unit.code && <span>{unit.code}</span>}

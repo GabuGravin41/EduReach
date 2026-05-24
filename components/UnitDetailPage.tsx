@@ -160,26 +160,26 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
     : papers;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6">
+    <div className="max-w-5xl mx-auto px-4 py-4 sm:py-6">
       {/* Header */}
       <button
         onClick={onBack}
-        className="text-sm text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 mb-3"
+        className="text-sm text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 mb-2 sm:mb-3"
       >
         ← Courses
       </button>
-      <div className={`bg-gradient-to-br ${themeForTrack(unit.track).headerGradient} rounded-2xl p-6 text-white mb-6`}>
-        <div className="flex items-center gap-2 text-xs font-medium text-white/70 mb-1">
+      <div className={`bg-gradient-to-br ${themeForTrack(unit.track).headerGradient} rounded-xl sm:rounded-2xl p-4 sm:p-6 text-white mb-4 sm:mb-6`}>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] sm:text-xs font-medium text-white/70 mb-1">
           {unit.code && <span>{unit.code}</span>}
           {unit.level && <span>· {unit.level}</span>}
           {unit.institution && <span>· {unit.institution}</span>}
         </div>
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2">{unit.name}</h1>
-        <p className="text-sm text-white/85 leading-relaxed">{unit.syllabus_summary}</p>
+        <h1 className="text-xl sm:text-3xl font-bold mb-1.5 sm:mb-2 leading-tight">{unit.name}</h1>
+        <p className="text-xs sm:text-sm text-white/85 leading-relaxed">{unit.syllabus_summary}</p>
       </div>
 
-      {/* Tabs — stay pinned while the tab content scrolls */}
-      <div className="flex border-b border-slate-200 dark:border-slate-700 mb-5 sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:supports-[backdrop-filter]:bg-slate-900/80">
+      {/* Tabs — pinned while content scrolls, and horizontally scrollable on mobile */}
+      <div className="flex border-b border-slate-200 dark:border-slate-700 mb-4 sm:mb-5 sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:supports-[backdrop-filter]:bg-slate-900/80 overflow-x-auto -mx-4 px-4">
         {([
           { id: 'papers' as Tab, label: `Assessments${papers.length ? ` (${papers.length})` : ''}` },
           { id: 'lessons' as Tab, label: unit.lesson_count > 0 ? `Lessons (${unit.lesson_count})` : 'Lessons' },
@@ -191,7 +191,7 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
           <button
             key={t.id}
             onClick={() => setActiveTab(t.id)}
-            className={`px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${
+            className={`flex-none px-3 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold border-b-2 whitespace-nowrap transition-colors ${
               activeTab === t.id
                 ? 'text-indigo-600 dark:text-indigo-400 border-indigo-600 dark:border-indigo-400'
                 : 'text-slate-500 dark:text-slate-400 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
