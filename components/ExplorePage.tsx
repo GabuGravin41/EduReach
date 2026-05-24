@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useUnits, useEnrolUnit, useUnenrolUnit } from '../src/hooks/useCurriculum';
 import { useAuth } from '../src/contexts/useAuth';
 import { profileTrack } from '../src/services/curriculumService';
+import { yearFromCode, profileYear, YEAR_LABEL } from '../src/utils/unitCode';
 import type { Unit, UnitTrack } from '../src/services/curriculumService';
 
 interface ExplorePageProps {
@@ -22,10 +23,13 @@ const FILTER_META: Record<Filter, { label: string; accent: string; activeBg: str
 export const ExplorePage: React.FC<ExplorePageProps> = ({ onSelectUnit }) => {
   const { user } = useAuth();
   const recTrack = useMemo(() => profileTrack(user), [user]);
+  const userYear = useMemo(() => profileYear(user), [user]);
 
   // Open on a profile-tailored view when we have a signal; otherwise everything.
   const [filter, setFilter] = useState<Filter>(recTrack ? 'recommended' : 'all');
   const [search, setSearch] = useState('');
+  // Engineering-only — defaults to the student's year of study.
+  const [yearFilter, setYearFilter] = useState<number | 'all'>(userYear ?? 'all');
 
   // 'recommended' resolves to the profile track; 'all' to no track filter.
   const trackParam: UnitTrack | undefined =
@@ -36,6 +40,13 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ onSelectUnit }) => {
   const { data: units = [], isLoading } = useUnits(trackParam, search.trim() || undefined);
   const enrol = useEnrolUnit();
   const unenrol = useUnenrolUnit();
+
+  // Year chips only make sense in an engineering view (codes carry the year).
+  const showYearChips = trackParam === 'engineering';
+  const visibleUnits = useMemo(() => {
+    if (!showYearChips || yearFilter === 'all') return units;
+    return units.filter(u => yearFromCode(u.code) === yearFilter);
+  }, [units, showYearChips, yearFilter]);
 
   const filters: Filter[] = recTrack
     ? ['recommended', 'all', 'engineering', 'olympiad', 'general']
@@ -83,22 +94,45 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ onSelectUnit }) => {
         </div>
       </div>
 
+      {/* Year chips — university units encode the year in the first digit of the code. */}
+      {showYearChips && (
+        <div className="flex flex-wrap items-center gap-1.5 mb-5 -mt-3">
+          <span className="text-xs text-slate-400 mr-1">Year</span>
+          {(['all', 1, 2, 3, 4, 5] as const).map(y => (
+            <button
+              key={y}
+              onClick={() => setYearFilter(y as number | 'all')}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
+                yearFilter === y
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+              }`}
+            >
+              {y === 'all' ? 'All' : y}
+            </button>
+          ))}
+        </div>
+      )}
+
       {isLoading ? (
         <div className="grid sm:grid-cols-2 gap-4">
           {[1, 2, 3, 4].map(n => (
             <div key={n} className="h-32 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
           ))}
         </div>
-      ) : units.length === 0 ? (
+      ) : visibleUnits.length === 0 ? (
         <p className="text-sm text-slate-400 text-center py-16">
           {search.trim()
             ? 'Nothing matches that search. Try a different term.'
-            : 'Nothing here yet.'}
+            : showYearChips && yearFilter !== 'all'
+              ? `No ${YEAR_LABEL[yearFilter as number]} units yet. Try another year.`
+              : 'Nothing here yet.'}
         </p>
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
-          {units.map(unit => {
+          {visibleUnits.map(unit => {
             const meta = FILTER_META[(unit.track as Filter)] ?? FILTER_META.all;
+            const yr = yearFromCode(unit.code);
             return (
               <div
                 key={unit.id}
@@ -108,6 +142,9 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ onSelectUnit }) => {
                 <div className={`flex items-center gap-2 text-xs font-semibold mb-1 ${meta.accent}`}>
                   {unit.code && <span>{unit.code}</span>}
                   <span className="uppercase tracking-wide text-[10px]">{meta.label}</span>
+                  {yr && unit.track === 'engineering' && (
+                    <span className="uppercase tracking-wide text-[10px] text-slate-400">· Yr {yr}</span>
+                  )}
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-slate-50 mb-1">{unit.name}</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-3">

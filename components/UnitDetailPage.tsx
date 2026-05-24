@@ -37,6 +37,8 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
   const [quiz, setQuiz] = useState<QuizQuestion[] | null>(null);
   const [addPaperOpen, setAddPaperOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
+  // Olympiad lens: show only papers from real competitions (IMO, PAMO, etc.).
+  const [competitionsOnly, setCompetitionsOnly] = useState(false);
 
   // Unit notes — one notepad per user per unit.
   const [noteContent, setNoteContent] = useState('');
@@ -152,6 +154,11 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
     );
   }
 
+  const hasCompetitionPapers = papers.some(p => p.competition_name);
+  const visiblePapers = competitionsOnly
+    ? papers.filter(p => p.competition_name)
+    : papers;
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
       {/* Header */}
@@ -199,9 +206,23 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
       {activeTab === 'papers' && (
         <div>
           <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              {papersLoading ? '' : `${papers.length} assessment${papers.length === 1 ? '' : 's'}`}
-            </p>
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {papersLoading ? '' : `${visiblePapers.length} assessment${visiblePapers.length === 1 ? '' : 's'}`}
+              </p>
+              {hasCompetitionPapers && (
+                <button
+                  onClick={() => setCompetitionsOnly(v => !v)}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
+                    competitionsOnly
+                      ? 'bg-violet-600 text-white'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                  }`}
+                >
+                  🏆 Competitions only
+                </button>
+              )}
+            </div>
             <div className="flex gap-2">
               <button
                 onClick={() => setAttachOpen(true)}
@@ -223,11 +244,13 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
                 <div key={n} className="h-20 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
               ))}
             </div>
-          ) : papers.length === 0 ? (
+          ) : visiblePapers.length === 0 ? (
             <div className="text-center py-14 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
               <p className="text-4xl mb-3">📄</p>
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">
-                No assessments for this unit yet.
+                {competitionsOnly
+                  ? 'No competition papers tagged here yet.'
+                  : 'No assessments for this unit yet.'}
               </p>
               <p className="text-xs text-slate-400 dark:text-slate-500 mb-4 max-w-sm mx-auto">
                 Upload a past paper, tag an existing assessment, or use the AI
@@ -256,7 +279,7 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
             </div>
           ) : (
             <div className="space-y-3">
-              {papers.map(paper => (
+              {visiblePapers.map(paper => (
                 <button
                   key={paper.id}
                   onClick={() => onSelectPaper(paper.id)}
@@ -267,11 +290,17 @@ export const UnitDetailPage: React.FC<UnitDetailPageProps> = ({ unitId, onBack, 
                       <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50 truncate">
                         {paper.title}
                       </h3>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        {paper.question_count} question{paper.question_count === 1 ? '' : 's'}
-                        {paper.competition_name ? ` · ${paper.competition_name}` : ''}
-                        {paper.source_year ? ` · ${paper.source_year}` : ''}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        {paper.competition_name && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-950/50 text-violet-700 dark:text-violet-300 uppercase tracking-wide">
+                            🏆 {paper.competition_name}
+                          </span>
+                        )}
+                        <p className="text-xs text-slate-400">
+                          {paper.question_count} question{paper.question_count === 1 ? '' : 's'}
+                          {paper.source_year ? ` · ${paper.source_year}` : ''}
+                        </p>
+                      </div>
                     </div>
                     {paper.difficulty_level && (
                       <span className="flex-none text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 capitalize">
