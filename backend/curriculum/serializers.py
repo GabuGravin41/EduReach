@@ -25,12 +25,18 @@ class UnitSerializer(serializers.ModelSerializer):
         return obj.lessons.count()
 
     def get_paper_count(self, obj):
-        # Past papers are Assessment records matching the unit's topic_keywords.
+        # Prefer directly-attached papers — that's the precise per-unit count.
+        # Only fall back to the coarse topic-keyword bucket when nothing is
+        # directly attached (so e.g. olympiad units still get a meaningful
+        # number).
+        from assessments.models import Assessment
+        attached = Assessment.objects.filter(unit=obj, is_public=True).count()
+        if attached:
+            return attached
         keywords = [k for k in (obj.topic_keywords or []) if k]
         if not keywords:
             return 0
         from django.db.models import Q
-        from assessments.models import Assessment
         topic_q = Q()
         for kw in keywords:
             topic_q |= Q(topic__iexact=kw)
