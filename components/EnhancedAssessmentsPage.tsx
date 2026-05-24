@@ -565,7 +565,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
             <div className="max-w-7xl mx-auto animate-pulse">
                 <div className="h-10 w-56 bg-slate-200 dark:bg-slate-700 rounded-lg mb-3" />
                 <div className="h-4 w-80 bg-slate-200 dark:bg-slate-700 rounded mb-8" />
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-5 sm:mb-8">
                     {[1, 2, 3].map(i => (
                         <div key={i} className="h-24 bg-slate-200 dark:bg-slate-700 rounded-xl" />
                     ))}
@@ -582,7 +582,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
     return (
         <div className="max-w-7xl mx-auto overflow-x-hidden">
             {/* Header */}
-            <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start mb-8 gap-4">
+            <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start mb-5 sm:mb-8 gap-3 sm:gap-4">
                 <div className="min-w-0">
                     <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-slate-100">Assessments</h1>
                     <p className="text-slate-600 dark:text-slate-400 mt-1">
@@ -605,24 +605,24 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
             </div>
 
             {/* Real Stat Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-                <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 flex flex-col gap-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-5 sm:mb-8">
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 sm:p-5 border border-slate-200 dark:border-slate-700 flex flex-col gap-1">
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Completed</p>
-                    <p className="text-3xl font-black text-slate-800 dark:text-slate-100">{completedAssessments.length}</p>
+                    <p className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-slate-100">{completedAssessments.length}</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">of {(assessments || []).length} total</p>
                 </div>
-                <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 flex flex-col gap-1">
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 sm:p-5 border border-slate-200 dark:border-slate-700 flex flex-col gap-1">
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Avg Score</p>
-                    <p className="text-3xl font-black text-slate-800 dark:text-slate-100">
+                    <p className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-slate-100">
                         {avgScore !== null ? `${avgScore}%` : '—'}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                         {completedAssessments.length > 0 ? `across ${completedAssessments.length} attempt${completedAssessments.length !== 1 ? 's' : ''}` : 'No attempts yet'}
                     </p>
                 </div>
-                <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 flex flex-col gap-1">
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 sm:p-5 border border-slate-200 dark:border-slate-700 flex flex-col gap-1">
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Monthly Limit</p>
-                    <p className="text-3xl font-black text-slate-800 dark:text-slate-100">
+                    <p className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-slate-100">
                         {usage.assessments_used}
                         <span className="text-lg font-semibold text-slate-400"> / {usage.assessments_limit === Infinity ? '∞' : usage.assessments_limit}</span>
                     </p>
@@ -635,7 +635,7 @@ export const EnhancedAssessmentsPage: React.FC<EnhancedAssessmentsPageProps> = (
 
 
             {/* Create New Section */}
-            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-slate-800 dark:to-slate-700 rounded-xl p-6 mb-8">
+            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-slate-800 dark:to-slate-700 rounded-xl p-4 sm:p-6 mb-5 sm:mb-8">
                 <div className="flex justify-between items-center mb-4">
                     <div>
                         <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Create New Assessment</h2>

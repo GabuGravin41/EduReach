@@ -718,7 +718,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
 
   return (
     <>
-    <div className="flex flex-col lg:flex-row gap-4 lg:h-[calc(100svh-4rem)] lg:overflow-hidden relative p-4 sm:p-6 lg:p-0">
+    <div className="flex flex-col lg:flex-row gap-3 sm:gap-4 lg:h-[calc(100svh-4rem)] lg:overflow-hidden relative p-3 sm:p-6 lg:p-0">
       {/* ── Lesson completion celebration banner ── */}
       {showCompletionBanner && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 animate-bounce pointer-events-none">
@@ -887,7 +887,7 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
 
         {/* Tabbed bottom panel — Search Videos | Notes */}
         {isStudyPanelOpen && (
-          <div className="lg:flex-none lg:min-h-0 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 flex flex-col min-h-[340px] lg:min-h-[300px]">
+          <div className="lg:flex-none lg:min-h-0 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 flex flex-col min-h-[240px] sm:min-h-[340px] lg:min-h-[300px]">
             {/* Tab bar */}
             <div className="flex flex-shrink-0 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-t-xl overflow-hidden">
               <button
@@ -945,8 +945,8 @@ export const LearningSession: React.FC<LearningSessionProps> = ({
             transition-all duration-300 ease-in-out
             lg:w-[30%] lg:opacity-100 lg:h-full lg:min-h-0
             ${isStudyPanelOpen
-              ? 'min-h-[300px] lg:min-h-0'
-              : 'min-h-[400px] lg:min-h-0'
+              ? 'min-h-[220px] sm:min-h-[300px] lg:min-h-0'
+              : 'min-h-[280px] sm:min-h-[400px] lg:min-h-0'
             }
           `}
         >
